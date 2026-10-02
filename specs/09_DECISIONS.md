@@ -62,3 +62,21 @@ Decisões:
 3. O painel **não** deve baixar `conversation_logs` brutos no browser para
    montar essas métricas; em falha do endpoint, erro + retry.
 4. Não inventar agentes sem `trail_id` confirmado pelo produto.
+
+## Decisão 10 — Omnichannel: Shared Trail Engine + strangler (ADR-001…010)
+
+Wave 0 congela contratos. Detalhe: `docs/omnichannel-architecture.md`,
+`specs/11`–`14`, `AGENTS.md`.
+
+Decisões:
+
+1. SoT de progresso = `student_trails` (um cursor; canal só auditoria) — ADR-001 / I1.
+2. Domínio em `server/lib/trail-engine`; Chatis 2.4 via strangler nos paths atuais — ADR-002 / I3–I4.
+3. Fachada `next-content` / `advance` / `status` / `by-phone` **additive**; `?action=` até 2.5+ — ADR-003.
+4. Telefone: lookup variantes; canónico `55…` em escrita nova; backfill opt-in — ADR-004 / I6.
+5. `progress_version` + `Idempotency-Key` no advance do motor — ADR-005 / I7.
+6. Módulo Trilha em `frontend/trilha-admin` (`/trilha/*`); não reusar stub `cria-frontend` — ADR-006 / I9.
+7. Tutores/Superagentes ficam no Chatis na v1 do app — ADR-007.
+8. Mutações de progresso do aluno só via API/motor — ADR-008.
+9. Upgrade JSON Chatis não reseta progresso in-progress — ADR-009 / I5.
+10. AuthZ aluno por `student_id` de sessão; Bearer de serviço para Chatis — ADR-010 / I8.

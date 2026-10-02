@@ -27,7 +27,7 @@ Campos:
 
 - institution_id: string
 - name: string
-- phone_number: string
+- phone_number: string (digitos; canonico 55… em escrita nova)
 - school_level: string
 - school_grade: string
 - student_level: 1 | 2 | 3
@@ -92,10 +92,37 @@ Campos:
 - created_at: timestamp
 - updated_at: timestamp
 
+### student_trails
+
+```text
+student_trails/{student_id}_trail_{trail_id}
+```
+
+Campos:
+
+- student_id, trail_id
+- current_stage_number, current_question_number
+- status: not_started | in_progress | completed | blocked
+- started_at, completed_at, last_interaction_at
+- created_at, updated_at
+- (Wave A additive) progress_version, last_idempotency_key, last_advance_at, last_channel, last_delivered
+
+SoT unico de progresso (omnichannel I1).
+
+### conversation_logs
+
+Append-only. `trail_id` pode ser curricular (`tN`) ou namespace de tutor (`Trilha - …` / `Tutor - …`).
+
+### exercise_attempts
+
+Tentativas; nao avancam progresso sozinhas.
+
 ### counters
 
 ```text
 counters/trails
+counters/students
+counters/institutions
 ```
 
 Campos:
@@ -110,3 +137,5 @@ Campos:
 - `stage_type = ai` exige prompt.
 - `stage_type = fixed` e `exercise` usam prompt nulo.
 - Conteudo nao liberado nao deve ser entregue ao aluno.
+- Telefone: politica nao-destrutiva em `docs/phone-normalization.md`.
+- Omnichannel: `docs/omnichannel-architecture.md`.

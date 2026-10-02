@@ -74,9 +74,12 @@ O painel administrativo usa Firestore Client SDK.
 
 Integracoes externas, como Chatis, devem usar API HTTP.
 
+Omnichannel (Trilha ↔ WhatsApp): um cursor em `student_trails`; Shared Trail Engine no servidor; Chatis 2.4 via strangler. Ver `docs/omnichannel-architecture.md` e `AGENTS.md`.
+
 ## 7. Riscos conhecidos
 
-- Endpoints documentados podem ainda nao estar implementados.
-- Chatis precisa de API real para nao depender de Firestore direto.
+- Endpoints documentados da fachada (`next-content` / `advance`) podem ainda nao estar implementados (Wave A).
+- Chatis 2.4 usa paths legados; nao remover ate cutover 2.5+.
+- Triple-writer de progresso (admin Client + API + futuro app) deve convergir no motor (Wave B).
 - Regras de seguranca do Firestore devem ser revisadas se painel continuar usando Client SDK.
 - Toda mudanca no modelo precisa ser refletida em specs e docs.

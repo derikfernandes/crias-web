@@ -171,8 +171,25 @@ Critério de conclusão:
 ## Fase 8 — Documentação final
 
 - [ ] Criar `usage.md`.
-- [ ] Criar `architecture.md`.
-- [ ] Criar `firestore-schema.md`.
-- [ ] Criar `chatis-flow.md`.
+- [x] Criar `architecture.md`.
+- [x] Criar `firestore-schema.md`.
+- [x] Criar `chatis-flow.md`.
 - [ ] Criar guia de operação do painel.
 - [ ] Criar guia de troubleshooting Firebase/Vercel.
+
+## Fase 9 — Omnichannel Wave 0 (docs + contratos)
+
+- [x] Congelar I1–I10 em `specs/11_OMNICHANNEL_INVARIANTS.md` + `AGENTS.md`.
+- [x] Contrato Shared Trail Engine `specs/12_SHARED_TRAIL_ENGINE.md`.
+- [x] Contrato strangler Chatis 2.4 vs fachada next-content `specs/13_*` + `docs/chatis-strangler-contract.md`.
+- [x] Política telefone não-destrutiva `specs/14_*` + `docs/phone-normalization.md`.
+- [x] Resumo arquitetura permanente `docs/omnichannel-architecture.md`.
+- [x] Atualizar `03_FIRESTORE_MODEL` / `docs/firestore-schema` (collections omitidas + campos additive).
+- [x] Regras Cursor `.cursor/rules/omnichannel-sot.mdc`.
+- [ ] Wave A — runtime `server/lib/trail-engine/**` (peer; fora deste TASK).
+
+Critério de conclusão Wave 0:
+
+- Specs 11–14 + AGENTS.md no repo.
+- Zero runtime trail-engine nesta wave.
+- Discovery/ADRs refletidos; SoT e strangler documentados para agentes futuros.

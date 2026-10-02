@@ -185,7 +185,17 @@ Remove conteúdo.
 
 ## 9. Student Trails / Conversational API
 
-Rotas necessárias para Chatis.
+Duas superfícies coexistem (omnichannel Wave 0+):
+
+| Superfície | Uso | Spec detalhada |
+|------------|-----|----------------|
+| **Legado Chatis 2.4** | `GET /student?phone_number=`, `GET /student_trails?…`, `PUT /student_trails?action=*` | `specs/13_CHATIS_STRANGLER_CONTRACT.md` |
+| **Fachada (alvo)** | rotas abaixo (`next-content`, `advance`, `status`, `by-phone`) | `specs/12_SHARED_TRAIL_ENGINE.md` |
+
+A fachada é **additive**. Não remover `?action=` até Chatis 2.5+ validado (I3).
+Ambas devem delegar ao Shared Trail Engine quando o runtime existir (Wave A).
+
+Rotas da fachada (contrato-alvo para Chatis 2.5+ e módulo Trilha):
 
 ### `GET /student_trails/next-content`
 
@@ -217,14 +227,21 @@ Resposta esperada:
 
 ### `POST /student_trails/advance`
 
-Avança o aluno para o próximo stage/question.
+Avança o aluno para o próximo stage/question (wrap no servidor — I4/I7).
+
+Headers:
+
+- `Idempotency-Key` (obrigatório no motor)
+- `Authorization: Bearer …`
 
 Body:
 
 ```json
 {
   "student_id": "s1",
-  "trail_id": "t1"
+  "trail_id": "t1",
+  "channel": "whatsapp",
+  "expected_version": 3
 }
 ```
 
@@ -235,9 +252,12 @@ Resposta esperada:
   "status": "ok",
   "next_stage_number": 2,
   "next_question_number": 1,
-  "completed": false
+  "completed": false,
+  "progress_version": 4
 }
 ```
+
+Códigos adicionais (motor): `conflict` (409) em version mismatch ou key incompatível; replay 200 se mesma key + mesmo efeito.
 
 ### `GET /student_trails/status`
 
@@ -247,6 +267,8 @@ Query params:
 
 - `student_id`
 - `trail_id`
+
+Resposta inclui posição, `status`, e (Wave A+) `progress_version` / `last_channel` (campos additive).
 
 ## 10. Respostas de erro padronizadas
 
@@ -267,7 +289,15 @@ Códigos esperados:
 - `completed`
 - `invalid_payload`
 - `unauthorized`
+- `conflict`
 - `internal_error`
+
+### Path legado Chatis 2.4 (não remover)
+
+- `GET /student?phone_number=` — miss → **200** `{}` (não 404).
+- `PUT /student_trails?action=advance_stage|advance_question|update_position|…` — strangler até cutover.
+
+Ver `docs/chatis-strangler-contract.md`.
 
 ## 11. Dashboard summary (painel)
 

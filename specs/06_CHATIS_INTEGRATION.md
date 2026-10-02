@@ -144,7 +144,20 @@ Se `options` for null, entregar o texto em `content`.
 
 ## 7. Avanço
 
-Depois de entregar o conteúdo, o Chatis deve chamar:
+### Chatis 2.4 (produção hoje)
+
+Usa primitivos legados (strangler):
+
+```text
+PUT /student_trails?action=advance_stage
+PUT /student_trails?action=advance_question
+```
+
+Não remover até cutover 2.5+ — ver `specs/13_CHATIS_STRANGLER_CONTRACT.md`.
+
+### Fachada (alvo 2.5+ / app Trilha)
+
+Depois de entregar o conteúdo, chamar:
 
 ```text
 POST /student_trails/advance
@@ -155,9 +168,12 @@ Body:
 ```json
 {
   "student_id": "s1",
-  "trail_id": "t1"
+  "trail_id": "t1",
+  "channel": "whatsapp"
 }
 ```
+
+Header: `Idempotency-Key` (obrigatório no motor).
 
 ## 8. Erros esperados
 
@@ -181,6 +197,17 @@ Conteúdo ainda não liberado.
 
 Aluno concluiu a trilha ou não há próximo conteúdo.
 
+### `conflict`
+
+Idempotency-Key incompatível ou `progress_version` mismatch (motor Wave A+).
+
 ## 9. Regra de ouro
 
-O Chatis não deve guardar a lógica de progressão. A API deve retornar o próximo estado.
+O Chatis não deve guardar a lógica de progressão como SoT. A API / Shared Trail Engine deve retornar o próximo estado (I4). O JSON 2.4 ainda orquestra wrap no cliente até o strangler + fachada estarem atrás do motor.
+
+## 10. Referências omnichannel
+
+- `specs/11_OMNICHANNEL_INVARIANTS.md`
+- `specs/12_SHARED_TRAIL_ENGINE.md`
+- `specs/13_CHATIS_STRANGLER_CONTRACT.md`
+- `docs/omnichannel-architecture.md`

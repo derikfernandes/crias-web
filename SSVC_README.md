@@ -14,8 +14,15 @@ Este repositório usa a metodologia SSVC — Skill-Spec Vibe Coding.
 - `specs/07_ACCEPTANCE.md`: critérios de aceite.
 - `specs/08_OUT_OF_SCOPE.md`: fora de escopo.
 - `specs/09_DECISIONS.md`: decisões arquiteturais.
+- `specs/10_AGENT_USAGE_DASHBOARD.md`: dashboard de uso de agentes.
+- `specs/11_OMNICHANNEL_INVARIANTS.md`: invariantes I1–I10 (omnichannel).
+- `specs/12_SHARED_TRAIL_ENGINE.md`: contrato do Shared Trail Engine.
+- `specs/13_CHATIS_STRANGLER_CONTRACT.md`: strangler 2.4 vs fachada next-content.
+- `specs/14_PHONE_NORMALIZATION.md`: política de telefone não-destrutiva.
 - `specs/tests.yaml`: testes agnósticos da metodologia.
 - `specs/TASKS.md`: plano de execução.
+
+Agentes: `AGENTS.md` · regras Cursor: `.cursor/rules/omnichannel-sot.mdc`.
 
 ## Skills
 
@@ -35,6 +42,9 @@ Este repositório usa a metodologia SSVC — Skill-Spec Vibe Coding.
 - `docs/api-routing.md`
 - `docs/chatis-flow.md`
 - `docs/ssvc-methodology.md`
+- `docs/omnichannel-architecture.md`: resumo estável omnichannel (Waves 0–D)
+- `docs/phone-normalization.md`
+- `docs/chatis-strangler-contract.md`
 
 ## Regra de trabalho
 
@@ -51,8 +61,9 @@ Antes de implementar qualquer nova funcionalidade:
 ## Separação operacional
 
 ```text
-Painel Admin -> Firestore Client SDK
-Chatis -> API HTTP -> Backend -> Firestore
+Painel Admin -> Firestore Client SDK (leituras; writes de progresso → motor na Wave B)
+Chatis 2.4 -> API HTTP (?action= strangler) -> Trail Engine -> Firestore
+App Trilha / Chatis 2.5+ -> next-content/advance -> Trail Engine -> Firestore
 ```
 
-Essa separação está documentada em `specs/05_ACTION_ROUTING_MAP.md` e `docs/api-routing.md`.
+Essa separação está documentada em `specs/05_ACTION_ROUTING_MAP.md`, `docs/api-routing.md` e `docs/omnichannel-architecture.md`.

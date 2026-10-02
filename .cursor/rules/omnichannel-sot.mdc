@@ -1,0 +1,24 @@
+---
+description: Omnichannel SoT e invariantes — não forkar progresso nem quebrar Chatis
+globs:
+  - server/lib/**/*
+  - api/**/*
+  - specs/**/*
+  - frontend/trilha-admin/src/pages/trilha/**/*
+  - frontend/trilha-admin/src/lib/trilha/**/*
+alwaysApply: true
+---
+
+# Omnichannel / Shared Trail Engine
+
+Antes de alterar progresso, identidade por telefone, ou integração Chatis:
+
+1. Ler `AGENTS.md` e `specs/11_OMNICHANNEL_INVARIANTS.md` (I1–I10).
+2. **SoT** de cursor = `student_trails/{sN}_trail_{tN}` apenas. Canal ≠ segundo progresso.
+3. Lógica de `getNextContent` / wrap `advance` / idempotência pertence a `server/lib/trail-engine/**` (Wave A). Não duplicar no React nem só no grafo Chatis.
+4. **Strangler Chatis 2.4:** manter `PUT ?action=advance_*|update_position|…` e `GET /student?phone_number=` → `{}` em miss. Fachada `next-content`/`advance` é additive. Ver `specs/13_CHATIS_STRANGLER_CONTRACT.md`.
+5. **Telefone (I6):** lookup com variantes; nunca sobrescrever doc no resolve; sem rename de `sN`. Ver `specs/14_PHONE_NORMALIZATION.md`.
+6. App Trilha: sem Client SDK write em `student_trails`.
+7. Wave 0 = docs only — não criar runtime `trail-engine` fora da wave A; evitar edição conflitante com o peer que implementa o motor.
+
+Arquitetura estável no repo: `docs/omnichannel-architecture.md`.

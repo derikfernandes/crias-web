@@ -14,6 +14,11 @@ import {
   parseIntLoose,
   sanitizeString,
 } from '../server/lib/conversationLogValidation'
+import {
+  assertServiceBearer,
+  isTrailEngineError,
+  trailEngineErrorToJson,
+} from '../server/lib/trail-engine'
 
 type Json = Record<string, unknown>
 
@@ -146,6 +151,26 @@ async function handleRequest(request: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: corsHeaders() })
   }
 
+  const respond = (status: number, body: Json): Response => {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        ...corsHeaders(),
+      },
+    })
+  }
+
+  // RT-H2: dumps de logs exigem service Bearer (sem IDOR anónimo).
+  try {
+    assertServiceBearer(request.headers)
+  } catch (e) {
+    if (isTrailEngineError(e)) {
+      return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+    }
+    throw e
+  }
+
   let db: ReturnType<typeof getFirestore>
   try {
     db = getDb()
@@ -163,16 +188,6 @@ async function handleRequest(request: Request): Promise<Response> {
 
   const collection =
     process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
-
-  const respond = (status: number, body: Json): Response => {
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        ...corsHeaders(),
-      },
-    })
-  }
 
   const qStudentId = url.searchParams.get('student_id')?.trim() || null
   const qTrailId = url.searchParams.get('trail_id')?.trim() || null

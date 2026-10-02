@@ -13,6 +13,11 @@ import {
   parseIntLoose,
   sanitizeString,
 } from '../server/lib/exerciseAttemptValidation'
+import {
+  assertServiceBearer,
+  isTrailEngineError,
+  trailEngineErrorToJson,
+} from '../server/lib/trail-engine'
 
 type Json = Record<string, unknown>
 
@@ -152,6 +157,26 @@ async function handleRequest(request: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: corsHeaders() })
   }
 
+  const respond = (status: number, body: Json): Response => {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        ...corsHeaders(),
+      },
+    })
+  }
+
+  // RT-H2: dumps de attempts exigem service Bearer (sem IDOR anónimo).
+  try {
+    assertServiceBearer(request.headers)
+  } catch (e) {
+    if (isTrailEngineError(e)) {
+      return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+    }
+    throw e
+  }
+
   let db: ReturnType<typeof getFirestore>
   try {
     db = getDb()
@@ -173,16 +198,6 @@ async function handleRequest(request: Request): Promise<Response> {
     process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
   const stagesCollection =
     process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
-
-  const respond = (status: number, body: Json): Response => {
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        ...corsHeaders(),
-      },
-    })
-  }
 
   const studentId = sanitizeString(url.searchParams.get('student_id'))
   const trailId = sanitizeString(url.searchParams.get('trail_id'))

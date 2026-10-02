@@ -8,6 +8,16 @@ import type {
   StudentTrailCreatePayload,
   StudentTrailStatus,
 } from './studentTrailValidation'
+import {
+  additiveProgressDefaults,
+  advance as engineAdvance,
+  buildStableIdempotencyKey,
+  markInteraction,
+  setProgressStatus,
+  snapshotToProgress,
+  studentTrailDocId as engineDocId,
+} from './trail-engine'
+import type { TrailChannel } from './trail-engine'
 
 export type StudentTrailRuntimePosition = {
   student_id: string
@@ -16,10 +26,36 @@ export type StudentTrailRuntimePosition = {
   current_stage_number: number
   current_question_number: number
   status: StudentTrailStatus
+  progress_version?: number
 }
 
 export function studentTrailDocId(studentId: string, trailId: string): string {
-  return `${studentId}_trail_${trailId}`
+  return engineDocId(studentId, trailId)
+}
+
+function resolveLegacyKey(input: {
+  headerKey?: string | null
+  channel: TrailChannel
+  studentId: string
+  trailId: string
+  intent: string
+  stage: number
+  question: number
+  progress_version: number
+  extra?: string
+}): string {
+  const fromHeader = input.headerKey?.trim()
+  if (fromHeader) return fromHeader
+  return buildStableIdempotencyKey({
+    channel: input.channel,
+    student_id: input.studentId,
+    trail_id: input.trailId,
+    intent: input.intent,
+    stage: input.stage,
+    question: input.question,
+    progress_version: input.progress_version,
+    extra: input.extra,
+  })
 }
 
 export async function createStudentTrail(
@@ -54,6 +90,7 @@ export async function createStudentTrail(
       last_interaction_at: null,
       created_at: now,
       updated_at: now,
+      ...additiveProgressDefaults(),
     }
 
     if (data.status === 'in_progress') {
@@ -113,249 +150,168 @@ export async function getStudentTrailPosition(
     studentId,
     trailId,
   )
-  if (!snap.exists) return null
-  const data = (snap.data() ?? {}) as Record<string, unknown>
-
-  const student_id =
-    typeof data.student_id === 'string' ? data.student_id : studentId
-  const institution_id =
-    typeof data.institution_id === 'string' ? data.institution_id : ''
-  const trail_id =
-    typeof data.trail_id === 'string' ? data.trail_id : trailId
-
-  const stageRaw = data.current_stage_number
-  const questionRaw = data.current_question_number
-
-  const current_stage_number =
-    typeof stageRaw === 'number' && Number.isFinite(stageRaw)
-      ? stageRaw
-      : 1
-  const current_question_number =
-    typeof questionRaw === 'number' && Number.isFinite(questionRaw)
-      ? questionRaw
-      : 1
-
-  const statusRaw =
-    typeof data.status === 'string' ? data.status : 'not_started'
-  const status: StudentTrailStatus =
-    statusRaw === 'in_progress' ||
-    statusRaw === 'completed' ||
-    statusRaw === 'blocked'
-      ? (statusRaw as StudentTrailStatus)
-      : 'not_started'
+  const progress = snapshotToProgress(snap)
+  if (!progress) return null
 
   return {
-    student_id,
-    institution_id,
-    trail_id,
-    current_stage_number,
-    current_question_number,
-    status,
+    student_id: progress.student_id,
+    institution_id: progress.institution_id,
+    trail_id: progress.trail_id,
+    current_stage_number: progress.current_stage_number,
+    current_question_number: progress.current_question_number,
+    status: progress.status,
+    progress_version: progress.progress_version,
   }
 }
 
+/**
+ * Strangler: Chatis 2.4 `advance_question` → motor com legacy_primitive.
+ * Efeito observado: question+1 (sem wrap).
+ * Idempotency: header se presente; senão chave estável posição+versão (I7).
+ */
 export async function advanceStudentTrailQuestion(
   db: Firestore,
-  collectionName: string,
+  _collectionName: string,
   studentId: string,
   trailId: string,
+  options?: { channel?: TrailChannel; idempotency_key?: string },
 ): Promise<StudentTrailRuntimePosition> {
-  const id = studentTrailDocId(studentId, trailId)
-  const ref = db.collection(collectionName).doc(id)
-  const now = FieldValue.serverTimestamp()
+  const channel = options?.channel ?? 'whatsapp'
+  const before = await getStudentTrailPosition(
+    db,
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails',
+    studentId,
+    trailId,
+  )
+  if (!before) {
+    throw new Error('Progresso da trilha não encontrado para este aluno.')
+  }
 
-  const result = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref)
-    if (!snap.exists) {
-      throw new Error('Progresso da trilha não encontrado para este aluno.')
-    }
-    const data = (snap.data() ?? {}) as Record<string, unknown>
-
-    const status = (typeof data.status === 'string'
-      ? data.status
-      : 'not_started') as StudentTrailStatus
-
-    if (status === 'completed' || status === 'blocked') {
-      throw new Error(
-        `Não é possível avançar questão quando o status é "${status}".`,
-      )
-    }
-
-    const stageRaw = data.current_stage_number
-    const questionRaw = data.current_question_number
-
-    const current_stage_number =
-      typeof stageRaw === 'number' && Number.isFinite(stageRaw)
-        ? stageRaw
-        : 1
-    const nextQuestion =
-      typeof questionRaw === 'number' && Number.isFinite(questionRaw)
-        ? questionRaw + 1
-        : 2
-
-    const patch: Record<string, unknown> = {
-      current_stage_number,
-      current_question_number: nextQuestion,
-      last_interaction_at: now,
-      updated_at: now,
-    }
-
-    if (status === 'not_started') {
-      patch.status = 'in_progress'
-      if (!data.started_at) {
-        patch.started_at = now
-      }
-    }
-
-    tx.update(ref, patch)
-
-    const institution_id =
-      typeof data.institution_id === 'string' ? data.institution_id : ''
-    const trail_id =
-      typeof data.trail_id === 'string' ? data.trail_id : trailId
-
-    const newStatus =
-      (patch.status as StudentTrailStatus | undefined) ?? status
-
-    const pos: StudentTrailRuntimePosition = {
-      student_id: studentId,
-      institution_id,
-      trail_id,
-      current_stage_number,
-      current_question_number: nextQuestion,
-      status: newStatus,
-    }
-    return pos
+  const key = resolveLegacyKey({
+    headerKey: options?.idempotency_key,
+    channel,
+    studentId,
+    trailId,
+    intent: 'advance_question',
+    stage: before.current_stage_number,
+    question: before.current_question_number,
+    progress_version: before.progress_version ?? 0,
   })
 
-  return result
+  const result = await engineAdvance(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    idempotency_key: key,
+    channel,
+    reason: 'legacy_primitive',
+    legacy_primitive: 'advance_question',
+  })
+
+  const pos = await getStudentTrailPosition(
+    db,
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails',
+    studentId,
+    trailId,
+  )
+  if (!pos) {
+    throw new Error('Progresso da trilha não encontrado para este aluno.')
+  }
+
+  return {
+    ...pos,
+    current_stage_number: result.next_stage_number,
+    current_question_number: result.next_question_number,
+    progress_version: result.progress_version,
+  }
 }
 
+/**
+ * Strangler: Chatis 2.4 `advance_stage` → motor com legacy_primitive.
+ * Efeito observado: stage+1 (sem wrap).
+ */
 export async function advanceStudentTrailStage(
   db: Firestore,
-  collectionName: string,
+  _collectionName: string,
   studentId: string,
   trailId: string,
+  options?: { channel?: TrailChannel; idempotency_key?: string },
 ): Promise<StudentTrailRuntimePosition> {
-  const id = studentTrailDocId(studentId, trailId)
-  const ref = db.collection(collectionName).doc(id)
-  const now = FieldValue.serverTimestamp()
+  const channel = options?.channel ?? 'whatsapp'
+  const before = await getStudentTrailPosition(
+    db,
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails',
+    studentId,
+    trailId,
+  )
+  if (!before) {
+    throw new Error('Progresso da trilha não encontrado para este aluno.')
+  }
 
-  const result = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref)
-    if (!snap.exists) {
-      throw new Error('Progresso da trilha não encontrado para este aluno.')
-    }
-    const data = (snap.data() ?? {}) as Record<string, unknown>
-
-    const status = (typeof data.status === 'string'
-      ? data.status
-      : 'not_started') as StudentTrailStatus
-
-    if (status === 'completed' || status === 'blocked') {
-      throw new Error(
-        `Não é possível avançar stage quando o status é "${status}".`,
-      )
-    }
-
-    const stageRaw = data.current_stage_number
-
-    const nextStage =
-      typeof stageRaw === 'number' && Number.isFinite(stageRaw)
-        ? stageRaw + 1
-        : 2
-
-    const questionRaw = data.current_question_number
-    const current_question_number =
-      typeof questionRaw === 'number' &&
-      Number.isFinite(questionRaw) &&
-      questionRaw >= 1
-        ? questionRaw
-        : 1
-
-    const patch: Record<string, unknown> = {
-      current_stage_number: nextStage,
-      last_interaction_at: now,
-      updated_at: now,
-    }
-
-    if (status === 'not_started') {
-      patch.status = 'in_progress'
-      if (!data.started_at) {
-        patch.started_at = now
-      }
-    }
-
-    tx.update(ref, patch)
-
-    const institution_id =
-      typeof data.institution_id === 'string' ? data.institution_id : ''
-    const trail_id =
-      typeof data.trail_id === 'string' ? data.trail_id : trailId
-
-    const newStatus =
-      (patch.status as StudentTrailStatus | undefined) ?? status
-
-    const pos: StudentTrailRuntimePosition = {
-      student_id: studentId,
-      institution_id,
-      trail_id,
-      current_stage_number: nextStage,
-      current_question_number,
-      status: newStatus,
-    }
-    return pos
+  const key = resolveLegacyKey({
+    headerKey: options?.idempotency_key,
+    channel,
+    studentId,
+    trailId,
+    intent: 'advance_stage',
+    stage: before.current_stage_number,
+    question: before.current_question_number,
+    progress_version: before.progress_version ?? 0,
   })
 
-  return result
+  const result = await engineAdvance(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    idempotency_key: key,
+    channel,
+    reason: 'legacy_primitive',
+    legacy_primitive: 'advance_stage',
+  })
+
+  const pos = await getStudentTrailPosition(
+    db,
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails',
+    studentId,
+    trailId,
+  )
+  if (!pos) {
+    throw new Error('Progresso da trilha não encontrado para este aluno.')
+  }
+
+  return {
+    ...pos,
+    current_stage_number: result.next_stage_number,
+    current_question_number: result.next_question_number,
+    progress_version: result.progress_version,
+  }
 }
 
 export async function markStudentTrailLastInteraction(
   db: Firestore,
-  collectionName: string,
+  _collectionName: string,
   studentId: string,
   trailId: string,
+  channel?: TrailChannel,
 ): Promise<void> {
-  const id = studentTrailDocId(studentId, trailId)
-  await updateStudentTrailFields(db, collectionName, id, {
-    last_interaction_at: FieldValue.serverTimestamp(),
+  await markInteraction(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    channel,
   })
 }
 
 export async function updateStudentTrailStatus(
   db: Firestore,
-  collectionName: string,
+  _collectionName: string,
   studentId: string,
   trailId: string,
   status: StudentTrailStatus,
+  channel?: TrailChannel,
 ): Promise<void> {
-  const id = studentTrailDocId(studentId, trailId)
-  const ref = db.collection(collectionName).doc(id)
-  const now = FieldValue.serverTimestamp()
-
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref)
-    if (!snap.exists) {
-      throw new Error('Progresso da trilha não encontrado para este aluno.')
-    }
-    const data = (snap.data() ?? {}) as Record<string, unknown>
-
-    const patch: Record<string, unknown> = {
-      status,
-      updated_at: now,
-    }
-
-    if (status === 'in_progress' || status === 'completed') {
-      if (!data.started_at) {
-        patch.started_at = now
-      }
-    }
-
-    if (status === 'completed') {
-      patch.completed_at = now
-    }
-
-    tx.update(ref, patch)
+  await setProgressStatus(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    status,
+    channel,
   })
 }
 
@@ -365,30 +321,14 @@ export async function completeStudentTrail(
   studentId: string,
   trailId: string,
 ): Promise<void> {
-  const id = studentTrailDocId(studentId, trailId)
-  const ref = db.collection(collectionName).doc(id)
-  const now = FieldValue.serverTimestamp()
-
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref)
-    if (!snap.exists) {
-      throw new Error('Progresso da trilha não encontrado para este aluno.')
-    }
-    const data = (snap.data() ?? {}) as Record<string, unknown>
-
-    const patch: Record<string, unknown> = {
-      status: 'completed',
-      completed_at: now,
-      last_interaction_at: now,
-      updated_at: now,
-    }
-
-    if (!data.started_at) {
-      patch.started_at = now
-    }
-
-    tx.update(ref, patch)
-  })
+  await updateStudentTrailStatus(
+    db,
+    collectionName,
+    studentId,
+    trailId,
+    'completed',
+    'whatsapp',
+  )
 }
 
 export async function blockStudentTrail(
@@ -397,6 +337,73 @@ export async function blockStudentTrail(
   studentId: string,
   trailId: string,
 ): Promise<void> {
-  await updateStudentTrailStatus(db, collectionName, studentId, trailId, 'blocked')
+  await updateStudentTrailStatus(
+    db,
+    collectionName,
+    studentId,
+    trailId,
+    'blocked',
+    'whatsapp',
+  )
 }
 
+/**
+ * Strangler: `update_position` passa a transaction + progress_version++.
+ */
+export async function updateStudentTrailPosition(
+  db: Firestore,
+  studentId: string,
+  trailId: string,
+  patch: {
+    current_stage_number?: number
+    current_question_number?: number
+  },
+  options?: { channel?: TrailChannel; idempotency_key?: string },
+): Promise<StudentTrailRuntimePosition> {
+  const channel = options?.channel ?? 'admin'
+  const before = await getStudentTrailPosition(
+    db,
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails',
+    studentId,
+    trailId,
+  )
+  if (!before) {
+    throw new Error('Progresso da trilha não encontrado para este aluno.')
+  }
+
+  const targetStage = patch.current_stage_number ?? before.current_stage_number
+  const targetQuestion =
+    patch.current_question_number ?? before.current_question_number
+
+  const key = resolveLegacyKey({
+    headerKey: options?.idempotency_key,
+    channel,
+    studentId,
+    trailId,
+    intent: 'update_position',
+    stage: before.current_stage_number,
+    question: before.current_question_number,
+    progress_version: before.progress_version ?? 0,
+    extra: `to:${targetStage}:${targetQuestion}`,
+  })
+
+  const result = await engineAdvance(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    idempotency_key: key,
+    channel,
+    reason: 'legacy_update_position',
+    set_stage: patch.current_stage_number,
+    set_question: patch.current_question_number,
+  })
+
+  return {
+    student_id: studentId,
+    institution_id: before.institution_id,
+    trail_id: trailId,
+    current_stage_number: result.next_stage_number,
+    current_question_number: result.next_question_number,
+    status: result.completed ? 'completed' : 'in_progress',
+    progress_version: result.progress_version,
+  }
+}

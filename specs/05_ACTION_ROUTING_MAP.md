@@ -280,8 +280,11 @@ Modo: API HTTP (agregação server-side).
 Endpoint:
 
 ```text
-GET /api/dashboard_summary?institution_id={id}&period_days={0|7|30}
+GET /api/dashboard_summary?institution_id={id}&period_days={0|7|30}&mode={full|kpis}
 ```
+
+- `mode` omitido ou `full` — contrato histórico (default não-breaking).
+- `mode=kpis` — payload leve para cards iniciais (sem mapa `students`).
 
 Fonte Firestore (somente leitura):
 
@@ -291,13 +294,17 @@ students, trails, conversation_logs
 
 Saída:
 
-- Agregados de respostas/progressão por aluno nas trilhas reais.
-- `agent_usage` com volume, alunos únicos, % e última atividade por agente.
+- `full`: agregados de respostas/progressão por aluno nas trilhas reais +
+  `agent_usage`.
+- `kpis`: `student_count`, `active_student_count`, `agent_usage` (sem
+  progressão).
 
 Regra:
 
 - `trail_id` de agente não entra em `trail_ids` de progressão.
 - Painel não deve baixar `conversation_logs` brutos para montar essas métricas.
+- Evoluções deste endpoint devem ser **aditivas**; default sem `mode` =
+  resposta `full` histórica.
 
 ## 6. Regra de manutenção
 

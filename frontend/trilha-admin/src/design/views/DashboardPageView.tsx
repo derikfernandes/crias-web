@@ -9,6 +9,27 @@ import { LessonTopicCode } from './dashboard/LessonTopicCode'
 import { QuestionsCharts } from './dashboard/QuestionsCharts'
 import { StudentsCharts } from './dashboard/StudentsCharts'
 import { AgentUsageSection } from './dashboard/AgentUsageSection'
+import { ContentPerformanceSection } from './dashboard/ContentPerformanceSection'
+import { LearningOpportunitiesSection } from './dashboard/LearningOpportunitiesSection'
+import { CrossOpportunitiesSection } from './dashboard/CrossOpportunitiesSection'
+import { TutorSubjectSection } from './dashboard/TutorSubjectSection'
+import { StudentRankingSection } from './dashboard/StudentRankingSection'
+import { SubjectScopeSection } from './dashboard/SubjectScopeSection'
+import { KpiGrid, KpiStat, kpiBarToneFromPct } from '../components/cards/KpiStat'
+import { JourneyBands } from '../components/cards/JourneyBands'
+import { KpiDetailEmpty } from './dashboard/KpiDetailEmpty'
+import { CriasTabs } from '../components/navigation/CriasTabs'
+import { PageEmpty, PageError } from '../components/feedback/PageState'
+import { StatusTag } from '../components/ui/StatusTag'
+import {
+  IconCalendar,
+  IconChat,
+  IconDownload,
+  IconSearch,
+  IconTarget,
+  IconTrendUp,
+  IconUsers,
+} from '../components/icons/KpiIcons'
 
 export type {
   DashboardPageViewProps,
@@ -22,6 +43,8 @@ type ExpandedEnunciado = {
   trailName: string
   text: string
 }
+
+type OverviewKpi = 'students' | 'progress' | 'accuracy' | 'tutors'
 
 export function DashboardPageView({
   loadingInst,
@@ -123,12 +146,53 @@ export function DashboardPageView({
   onAgentPeriodDaysChange,
   agentUsageLoading,
   agentUsageUnavailable = false,
+  onRequestKpiDetail,
+  progressionKpisLoading = false,
+  detailLoading = false,
   selectedAgentTrailId,
   onSelectAgentTrailId,
   selectedAgentStudents,
+  journeyBands,
+  journeyStalledLinkLabel,
+  journeyStalledHref,
+  registeredStudentCount,
+  agentCoverageOfActivePct,
+  gradeOptions,
+  selectedGrade,
+  onSelectGrade,
+  subjectTabs,
+  selectedSubject,
+  onSelectSubject,
+  trailFilterOptions,
+  selectedTrailId,
+  onSelectTrailId,
+  scopeSummary,
+  contentSummary,
+  contentBars,
+  selectedContentKey,
+  onSelectContentKey,
+  activityMatrix,
+  selectedMatrixCellKey,
+  onSelectMatrixCell,
+  optionDistribution,
+  opportunityTab,
+  onOpportunityTabChange,
+  opportunityRows,
+  opportunityNote,
+  crossOpportunityCards,
+  crossOpportunityNote,
+  onOpenCrossContent,
+  tutorSubject,
+  ranking,
+  rankingScopeLabel,
+  rankingWeights,
+  onRankingWeightsChange,
+  showAllRanking,
+  onToggleShowAllRanking,
 }: DashboardPageViewProps) {
   const [expandedEnunciado, setExpandedEnunciado] =
     useState<ExpandedEnunciado | null>(null)
+  const [selectedKpi, setSelectedKpi] = useState<OverviewKpi | null>(null)
 
   useEffect(() => {
     if (!expandedEnunciado) return
@@ -139,62 +203,109 @@ export function DashboardPageView({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [expandedEnunciado])
 
+  // Troca de instituição ou período: fecha o painel para não misturar contexto.
+  useEffect(() => {
+    setSelectedKpi(null)
+  }, [selectedId])
+
+  const toggleKpi = (key: OverviewKpi) => {
+    setSelectedKpi((prev) => {
+      const next = prev === key ? null : key
+      if (next != null) onRequestKpiDetail?.()
+      return next
+    })
+  }
+
+  const selectedInstitutionLabel =
+    institutionOptions.find((o) => o.id === selectedId)?.label ?? null
+
+  void loadingInst
+  void institutionOptions
+  void onSelectInstitution
+
+  const tutorMessages = agentUsage.totalMessages
+  const tutorCoverage =
+    agentCoverageOfActivePct ?? agentUsage.coveragePct
+  const tutorPeriodHint =
+    agentPeriodDays === 7
+      ? 'últimos 7 dias'
+      : agentPeriodDays === 30
+        ? 'últimos 30 dias'
+        : 'todo o período'
+  const tutorKpiValue = agentUsageLoading
+    ? '…'
+    : tutorMessages.toLocaleString('pt-BR')
+  const tutorKpiHint = agentUsageLoading
+    ? `atualizando · ${tutorPeriodHint}`
+    : tutorCoverage == null
+      ? tutorPeriodHint
+      : `${Math.round(tutorCoverage)}% dos alunos ativos · ${tutorPeriodHint}`
+  const progressPct =
+    summary.avgCompletion == null ? null : Math.round(summary.avgCompletion)
+  const accuracyPct =
+    summary.avgAccuracy == null ? null : Math.round(summary.avgAccuracy)
+  const activeBarPct =
+    registeredStudentCount && registeredStudentCount > 0
+      ? (summary.activeStudents / registeredStudentCount) * 100
+      : null
+
+  const periodChips: {
+    days: 0 | 7 | 30 | 'custom'
+    label: string
+    disabled?: boolean
+  }[] = [
+    { days: 0, label: 'Tudo' },
+    { days: 30, label: '30 dias' },
+    { days: 7, label: '7 dias' },
+    { days: 'custom', label: 'Período', disabled: true },
+  ]
+
+  const exportDisabled =
+    !studentExportTrails.length || Boolean(exportingTrailId)
+
   return (
     <>
-      <header className="admin__header dashboard-header">
-        <div className="dashboard-header__intro">
-          <h1>Dashboard</h1>
-          {!isDashboardLoading ? (
-            <p className="admin__lede muted">
-              Visão geral de engajamento dos alunos e desempenho por aula
-              (exercício).
-            </p>
-          ) : null}
-        </div>
-        {selectedId && !isDashboardLoading ? (
-          <div className="dashboard-header__stats" aria-label="Resumo rápido">
-            <div className="dashboard-stat-card">
-              <span className="dashboard-stat-card__label">Alunos ativos</span>
-              <span className="dashboard-stat-card__value">
-                {summary.activeStudents}
-              </span>
+      {!selectedId ? null : (
+        <header className="crias-vg-header">
+          <div className="crias-vg-header__intro">
+            <div className="crias-vg-header__kicker">
+              {selectedInstitutionLabel
+                ? `${selectedInstitutionLabel} · atualizado há pouco`
+                : 'Atualizado há pouco'}
             </div>
-            <div className="dashboard-stat-card">
-              <span className="dashboard-stat-card__label">Trilhas ativas</span>
-              <span className="dashboard-stat-card__value">
-                {summary.activeTrails}
-              </span>
-            </div>
+            <h1 className="crias-vg-header__title">Visão geral</h1>
           </div>
-        ) : null}
-        <div className="gerenciamento-toolbar dashboard-header__toolbar">
-          <Link className="btn btn--ghost" to="/">
-            ← Início
-          </Link>
-          <label className="gerenciamento-select">
-            <span className="muted">Instituição</span>
-            <select
-              value={selectedId ?? ''}
-              onChange={(e) => {
-                const next = e.target.value.trim()
-                onSelectInstitution(next || null)
-              }}
-              disabled={loadingInst || institutionOptions.length === 0}
-            >
-              <option value="">
-                {loadingInst
-                  ? 'Carregando instituições…'
-                  : 'Selecione uma instituição'}
-              </option>
-              {institutionOptions.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </header>
+          {!isDashboardLoading && !logsError ? (
+            <div className="crias-vg-header__actions">
+              <div className="crias-vg-search">
+                <span className="crias-vg-search__icon">
+                  <IconSearch />
+                </span>
+                <input
+                  className="crias-vg-search__input"
+                  type="search"
+                  value={nameFilter}
+                  onChange={(e) => onNameFilterChange(e.target.value)}
+                  placeholder="Buscar aluno por nome ou telefone"
+                  aria-label="Buscar aluno por nome ou telefone"
+                />
+              </div>
+              <button
+                type="button"
+                className="crias-vg-export"
+                disabled={exportDisabled}
+                onClick={() => {
+                  const first = studentExportTrails[0]
+                  if (first) onExportTrailHistory(first.id)
+                }}
+              >
+                <IconDownload />
+                {exportingTrailId ? 'Gerando…' : 'Exportar'}
+              </button>
+            </div>
+          ) : null}
+        </header>
+      )}
 
       {instError ? (
         <p className="banner banner--error" role="alert">
@@ -213,11 +324,10 @@ export function DashboardPageView({
       ) : null}
 
       {!selectedId ? (
-        <section className="panel">
-          <p className="muted gerenciamento-placeholder">
-            Selecione uma instituição para ver o dashboard.
-          </p>
-        </section>
+        <PageEmpty
+          title="Selecione uma instituição"
+          body="Escolha uma instituição no topo para ver a visão geral."
+        />
       ) : isDashboardLoading ? (
         <section
           className="dashboard-load-progress dashboard-load-progress--gate panel"
@@ -226,7 +336,7 @@ export function DashboardPageView({
         >
           <div className="dashboard-load-progress__head">
             <span className="dashboard-load-progress__label">
-              {loadLabel || 'Carregando dashboard…'}
+              {loadLabel || 'Carregando visão geral…'}
             </span>
             <span className="dashboard-load-progress__pct">{loadPercent}%</span>
           </div>
@@ -247,135 +357,452 @@ export function DashboardPageView({
           </div>
         </section>
       ) : logsError ? (
-        <section className="panel" data-testid="dashboard-logs-error">
-          <p className="banner banner--error" role="alert">
-            Não foi possível carregar as métricas dos alunos e o uso dos
-            tutores: {logsError}
-          </p>
-          <p className="muted">
-            Os totais de alunos e trilhas foram carregados, mas conclusões,
-            acertos e o bloco de tutores ficariam incompletos. Tente novamente.
-          </p>
-          <button type="button" className="btn" onClick={onRetryLogs}>
-            Tentar novamente
-          </button>
-        </section>
+        <div data-testid="dashboard-logs-error">
+          <PageError
+            title="Não foi possível carregar as métricas"
+            body={logsError}
+            onRetry={onRetryLogs}
+          />
+        </div>
+      ) : filteredStudentCount === 0 && totalStudentCount === 0 ? (
+        <PageEmpty
+          title="Nenhum aluno no período"
+          body="Não há alunos cadastrados nesta instituição para montar a visão geral."
+        />
       ) : (
         <>
-          <nav
-            className="trail-detail-tabs dashboard-tabs"
-            aria-label="Seções do dashboard"
-            role="tablist"
-          >
-            <button
-              id="dashboard-students-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'students'}
-              aria-controls="dashboard-students-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'students'
-                  ? ' trail-detail-tabs__tab--active'
-                  : ''
-              }`}
-              onClick={() => onActiveTabChange('students')}
+          <section className="crias-vg-period" aria-label="Período">
+            <span className="crias-vg-period__scope">Toda a instituição</span>
+            {gradeOptions && gradeOptions.length > 0 && onSelectGrade ? (
+              <label className="crias-vg-period__grade">
+                <span>Série</span>
+                <select
+                  value={selectedGrade ?? ''}
+                  onChange={(e) => {
+                    const next = e.target.value.trim()
+                    onSelectGrade(next || null)
+                  }}
+                >
+                  <option value="">Todas</option>
+                  {gradeOptions.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <div
+              className="crias-vg-period__chips"
+              role="group"
+              aria-label="Período"
             >
-              Alunos
-            </button>
-            <button
-              id="dashboard-questions-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'questions'}
-              aria-controls="dashboard-questions-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'questions'
-                  ? ' trail-detail-tabs__tab--active'
-                  : ''
-              }`}
-              onClick={() => onActiveTabChange('questions')}
-            >
-              Questões
-            </button>
-          </nav>
+              {periodChips.map((chip) => {
+                const on =
+                  chip.days !== 'custom' && agentPeriodDays === chip.days
+                return (
+                  <button
+                    key={String(chip.days)}
+                    type="button"
+                    className={
+                      on
+                        ? 'crias-vg-period__chip crias-vg-period__chip--on'
+                        : 'crias-vg-period__chip'
+                    }
+                    aria-pressed={on}
+                    disabled={chip.disabled}
+                    title={
+                      chip.disabled
+                        ? 'Período personalizado em breve'
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (chip.days === 'custom' || chip.disabled) return
+                      onAgentPeriodDaysChange(chip.days)
+                    }}
+                  >
+                    {chip.days === 'custom' ? <IconCalendar /> : null}
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          <KpiGrid>
+            <KpiStat
+              label="Alunos ativos"
+              value={String(summary.activeStudents)}
+              hint={
+                registeredStudentCount != null
+                  ? `de ${registeredStudentCount} cadastrados`
+                  : `${summary.activeTrails} trilha(s) ativa(s)`
+              }
+              barPct={activeBarPct}
+              barTone={kpiBarToneFromPct(activeBarPct)}
+              icon={<IconUsers />}
+              selected={selectedKpi === 'students'}
+              onSelect={() => toggleKpi('students')}
+            />
+            <KpiStat
+              label="Progresso médio"
+              value={
+                progressionKpisLoading ? '…' : formatPct(progressPct, 0)
+              }
+              hint={
+                progressionKpisLoading
+                  ? 'calculando…'
+                  : progressPct == null
+                    ? 'clique para carregar'
+                    : 'dos conteúdos liberados'
+              }
+              barPct={progressionKpisLoading ? null : progressPct}
+              barTone={kpiBarToneFromPct(progressPct)}
+              icon={<IconTrendUp />}
+              loading={progressionKpisLoading}
+              selected={selectedKpi === 'progress'}
+              onSelect={() => toggleKpi('progress')}
+            />
+            <KpiStat
+              label="Acerto médio"
+              value={
+                progressionKpisLoading ? '…' : formatPct(accuracyPct, 0)
+              }
+              hint={
+                progressionKpisLoading
+                  ? 'calculando…'
+                  : accuracyPct == null
+                    ? 'clique para carregar'
+                    : 'dos exercícios da trilha'
+              }
+              barPct={progressionKpisLoading ? null : accuracyPct}
+              barTone={kpiBarToneFromPct(accuracyPct)}
+              icon={<IconTarget />}
+              loading={progressionKpisLoading}
+              selected={selectedKpi === 'accuracy'}
+              onSelect={() => toggleKpi('accuracy')}
+            />
+            <KpiStat
+              label="Interações com tutores"
+              value={tutorKpiValue}
+              hint={tutorKpiHint}
+              barPct={agentUsageLoading ? null : tutorCoverage}
+              barTone={kpiBarToneFromPct(tutorCoverage)}
+              icon={<IconChat />}
+              loading={agentUsageLoading}
+              selected={selectedKpi === 'tutors'}
+              onSelect={() => toggleKpi('tutors')}
+            />
+          </KpiGrid>
+
+          {selectedKpi == null ? <KpiDetailEmpty /> : null}
+
+          {selectedKpi === 'tutors' ? (
+            <div className="crias-kpi-detail">
+              <AgentUsageSection
+                agentUsage={agentUsage}
+                periodDays={agentPeriodDays}
+                onPeriodDaysChange={onAgentPeriodDaysChange}
+                loading={agentUsageLoading}
+                unavailable={agentUsageUnavailable}
+                onRetry={onRetryLogs}
+                selectedAgentTrailId={selectedAgentTrailId}
+                onSelectAgentTrailId={onSelectAgentTrailId}
+                selectedAgentStudents={selectedAgentStudents}
+                coverageOfActivePct={agentCoverageOfActivePct}
+              />
+              {tutorSubject ? (
+                <TutorSubjectSection
+                  subjectLabel={tutorSubject.subjectLabel}
+                  periodLabel={tutorSubject.periodLabel}
+                  messages={tutorSubject.messages}
+                  students={tutorSubject.students}
+                  coveragePct={tutorSubject.coveragePct}
+                  messagesPerDay={tutorSubject.messagesPerDay}
+                  perStudentPerDay={tutorSubject.perStudentPerDay}
+                  perStudentPeriod={tutorSubject.perStudentPeriod}
+                  topStudents={tutorSubject.topStudents}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {selectedKpi === 'students' ? (
+            <div className="crias-kpi-detail">
+              {detailLoading ? (
+                <p className="muted" role="status" style={{ padding: '24px 0' }}>
+                  Carregando detalhes dos alunos…
+                </p>
+              ) : null}
+              {!detailLoading && journeyBands && journeyBands.length > 0 ? (
+                <JourneyBands
+                  bands={journeyBands}
+                  stalledHref={journeyStalledHref}
+                  stalledLinkLabel={journeyStalledLinkLabel}
+                />
+              ) : null}
+              {!detailLoading &&
+              ranking &&
+              rankingWeights &&
+              onRankingWeightsChange &&
+              onToggleShowAllRanking ? (
+                <StudentRankingSection
+                  rows={ranking}
+                  scopeLabel={rankingScopeLabel ?? 'Todos os alunos do filtro'}
+                  weights={rankingWeights}
+                  onWeightsChange={onRankingWeightsChange}
+                  showAll={showAllRanking ?? false}
+                  onToggleShowAll={onToggleShowAllRanking}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {selectedKpi === 'progress' || selectedKpi === 'accuracy' ? (
+            <div className="crias-kpi-detail">
+              {detailLoading ? (
+                <p className="muted" role="status" style={{ padding: '24px 0' }}>
+                  Carregando análises de progresso e acerto…
+                </p>
+              ) : null}
+              {!detailLoading &&
+              subjectTabs &&
+              subjectTabs.length > 0 &&
+              onSelectSubject &&
+              onSelectTrailId &&
+              scopeSummary ? (
+                <SubjectScopeSection
+                  subjectTabs={subjectTabs}
+                  selectedSubject={selectedSubject ?? null}
+                  onSelectSubject={onSelectSubject}
+                  gradeOptions={gradeOptions ?? []}
+                  selectedGrade={selectedGrade ?? null}
+                  onSelectGrade={onSelectGrade ?? (() => {})}
+                  trailOptions={trailFilterOptions ?? []}
+                  selectedTrailId={selectedTrailId ?? null}
+                  onSelectTrailId={onSelectTrailId}
+                  scopeSummary={scopeSummary}
+                />
+              ) : null}
+
+              {!detailLoading &&
+              selectedKpi === 'progress' &&
+              journeyBands &&
+              journeyBands.length > 0 ? (
+                <JourneyBands
+                  bands={journeyBands}
+                  stalledHref={journeyStalledHref}
+                  stalledLinkLabel={journeyStalledLinkLabel}
+                />
+              ) : null}
+
+              {!detailLoading &&
+              contentSummary &&
+              contentBars &&
+              contentBars.length > 0 &&
+              onSelectContentKey ? (
+                <ContentPerformanceSection
+                  summary={contentSummary}
+                  bars={contentBars}
+                  selectedKey={selectedContentKey ?? null}
+                  onSelectKey={onSelectContentKey}
+                />
+              ) : null}
+
+              {!detailLoading && selectedKpi === 'accuracy' ? (
+                <>
+                  {activityMatrix && activityMatrix.cells.length > 0 ? (
+                    <section
+                      className="crias-journey"
+                      aria-label="Mapa conteúdo a conteúdo"
+                    >
+                      <div className="crias-journey__head">
+                        <div>
+                          <div className="crias-label">
+                            Mapa conteúdo a conteúdo
+                          </div>
+                          <h2
+                            className="crias-section-title"
+                            style={{ borderBottom: 0, paddingBottom: 0 }}
+                          >
+                            Acerto por atividade × exercício
+                          </h2>
+                        </div>
+                      </div>
+                      <div className="crias-matrix">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Bloco \ Ativ.</th>
+                              {activityMatrix.questions.map((q) => (
+                                <th key={q}>A{q}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activityMatrix.stages.map((stage) => (
+                              <tr key={stage}>
+                                <th scope="row">B{stage}</th>
+                                {activityMatrix.questions.map((q) => {
+                                  const cell = activityMatrix.cells.find(
+                                    (c) =>
+                                      c.stageNumber === stage &&
+                                      c.questionNumber === q,
+                                  )
+                                  if (!cell || cell.total === 0) {
+                                    return (
+                                      <td
+                                        key={`${stage}-${q}`}
+                                        className="crias-matrix__cell crias-matrix__cell--empty"
+                                      >
+                                        —
+                                      </td>
+                                    )
+                                  }
+                                  const pctVal = cell.accuracyPct ?? 0
+                                  const tone =
+                                    pctVal >= 70
+                                      ? 'crias-matrix__cell--high'
+                                      : pctVal >= 40
+                                        ? 'crias-matrix__cell--mid'
+                                        : 'crias-matrix__cell--low'
+                                  const selected =
+                                    selectedMatrixCellKey === cell.key
+                                  return (
+                                    <td key={`${stage}-${q}`}>
+                                      <button
+                                        type="button"
+                                        className={`crias-matrix__cell ${tone}`}
+                                        aria-pressed={selected}
+                                        onClick={() =>
+                                          onSelectMatrixCell?.(
+                                            selected ? null : cell.key,
+                                          )
+                                        }
+                                      >
+                                        {formatPct(cell.accuracyPct, 0)}
+                                      </button>
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {optionDistribution && optionDistribution.length > 0 ? (
+                        <div
+                          className="crias-option-dist"
+                          aria-label="Distribuição A/B/C"
+                        >
+                          {optionDistribution.map((item) => (
+                            <div
+                              key={item.option}
+                              className="crias-option-dist__item"
+                            >
+                              <span className="crias-option-dist__key">
+                                {item.option}
+                              </span>
+                              {item.count} ({item.pct}%)
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
+
+                  {onOpportunityTabChange ? (
+                    <>
+                      <LearningOpportunitiesSection
+                        subjectLabel={
+                          selectedSubject ??
+                          subjectTabs?.[0]?.label ??
+                          'Instituição'
+                        }
+                        tab={opportunityTab ?? 'err'}
+                        onTabChange={onOpportunityTabChange}
+                        rows={opportunityRows ?? []}
+                        note={
+                          opportunityNote ??
+                          'Top exercícios com respostas neste filtro. Dúvidas por tema exigem metadado ainda inexistente.'
+                        }
+                      />
+                      {crossOpportunityCards &&
+                      crossOpportunityCards.length > 0 ? (
+                        <CrossOpportunitiesSection
+                          cards={crossOpportunityCards.map((c) => ({
+                            ...c,
+                            onOpen: onOpenCrossContent
+                              ? () => onOpenCrossContent(c.key)
+                              : undefined,
+                          }))}
+                          note={crossOpportunityNote}
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Tabelas Alunos/Questões só depois de abrir um indicador — evita “carregar tudo”. */}
+          {selectedKpi != null ? (
+            <>
+          <CriasTabs
+            ariaLabel="Seções da visão geral"
+            activeId={activeTab}
+            onChange={(id) => onActiveTabChange(id as 'students' | 'questions')}
+            items={[
+              { id: 'students', label: 'Alunos' },
+              { id: 'questions', label: 'Questões' },
+            ]}
+          />
 
           {activeTab === 'students' ? (
             <div
               id="dashboard-students-panel"
               className="trail-tab-panel"
               role="tabpanel"
-              aria-labelledby="dashboard-students-tab"
             >
-              <section className="dashboard-cards">
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">
-                % médio de conclusão (tópicos)
-              </span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgCompletion, 1)}
-              </span>
-              <span className="dashboard-card__hint">
-                Tópicos feitos ÷ tópicos liberados
-              </span>
-            </div>
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">
-                % médio de conclusão (aulas)
-              </span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgLessonCompletion, 1)}
-              </span>
-              <span className="dashboard-card__hint">
-                Aulas concluídas ÷ aulas liberadas
-              </span>
-            </div>
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">% médio de acerto</span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgAccuracy, 1)}
-              </span>
-            </div>
-            {annulledGabaritoCount > 0 ? (
-              <Link to="/gabarito" className="dashboard-card dashboard-card--muted">
-                <span className="dashboard-card__label">
-                  Questões anuladas
-                </span>
-                <span className="dashboard-card__value">
-                  {annulledGabaritoCount}
-                </span>
-                <span className="dashboard-card__hint">
-                  {annulledAnswersExcluded > 0
-                    ? `${annulledAnswersExcluded} resposta${annulledAnswersExcluded === 1 ? '' : 's'} fora do % de acerto`
-                    : 'Nenhuma resposta de aluno nessas questões ainda'}
-                </span>
-              </Link>
-            ) : null}
-            {missingGabaritoCount > 0 ? (
-              <Link to="/gabarito" className="dashboard-card dashboard-card--warn">
-                <span className="dashboard-card__label">
-                  Aulas sem gabarito
-                </span>
-                <span className="dashboard-card__value">
-                  {missingGabaritoCount}
-                </span>
-                <span className="dashboard-card__hint">
-                  Preencher gabarito →
-                </span>
-              </Link>
-            ) : null}
-              </section>
-
-          <AgentUsageSection
-            agentUsage={agentUsage}
-            periodDays={agentPeriodDays}
-            onPeriodDaysChange={onAgentPeriodDaysChange}
-            loading={agentUsageLoading}
-            unavailable={agentUsageUnavailable}
-            onRetry={onRetryLogs}
-            selectedAgentTrailId={selectedAgentTrailId}
-            onSelectAgentTrailId={onSelectAgentTrailId}
-            selectedAgentStudents={selectedAgentStudents}
-          />
+              {(annulledGabaritoCount > 0 || missingGabaritoCount > 0) && (
+                <section className="dashboard-cards" style={{ marginBottom: 24 }}>
+                  {annulledGabaritoCount > 0 ? (
+                    <Link
+                      to="/gabarito"
+                      className="dashboard-card dashboard-card--muted"
+                    >
+                      <span className="dashboard-card__label">
+                        Questões anuladas
+                      </span>
+                      <span className="dashboard-card__value">
+                        {annulledGabaritoCount}
+                      </span>
+                      <span className="dashboard-card__hint">
+                        {annulledAnswersExcluded > 0
+                          ? `${annulledAnswersExcluded} resposta${annulledAnswersExcluded === 1 ? '' : 's'} fora do % de acerto`
+                          : 'Nenhuma resposta de aluno nessas questões ainda'}
+                      </span>
+                    </Link>
+                  ) : null}
+                  {missingGabaritoCount > 0 ? (
+                    <Link
+                      to="/gabarito"
+                      className="dashboard-card dashboard-card--warn"
+                    >
+                      <span className="dashboard-card__label">
+                        Aulas sem gabarito
+                      </span>
+                      <span className="dashboard-card__value">
+                        {missingGabaritoCount}
+                      </span>
+                      <span className="dashboard-card__hint">
+                        Preencher gabarito →
+                      </span>
+                    </Link>
+                  ) : null}
+                </section>
+              )}
 
           <section className="panel">
             <div className="panel__head">
@@ -535,6 +962,8 @@ export function DashboardPageView({
                     >
                       Nome{nameSortIndicator}
                     </th>
+                    <th>Situação</th>
+                    <th>Série</th>
                     {visibleColumns.map((c) => (
                       <th
                         key={c.key}
@@ -551,7 +980,7 @@ export function DashboardPageView({
                   {filteredStudentCount === 0 ? (
                     <tr>
                       <td
-                        colSpan={visibleColumns.length + 1}
+                        colSpan={visibleColumns.length + 3}
                         className="muted table__empty"
                       >
                         {studentRowsEmpty
@@ -567,6 +996,17 @@ export function DashboardPageView({
                             {row.name || '—'}
                           </Link>
                         </td>
+                        <td>
+                          {row.situationLabel && row.situationTone ? (
+                            <StatusTag
+                              label={row.situationLabel}
+                              tone={row.situationTone}
+                            />
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>{row.schoolGrade?.trim() || '—'}</td>
                         {visibleColumns.map((c) => {
                           switch (c.key) {
                             case 'phone':
@@ -1011,6 +1451,8 @@ export function DashboardPageView({
                 </section>
               )}
             </div>
+          ) : null}
+            </>
           ) : null}
 
           {expandedEnunciado ? (

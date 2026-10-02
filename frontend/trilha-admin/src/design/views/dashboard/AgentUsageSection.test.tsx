@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { ComponentProps } from 'react'
@@ -90,23 +90,19 @@ describe('AgentUsageSection', () => {
     expect(
       screen.getByText(/Nenhum uso de tutores no período/i),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
   it('mostra skeleton no loading sem dados (sem zeros)', () => {
     renderSection({ loading: true, agentUsage: emptyUsage })
     expect(screen.getByTestId('agent-usage-skeleton')).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('Atualizando uso dos agentes…'),
-    ).not.toBeInTheDocument()
   })
 
-  it('mantém KPIs no refetch e mostra badge Atualizando', () => {
+  it('mantém consolidado no refetch e mostra badge Atualizando', () => {
     renderSection({ loading: true, agentUsage: baseUsage })
-    expect(screen.getByRole('status')).toHaveTextContent('Atualizando…')
-    expect(screen.getByText('Média diária por tutor')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Volume por tutor' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/atualizando/i)
+    expect(screen.getByText('Alunos que conversaram')).toBeInTheDocument()
+    expect(screen.getByText('Por matéria')).toBeInTheDocument()
   })
 
   it('distingue unavailable de empty real', () => {
@@ -128,12 +124,13 @@ describe('AgentUsageSection', () => {
     expect(screen.queryByTestId('agent-usage-unavailable')).not.toBeInTheDocument()
   })
 
-  it('renderiza KPIs e barras só com uso (>0), sem tabela espelho nem pizza', () => {
+  it('renderiza consolidado e barras só com uso (>0)', () => {
     renderSection()
-    expect(screen.getByRole('heading', { name: 'Tutores de IA' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Volume por tutor' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Participação' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Mensagens por dia' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Conversas com os tutores' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Consolidado')).toBeInTheDocument()
+    expect(screen.getByText('Mensagens por dia')).toBeInTheDocument()
 
     const mathButtons = screen.getAllByRole('button', { name: /Matemática/i })
     expect(mathButtons.length).toBe(1)
@@ -157,15 +154,6 @@ describe('AgentUsageSection', () => {
     expect(new Set(subjects).size).toBe(subjects.length)
   })
 
-  it('permite trocar o período', async () => {
-    const user = userEvent.setup()
-    const { container, onPeriodDaysChange } = renderSection()
-    const select = container.querySelector('select')
-    expect(select).toBeTruthy()
-    await user.selectOptions(select!, '7')
-    expect(onPeriodDaysChange).toHaveBeenCalledWith(7)
-  })
-
   it('drill-down mostra msgs e última atividade por aluno', async () => {
     const user = userEvent.setup()
     const { onSelectAgentTrailId } = renderSection({
@@ -181,14 +169,12 @@ describe('AgentUsageSection', () => {
       ],
     })
     expect(screen.getByRole('heading', { name: 'Matemática' })).toBeInTheDocument()
-    const table = screen.getByRole('table')
-    expect(within(table).getByText('Ana')).toBeInTheDocument()
-    expect(within(table).getByText('4')).toBeInTheDocument()
-    expect(within(table).getByText('19/09/2026, 10:00')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ana' })).toHaveAttribute(
       'href',
       expect.stringContaining('agent_trail'),
     )
+    expect(screen.getByText(/4 msgs/i)).toBeInTheDocument()
+    expect(screen.getByText(/19\/09\/2026, 10:00/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Fechar' }))
     expect(onSelectAgentTrailId).toHaveBeenCalledWith(null)
   })

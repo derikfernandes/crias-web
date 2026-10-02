@@ -69,8 +69,8 @@ const STUDENT_TRAILS_PAGE_SIZE = 20
 export function TrailDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<
-    'structure' | 'content' | 'students'
-  >('structure')
+    'geral' | 'structure' | 'content' | 'desempenho' | 'students'
+  >('geral')
   const [trail, setTrail] = useState<Trail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -312,7 +312,8 @@ export function TrailDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (!db || !id || activeTab !== 'students') return
+    if (!db || !id || (activeTab !== 'students' && activeTab !== 'desempenho'))
+      return
     const dbOk = db
     let unsub: (() => void) | null = null
 
@@ -1200,6 +1201,14 @@ export function TrailDetailPage() {
       showTrailForm={showTrailForm}
       onToggleTrailForm={() => setShowTrailForm((open) => !open)}
       cadastro={cadastro}
+      desempenhoSummary={{
+        enrolled: studentTrails.length,
+        completed: studentTrails.filter((s) => s.status === 'completed').length,
+        inProgress: studentTrails.filter((s) => s.status === 'in_progress')
+          .length,
+        notStarted: studentTrails.filter((s) => s.status === 'not_started')
+          .length,
+      }}
       editFormSlot={
         trail ? (
           <TrailForm

@@ -11,6 +11,10 @@ export type TrailsListRow = {
   activeLabel: string
   createdAtLabel: string
   detailHref: string
+  /** Fase B opcionais — ocultos se undefined */
+  depthLabel?: string | null
+  releasedLabel?: string | null
+  studentsCount?: number | null
 }
 
 export type TrailsListPageViewProps = {

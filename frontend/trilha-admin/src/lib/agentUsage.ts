@@ -93,8 +93,9 @@ export function formatAgentLastActivity(iso: string | null): string {
 }
 
 /**
- * Deduplica por label somando aliases (rede de segurança se a API ainda
- * emitir Trilha/Tutor separados).
+ * Deduplica por label fundindo aliases Trilha/Tutor.
+ * Aliases são espelho (system vs student): usa max, não soma — senão o
+ * KPI "Interações com tutores" dobra.
  */
 export function mergeAgentRowsByLabel(
   rows: AgentUsageRowView[],
@@ -126,18 +127,22 @@ export function mergeAgentRowsByLabel(
       { messages: number; lastActivity: string | null }
     >()
     for (const st of [...existing.studentStats, ...(row.studentStats ?? [])]) {
-      const cur = studentMap.get(st.studentId) ?? {
-        messages: 0,
-        lastActivity: null,
+      const cur = studentMap.get(st.studentId)
+      if (!cur) {
+        studentMap.set(st.studentId, {
+          messages: st.messages,
+          lastActivity: st.lastActivity,
+        })
+        continue
       }
-      cur.messages += st.messages
+      // Espelho Trilha/Tutor: mesma conversa, não somar.
+      cur.messages = Math.max(cur.messages, st.messages)
       if (
         st.lastActivity &&
         (!cur.lastActivity || st.lastActivity > cur.lastActivity)
       ) {
         cur.lastActivity = st.lastActivity
       }
-      studentMap.set(st.studentId, cur)
     }
     // Se a API antiga só mandou studentIds, unir sem stats.
     for (const id of [...existing.studentIds, ...row.studentIds]) {
@@ -182,7 +187,8 @@ export function mergeAgentRowsByLabel(
       trailId: primary,
       trailIds,
       label,
-      messages: existing.messages + row.messages,
+      // Espelho Trilha/Tutor: fica o maior volume do par, não a soma.
+      messages: Math.max(existing.messages, row.messages),
       uniqueStudents: studentStats.length,
       pctOfTotal: 0,
       lastActivity,

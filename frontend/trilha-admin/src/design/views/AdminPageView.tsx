@@ -46,7 +46,7 @@ export function AdminPageView(props: AdminPageViewProps) {
   return (
     <>
       <header className="admin__header">
-        <h1>Admin — permissões por login</h1>
+        <h1>Configurações · Usuários e acesso</h1>
         <p className="admin__lede">
           Defina quais tópicos do menu cada e-mail pode ver e quais instituições
           ele pode acessar. O e-mail deve ser o mesmo da conta Firebase Auth.

@@ -49,7 +49,7 @@ export function GerenciamentoPageView({
   return (
     <>
       <header className="admin__header">
-        <h1>Visão por instituição</h1>
+        <h1>Configurações · Visão por instituição</h1>
         <p className="admin__lede muted">
           Escolha uma instituição para ver todos os alunos e todas as trilhas
           vinculados a ela.

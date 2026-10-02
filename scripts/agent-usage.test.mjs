@@ -34,6 +34,10 @@ test('api/dashboard_summary agrega agent_usage e pula agentes na progressão', (
   assert.match(src, /aggregateAgentUsage/)
   // Agentes não devem ser indexados via trailIndexById no caminho de progressão
   assert.match(src, /if \(isAgentTrailId\(trailId\)\)/)
+  // Extensão aditiva mode=kpis (default continua full).
+  assert.match(src, /parseDashboardSummaryMode/)
+  assert.match(src, /mode: 'kpis'/)
+  assert.match(src, /active_student_count/)
 })
 
 test('dashboard do painel não faz fallback de conversation_logs no cliente', () => {
@@ -43,6 +47,7 @@ test('dashboard do painel não faz fallback de conversation_logs no cliente', ()
   )
   assert.doesNotMatch(page, /fetchConversationLogsForStudents/)
   assert.doesNotMatch(page, /CONVERSATION_LOGS_COLLECTION/)
+  assert.match(page, /fetchDashboardKpisSummary/)
   assert.match(page, /fetchDashboardLogSummary/)
   assert.match(page, /agentUsage/)
   assert.match(page, /\[dashboard\] pronto em/)
@@ -77,8 +82,9 @@ test('dashboard libera gate em erro de first-load do summary', () => {
     join(root, 'frontend/trilha-admin/src/pages/DashboardPage.tsx'),
     'utf8',
   )
-  // Catch de first-load deve setar initialLogsLoaded para o banner/retry.
-  assert.match(page, /setInitialLogsLoaded\(true\)/)
+  // Catch de first-load (mode=kpis) deve setar initialKpisLoaded para o banner/retry.
+  assert.match(page, /setInitialKpisLoaded\(true\)/)
+  assert.match(page, /fetchDashboardKpisSummary/)
   assert.match(page, /Não foi possível carregar|onRetryLogs/)
   assert.match(page, /agentUsagePresent/)
 })

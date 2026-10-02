@@ -12,10 +12,25 @@ import {
   snapshotToTrail,
   TRAILS_COLLECTION,
 } from '../lib/trailFirestore'
+import {
+  snapshotToTrailStage,
+  TRAIL_STAGES_COLLECTION,
+} from '../lib/trailStageFirestore'
+import {
+  snapshotToTrailStageQuestion,
+  TRAIL_STAGE_QUESTIONS_COLLECTION,
+} from '../lib/trailStageQuestionFirestore'
+import {
+  snapshotToStudentTrail,
+  STUDENT_TRAILS_COLLECTION,
+} from '../lib/studentTrailFirestore'
 import { trailPath } from '../lib/paths'
 import { usePermissions } from '../hooks/usePermissions'
 import type { Institution } from '../types/institution'
 import type { Trail } from '../types/trail'
+import type { TrailStage } from '../types/trailStage'
+import type { TrailStageQuestion } from '../types/trailStageQuestion'
+import type { StudentTrail } from '../types/studentTrail'
 
 const PAGE_SIZE = 20
 
@@ -23,6 +38,9 @@ export function TrailsListPage() {
   const { canNav, filterInstitutions, canInstitution } = usePermissions()
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [trails, setTrails] = useState<Trail[]>([])
+  const [stages, setStages] = useState<TrailStage[]>([])
+  const [questions, setQuestions] = useState<TrailStageQuestion[]>([])
+  const [studentTrails, setStudentTrails] = useState<StudentTrail[]>([])
   const [loading, setLoading] = useState(() => Boolean(db))
   const [error, setError] = useState<string | null>(null)
   const [selectedInstitutionId, setSelectedInstitutionId] = useState('')
@@ -51,6 +69,58 @@ export function TrailsListPage() {
     return map
   }, [institutions])
 
+  const metricsByTrail = useMemo(() => {
+    const map = new Map<
+      string,
+      { blocks: number; exercises: number; released: number; totalQ: number; students: number }
+    >()
+    for (const stage of stages) {
+      if (!stage.trail_id || stage.active === false) continue
+      const cur = map.get(stage.trail_id) ?? {
+        blocks: 0,
+        exercises: 0,
+        released: 0,
+        totalQ: 0,
+        students: 0,
+      }
+      cur.blocks += 1
+      map.set(stage.trail_id, cur)
+    }
+    for (const q of questions) {
+      if (!q.trail_id || q.active === false) continue
+      const cur = map.get(q.trail_id) ?? {
+        blocks: 0,
+        exercises: 0,
+        released: 0,
+        totalQ: 0,
+        students: 0,
+      }
+      cur.totalQ += 1
+      if (q.is_released) cur.released += 1
+      // exercícios ≈ questões com gabarito/opções
+      if (q.correct_option || (q.options && q.options.length > 0)) {
+        cur.exercises += 1
+      }
+      map.set(q.trail_id, cur)
+    }
+    const studentCounts = new Map<string, number>()
+    for (const st of studentTrails) {
+      studentCounts.set(st.trail_id, (studentCounts.get(st.trail_id) ?? 0) + 1)
+    }
+    for (const [trailId, count] of studentCounts) {
+      const cur = map.get(trailId) ?? {
+        blocks: 0,
+        exercises: 0,
+        released: 0,
+        totalQ: 0,
+        students: 0,
+      }
+      cur.students = count
+      map.set(trailId, cur)
+    }
+    return map
+  }, [stages, questions, studentTrails])
+
   const allowedTrails = useMemo(() => {
     return trails.filter((trail) => canInstitution(trail.institution_id))
   }, [trails, canInstitution])
@@ -61,8 +131,8 @@ export function TrailsListPage() {
       list = list.filter((t) => t.institution_id === selectedInstitutionId)
     }
 
-    const query = search.trim().toLowerCase()
-    if (!query) {
+    const queryText = search.trim().toLowerCase()
+    if (!queryText) {
       return list
         .slice()
         .sort((a, b) =>
@@ -74,9 +144,9 @@ export function TrailsListPage() {
 
     return list
       .filter((trail) => {
-        if ((trail.name || '').toLowerCase().includes(query)) return true
-        if ((trail.subject || '').toLowerCase().includes(query)) return true
-        if (trail.id.toLowerCase().includes(query)) return true
+        if ((trail.name || '').toLowerCase().includes(queryText)) return true
+        if ((trail.subject || '').toLowerCase().includes(queryText)) return true
+        if (trail.id.toLowerCase().includes(queryText)) return true
         return false
       })
       .sort((a, b) =>
@@ -97,53 +167,89 @@ export function TrailsListPage() {
   useEffect(() => {
     if (!db) return
 
-    let unsubInst: (() => void) | null = null
-    let unsubTr: (() => void) | null = null
+    const unsubs: Array<() => void> = []
 
-    unsubInst = onSnapshot(
-      collection(db, INSTITUTIONS_COLLECTION),
-      (snap) => {
-        setInstitutions(snap.docs.map(snapshotToInstitution))
-        setError(null)
-      },
-      (err) => {
-        setError(err.message)
-        setInstitutions([])
-      },
+    unsubs.push(
+      onSnapshot(
+        collection(db, INSTITUTIONS_COLLECTION),
+        (snap) => {
+          setInstitutions(snap.docs.map(snapshotToInstitution))
+          setError(null)
+        },
+        (err) => {
+          setError(err.message)
+          setInstitutions([])
+        },
+      ),
     )
 
-    unsubTr = onSnapshot(
-      collection(db, TRAILS_COLLECTION),
-      (snap) => {
-        setTrails(snap.docs.map(snapshotToTrail))
-        setError(null)
-        setLoading(false)
-      },
-      (err) => {
-        setError(err.message)
-        setTrails([])
-        setLoading(false)
-      },
+    unsubs.push(
+      onSnapshot(
+        collection(db, TRAILS_COLLECTION),
+        (snap) => {
+          setTrails(snap.docs.map(snapshotToTrail))
+          setError(null)
+          setLoading(false)
+        },
+        (err) => {
+          setError(err.message)
+          setTrails([])
+          setLoading(false)
+        },
+      ),
+    )
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, TRAIL_STAGES_COLLECTION),
+        (snap) => setStages(snap.docs.map(snapshotToTrailStage)),
+        () => setStages([]),
+      ),
+    )
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, TRAIL_STAGE_QUESTIONS_COLLECTION),
+        (snap) => setQuestions(snap.docs.map(snapshotToTrailStageQuestion)),
+        () => setQuestions([]),
+      ),
+    )
+
+    unsubs.push(
+      onSnapshot(
+        collection(db, STUDENT_TRAILS_COLLECTION),
+        (snap) => setStudentTrails(snap.docs.map(snapshotToStudentTrail)),
+        () => setStudentTrails([]),
+      ),
     )
 
     return () => {
-      unsubInst?.()
-      unsubTr?.()
+      for (const u of unsubs) u()
     }
   }, [])
 
-  const rows: TrailsListRow[] = paginatedTrails.map((trail) => ({
-    id: trail.id,
-    name: trail.name || '—',
-    institutionName:
-      institutionNameById.get(trail.institution_id) ||
-      trail.institution_id ||
-      '—',
-    subject: trail.subject || '—',
-    activeLabel: trail.active ? 'Sim' : 'Não',
-    createdAtLabel: formatTrailTs(trail.created_at),
-    detailHref: trailPath(trail.id),
-  }))
+  const rows: TrailsListRow[] = paginatedTrails.map((trail) => {
+    const m = metricsByTrail.get(trail.id)
+    const depthLabel = m
+      ? `${m.blocks} blocos · ${m.exercises} exercícios`
+      : '—'
+    const releasedLabel = m ? `${m.released} de ${m.totalQ}` : '—'
+    return {
+      id: trail.id,
+      name: trail.name || '—',
+      institutionName:
+        institutionNameById.get(trail.institution_id) ||
+        trail.institution_id ||
+        '—',
+      subject: trail.subject || '—',
+      activeLabel: trail.active ? 'Ativa' : 'Inativa',
+      createdAtLabel: formatTrailTs(trail.created_at),
+      detailHref: trailPath(trail.id),
+      depthLabel,
+      releasedLabel,
+      studentsCount: m?.students ?? 0,
+    }
+  })
 
   const pageStart =
     filteredTrails.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
@@ -171,7 +277,9 @@ export function TrailsListPage() {
       totalPages={totalPages}
       pageStart={pageStart}
       pageEnd={pageEnd}
-      onPreviousPage={() => setPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
+      onPreviousPage={() =>
+        setPage((p) => Math.max(1, Math.min(p, totalPages) - 1))
+      }
       onNextPage={() =>
         setPage((p) => Math.min(totalPages, Math.min(p, totalPages) + 1))
       }

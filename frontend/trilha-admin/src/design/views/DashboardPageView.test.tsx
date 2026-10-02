@@ -155,38 +155,93 @@ function baseProps(
   }
 }
 
-describe('DashboardPageView — colocação Tutores', () => {
-  it('mostra Tutores de IA só na tab Alunos', async () => {
-    const user = userEvent.setup()
-    const onActiveTabChange = vi.fn()
-    const { rerender } = render(
+describe('DashboardPageView — accordion de KPIs', () => {
+  it('começa só com os 4 indicadores + empty state (sem detalhes)', () => {
+    render(
       <MemoryRouter>
-        <DashboardPageView
-          {...baseProps({ activeTab: 'students', onActiveTabChange })}
-        />
+        <DashboardPageView {...baseProps()} />
       </MemoryRouter>,
     )
 
-    expect(screen.getByTestId('agent-usage-section')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Tutores de IA' }),
+      screen.getByRole('heading', { name: 'Visão geral' }),
     ).toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: 'Questões' }))
-    expect(onActiveTabChange).toHaveBeenCalledWith('questions')
-
-    rerender(
-      <MemoryRouter>
-        <DashboardPageView
-          {...baseProps({ activeTab: 'questions', onActiveTabChange })}
-        />
-      </MemoryRouter>,
+    const kpiButtons = screen.getAllByRole('button').filter((el) =>
+      el.classList.contains('crias-kpi'),
     )
-
+    expect(kpiButtons).toHaveLength(4)
+    expect(kpiButtons[0]).toHaveTextContent(/Alunos ativos/i)
+    expect(kpiButtons[1]).toHaveTextContent(/Progresso médio/i)
+    expect(kpiButtons[2]).toHaveTextContent(/Acerto médio/i)
+    expect(kpiButtons[3]).toHaveTextContent(/Interações com tutores/i)
+    expect(
+      screen.getByRole('heading', {
+        name: /Clique em um indicador para ver os detalhes/i,
+      }),
+    ).toBeInTheDocument()
     expect(screen.queryByTestId('agent-usage-section')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: 'Tutores de IA' }),
+      screen.queryByRole('tab', { name: 'Alunos' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('ao clicar em Interações com tutores, abre Conversas com os tutores', async () => {
+    const user = userEvent.setup()
+    const onRequestKpiDetail = vi.fn()
+    render(
+      <MemoryRouter>
+        <DashboardPageView
+          {...baseProps({ onRequestKpiDetail })}
+        />
+      </MemoryRouter>,
+    )
+
+    const tutorsBtn = screen
+      .getAllByRole('button')
+      .find((el) => el.classList.contains('crias-kpi') && /Interações com tutores/i.test(el.textContent ?? ''))
+    expect(tutorsBtn).toBeTruthy()
+    await user.click(tutorsBtn!)
+
+    expect(onRequestKpiDetail).toHaveBeenCalled()
+    expect(screen.getByTestId('agent-usage-section')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Conversas com os tutores' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', {
+        name: /Clique em um indicador para ver os detalhes/i,
+      }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Alunos' })).toBeInTheDocument()
+  })
+
+  it('segundo clique no mesmo KPI oculta o detalhe e volta ao empty', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <DashboardPageView {...baseProps()} />
+      </MemoryRouter>,
+    )
+
+    const tutorsBtn = () =>
+      screen
+        .getAllByRole('button')
+        .find(
+          (el) =>
+            el.classList.contains('crias-kpi') &&
+            /Interações com tutores/i.test(el.textContent ?? ''),
+        )!
+
+    await user.click(tutorsBtn())
+    expect(screen.getByTestId('agent-usage-section')).toBeInTheDocument()
+
+    await user.click(tutorsBtn())
+    expect(screen.queryByTestId('agent-usage-section')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        name: /Clique em um indicador para ver os detalhes/i,
+      }),
+    ).toBeInTheDocument()
   })
 
   it('exibe banner de erro + retry acessível (não fica no gate)', () => {

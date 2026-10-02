@@ -62,3 +62,24 @@ Decisões:
 3. O painel **não** deve baixar `conversation_logs` brutos no browser para
    montar essas métricas; em falha do endpoint, erro + retry.
 4. Não inventar agentes sem `trail_id` confirmado pelo produto.
+5. Extensão aditiva `mode=kpis` | `mode=full` (default = full omitido): a
+   Visão geral abre com `kpis` e só pede `full` + stages/questões ao clicar
+   num indicador. Clientes do `main` sem `mode` continuam no contrato
+   histórico.
+
+## Decisão 10 — Visão geral = protótipo HTML, sem alterar o banco
+
+A Visão geral (`/dashboard`) deve espelhar `crias-redesign/Crias Visao Geral.dc.html`
+(layout e blocos, inclusive ranking e oportunidades).
+
+Restrições:
+
+1. **Nunca** criar, renomear, migrar nem alterar collections/campos/documentos
+   já existentes no Firestore (nem em “entrega futura” desta paridade). Só
+   leitura e agregações no painel / `dashboard_summary`.
+2. Ranking usa só progresso %, acerto % e mensagens de tutores já agregadas.
+3. Oportunidades “mais erros/acertos” usam o ranking de exercícios já calculado;
+   a aba “dúvidas com o tutor” fica vazia/avisando até existir `metadata.topic`
+   (Fase C), sem inventar tema e **sem** escrever esse campo agora.
+4. Filtro de turma (`class_name`) e período De–Até custom ficam ocultos/disabled
+   até existir dado/API — sem schema novo.

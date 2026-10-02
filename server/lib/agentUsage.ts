@@ -3,7 +3,8 @@
  * Fonte de verdade alinhada a specs/10_AGENT_USAGE_DASHBOARD.md.
  *
  * Agrega por **disciplina** (label): aliases `Trilha - X` + `Tutor - X`
- * viram uma única linha, somando mensagens e unindo alunos.
+ * viram uma única linha. Volume = **max** dos aliases (espelho system/student),
+ * não a soma — evita dobrar interações.
  */
 
 export const CANONICAL_AGENT_TRAIL_IDS = [
@@ -146,11 +147,16 @@ function preferPrimaryTrailId(a: string, b: string): string {
 }
 
 type LabelBucket = {
-  messages: number
+  /** Contagem por alias (`Trilha - X` / `Tutor - X`). */
+  messagesByTrail: Map<string, number>
   lastAt: number
   trailIds: Set<string>
   primary: string
-  students: Map<string, { messages: number; lastAt: number }>
+  /** studentId → alias → contagem (espelho: usa max na saída). */
+  students: Map<
+    string,
+    { byTrail: Map<string, number>; lastAt: number }
+  >
 }
 
 export function aggregateAgentUsage(
@@ -158,21 +164,19 @@ export function aggregateAgentUsage(
   periodDays: number = 0,
 ): AgentUsageAggregate {
   const byLabel = new Map<string, LabelBucket>()
-  const seriesMap = new Map<string, number>()
-
-  let totalMessages = 0
+  /** Série por dia → alias → count; depois max por disciplina. */
+  const seriesByDayAlias = new Map<string, Map<string, number>>()
 
   for (const log of logs) {
     const trailId = typeof log.trail_id === 'string' ? log.trail_id.trim() : ''
     if (!isAgentTrailId(trailId)) continue
 
     const label = agentLabelForTrailId(trailId)
-    totalMessages += 1
 
     let bucket = byLabel.get(label)
     if (!bucket) {
       bucket = {
-        messages: 0,
+        messagesByTrail: new Map(),
         lastAt: 0,
         trailIds: new Set(),
         primary: PRIMARY_BY_LABEL[label] ?? trailId,
@@ -181,7 +185,10 @@ export function aggregateAgentUsage(
       byLabel.set(label, bucket)
     }
 
-    bucket.messages += 1
+    bucket.messagesByTrail.set(
+      trailId,
+      (bucket.messagesByTrail.get(trailId) ?? 0) + 1,
+    )
     bucket.trailIds.add(trailId)
     if (CANONICAL_SET.has(trailId) || !CANONICAL_SET.has(bucket.primary)) {
       bucket.primary = preferPrimaryTrailId(bucket.primary, trailId)
@@ -193,19 +200,37 @@ export function aggregateAgentUsage(
 
     const sid = log.student_id?.trim()
     if (sid) {
-      const st = bucket.students.get(sid) ?? { messages: 0, lastAt: 0 }
-      st.messages += 1
+      let st = bucket.students.get(sid)
+      if (!st) {
+        st = { byTrail: new Map(), lastAt: 0 }
+        bucket.students.set(sid, st)
+      }
+      st.byTrail.set(trailId, (st.byTrail.get(trailId) ?? 0) + 1)
       if (log.at > st.lastAt) st.lastAt = log.at
-      bucket.students.set(sid, st)
     }
 
     const day = brasiliaDateKey(log.at)
     if (day) {
-      // Série por disciplina (label → primary), não por alias bruto.
       const primary = PRIMARY_BY_LABEL[label] ?? bucket.primary
       const seriesKey = `${day}\0${primary}`
-      seriesMap.set(seriesKey, (seriesMap.get(seriesKey) ?? 0) + 1)
+      let byAlias = seriesByDayAlias.get(seriesKey)
+      if (!byAlias) {
+        byAlias = new Map()
+        seriesByDayAlias.set(seriesKey, byAlias)
+      }
+      byAlias.set(trailId, (byAlias.get(trailId) ?? 0) + 1)
     }
+  }
+
+  /** Volume = max dos aliases (espelho Trilha/Tutor), não a soma. */
+  const maxMapValues = (m: Map<string, number> | undefined): number => {
+    if (!m || m.size === 0) return 0
+    return Math.max(...m.values())
+  }
+
+  let totalMessages = 0
+  for (const bucket of byLabel.values()) {
+    totalMessages += maxMapValues(bucket.messagesByTrail)
   }
 
   const agents: AgentUsageRow[] = []
@@ -222,11 +247,13 @@ export function aggregateAgentUsage(
       : [primary]
     if (!trailIds.includes(primary)) trailIds.unshift(primary)
 
+    const messages = maxMapValues(bucket?.messagesByTrail)
+
     const studentStats = bucket
       ? [...bucket.students.entries()]
           .map(([student_id, st]) => ({
             student_id,
-            messages: st.messages,
+            messages: maxMapValues(st.byTrail),
             last_activity: toIsoOrNull(st.lastAt),
           }))
           .sort((a, b) => {
@@ -236,7 +263,6 @@ export function aggregateAgentUsage(
       : []
 
     const studentIds = studentStats.map((s) => s.student_id)
-    const messages = bucket?.messages ?? 0
 
     agents.push({
       trail_id: primary,
@@ -258,8 +284,8 @@ export function aggregateAgentUsage(
   const extraLabels = [...byLabel.keys()]
     .filter((label) => !seenLabels.has(label))
     .sort((a, b) => {
-      const mb = byLabel.get(b)?.messages ?? 0
-      const ma = byLabel.get(a)?.messages ?? 0
+      const mb = maxMapValues(byLabel.get(b)?.messagesByTrail)
+      const ma = maxMapValues(byLabel.get(a)?.messagesByTrail)
       if (mb !== ma) return mb - ma
       return a.localeCompare(b)
     })
@@ -268,13 +294,13 @@ export function aggregateAgentUsage(
     pushRow(label, byLabel.get(label))
   }
 
-  const series: AgentUsageSeriesPoint[] = [...seriesMap.entries()]
-    .map(([key, messages]) => {
+  const series: AgentUsageSeriesPoint[] = [...seriesByDayAlias.entries()]
+    .map(([key, byAlias]) => {
       const sep = key.indexOf('\0')
       return {
         date: key.slice(0, sep),
         trail_id: key.slice(sep + 1),
-        messages,
+        messages: maxMapValues(byAlias),
       }
     })
     .sort((a, b) => {

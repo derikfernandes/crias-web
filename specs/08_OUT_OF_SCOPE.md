@@ -5,9 +5,6 @@ Na fase inicial, não implementar:
 - login social;
 - pagamento;
 - gamificação avançada;
-- ranking de alunos;
-- dashboard pedagógico avançado (exceto o bloco de **uso de agentes de IA**
-  definido em `10_AGENT_USAGE_DASHBOARD.md`);
 - recomendação automática de trilha por IA;
 - correção automática de redação;
 - multi-idioma;
@@ -25,6 +22,11 @@ Na fase inicial, não implementar:
 
 - Acompanhamento de uso dos agentes canônicos no dashboard
   (`specs/10_AGENT_USAGE_DASHBOARD.md`, decisão em `09_DECISIONS.md`).
+- Ranking de alunos e oportunidades de aprendizagem **na Visão geral**,
+  apenas com agregações já disponíveis (progresso, acerto, mensagens de
+  tutores, exercícios mais errados/acertados). **Nunca** alterar bancos /
+  collections / campos já existentes; sem inferir tema de dúvida
+  (`metadata.topic`). Ver Decisão 10 em `09_DECISIONS.md`.
 
 ## Regra
 

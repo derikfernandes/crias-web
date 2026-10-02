@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import type {
-  HomePageInstitutionCard,
-  HomePageTotals,
-  HomePageUsageStats,
-  HomePageViewProps,
-} from '../types/homePageView'
+import type { HomePageViewProps } from '../types/homePageView'
+import { CriasTabs } from '../components/navigation/CriasTabs'
+import { StatusTag } from '../components/ui/StatusTag'
+import { KpiGrid, KpiStat } from '../components/cards/KpiStat'
+import { PageEmpty, PageLoading } from '../components/feedback/PageState'
+import { useState } from 'react'
 
 export type {
   HomePageInstitutionCard,
@@ -12,111 +12,6 @@ export type {
   HomePageUsageStats,
   HomePageViewProps,
 } from '../types/homePageView'
-
-function StatCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="dashboard-stat-card">
-      <span className="dashboard-stat-card__label">{label}</span>
-      <span className="dashboard-stat-card__value">{value}</span>
-    </div>
-  )
-}
-
-function UsageRow({ usage }: { usage: HomePageUsageStats }) {
-  return (
-    <dl className="home-dash__usage">
-      <div>
-        <dt>Em andamento</dt>
-        <dd>{usage.inProgress}</dd>
-      </div>
-      <div>
-        <dt>Concluíram</dt>
-        <dd>{usage.completed}</dd>
-      </div>
-      <div>
-        <dt>Não iniciaram</dt>
-        <dd>{usage.notStarted}</dd>
-      </div>
-      <div>
-        <dt>Ativos (7 dias)</dt>
-        <dd>{usage.activeLast7Days}</dd>
-      </div>
-    </dl>
-  )
-}
-
-function TotalsStrip({
-  totals,
-  showInstitutions,
-}: {
-  totals: HomePageTotals
-  showInstitutions: boolean
-}) {
-  return (
-    <div className="home-dash__stats" aria-label="Resumo">
-      {showInstitutions ? (
-        <StatCard label="Instituições" value={totals.institutions} />
-      ) : null}
-      <StatCard label="Alunos ativos" value={totals.activeStudents} />
-      <StatCard label="Trilhas ativas" value={totals.activeTrails} />
-      <StatCard label="Ativos (7 dias)" value={totals.usage.activeLast7Days} />
-      <StatCard label="Em andamento" value={totals.usage.inProgress} />
-    </div>
-  )
-}
-
-function InstitutionCard({
-  card,
-  onRememberInstitution,
-}: {
-  card: HomePageInstitutionCard
-  onRememberInstitution: (institutionId: string) => void
-}) {
-  return (
-    <article className="home-dash__card">
-      <header className="home-dash__card-head">
-        <div>
-          <h3>
-            <Link to={card.detailHref}>{card.name}</Link>
-          </h3>
-          <p className="muted">
-            {card.type}
-            {card.active ? '' : ' · inativa'}
-          </p>
-        </div>
-        <div className="home-dash__card-actions">
-          <Link className="btn btn--small btn--ghost" to={card.detailHref}>
-            Editar
-          </Link>
-          <Link
-            className="btn btn--small btn--ghost"
-            to={card.gerenciamentoHref}
-            onClick={() => onRememberInstitution(card.id)}
-          >
-            Gestão
-          </Link>
-          <Link
-            className="btn btn--small btn--primary"
-            to={card.dashboardHref}
-            onClick={() => onRememberInstitution(card.id)}
-          >
-            Dashboard
-          </Link>
-        </div>
-      </header>
-
-      <div className="home-dash__card-stats">
-        <StatCard label="Alunos ativos" value={card.activeStudents} />
-        <StatCard label="Trilhas ativas" value={card.activeTrails} />
-      </div>
-
-      <div className="home-dash__card-usage">
-        <h4>Uso dos alunos</h4>
-        <UsageRow usage={card.usage} />
-      </div>
-    </article>
-  )
-}
 
 export function HomePageView({
   canCreate,
@@ -127,56 +22,48 @@ export function HomePageView({
   cards,
   onRememberInstitution,
 }: HomePageViewProps) {
+  const [configTab, setConfigTab] = useState<'instituicoes' | 'atalhos'>(
+    'instituicoes',
+  )
   const single = mode === 'single' ? cards[0] : null
 
   return (
     <>
-      <header className="admin__header dashboard-header home-dash__header">
-        <div className="dashboard-header__intro">
-          <h1>{single ? single.name : 'Instituições'}</h1>
-          <p className="admin__lede muted">
-            {single
-              ? 'Visão geral da instituição: alunos, trilhas e uso recente.'
-              : mode === 'empty'
-                ? 'Cadastre uma instituição para começar a acompanhar alunos e trilhas.'
-                : 'Resumo das instituições às quais você tem acesso.'}
-          </p>
-        </div>
-        {!loading && mode !== 'empty' ? (
-          <TotalsStrip
-            totals={single ? { ...totals, institutions: 1 } : totals}
-            showInstitutions={mode === 'multi'}
-          />
-        ) : null}
-        <p className="admin__actions dashboard-header__toolbar">
+      <header className="admin__header">
+        <div className="crias-label">Configurações</div>
+        <h1>
+          {single ? single.name : 'Instituições, usuários e acesso'}
+        </h1>
+        <p className="admin__lede muted">
+          {single
+            ? 'Visão da instituição e atalhos para gestão, usuários e visão geral.'
+            : mode === 'empty'
+              ? 'Cadastre uma instituição para começar.'
+              : 'Gerencie instituições permitidas. Usuários e papéis ficam em Usuários e acesso.'}
+        </p>
+        <p className="admin__actions">
           {canCreate ? (
             <Link className="btn btn--primary" to="/instituicoes/novo">
               + Nova instituição
             </Link>
           ) : null}
-          {single ? (
-            <>
-              <Link className="btn btn--ghost" to={single.detailHref}>
-                Editar instituição
-              </Link>
-              <Link
-                className="btn btn--ghost"
-                to={single.dashboardHref}
-                onClick={() => onRememberInstitution(single.id)}
-              >
-                Dashboard detalhado
-              </Link>
-              <Link
-                className="btn btn--ghost"
-                to={single.gerenciamentoHref}
-                onClick={() => onRememberInstitution(single.id)}
-              >
-                Visão por instituição
-              </Link>
-            </>
-          ) : null}
+          <Link className="btn btn--ghost" to="/admin">
+            Usuários e acesso
+          </Link>
         </p>
       </header>
+
+      <CriasTabs
+        ariaLabel="Configurações"
+        activeId={configTab}
+        onChange={(id) =>
+          setConfigTab(id === 'atalhos' ? 'atalhos' : 'instituicoes')
+        }
+        items={[
+          { id: 'instituicoes', label: 'Instituições' },
+          { id: 'atalhos', label: 'Atalhos' },
+        ]}
+      />
 
       {error ? (
         <p className="banner banner--error" role="alert">
@@ -184,47 +71,180 @@ export function HomePageView({
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="muted" role="status">
-          Carregando dados…
-        </p>
-      ) : null}
+      {loading ? <PageLoading label="Carregando configurações…" /> : null}
 
-      {!loading && mode === 'empty' ? (
+      {!loading && configTab === 'atalhos' ? (
         <section className="panel">
-          <p className="muted table__empty">
-            Nenhuma instituição disponível para o seu usuário.
-          </p>
-        </section>
-      ) : null}
-
-      {!loading && single ? (
-        <section className="home-dash__single panel">
           <div className="panel__head">
-            <h2>Uso dos alunos</h2>
-            <span className="muted">
-              {single.active ? 'Instituição ativa' : 'Instituição inativa'}
-              {single.type ? ` · ${single.type}` : ''}
-            </span>
+            <h2>Atalhos de configuração</h2>
           </div>
-          <UsageRow usage={single.usage} />
-          <p className="home-dash__hint muted">
-            “Ativos (7 dias)” conta alunos com interação recente na trilha.
-            “Não iniciaram” conta vínculos de trilha ainda não começados.
+          <div className="admin__actions" style={{ flexWrap: 'wrap' }}>
+            <Link className="btn btn--ghost" to="/admin">
+              Usuários e permissões
+            </Link>
+            <Link className="btn btn--ghost" to="/gerenciamento">
+              Visão por instituição
+            </Link>
+            <Link className="btn btn--ghost" to="/gabarito">
+              Gabaritos
+            </Link>
+            <Link className="btn btn--ghost" to="/doc">
+              API e documentação
+            </Link>
+          </div>
+          <p className="muted" style={{ marginTop: 16 }}>
+            Papéis Coordenação/Leitura seguem o conjunto de{' '}
+            <code>nav_permissions</code> definido em Usuários e acesso. Convite
+            por e-mail fica para fase posterior.
           </p>
         </section>
       ) : null}
 
-      {!loading && mode === 'multi' ? (
-        <section className="home-dash__grid" aria-label="Instituições">
-          {cards.map((card) => (
-            <InstitutionCard
-              key={card.id}
-              card={card}
-              onRememberInstitution={onRememberInstitution}
+      {!loading && configTab === 'instituicoes' ? (
+        <>
+          {mode !== 'empty' ? (
+            <KpiGrid>
+              {mode === 'multi' ? (
+                <KpiStat
+                  label="Instituições"
+                  value={String(totals.institutions)}
+                />
+              ) : null}
+              <KpiStat
+                label="Alunos ativos"
+                value={String(totals.activeStudents)}
+              />
+              <KpiStat
+                label="Trilhas ativas"
+                value={String(totals.activeTrails)}
+              />
+              <KpiStat
+                label="Ativos (7 dias)"
+                value={String(totals.usage.activeLast7Days)}
+              />
+            </KpiGrid>
+          ) : null}
+
+          {mode === 'empty' ? (
+            <PageEmpty
+              title="Nenhuma instituição disponível"
+              body="Nenhuma instituição disponível para o seu usuário."
             />
-          ))}
-        </section>
+          ) : null}
+
+          {single ? (
+            <section className="panel">
+              <div className="panel__head">
+                <h2>Instituição</h2>
+                <StatusTag
+                  label={single.active ? 'Ativa' : 'Inativa'}
+                  tone={single.active ? 'ativa' : 'inativa'}
+                />
+              </div>
+              <dl className="trail-cadastro-details">
+                <div className="trail-cadastro-details__row">
+                  <dt>Tipo</dt>
+                  <dd>{single.type || '—'}</dd>
+                </div>
+                <div className="trail-cadastro-details__row">
+                  <dt>Em andamento</dt>
+                  <dd>{single.usage.inProgress}</dd>
+                </div>
+                <div className="trail-cadastro-details__row">
+                  <dt>Concluíram</dt>
+                  <dd>{single.usage.completed}</dd>
+                </div>
+                <div className="trail-cadastro-details__row">
+                  <dt>Não iniciaram</dt>
+                  <dd>{single.usage.notStarted}</dd>
+                </div>
+              </dl>
+              <p className="admin__actions" style={{ marginTop: 16 }}>
+                <Link className="btn btn--ghost" to={single.detailHref}>
+                  Editar
+                </Link>
+                <Link
+                  className="btn btn--primary"
+                  to={single.dashboardHref}
+                  onClick={() => onRememberInstitution(single.id)}
+                >
+                  Visão geral
+                </Link>
+                <Link
+                  className="btn btn--ghost"
+                  to={single.gerenciamentoHref}
+                  onClick={() => onRememberInstitution(single.id)}
+                >
+                  Gestão
+                </Link>
+              </p>
+            </section>
+          ) : null}
+
+          {mode === 'multi' ? (
+            <section className="panel">
+              <div className="panel__head">
+                <h2>Instituições</h2>
+                <span className="muted">{cards.length}</span>
+              </div>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Tipo</th>
+                      <th>Status</th>
+                      <th>Alunos</th>
+                      <th>Trilhas</th>
+                      <th>Ativos 7d</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cards.map((card) => (
+                      <tr key={card.id}>
+                        <td>
+                          <Link
+                            className="table__name-link"
+                            to={card.detailHref}
+                          >
+                            {card.name}
+                          </Link>
+                        </td>
+                        <td>{card.type || '—'}</td>
+                        <td>
+                          <StatusTag
+                            label={card.active ? 'Ativa' : 'Inativa'}
+                            tone={card.active ? 'ativa' : 'inativa'}
+                          />
+                        </td>
+                        <td>{card.activeStudents}</td>
+                        <td>{card.activeTrails}</td>
+                        <td>{card.usage.activeLast7Days}</td>
+                        <td className="table__actions">
+                          <Link
+                            className="btn btn--small btn--ghost"
+                            to={card.dashboardHref}
+                            onClick={() => onRememberInstitution(card.id)}
+                          >
+                            Visão geral
+                          </Link>
+                          <Link
+                            className="btn btn--small btn--ghost"
+                            to={card.gerenciamentoHref}
+                            onClick={() => onRememberInstitution(card.id)}
+                          >
+                            Gestão
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+        </>
       ) : null}
     </>
   )

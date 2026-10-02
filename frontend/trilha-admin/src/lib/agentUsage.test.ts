@@ -19,7 +19,7 @@ function row(partial: Partial<AgentUsageRowView> & Pick<AgentUsageRowView, 'trai
 }
 
 describe('mergeAgentRowsByLabel', () => {
-  it('soma aliases Trilha/Tutor da mesma disciplina', () => {
+  it('funde aliases Trilha/Tutor sem dobrar (max, não soma)', () => {
     const merged = mergeAgentRowsByLabel([
       row({
         trailId: 'Trilha - Matemática',
@@ -44,14 +44,16 @@ describe('mergeAgentRowsByLabel', () => {
 
     const math = merged.filter((a) => a.label === 'Matemática')
     expect(math).toHaveLength(1)
-    expect(math[0]?.messages).toBe(790)
+    expect(math[0]?.messages).toBe(397)
     expect(math[0]?.trailId).toBe('Trilha - Matemática')
     expect(math[0]?.trailIds.sort()).toEqual([
       'Trilha - Matemática',
       'Tutor - Matemática',
     ])
     expect(math[0]?.uniqueStudents).toBe(2)
-    expect(math[0]?.studentStats.find((s) => s.studentId === 's1')?.messages).toBe(597)
+    // s1: max(397, 200) — não 597
+    expect(math[0]?.studentStats.find((s) => s.studentId === 's1')?.messages).toBe(397)
+    expect(math[0]?.studentStats.find((s) => s.studentId === 's2')?.messages).toBe(193)
   })
 })
 

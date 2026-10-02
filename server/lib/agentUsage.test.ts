@@ -113,7 +113,7 @@ describe('aggregateAgentUsage', () => {
     expect(mathRows).toHaveLength(1)
     expect(lingRows).toHaveLength(1)
 
-    expect(mathRows[0]?.messages).toBe(3)
+    expect(mathRows[0]?.messages).toBe(2)
     expect(mathRows[0]?.unique_students).toBe(2)
     expect(mathRows[0]?.trail_id).toBe('Trilha - Matemática')
     expect(mathRows[0]?.trail_ids.sort()).toEqual([
@@ -122,12 +122,15 @@ describe('aggregateAgentUsage', () => {
     ])
     expect(mathRows[0]?.student_stats[0]?.messages).toBeGreaterThan(0)
 
-    expect(lingRows[0]?.messages).toBe(2)
+    expect(lingRows[0]?.messages).toBe(1)
     expect(lingRows[0]?.trail_id).toBe('Tutor - Linguagens')
     expect(lingRows[0]?.trail_ids.sort()).toEqual([
       'Trilha - Linguagens',
       'Tutor - Linguagens',
     ])
+
+    // Total = max por disciplina (não soma o espelho).
+    expect(result.total_messages).toBe(3)
 
     const labels = result.agents.map((a) => a.label)
     expect(new Set(labels).size).toBe(labels.length)
@@ -148,7 +151,7 @@ describe('aggregateAgentUsage', () => {
       { student_id: 's1', trail_id: 'Tutor - Matemática', at: at + 1000 },
     ])
     expect(result.series).toHaveLength(1)
-    expect(result.series[0]?.messages).toBe(2)
+    expect(result.series[0]?.messages).toBe(1)
     expect(result.series[0]?.trail_id).toBe('Trilha - Matemática')
     expect(brasiliaDateKey(at)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })

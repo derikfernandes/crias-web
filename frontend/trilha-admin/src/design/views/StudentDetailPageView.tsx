@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { StudentDetailPageViewProps } from '../types/studentDetailPageView'
+import { StatusTag } from '../components/ui/StatusTag'
+import { PageEmpty, PageError, PageLoading } from '../components/feedback/PageState'
 
 export type {
   StudentDetailTrailRow,
@@ -10,9 +12,7 @@ export type {
 export function StudentDetailPageView(props: StudentDetailPageViewProps) {
   if (props.status === 'missing-id') {
     return (
-      <p className="banner banner--error" role="alert">
-        ID ausente na URL.
-      </p>
+      <PageError title="ID ausente" body="ID ausente na URL." />
     )
   }
 
@@ -22,6 +22,16 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
     notFound,
     formSlot,
     hasStudent,
+    studentName,
+    schoolGrade,
+    schoolLevel,
+    studentLevelLabel,
+    lastInteractionLabel,
+    activeLabel,
+    backHref = '/alunos',
+    onDeactivate,
+    deactivateBusy = false,
+    learningStats,
     loadingTrails,
     trailsError,
     editError,
@@ -56,15 +66,47 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
     onClearAgentHistoryFilter,
   } = props
 
+  const metaParts = [
+    schoolGrade,
+    schoolLevel,
+    studentLevelLabel ? `nível ${studentLevelLabel}` : null,
+    activeLabel,
+  ].filter(Boolean)
+
   return (
     <>
       <header className="admin__header">
-        <h1>Aluno</h1>
-        <p className="admin__actions">
-          <Link className="btn btn--ghost" to="/">
-            ← Voltar ao início
+        <p className="admin__actions" style={{ marginBottom: 8 }}>
+          <Link className="btn btn--ghost" to={backHref}>
+            ← Alunos
           </Link>
         </p>
+        <div className="crias-label">Perfil do aluno</div>
+        <h1>{studentName?.trim() || 'Aluno'}</h1>
+        {metaParts.length > 0 ? (
+          <p className="admin__lede muted">
+            {metaParts.join(' · ')}
+            {lastInteractionLabel
+              ? ` · última interação ${lastInteractionLabel}`
+              : ''}
+          </p>
+        ) : (
+          <p className="admin__lede muted">
+            Percurso por trilha, cadastro e histórico do WhatsApp.
+          </p>
+        )}
+        {onDeactivate && hasStudent && !notFound ? (
+          <p className="admin__actions">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={deactivateBusy}
+              onClick={onDeactivate}
+            >
+              {deactivateBusy ? 'Desativando…' : 'Desativar aluno'}
+            </button>
+          </p>
+        ) : null}
       </header>
 
       {error ? (
@@ -74,26 +116,49 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
       ) : null}
 
       {loading ? (
-        <p className="muted">Carregando…</p>
+        <PageLoading label="Carregando aluno…" />
       ) : notFound ? (
-        <p className="banner banner--error" role="alert">
-          Registro não encontrado.
-        </p>
+        <PageError title="Registro não encontrado" />
       ) : (
-        formSlot
+        <section className="panel">
+          <div className="panel__head">
+            <h2>Cadastro</h2>
+          </div>
+          {formSlot}
+        </section>
       )}
+
+      {learningStats && learningStats.length > 0 ? (
+        <section className="panel">
+          <div className="panel__head">
+            <h2>Aprendizagem</h2>
+          </div>
+          <div className="crias-kpi-grid">
+            {learningStats.map((stat) => (
+              <div key={`${stat.subject}-${stat.label}`} className="crias-kpi">
+                <span className="crias-kpi__label">
+                  {stat.subject} · {stat.label}
+                </span>
+                <span className="crias-kpi__value" style={{ fontSize: 22 }}>
+                  {stat.valueLabel}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel">
         <div className="panel__head">
-          <h2>Trilhas vinculadas (student_trails)</h2>
+          <h2>Percurso por trilha</h2>
           {loadingTrails ? (
             <span className="muted">Carregando progresso…</span>
           ) : null}
         </div>
 
         <p className="muted" style={{ marginTop: 0 }}>
-          Abaixo aparecem as trilhas em que este aluno tem registro de progresso.
-          Você pode vincular manualmente trilhas da mesma instituição do aluno.
+          Trilhas com registro de progresso. Use “Mover de atividade” para
+          ajustar stage e questão, ou vincule outra trilha da mesma instituição.
         </p>
 
         {trailsError ? (
@@ -108,11 +173,10 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
         ) : null}
 
         {!loadingTrails && trailRows.length === 0 ? (
-          <p className="muted">
-            Nenhuma trilha vinculada ainda. Use o formulário abaixo para vincular,
-            ou o chatbot pode criar e atualizar registros em{' '}
-            <code>student_trails</code> automaticamente.
-          </p>
+          <PageEmpty
+            title="Nenhuma trilha vinculada"
+            body="Use o formulário abaixo para vincular uma trilha da instituição."
+          />
         ) : null}
 
         {trailRows.length > 0 ? (
@@ -121,10 +185,10 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
               <thead>
                 <tr>
                   <th>Trilha</th>
-                  <th>Stage atual</th>
-                  <th>Questão atual</th>
+                  <th>Situação</th>
+                  <th>Bloco</th>
+                  <th>Atividade</th>
                   <th>Status</th>
-                  <th>Início</th>
                   <th>Última interação</th>
                   <th>Ações</th>
                 </tr>
@@ -133,13 +197,25 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                 {trailRows.map((row) => (
                   <tr key={row.id}>
                     <td>
-                      <Link to={row.trailHref}>{row.trailLabel}</Link>
+                      <Link className="table__name-link" to={row.trailHref}>
+                        {row.trailLabel}
+                      </Link>
                       {row.trailIdSecondary ? (
                         <div className="muted" style={{ fontSize: '0.85em' }}>
                           <code>{row.trailIdSecondary}</code>
                           {row.inactiveHint ? ' · inativa' : null}
                         </div>
                       ) : null}
+                    </td>
+                    <td>
+                      {row.situationLabel && row.situationTone ? (
+                        <StatusTag
+                          label={row.situationLabel}
+                          tone={row.situationTone}
+                        />
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>
                       {row.isEditing ? (
@@ -151,6 +227,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                           onChange={(e) => onEditStageChange(e.target.value)}
                           disabled={editBusy}
                           style={{ width: '6.5rem' }}
+                          aria-label="Bloco (stage)"
                         />
                       ) : (
                         row.stageDisplay
@@ -166,6 +243,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                           onChange={(e) => onEditQuestionChange(e.target.value)}
                           disabled={editBusy}
                           style={{ width: '6.5rem' }}
+                          aria-label="Atividade (questão)"
                         />
                       ) : (
                         row.questionDisplay
@@ -187,7 +265,6 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                         <code>{row.status}</code>
                       )}
                     </td>
-                    <td>{row.startedAtLabel}</td>
                     <td>{row.lastInteractionAtLabel}</td>
                     <td>
                       <div className="table__actions">
@@ -217,7 +294,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                             onClick={() => onStartEditTrail(row.id)}
                             disabled={editBusy}
                           >
-                            Editar
+                            Mover de atividade
                           </button>
                         )}
                         <button
@@ -239,13 +316,21 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
 
         {hasStudent ? (
           <>
-            <h3 style={{ margin: '1.25rem 0 0.75rem', fontSize: '1.05rem' }}>
-              Vincular nova trilha
+            <h3
+              className="crias-section-title"
+              style={{
+                fontSize: 18,
+                margin: '1.5rem 0 0.75rem',
+                borderBottom: 0,
+                paddingBottom: 0,
+              }}
+            >
+              Outras trilhas · vincular
             </h3>
             {missingInstitutionId ? (
               <p className="banner banner--error" role="alert">
-                Este aluno não tem <code>institution_id</code>. Defina a instituição
-                no cadastro acima antes de vincular trilhas.
+                Este aluno não tem instituição. Defina no cadastro acima antes
+                de vincular trilhas.
               </p>
             ) : (
               <form className="form" onSubmit={onLinkTrailSubmit}>
@@ -266,14 +351,16 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                     value={linkTrailId}
                     onChange={(e) => onLinkTrailIdChange(e.target.value)}
                     disabled={
-                      linkBusy || loadingInstitutionTrails || linkableTrails.length === 0
+                      linkBusy ||
+                      loadingInstitutionTrails ||
+                      linkableTrails.length === 0
                     }
                   >
                     <option value="">
                       {loadingInstitutionTrails
                         ? 'Carregando trilhas…'
                         : linkableTrails.length === 0
-                          ? 'Nenhuma trilha disponível (todas vinculadas ou sem trilhas na instituição)'
+                          ? 'Nenhuma trilha disponível'
                           : 'Selecione…'}
                     </option>
                     {linkableTrails.map((t) => (
@@ -318,8 +405,13 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
 
       <section className="panel">
         <div className="panel__head">
-          <h2>Histórico de conversa (conversation_logs)</h2>
-          {loadingLogs ? <span className="muted">Carregando histórico…</span> : null}
+          <div>
+            <div className="crias-label">Conversa no WhatsApp</div>
+            <h2 style={{ margin: '4px 0 0' }}>Histórico</h2>
+          </div>
+          {loadingLogs ? (
+            <span className="muted">Carregando histórico…</span>
+          ) : null}
         </div>
 
         {agentHistoryFilterLabel ? (
@@ -350,11 +442,14 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
         ) : null}
 
         {!loadingLogs && logsEmpty ? (
-          <p className="muted">
-            {agentHistoryFilterLabel
-              ? 'Nenhum log deste agente para este aluno no histórico.'
-              : 'Nenhum log de conversa encontrado para este aluno ainda. Cada mensagem trocada pelo chatbot gera um registro em conversation_logs.'}
-          </p>
+          <PageEmpty
+            title="Nenhum log de conversa"
+            body={
+              agentHistoryFilterLabel
+                ? 'Nenhum log deste agente para este aluno.'
+                : 'Cada mensagem trocada pelo chatbot gera um registro em conversation_logs.'
+            }
+          />
         ) : null}
 
         {chatSlot}

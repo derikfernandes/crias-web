@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { TrailsListPageViewProps } from '../types/trailsListPageView'
+import { StatusTag } from '../components/ui/StatusTag'
+import { PageEmpty, PageLoading } from '../components/feedback/PageState'
 
 export type {
   TrailsListInstitutionOption,
@@ -25,6 +27,10 @@ export function TrailsListPageView({
   onPreviousPage,
   onNextPage,
 }: TrailsListPageViewProps) {
+  const showDepth = rows.some((r) => r.depthLabel != null)
+  const showReleased = rows.some((r) => r.releasedLabel != null)
+  const showStudents = rows.some((r) => r.studentsCount != null)
+
   return (
     <>
       <header className="admin__header">
@@ -84,79 +90,102 @@ export function TrailsListPageView({
             </span>
           )}
         </div>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Instituição</th>
-                <th>Matéria</th>
-                <th>Ativa</th>
-                <th>Criada em</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={6} className="muted table__empty">
-                    Nenhuma trilha encontrada.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <Link className="table__name-link" to={row.detailHref}>
-                        {row.name || '—'}
-                      </Link>
-                    </td>
-                    <td>{row.institutionName}</td>
-                    <td>{row.subject || '—'}</td>
-                    <td>{row.activeLabel}</td>
-                    <td>{row.createdAtLabel}</td>
-                    <td className="table__actions">
-                      <Link
-                        className="btn btn--small btn--ghost"
-                        to={row.detailHref}
-                      >
-                        Abrir
-                      </Link>
-                    </td>
+        {loading && rows.length === 0 ? (
+          <PageLoading label="Carregando trilhas…" />
+        ) : !loading && rows.length === 0 ? (
+          <PageEmpty
+            title="Nenhuma trilha encontrada"
+            body="Ajuste os filtros ou crie uma nova trilha."
+          />
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Matéria</th>
+                    {showDepth ? <th>Profundidade</th> : null}
+                    {showReleased ? <th>Liberadas</th> : null}
+                    {showStudents ? <th>Alunos</th> : null}
+                    <th>Instituição</th>
+                    <th>Status</th>
+                    <th>Criada em</th>
+                    <th></th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        {filteredCount > 0 ? (
-          <div className="list-pagination">
-            <span className="muted">
-              {pageStart}–{pageEnd} de {filteredCount}
-            </span>
-            <div className="list-pagination__actions">
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={onPreviousPage}
-                disabled={page <= 1}
-              >
-                Anterior
-              </button>
-              <span className="muted">
-                Página {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                className="btn btn--small btn--ghost"
-                onClick={onNextPage}
-                disabled={page >= totalPages}
-              >
-                Próxima
-              </button>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <Link className="table__name-link" to={row.detailHref}>
+                          {row.name || '—'}
+                        </Link>
+                      </td>
+                      <td>{row.subject || '—'}</td>
+                      {showDepth ? <td>{row.depthLabel || '—'}</td> : null}
+                      {showReleased ? (
+                        <td>{row.releasedLabel || '—'}</td>
+                      ) : null}
+                      {showStudents ? (
+                        <td>{row.studentsCount ?? '—'}</td>
+                      ) : null}
+                      <td>{row.institutionName}</td>
+                      <td>
+                        <StatusTag
+                          label={row.activeLabel}
+                          tone={
+                            row.activeLabel === 'Ativa' ||
+                            row.activeLabel === 'Sim'
+                              ? 'ativa'
+                              : 'inativa'
+                          }
+                        />
+                      </td>
+                      <td>{row.createdAtLabel}</td>
+                      <td className="table__actions">
+                        <Link
+                          className="btn btn--small btn--ghost"
+                          to={row.detailHref}
+                        >
+                          Abrir
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        ) : null}
+            {filteredCount > 0 ? (
+              <div className="list-pagination">
+                <span className="muted">
+                  {pageStart}–{pageEnd} de {filteredCount}
+                </span>
+                <div className="list-pagination__actions">
+                  <button
+                    type="button"
+                    className="btn btn--small btn--ghost"
+                    onClick={onPreviousPage}
+                    disabled={page <= 1}
+                  >
+                    Anterior
+                  </button>
+                  <span className="muted">
+                    Página {page} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--small btn--ghost"
+                    onClick={onNextPage}
+                    disabled={page >= totalPages}
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </>
   )

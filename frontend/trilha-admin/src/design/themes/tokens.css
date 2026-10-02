@@ -77,3 +77,66 @@
   --sidebar-active-bg: #ffd500;
   --sidebar-active-text: #0f172a;
 }
+
+/**
+ * Tokens do redesign Crias — escopados ao shell admin.
+ * Não alterar :root globalmente: evita contaminar futuras rotas /trilha/*.
+ * Tokens legados acima permanecem até a migração completa das views.
+ */
+[data-shell='admin'] {
+  --c-bg: #fffcf0;
+  --c-surface: #f6f2e3;
+  --c-text: #001c0e;
+  --c-divider: color-mix(in srgb, #001c0e 34%, transparent);
+
+  --c-green: #00be85;
+  --c-green-100: #e6f8f1;
+  --c-green-200: #c4efdf;
+  --c-green-300: #8fe0c4;
+  --c-green-700: #00835b;
+  --c-green-800: #006246;
+
+  --c-yellow: #ffd500;
+  --c-yellow-100: #fff9d6;
+  --c-yellow-200: #fff0a3;
+  --c-yellow-800: #7a6400;
+
+  --c-rose-100: #fde4e9;
+  --c-rose-300: #f5b0bd;
+  --c-rose-900: #7a1f33;
+
+  --c-n-100: #faf8f0;
+  --c-n-200: #efece1;
+  --c-n-300: #dcd8cb;
+  --c-n-400: #bdbaae;
+  --c-n-500: #9a988e;
+  --c-n-600: #7a7970;
+  --c-n-700: #5b5b53;
+  --c-n-800: #3e3f38;
+  --c-n-900: #1f231c;
+
+  --c-font: 'Manrope', system-ui, sans-serif;
+  --c-header-h: 64px;
+  --c-page-max: 1320px;
+  --c-radius: 0;
+
+  /* Bridge: pages still use legacy vars inside admin shell */
+  --bg: var(--c-bg);
+  --surface: var(--c-surface);
+  --surface-muted: var(--c-surface);
+  --text: var(--c-n-700);
+  --text-h: var(--c-text);
+  --border: var(--c-divider);
+  --code-bg: var(--c-n-200);
+  --sans: var(--c-font);
+  --heading: var(--c-font);
+  --shadow: none;
+  --accent: var(--c-yellow);
+  --accent-text: var(--c-yellow-800);
+  --accent-bg: var(--c-yellow-100);
+  --accent-border: var(--c-yellow);
+  --accent-solid: var(--c-yellow);
+  --accent-solid-text: var(--c-text);
+  --success-text: var(--c-green-700);
+  --success-bg: var(--c-green-100);
+}

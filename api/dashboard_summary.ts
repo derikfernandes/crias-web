@@ -8,6 +8,7 @@ import {
   periodCutoffMillis,
   type AgentUsageLogInput,
 } from '../server/lib/agentUsage'
+import { parseDashboardSummaryMode } from '../server/lib/dashboardSummaryMode'
 
 /**
  * Agregação server-side dos conversation_logs para o dashboard do painel admin.
@@ -15,7 +16,11 @@ import {
  * Endpoint somente leitura (GET). Não altera nenhuma coleção nem interfere nos
  * demais endpoints da API usados pelo motor do produto.
  *
- * Resposta (formato compacto para ficar bem abaixo do limite de 4,5 MB de
+ * Query aditiva:
+ * - mode=full (padrão, omitir = full): resposta histórica intacta.
+ * - mode=kpis: payload leve (contagens + agent_usage), sem mapa `students`.
+ *
+ * Resposta full (formato compacto para ficar bem abaixo do limite de 4,5 MB de
  * payload das functions da Vercel — trilhas são referenciadas por índice em
  * `trail_ids` e as chaves são "trailIdx|stage|question"):
  * {
@@ -27,6 +32,15 @@ import {
  *     extra_done: Array<"trailIdx|stage|question">
  *   }>,
  *   agent_usage: { ... }  // ver specs/10_AGENT_USAGE_DASHBOARD.md
+ * }
+ *
+ * Resposta kpis (aditiva; só quando mode=kpis):
+ * {
+ *   mode: "kpis",
+ *   institution_id: string,
+ *   student_count: number,
+ *   active_student_count: number,
+ *   agent_usage: { ... }
  * }
  *
  * O conjunto "feito" de cada aluno = chaves de `answers` + `extra_done`.
@@ -149,7 +163,9 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const periodDays = parsePeriodDays(url.searchParams.get('period_days'))
+  const mode = parseDashboardSummaryMode(url.searchParams.get('mode'))
   const cutoffMs = periodCutoffMillis(periodDays)
+  const kpisOnly = mode === 'kpis'
 
   let db: ReturnType<typeof getFirestore>
   try {
@@ -166,13 +182,20 @@ async function handleRequest(request: Request): Promise<Response> {
     process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 
   try {
-    // select() sem campos: baixa apenas os IDs dos documentos.
+    // kpis: precisa do campo active para active_student_count.
+    // full: select() sem campos baixa apenas os IDs (comportamento histórico).
     const [studentsSnap, trailsSnap] = await Promise.all([
-      db
-        .collection(studentsCollection)
-        .where('institution_id', '==', institutionId)
-        .select()
-        .get(),
+      kpisOnly
+        ? db
+            .collection(studentsCollection)
+            .where('institution_id', '==', institutionId)
+            .select('active')
+            .get()
+        : db
+            .collection(studentsCollection)
+            .where('institution_id', '==', institutionId)
+            .select()
+            .get(),
       db
         .collection(trailsCollection)
         .where('institution_id', '==', institutionId)
@@ -184,6 +207,14 @@ async function handleRequest(request: Request): Promise<Response> {
     const trailIdList = trailsSnap.docs.map((d) => d.id)
     const trailIndexById = new Map(trailIdList.map((id, idx) => [id, idx]))
 
+    let activeStudentCount = 0
+    if (kpisOnly) {
+      for (const doc of studentsSnap.docs) {
+        const active = (doc.data() as { active?: unknown }).active
+        if (active !== false) activeStudentCount += 1
+      }
+    }
+
     /** studentId -> chave compacta "trailIdx|stage|question" -> candidatos. */
     const perStudent = new Map<string, Map<string, AnswerCandidate[]>>()
     const agentLogs: AgentUsageLogInput[] = []
@@ -191,22 +222,33 @@ async function handleRequest(request: Request): Promise<Response> {
     const chunks = chunkArray(studentIds, FIRESTORE_IN_LIMIT)
     await Promise.all(
       chunks.map(async (chunk) => {
-        // Sem filtro de sender: progressão usa sender=student; agentes contam todos.
-        const snap = await db
+        // Progressão e interações com tutores usam sender=student.
+        // Em agentes, `Trilha - X` espelha a resposta system e `Tutor - X` o
+        // aluno — contar os dois dobrava o KPI "Interações com tutores".
+        // mode=kpis: só campos de agente (payload/CPU menores).
+        const logsQuery = db
           .collection(logsCollection)
           .where('student_id', 'in', chunk)
-          .select(
-            'student_id',
-            'trail_id',
-            'stage_number',
-            'question_number',
-            'message_text',
-            'message_type',
-            'sender',
-            'created_at',
-            'created_at_brasilia',
-          )
-          .get()
+        const snap = await (kpisOnly
+          ? logsQuery.select(
+              'student_id',
+              'trail_id',
+              'sender',
+              'created_at',
+              'created_at_brasilia',
+            )
+          : logsQuery.select(
+              'student_id',
+              'trail_id',
+              'stage_number',
+              'question_number',
+              'message_text',
+              'message_type',
+              'sender',
+              'created_at',
+              'created_at_brasilia',
+            )
+        ).get()
 
         for (const doc of snap.docs) {
           const data = doc.data() as Record<string, unknown>
@@ -219,11 +261,16 @@ async function handleRequest(request: Request): Promise<Response> {
           const at = logTimestampMillis(data.created_at, data.created_at_brasilia)
 
           if (isAgentTrailId(trailId)) {
-            // Filtro de período aplica só ao uso de agentes, não à progressão tN.
-            if (cutoffMs > 0 && at > 0 && at < cutoffMs) continue
+            // Só mensagens do aluno = interações com o tutor.
+            if (data.sender !== 'student') continue
+            // Filtro de período: sem timestamp confiável, não entra no recorte.
+            if (cutoffMs > 0 && (at <= 0 || at < cutoffMs)) continue
             agentLogs.push({ student_id: studentId, trail_id: trailId, at })
             continue
           }
+
+          // mode=kpis: ignora progressão (vem no mode=full sob demanda).
+          if (kpisOnly) continue
 
           // Progressão: apenas mensagens do aluno em trilhas reais da instituição.
           if (data.sender !== 'student') continue
@@ -260,6 +307,18 @@ async function handleRequest(request: Request): Promise<Response> {
       }),
     )
 
+    const agent_usage = aggregateAgentUsage(agentLogs, periodDays)
+
+    if (kpisOnly) {
+      return respond(200, {
+        mode: 'kpis',
+        institution_id: institutionId,
+        student_count: studentIds.length,
+        active_student_count: activeStudentCount,
+        agent_usage,
+      })
+    }
+
     const students: Record<
       string,
       { answers: Record<string, string>; extra_done: string[] }
@@ -275,8 +334,7 @@ async function handleRequest(request: Request): Promise<Response> {
       students[studentId] = { answers, extra_done: extraDone }
     }
 
-    const agent_usage = aggregateAgentUsage(agentLogs, periodDays)
-
+    // Resposta full: mesmos campos de sempre (sem `mode`) — default não-breaking.
     return respond(200, {
       institution_id: institutionId,
       student_count: studentIds.length,

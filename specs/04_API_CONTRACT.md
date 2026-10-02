@@ -279,12 +279,39 @@ Query:
 
 - `institution_id` (obrigatório)
 - `period_days` (opcional: `0` | `7` | `30`; padrão `0` = todo o período)
+- `mode` (opcional, **aditivo**):
+  - omitir ou `full` — resposta histórica (default; compatível com o `main`)
+  - `kpis` — payload leve para os cards iniciais da Visão geral
 
-Resposta (campos principais):
+#### Resposta `mode=full` (default)
+
+Campos principais (inalterados quando `mode` é omitido):
 
 - `institution_id`, `student_count`, `trail_ids`, `students` — progressão nas
   trilhas reais (`tN` presentes em `trails`).
 - `agent_usage` — uso dos agentes canônicos / prefixo `Trilha -` | `Tutor -`
   (ver `10_AGENT_USAGE_DASHBOARD.md`). Não mistura agentes em `trail_ids`.
 
+Não inclui o campo `mode` no JSON (mantém o shape histórico).
+
+#### Resposta `mode=kpis` (aditiva)
+
+```json
+{
+  "mode": "kpis",
+  "institution_id": "…",
+  "student_count": 612,
+  "active_student_count": 558,
+  "agent_usage": { }
+}
+```
+
+- Não devolve `trail_ids` nem o mapa `students` (progressão).
+- Agrega só interações com tutores + contagens de alunos.
+- O painel usa este modo na abertura; ao abrir um indicador, chama `mode=full`
+  (e carrega stages/questões) sob demanda.
+
 Somente leitura. Não altera coleções.
+
+**Regra de compatibilidade:** qualquer evolução deste endpoint deve ser aditiva.
+O default sem `mode` permanece byte-compatível com clientes do `main`.

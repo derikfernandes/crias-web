@@ -38,8 +38,10 @@ export type TrailDetailPageViewOkProps = {
   loading: boolean
   notFound: boolean
 
-  activeTab: 'structure' | 'content' | 'students'
-  onActiveTabChange: (tab: 'structure' | 'content' | 'students') => void
+  activeTab: 'geral' | 'structure' | 'content' | 'desempenho' | 'students'
+  onActiveTabChange: (
+    tab: 'geral' | 'structure' | 'content' | 'desempenho' | 'students',
+  ) => void
   institutionLabel: string
   showTrailForm: boolean
   onToggleTrailForm: () => void
@@ -54,6 +56,14 @@ export type TrailDetailPageViewOkProps = {
   loadingStageQuestions: boolean
   stageQuestionsError: string | null
   contentEditorSlot?: ReactNode
+
+  /** Resumo opcional para aba Desempenho (oculto se vazio). */
+  desempenhoSummary?: {
+    enrolled: number
+    completed: number
+    inProgress: number
+    notStarted: number
+  } | null
 
   loadingStudentTrails: boolean
   canExportXlsx: boolean

@@ -12,11 +12,30 @@ export type StudentDetailTrailRow = {
   status: string
   startedAtLabel: string
   lastInteractionAtLabel: string
+  /** Progresso % liberado quando o container calcular. */
+  progressPct?: number | null
+  accuracyPct?: number | null
+  situationLabel?: string | null
+  situationTone?:
+    | 'concluiu'
+    | 'final'
+    | 'meio'
+    | 'inicio'
+    | 'parado'
+    | 'nao-iniciou'
+    | null
 }
 
 export type StudentDetailLinkableTrail = {
   id: string
   label: string
+}
+
+/** Bloco “aprendizagem” — só renderiza se o container passar. */
+export type StudentDetailLearningStat = {
+  subject: string
+  label: string
+  valueLabel: string
 }
 
 export type StudentDetailPageViewOkProps = {
@@ -26,6 +45,17 @@ export type StudentDetailPageViewOkProps = {
   notFound: boolean
   formSlot?: ReactNode
   hasStudent: boolean
+  /** Cabeçalho do perfil (Fase A). */
+  studentName?: string | null
+  schoolGrade?: string | null
+  schoolLevel?: string | null
+  studentLevelLabel?: string | null
+  lastInteractionLabel?: string | null
+  activeLabel?: string | null
+  backHref?: string
+  onDeactivate?: (() => void) | null
+  deactivateBusy?: boolean
+  learningStats?: StudentDetailLearningStat[]
   loadingTrails: boolean
   trailsError: string | null
   editError: string | null
@@ -59,6 +89,9 @@ export type StudentDetailPageViewOkProps = {
   /** Filtro vindo do dashboard de agentes (`?agent_trail_id=`). */
   agentHistoryFilterLabel: string | null
   onClearAgentHistoryFilter: (() => void) | null
+  chatFilterLabel?: string | null
+  onChatFilterChange?: ((filter: 'all' | 'trail' | 'tutors') => void) | null
+  chatFilter?: 'all' | 'trail' | 'tutors' | null
 }
 
 export type StudentDetailPageViewProps =

@@ -35,6 +35,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
     loadingStageQuestions,
     stageQuestionsError,
     contentEditorSlot,
+    desempenhoSummary,
     loadingStudentTrails,
     canExportXlsx,
     onExportXlsx,
@@ -94,10 +95,15 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
   return (
     <>
       <header className="admin__header">
-        <h1>Trilha</h1>
+        <h1>{cadastro?.name || 'Trilha'}</h1>
+        <p className="admin__lede muted">
+          {cadastro
+            ? `${cadastro.subject || 'Sem matéria'} · ${cadastro.activeLabel}`
+            : 'Editor da trilha'}
+        </p>
         <p className="admin__actions trail-header-actions">
-          <Link className="btn btn--ghost" to="/gerenciamento">
-            ← Gerenciamento
+          <Link className="btn btn--ghost" to="/trilhas">
+            ← Trilhas
           </Link>
           <label className="trail-header-select">
             <span className="muted">Instituição</span>
@@ -120,55 +126,35 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
         </p>
       ) : (
         <>
-          <nav className="trail-detail-tabs" aria-label="Seções da trilha" role="tablist">
-            <button
-              id="trail-structure-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'structure'}
-              aria-controls="trail-structure-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'structure' ? ' trail-detail-tabs__tab--active' : ''
-              }`}
-              onClick={() => onActiveTabChange('structure')}
-            >
-              Estrutura
-            </button>
-            <button
-              id="trail-content-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'content'}
-              aria-controls="trail-content-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'content' ? ' trail-detail-tabs__tab--active' : ''
-              }`}
-              onClick={() => onActiveTabChange('content')}
-            >
-              Conteúdo
-            </button>
-            <button
-              id="trail-students-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'students'}
-              aria-controls="trail-students-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'students' ? ' trail-detail-tabs__tab--active' : ''
-              }`}
-              onClick={() => onActiveTabChange('students')}
-            >
-              Alunos
-            </button>
+          <nav className="crias-tabs" aria-label="Seções da trilha" role="tablist">
+            {(
+              [
+                { id: 'geral' as const, label: 'Geral' },
+                { id: 'structure' as const, label: 'Estrutura' },
+                { id: 'content' as const, label: 'Atividades' },
+                { id: 'desempenho' as const, label: 'Desempenho' },
+                { id: 'students' as const, label: 'Alunos' },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                className={
+                  activeTab === tab.id
+                    ? 'crias-tabs__btn crias-tabs__btn--active'
+                    : 'crias-tabs__btn'
+                }
+                onClick={() => onActiveTabChange(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </nav>
 
-          {activeTab === 'structure' ? (
-            <div
-              id="trail-structure-panel"
-              className="trail-tab-panel"
-              role="tabpanel"
-              aria-labelledby="trail-structure-tab"
-            >
+          {activeTab === 'geral' ? (
+            <div className="trail-tab-panel" role="tabpanel">
               <section className="panel trail-cadastro-panel">
                 <div className="trail-cadastro-summary">
                   <div className="trail-cadastro-top">
@@ -183,7 +169,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                       className="btn btn--ghost btn--small"
                       onClick={onToggleTrailForm}
                     >
-                      {showTrailForm ? 'Fechar cadastro' : 'Abrir cadastro'}
+                      {showTrailForm ? 'Fechar cadastro' : 'Editar cadastro'}
                     </button>
                   </div>
                   <dl className="trail-cadastro-details">
@@ -201,7 +187,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                       </dd>
                     </div>
                     <div className="trail-cadastro-details__row">
-                      <dt>Ativa</dt>
+                      <dt>Status</dt>
                       <dd>{cadastro?.activeLabel}</dd>
                     </div>
                     <div className="trail-cadastro-details__row">
@@ -215,9 +201,10 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                   </dl>
                 </div>
               </section>
-
               {showTrailForm ? editFormSlot : null}
-
+            </div>
+          ) : activeTab === 'structure' ? (
+            <div className="trail-tab-panel" role="tabpanel">
               <section className="panel">
                 {loadingStages ? (
                   <p className="muted">Carregando estrutura…</p>
@@ -232,20 +219,14 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                     {structureError}
                   </p>
                 ) : null}
-
                 {structureEditorSlot}
               </section>
             </div>
           ) : activeTab === 'content' ? (
-            <div
-              id="trail-content-panel"
-              className="trail-tab-panel"
-              role="tabpanel"
-              aria-labelledby="trail-content-tab"
-            >
+            <div className="trail-tab-panel" role="tabpanel">
               <section className="panel">
                 {loadingStageQuestions ? (
-                  <p className="muted">Carregando conteúdos…</p>
+                  <p className="muted">Carregando atividades…</p>
                 ) : null}
                 {stageQuestionsError ? (
                   <p className="banner banner--error" role="alert">
@@ -255,12 +236,54 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                 {contentEditorSlot}
               </section>
             </div>
+          ) : activeTab === 'desempenho' ? (
+            <div className="trail-tab-panel" role="tabpanel">
+              <section className="panel">
+                <div className="panel__head">
+                  <h2>Desempenho</h2>
+                </div>
+                {loadingStudentTrails ? (
+                  <p className="muted">Carregando desempenho…</p>
+                ) : desempenhoSummary && desempenhoSummary.enrolled > 0 ? (
+                  <div className="crias-kpi-grid">
+                    <div className="crias-kpi">
+                      <span className="crias-kpi__label">Vinculados</span>
+                      <span className="crias-kpi__value">
+                        {desempenhoSummary.enrolled}
+                      </span>
+                    </div>
+                    <div className="crias-kpi">
+                      <span className="crias-kpi__label">Concluíram</span>
+                      <span className="crias-kpi__value">
+                        {desempenhoSummary.completed}
+                      </span>
+                    </div>
+                    <div className="crias-kpi">
+                      <span className="crias-kpi__label">Em andamento</span>
+                      <span className="crias-kpi__value">
+                        {desempenhoSummary.inProgress}
+                      </span>
+                    </div>
+                    <div className="crias-kpi">
+                      <span className="crias-kpi__label">Não iniciaram</span>
+                      <span className="crias-kpi__value">
+                        {desempenhoSummary.notStarted}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="muted">
+                    Ainda não há alunos vinculados para montar o desempenho.
+                    Use a aba Alunos para vincular.
+                  </p>
+                )}
+              </section>
+            </div>
           ) : (
             <div
               id="trail-students-panel"
               className="trail-tab-panel"
               role="tabpanel"
-              aria-labelledby="trail-students-tab"
             >
               <section className="panel">
             <div className="panel__head">

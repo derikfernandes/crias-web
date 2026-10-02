@@ -8,6 +8,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  updateDoc,
   where,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -24,6 +25,7 @@ import {
   snapshotToConversationLog,
 } from '../lib/conversationLogFirestore'
 import { agentLabelForTrailId } from '../lib/agentUsage'
+import { situationFromProgress } from '../lib/studentSituation'
 import { StudentForm } from '../components/StudentForm'
 import {
   ConversationChat,
@@ -81,6 +83,7 @@ export function StudentDetailPage() {
   const [editStatus, setEditStatus] = useState<StudentTrailStatus>('not_started')
   const [editBusy, setEditBusy] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [deactivateBusy, setDeactivateBusy] = useState(false)
 
   useEffect(() => {
     if (!db || !id) return
@@ -435,6 +438,18 @@ export function StudentDetailPage() {
   const trailRows: StudentDetailTrailRow[] = sortedTrails.map((row) => {
     const meta = trailById.get(row.trail_id)
     const label = meta?.name?.trim() ? meta.name : row.trail_id
+    const lastMs = row.last_interaction_at?.toMillis?.() ?? null
+    const completionPct =
+      row.status === 'completed'
+        ? 100
+        : row.status === 'not_started'
+          ? 0
+          : 50
+    const situation = situationFromProgress({
+      status: row.status,
+      completionPct,
+      lastInteractionAtMs: lastMs,
+    })
     return {
       id: row.id,
       trailHref: trailPath(row.trail_id),
@@ -451,8 +466,41 @@ export function StudentDetailPage() {
       lastInteractionAtLabel: row.last_interaction_at?.toDate
         ? row.last_interaction_at.toDate().toLocaleString('pt-BR')
         : '—',
+      situationLabel: situation.label,
+      situationTone: situation.tone,
     }
   })
+
+  let latestInteractionLabel: string | null = null
+  {
+    let best: number | null = null
+    for (const row of trails) {
+      const ms = row.last_interaction_at?.toMillis?.() ?? null
+      if (ms != null && (best == null || ms > best)) best = ms
+    }
+    if (best != null) {
+      latestInteractionLabel = new Date(best).toLocaleString('pt-BR')
+    }
+  }
+
+  async function handleDeactivate() {
+    if (!db || !id || !stu?.active || deactivateBusy) return
+    const ok = window.confirm(
+      `Desativar o aluno "${stu.name || id}"?\n\nO cadastro permanece, mas deixa de contar como ativo.`,
+    )
+    if (!ok) return
+    setDeactivateBusy(true)
+    try {
+      await updateDoc(doc(db, STUDENTS_COLLECTION, id), {
+        active: false,
+        updated_at: serverTimestamp(),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao desativar.')
+    } finally {
+      setDeactivateBusy(false)
+    }
+  }
 
   return (
     <StudentDetailPageView
@@ -462,6 +510,17 @@ export function StudentDetailPage() {
       notFound={!stu}
       formSlot={stu ? <StudentForm docId={id} initial={stu} /> : null}
       hasStudent={Boolean(stu)}
+      studentName={stu?.name ?? null}
+      schoolGrade={stu?.school_grade || null}
+      schoolLevel={stu?.school_level || null}
+      studentLevelLabel={
+        stu?.student_level != null ? String(stu.student_level) : null
+      }
+      lastInteractionLabel={latestInteractionLabel}
+      activeLabel={stu ? (stu.active ? 'Ativo' : 'Inativo') : null}
+      backHref="/alunos"
+      onDeactivate={stu?.active ? () => void handleDeactivate() : null}
+      deactivateBusy={deactivateBusy}
       loadingTrails={loadingTrails}
       trailsError={trailsError}
       editError={editError}

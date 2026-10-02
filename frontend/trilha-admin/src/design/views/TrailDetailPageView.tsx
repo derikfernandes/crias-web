@@ -455,7 +455,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
               <p className="muted">
                 Nenhum aluno com progresso registrado nesta trilha ainda. Use{' '}
                 <strong>Adicionar aluno</strong> para criar o vínculo ou aguarde o
-                chatbot criar/atualizar <code>student_trails</code> quando o aluno
+                player web criar/atualizar <code>student_trails</code> quando o aluno
                 avançar.
               </p>
             ) : null}

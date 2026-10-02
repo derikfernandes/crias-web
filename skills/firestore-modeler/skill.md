@@ -29,7 +29,7 @@ Garantir que o modelo Firestore fique consistente com a spec.
 
 - Nao alterar nomes de campos existentes sem plano de migracao.
 - Nao criar subcollections sem justificativa.
-- Nao alterar IDs sem revisar integracao com Chatis.
+- Nao alterar IDs sem revisar o contrato do player web.
 
 ## Saida esperada
 

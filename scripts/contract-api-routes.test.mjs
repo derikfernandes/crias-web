@@ -32,6 +32,18 @@ const CRITICAL_REWRITES = [
   { source: '/trail_stages', destination: '/api/trail_stages' },
   { source: '/trail_stage_questions', destination: '/api/trail_stage_questions' },
   { source: '/student_trails', destination: '/api/student_trails' },
+  {
+    source: '/student_trails/next-content',
+    destination: '/api/student_trails?action=next-content',
+  },
+  {
+    source: '/student_trails/advance',
+    destination: '/api/student_trails?action=advance',
+  },
+  {
+    source: '/student/identify',
+    destination: '/api/student?action=identify',
+  },
   { source: '/conversation_logs', destination: '/api/conversation_logs' },
 ]
 

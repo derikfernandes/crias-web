@@ -2,13 +2,18 @@
   "name": "crias-trilha",
   "private": true,
   "workspaces": [
-    "frontend/trilha-admin"
+    "frontend/trilha-admin",
+    "frontend/cria-frontend"
   ],
   "scripts": {
     "dev": "npm run dev -w trilha-admin",
+    "dev:admin": "npm run dev -w trilha-admin",
+    "dev:aluno": "npm run dev -w cria-frontend",
     "build": "npm run build -w trilha-admin",
+    "build:admin": "npm run build -w trilha-admin",
+    "build:aluno": "npm run build -w cria-frontend",
     "lint": "npm run lint -w trilha-admin",
-    "typecheck": "npm run typecheck -w trilha-admin",
+    "typecheck": "npm run typecheck -w trilha-admin && npm run typecheck -w cria-frontend",
     "test": "node --test scripts/contract-*.test.mjs scripts/check-design-boundaries.mjs scripts/agent-usage.test.mjs && vitest run",
     "check:design-boundaries": "node --test scripts/check-design-boundaries.mjs",
     "preview": "npm run preview -w trilha-admin",

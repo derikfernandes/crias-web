@@ -13,6 +13,12 @@ import {
   blockStudentTrail,
 } from '../server/lib/studentTrailService'
 import {
+  advanceStudentTrailProgress,
+  getNextContent,
+  getStudentTrailStatus,
+  listStudentTrailsForStudent,
+} from '../server/lib/studentTrailProgressService'
+import {
   validateStudentTrailCreate,
   parseStatus,
   parseIntLoose,
@@ -261,10 +267,58 @@ async function handleRequest(request: Request): Promise<Response> {
   const qTrailId = url.searchParams.get('trail_id')?.trim() || null
 
   try {
-    // GET /student_trails/
+    // GET /student_trails/next-content
+    // GET /student_trails/status
+    // GET /student_trails/?student_id=
     // GET /student_trails?id=...
     // GET /student_trails?student_id=...&trail_id=...
     if (request.method === 'GET') {
+      if (action === 'next-content') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const result = await getNextContent(db, qStudentId, qTrailId)
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
+      if (action === 'status') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const result = await getStudentTrailStatus(db, qStudentId, qTrailId)
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
       if (id) {
         const snap = await getStudentTrailById(db, collection, id)
         if (!snap.exists) return respond(404, { error: 'Not found' })
@@ -305,14 +359,68 @@ async function handleRequest(request: Request): Promise<Response> {
         )
       }
 
+      if (qStudentId) {
+        const listed = await listStudentTrailsForStudent(db, qStudentId)
+        if (!listed.ok) {
+          return respond(listed.httpStatus, {
+            status: 'error',
+            code: listed.code,
+            error: listed.message,
+          })
+        }
+        return jsonResponse(listed.data as unknown as Json[], {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
       return respond(400, {
         error:
-          'Informe id, ou (student_id + trail_id) para buscar o progresso.',
+          'Informe id, student_id, ou (student_id + trail_id) para buscar o progresso.',
       })
     }
 
-    // POST /student_trails/
+    // POST /student_trails/advance
+    // POST /student_trails/ (create)
     if (request.method === 'POST') {
+      if (action === 'advance') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        if (!targetStudentId || !targetTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id" e "trail_id" são obrigatórios.',
+          })
+        }
+        const result = await advanceStudentTrailProgress(
+          db,
+          targetStudentId,
+          targetTrailId,
+        )
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
       if (id) {
         return respond(400, { error: 'id não deve ser enviado em POST' })
       }

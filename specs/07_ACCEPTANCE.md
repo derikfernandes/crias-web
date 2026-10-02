@@ -28,16 +28,18 @@ A entrega será aceita quando:
 - [ ] Stage IA exige `prompt`.
 - [ ] Stage fixed/exercise tem `prompt = null`.
 - [ ] Student tem `student_level` 1, 2 ou 3.
+- [ ] `student_trails` documenta progresso (posição + status).
 
-## 4. Chatis
+## 4. Player web do aluno
 
-- [ ] API identifica aluno por telefone.
-- [ ] API identifica trilha ativa.
+- [ ] API identifica aluno por telefone + código da instituição.
+- [ ] API lista trilhas vinculadas (`student_trails`).
 - [ ] API identifica próximo stage/question.
 - [ ] API bloqueia conteúdo não liberado.
 - [ ] API retorna `stage_type`.
 - [ ] API retorna `prompt` quando `stage_type = ai`.
 - [ ] API marca conclusão quando não há próxima questão.
+- [ ] App aluno renderiza fixed / ai / exercise e estados blocked/completed.
 
 ## 5. Qualidade
 

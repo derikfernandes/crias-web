@@ -23,11 +23,11 @@ Manter coerencia entre estrutura pedagogica e execucao conversacional.
 4. Garantir que fixed e exercise tenham prompt nulo.
 5. Validar a regra de avanco stage/question.
 6. Atualizar testes de progressao.
-7. Atualizar documentacao Chatis se houver impacto externo.
+7. Atualizar documentacao do player se houver impacto externo.
 
 ## Restricoes
 
-- Chatis nao deve decidir a progressao sozinho.
+- O cliente nao deve decidir a progressao sozinho.
 - O comportamento fica no stage.
 - O conteudo fica na question.
 

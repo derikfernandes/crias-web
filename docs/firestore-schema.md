@@ -102,6 +102,26 @@ Campos:
 
 - next: number
 
+### student_trails
+
+```text
+student_trails/{student_id}_trail_{trail_id}
+```
+
+Campos:
+
+- student_id: string
+- institution_id: string
+- trail_id: string
+- current_stage_number: number
+- current_question_number: number
+- status: not_started | in_progress | completed | blocked
+- started_at: timestamp | null
+- completed_at: timestamp | null
+- last_interaction_at: timestamp | null
+- created_at: timestamp
+- updated_at: timestamp
+
 ## Regras
 
 - `trail_id` deve ser estavel.
@@ -109,4 +129,5 @@ Campos:
 - `question_number` representa a progressao horizontal.
 - `stage_type = ai` exige prompt.
 - `stage_type = fixed` e `exercise` usam prompt nulo.
-- Conteudo nao liberado nao deve ser entregue ao aluno.
+- Conteudo nao liberado nao deve ser entregue ao aluno (`blocked` no next-content).
+- Telefone do aluno e identificador de login/contato, nao canal de mensagens.

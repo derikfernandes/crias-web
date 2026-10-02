@@ -22,6 +22,10 @@
     { "source": "/student", "destination": "/api/student" },
     { "source": "/student/simple", "destination": "/api/student?simple=1" },
     {
+      "source": "/student/identify",
+      "destination": "/api/student?action=identify"
+    },
+    {
       "source": "/student/:phone([0-9]+)",
       "destination": "/api/student?phone_number=:phone"
     },
@@ -36,6 +40,10 @@
     { "source": "/students/", "destination": "/api/student" },
     { "source": "/students", "destination": "/api/student" },
     { "source": "/students/simple", "destination": "/api/student?simple=1" },
+    {
+      "source": "/students/identify",
+      "destination": "/api/student?action=identify"
+    },
     {
       "source": "/students/:phone([0-9]+)",
       "destination": "/api/student?phone_number=:phone"
@@ -90,6 +98,9 @@
       "source": "/trail_stage_questions/:id([A-Za-z0-9_.-]+)/",
       "destination": "/api/trail_stage_questions?id=:id"
     },
+    { "source": "/student_trails/next-content", "destination": "/api/student_trails?action=next-content" },
+    { "source": "/student_trails/advance", "destination": "/api/student_trails?action=advance" },
+    { "source": "/student_trails/status", "destination": "/api/student_trails?action=status" },
     { "source": "/student_trails/", "destination": "/api/student_trails" },
     { "source": "/student_trails", "destination": "/api/student_trails" },
     { "source": "/conversation_logs/", "destination": "/api/conversation_logs" },

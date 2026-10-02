@@ -220,6 +220,41 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
 
 const STUDENT_ENDPOINTS: DocEndpoint[] = [
   {
+    id: 'post-student-identify',
+    method: 'POST',
+    path: '/student/identify',
+    title: 'Identificar aluno (login do player)',
+    description:
+      'Login MVP do app aluno: telefone normalizado + código da instituição (`institution_id`). Retorna o aluno ativo correspondente.',
+    auth: false,
+    bodyFields: [
+      {
+        name: 'phone_number',
+        type: 'string',
+        required: true,
+        description: 'Telefone do aluno (dígitos; formatação é removida).',
+        example: '5512999990000',
+      },
+      {
+        name: 'institution_code',
+        type: 'string',
+        required: true,
+        description: 'Código da instituição (mesmo valor de institution_id).',
+        example: 'inst_1',
+      },
+    ],
+    bodyExample: `{
+  "phone_number": "5512999990000",
+  "institution_code": "inst_1"
+}`,
+    responses: [
+      { code: '200', description: 'Aluno identificado (status ok).' },
+      { code: '404', description: 'Aluno ou instituição não encontrados.' },
+      { code: '403', description: 'Aluno ou instituição inativos.' },
+      { code: '400', description: 'Payload inválido.' },
+    ],
+  },
+  {
     id: 'get-student-list',
     method: 'GET',
     path: '/student/',
@@ -916,7 +951,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         type: '"ai" | "fixed" | "exercise"',
         required: true,
         description:
-          'Tipo do stage (fluxo do chatbot). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
+          'Tipo do stage (player do aluno). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
         example: 'ai',
       },
       {
@@ -1361,6 +1396,74 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
 ]
 
 const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
+  {
+    id: 'get-student-trail-next-content',
+    method: 'GET',
+    path: '/student_trails/next-content',
+    title: 'Próximo conteúdo (player)',
+    description:
+      'Retorna o conteúdo na posição atual do aluno, com checagem de is_released/active. Usado pelo app web do aluno.',
+    auth: false,
+    queryParams: [
+      {
+        name: 'student_id',
+        type: 'string',
+        required: true,
+        description: 'ID do aluno.',
+      },
+      {
+        name: 'trail_id',
+        type: 'string',
+        required: true,
+        description: 'ID da trilha.',
+      },
+    ],
+    responses: [
+      {
+        code: '200',
+        description:
+          'status ok (conteúdo), blocked, completed, inactive_student ou inactive_trail.',
+      },
+      { code: '404', description: 'Aluno, trilha ou vínculo não encontrado.' },
+    ],
+  },
+  {
+    id: 'post-student-trail-advance',
+    method: 'POST',
+    path: '/student_trails/advance',
+    title: 'Avançar progresso (player)',
+    description:
+      'Aplica a grade canônica (stage → question) e atualiza student_trails. A lógica de progressão fica na API.',
+    auth: false,
+    bodyFields: [
+      {
+        name: 'student_id',
+        type: 'string',
+        required: true,
+        description: 'ID do aluno.',
+        example: 's1',
+      },
+      {
+        name: 'trail_id',
+        type: 'string',
+        required: true,
+        description: 'ID da trilha.',
+        example: 't1',
+      },
+    ],
+    bodyExample: `{
+  "student_id": "s1",
+  "trail_id": "t1"
+}`,
+    responses: [
+      {
+        code: '200',
+        description:
+          'status ok com next_stage_number / next_question_number / completed, ou blocked/completed.',
+      },
+      { code: '404', description: 'Aluno, trilha ou vínculo não encontrado.' },
+    ],
+  },
   {
     id: 'get-student-trail-position',
     method: 'GET',
@@ -2029,7 +2132,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     path: '/conversation_logs/',
     title: 'Criar log de conversa',
     description:
-      'Cria um registro de histórico na collection `conversation_logs` para cada mensagem trocada entre o sistema/chatbot e o aluno. No momento do POST, o servidor grava automaticamente `created_at` (timestamp do Firestore) e `created_at_brasilia` (string com data/hora atual em America/Sao_Paulo, formato `YYYY-MM-DDTHH:mm:ss`). Não é necessário (nem recomendado) enviar `created_at_brasilia` no body.',
+      'Cria um registro de histórico na collection `conversation_logs` para cada mensagem trocada na sessão do aluno. No momento do POST, o servidor grava automaticamente `created_at` (timestamp do Firestore) e `created_at_brasilia` (string com data/hora atual em America/Sao_Paulo, formato `YYYY-MM-DDTHH:mm:ss`). Não é necessário (nem recomendado) enviar `created_at_brasilia` no body.',
     auth: true,
     bodyFields: [
       {
@@ -2064,7 +2167,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'sender',
         type: '"system" | "student"',
         required: true,
-        description: 'Quem enviou a mensagem (sistema/chatbot ou aluno).',
+        description: 'Quem enviou a mensagem (sistema/agente ou aluno).',
         example: 'system',
       },
       {
@@ -3276,7 +3379,7 @@ export function DocPageView({
         <p className="doc__section-intro muted">
           Collection <code>student_trails</code>: estado atual do aluno em cada trilha
           pedagógica (stage, questão e status). Esta collection é a fonte de verdade
-          para o chatbot saber onde continuar a jornada — o histórico detalhado de
+          para o player saber onde continuar a jornada — o histórico detalhado de
           conversa/exercícios fica em outras collections.
         </p>
 
@@ -3428,7 +3531,7 @@ export function DocPageView({
         <h2>Conversation logs — endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>conversation_logs</code>: histórico imutável das interações
-          entre o aluno e o sistema/chatbot (mensagens enviadas/recebidas, stage,
+          de sessão do aluno (mensagens enviadas/recebidas, stage,
           questão e metadados). Esta collection não guarda o estado atual da trilha —
           apenas o histórico, para auditoria, debug e análises.
         </p>

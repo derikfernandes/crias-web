@@ -38,7 +38,7 @@ export function ConversationChat({
     <>
       <p className="muted chat__summary">
         Mostrando {visibleLogs.length} de {logs.length} mensagens (ordem
-        cronológica, como no WhatsApp).
+        cronológica, estilo chat).
       </p>
       <div className="chat" role="log" aria-label="Histórico de conversa">
         {remaining > 0 && onLoadMore ? (

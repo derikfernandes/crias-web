@@ -9,7 +9,7 @@
 - [x] Criar `03_FIRESTORE_MODEL.md`.
 - [x] Criar `04_API_CONTRACT.md`.
 - [x] Criar `05_ACTION_ROUTING_MAP.md`.
-- [x] Criar `06_CHATIS_INTEGRATION.md`.
+- [x] Criar `06_STUDENT_WEB_PLAYER.md`.
 - [x] Criar `07_ACCEPTANCE.md`.
 - [x] Criar `08_OUT_OF_SCOPE.md`.
 - [x] Criar `09_DECISIONS.md`.
@@ -54,7 +54,7 @@ Critério de conclusão:
 
 - Modelo documentado.
 - Testes de avanço definidos.
-- Chatis Integration Spec atualizada.
+- Spec do player web do aluno atualizada.
 
 ## Fase 3 — Contrato de API
 
@@ -68,33 +68,34 @@ Critério de conclusão:
 
 - API Contract fechado.
 - Exemplos de payload disponíveis.
-- Endpoints necessários para Chatis definidos.
+- Endpoints necessários para o player aluno definidos.
 
 ## Fase 3.5 — Action Routing Map
 
 - [x] Criar `specs/05_ACTION_ROUTING_MAP.md`.
-- [x] Separar ações do painel e ações do Chatis.
+- [x] Separar ações do painel e ações do player aluno.
 - [x] Definir quais ações usam Firestore direto.
 - [x] Definir quais ações usam API HTTP.
 - [x] Definir base URL da API.
 - [x] Definir autenticação.
-- [x] Definir endpoints obrigatórios para Chatis.
+- [x] Definir endpoints obrigatórios para o player aluno.
 - [ ] Criar `docs/api-routing.md`.
 
-## Fase 4 — Integração Chatis
+## Fase 4 — Player web do aluno + API de progresso
 
-- [ ] Definir endpoint de consulta por telefone.
-- [ ] Definir endpoint de trilha ativa do aluno.
+- [ ] Definir endpoint de identify (telefone + código instituição).
+- [ ] Definir endpoint de trilhas vinculadas do aluno.
 - [ ] Definir endpoint de próximo conteúdo.
 - [ ] Definir endpoint de avanço de stage/question.
 - [ ] Definir payload para `stage_type = ai`.
 - [ ] Definir payload para `stage_type = fixed`.
 - [ ] Definir payload para `stage_type = exercise`.
 - [ ] Criar testes de conclusão de trilha.
+- [ ] Scaffold `frontend/cria-frontend`.
 
 Critério de conclusão:
 
-- Chatis consegue decidir próximo bloco sem lógica manual.
+- Player consome próximo conteúdo sem lógica de progressão no cliente.
 - Fluxo de avanço está documentado.
 - Erros e bloqueios estão previstos.
 
@@ -173,6 +174,6 @@ Critério de conclusão:
 - [ ] Criar `usage.md`.
 - [ ] Criar `architecture.md`.
 - [ ] Criar `firestore-schema.md`.
-- [ ] Criar `chatis-flow.md`.
+- [ ] Criar `student-player-flow.md` (fluxo do player web).
 - [ ] Criar guia de operação do painel.
 - [ ] Criar guia de troubleshooting Firebase/Vercel.

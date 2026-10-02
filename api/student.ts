@@ -323,6 +323,7 @@ async function handleRequest(request: Request): Promise<Response> {
       }
 
       // POST /student/
+      // POST /student/identify (?action=identify)
       if (request.method === 'POST') {
         if (id) return respond(400, { error: 'id não deve ser enviado em POST' })
 
@@ -338,6 +339,41 @@ async function handleRequest(request: Request): Promise<Response> {
         }
 
         const body = payload as Json
+        const action = url.searchParams.get('action')?.trim() || null
+
+        if (action === 'identify') {
+          const { identifyStudent } = await import(
+            '../server/lib/studentTrailProgressService.js'
+          )
+          const phone_number = sanitizePhoneNumber(body.phone_number)
+          const institution_code =
+            sanitizeString(body.institution_code) ??
+            sanitizeString(body.institution_id)
+          if (!phone_number || !institution_code) {
+            return respond(400, {
+              status: 'error',
+              code: 'invalid_payload',
+              error:
+                'Campos "phone_number" e "institution_code" são obrigatórios.',
+            })
+          }
+          const result = await identifyStudent(db, {
+            phone_number,
+            institution_code,
+          })
+          if (!result.ok) {
+            return respond(result.httpStatus, {
+              status: 'error',
+              code: result.code,
+              message: result.message,
+              error: result.message,
+            })
+          }
+          return jsonResponse(result.data as Json, {
+            status: 200,
+            headers: corsHeaders(),
+          })
+        }
 
         const institution_id = sanitizeString(body.institution_id)
         const name = sanitizeString(body.name)

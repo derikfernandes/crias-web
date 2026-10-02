@@ -113,7 +113,7 @@ trail_progression:
     output:
       completed: true
 
-chatis:
+student_player:
   - name: buscar próximo conteúdo liberado
     input:
       student_id: s1
@@ -134,6 +134,13 @@ chatis:
       is_released: false
     output:
       status: blocked
+
+  - name: identificar aluno por telefone e código da instituição
+    input:
+      phone_number: "5512999990000"
+      institution_code: inst_1
+    output:
+      status: ok
 
 agent_usage:
   - name: classificar trail_ids canônicos como agente

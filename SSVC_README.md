@@ -10,10 +10,11 @@ Este repositório usa a metodologia SSVC — Skill-Spec Vibe Coding.
 - `specs/03_FIRESTORE_MODEL.md`: modelo Firestore.
 - `specs/04_API_CONTRACT.md`: contrato de API.
 - `specs/05_ACTION_ROUTING_MAP.md`: mapa ação -> Firestore/API.
-- `specs/06_CHATIS_INTEGRATION.md`: integração com Chatis.
+- `specs/06_STUDENT_WEB_PLAYER.md`: player web do aluno.
 - `specs/07_ACCEPTANCE.md`: critérios de aceite.
 - `specs/08_OUT_OF_SCOPE.md`: fora de escopo.
 - `specs/09_DECISIONS.md`: decisões arquiteturais.
+- `specs/10_AGENT_USAGE_DASHBOARD.md`: uso de agentes no dashboard.
 - `specs/tests.yaml`: testes agnósticos da metodologia.
 - `specs/TASKS.md`: plano de execução.
 
@@ -24,7 +25,6 @@ Este repositório usa a metodologia SSVC — Skill-Spec Vibe Coding.
 - `skills/trail-flow-builder/skill.md`
 - `skills/frontend-react-builder/skill.md`
 - `skills/api-contract-builder/skill.md`
-- `skills/chatis-integration-builder/skill.md`
 - `skills/qa-verifier/skill.md`
 - `skills/doc-generator/skill.md`
 
@@ -33,7 +33,6 @@ Este repositório usa a metodologia SSVC — Skill-Spec Vibe Coding.
 - `docs/architecture.md`
 - `docs/firestore-schema.md`
 - `docs/api-routing.md`
-- `docs/chatis-flow.md`
 - `docs/ssvc-methodology.md`
 
 ## Regra de trabalho
@@ -52,7 +51,7 @@ Antes de implementar qualquer nova funcionalidade:
 
 ```text
 Painel Admin -> Firestore Client SDK
-Chatis -> API HTTP -> Backend -> Firestore
+App aluno web -> API HTTP -> Backend -> Firestore
 ```
 
 Essa separação está documentada em `specs/05_ACTION_ROUTING_MAP.md` e `docs/api-routing.md`.

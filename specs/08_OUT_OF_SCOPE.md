@@ -2,7 +2,7 @@
 
 Na fase inicial, não implementar:
 
-- login social;
+- login social / Firebase Auth do aluno (MVP usa telefone + código da instituição);
 - pagamento;
 - gamificação avançada;
 - ranking de alunos;
@@ -11,20 +11,22 @@ Na fase inicial, não implementar:
 - recomendação automática de trilha por IA;
 - correção automática de redação;
 - multi-idioma;
-- app mobile próprio;
-- envio direto pelo WhatsApp dentro do painel;
-- integração com múltiplos provedores de chatbot;
+- app mobile nativo;
+- envio de mensagens / push a partir do painel;
+- integração com provedores de chatbot externos;
 - migração automática de dados legados;
 - alteração do padrão de ids sem plano de migração;
 - substituição do Firestore por outro banco;
 - endpoints HTTP genéricos para o painel administrativo enquanto o painel
   continuar usando Firestore Client SDK (exceção: `GET /api/dashboard_summary`
-  para agregação server-side de métricas / uso de agentes).
+  para agregação server-side de métricas / uso de agentes; player aluno usa
+  a API de progresso canônica).
 
 ## Liberado do out-of-scope (ver specs)
 
 - Acompanhamento de uso dos agentes canônicos no dashboard
   (`specs/10_AGENT_USAGE_DASHBOARD.md`, decisão em `09_DECISIONS.md`).
+- App web do aluno + API `next-content` / `advance` (`06_STUDENT_WEB_PLAYER.md`).
 
 ## Regra
 

@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-Construir e evoluir um painel administrativo para criação, edição, liberação e gerenciamento de trilhas pedagógicas do Crias.
+Construir e evoluir um painel administrativo para criação, edição, liberação e gerenciamento de trilhas pedagógicas do Crias, e um app web do aluno para consumir essas trilhas.
 
 O sistema permite que instituições cadastrem alunos e configurem trilhas educacionais compostas por fases, conteúdos fixos, exercícios e etapas com IA.
 
@@ -15,14 +15,11 @@ Pessoa responsável por configurar instituições, alunos, trilhas, fases e cont
 Escola, cursinho, instituto ou organização que terá alunos vinculados a trilhas.
 
 ### Aluno
-Usuário final que percorre a trilha via WhatsApp ou outro canal conversacional.
-
-### Integração externa / Chatis
-Orquestrador conversacional que consome os dados da trilha para entregar o próximo conteúdo ao aluno.
+Usuário final que percorre a trilha no app web do aluno (`frontend/cria-frontend`), autenticado por telefone + código da instituição.
 
 ## 3. Problema
 
-A criação de trilhas pedagógicas precisa ser organizada de forma clara, repetível e integrada ao fluxo conversacional.
+A criação de trilhas pedagógicas precisa ser organizada de forma clara, repetível e consumível pelo player web.
 
 O sistema deve evitar confusão entre:
 
@@ -36,7 +33,7 @@ O sistema deve evitar confusão entre:
 
 ## 4. Resultado esperado
 
-Ao final, o painel deve permitir:
+Ao final, o sistema deve permitir:
 
 - criar instituição;
 - criar aluno vinculado à instituição;
@@ -45,7 +42,7 @@ Ao final, o painel deve permitir:
 - definir se cada fase é IA, texto fixo ou exercício;
 - criar conteúdos por questão/etapa;
 - liberar ou bloquear conteúdos;
-- permitir que API/Chatis consulte o próximo conteúdo do aluno;
+- permitir que o app aluno consulte o próximo conteúdo via API;
 - documentar todo o contrato de dados.
 
 ## 5. Método de trabalho

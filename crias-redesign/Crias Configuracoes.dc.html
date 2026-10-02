@@ -107,16 +107,16 @@ a{color:var(--color-accent-700)}a:hover{color:var(--color-accent-800)}
       <section style="padding:24px 0;display:flex;flex-direction:column;gap:24px;max-width:900px">
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px;background:var(--color-accent-100)">
           <span style="width:10px;height:10px;background:var(--color-accent)"></span>
-          <strong style="font-size:15px">Chatis conectado</strong>
+          <strong style="font-size:15px">API do player</strong>
           <span style="font-size:13px;color:var(--color-neutral-800)">Última chamada há 2 min · 18.420 chamadas nos últimos 7 dias · 0,3% com erro</span>
         </div>
         <div class="field"><label>Endereço da API</label>
           <div style="display:flex;gap:8px"><input class="input" readonly="true" value="https://crias-trilhas.vercel.app/api" style="font-family:ui-monospace,monospace;font-size:13px"><button type="button" onClick="{{ copyApi }}" class="btn btn-secondary">Copiar</button></div>
         </div>
         <div>
-          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--color-neutral-700);margin-bottom:8px">O que o Chatis usa</div>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--color-neutral-700);margin-bottom:8px">O que o player usa</div>
           <div style="border-top:2px solid var(--color-text)">
-            <div style="display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px;align-items:baseline"><code style="font-weight:800">GET</code><code>/student/by-phone/{phone}</code><span style="color:var(--color-neutral-800)">Encontra o aluno pelo WhatsApp</span></div>
+            <div style="display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px;align-items:baseline"><code style="font-weight:800">GET</code><code>/student/by-phone/{phone}</code><span style="color:var(--color-neutral-800)">Encontra o aluno pelo telefone</span></div>
             <div style="display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px;align-items:baseline"><code style="font-weight:800">GET</code><code>/student_trails/next-content</code><span style="color:var(--color-neutral-800)">Próximo bloco da atividade atual</span></div>
             <div style="display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px;align-items:baseline"><code style="font-weight:800">POST</code><code>/student_trails/advance</code><span style="color:var(--color-neutral-800)">Avança para o próximo bloco</span></div>
             <div style="display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1fr);gap:16px;padding:12px 0;border-bottom:1px solid var(--color-divider);font-size:14px;align-items:baseline"><code style="font-weight:800">POST</code><code>/conversation_logs</code><span style="color:var(--color-neutral-800)">Registra cada mensagem da conversa</span></div>

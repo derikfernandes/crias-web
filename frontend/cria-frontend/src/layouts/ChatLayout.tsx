@@ -30,12 +30,17 @@ export default function ChatLayout() {
     return () => {
       cancelled = true
     }
-  }, [session.student_id])
+  }, [session.student_id, location.pathname])
 
   function logout() {
     clearSession()
     navigate('/login', { replace: true })
   }
+
+  const trailMatch = location.pathname.match(/^\/trilha\/([^/]+)/)
+  const activeTrailId = trailMatch
+    ? decodeURIComponent(trailMatch[1])
+    : null
 
   return (
     <div className="chat-shell">
@@ -43,19 +48,21 @@ export default function ChatLayout() {
         className={`chat-sidebar ${sidebarOpen ? 'chat-sidebar--open' : ''}`}
         aria-label="Trilhas"
       >
-        <div className="chat-sidebar__head">
-          <p className="chat-sidebar__brand">Crias</p>
-          <p className="chat-sidebar__user">
-            {session.name.split(' ')[0] || 'Aluno'}
-          </p>
-        </div>
         <nav className="chat-sidebar__nav">
+          <Link
+            to="/"
+            className="chat-sidebar__new"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <span aria-hidden>+</span> Minhas trilhas
+          </Link>
+
           {rows === null ? (
-            <p className="muted">Carregando trilhas…</p>
+            <p className="muted chat-sidebar__empty">Carregando trilhas…</p>
           ) : rows.length === 0 ? (
-            <p className="muted">Nenhuma trilha vinculada.</p>
+            <p className="muted chat-sidebar__empty">Nenhuma trilha vinculada.</p>
           ) : (
-            <ul>
+            <ul className="chat-sidebar__list">
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
@@ -66,10 +73,15 @@ export default function ChatLayout() {
                       className={active ? 'is-active' : undefined}
                       onClick={() => setSidebarOpen(false)}
                     >
-                      <span className="trail-id">{row.trail_id}</span>
-                      <span className="trail-meta">
-                        {STATUS_LABEL[row.status]} · etapa{' '}
-                        {row.current_stage_number}
+                      <span className="trail-icon" aria-hidden>
+                        ▤
+                      </span>
+                      <span className="trail-copy">
+                        <span className="trail-id">{row.trail_id}</span>
+                        <span className="trail-meta">
+                          {STATUS_LABEL[row.status]} · etapa{' '}
+                          {row.current_stage_number}
+                        </span>
                       </span>
                     </Link>
                   </li>
@@ -78,10 +90,28 @@ export default function ChatLayout() {
             </ul>
           )}
         </nav>
-        <button type="button" className="chat-sidebar__logout" onClick={logout}>
-          Sair
-        </button>
+
+        <div className="chat-sidebar__foot">
+          <div className="chat-sidebar__brand-row">
+            <span className="chat-sidebar__brand">Crias</span>
+            <span className="chat-sidebar__user">
+              {session.name.split(' ')[0] || 'Aluno'}
+            </span>
+          </div>
+          <button type="button" className="chat-sidebar__logout" onClick={logout}>
+            Sair
+          </button>
+        </div>
       </aside>
+
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="chat-sidebar__backdrop"
+          aria-label="Fechar menu"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
 
       <div className="chat-main">
         <header className="chat-topbar">
@@ -93,7 +123,9 @@ export default function ChatLayout() {
           >
             ☰
           </button>
-          <span className="chat-topbar__title">Sua trilha</span>
+          <span className="chat-topbar__title">
+            {activeTrailId ? `Crias · ${activeTrailId}` : 'Crias · Sua trilha'}
+          </span>
         </header>
         <Outlet context={{ trailRows: rows }} />
       </div>

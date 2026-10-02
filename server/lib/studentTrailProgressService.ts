@@ -9,6 +9,7 @@ import {
   type StudentTrailRuntimePosition,
 } from './studentTrailService'
 import type { StudentTrailStatus } from './studentTrailValidation'
+import { trailStageQuestionDocId } from './trailStageQuestionService'
 
 export type StageType = 'ai' | 'fixed' | 'exercise'
 
@@ -138,14 +139,6 @@ function asStageType(v: unknown): StageType {
 
 function stageDocId(trailId: string, stageNumber: number): string {
   return `${trailId}_stage_${stageNumber}`
-}
-
-function questionDocId(
-  trailId: string,
-  stageNumber: number,
-  questionNumber: number,
-): string {
-  return `${trailId}_stage_${stageNumber}_question_${questionNumber}`
 }
 
 export async function identifyStudent(
@@ -443,7 +436,7 @@ export async function getNextContent(
   }
 
   const stageId = stageDocId(trailId, pos.current_stage_number)
-  const questionId = questionDocId(
+  const questionId = trailStageQuestionDocId(
     trailId,
     pos.current_stage_number,
     pos.current_question_number,
@@ -471,14 +464,14 @@ export async function getNextContent(
   const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
   const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
 
-  const stageReleased = asBool(stageData.is_released, false)
+  // Liberation is per aula (trail_stage_questions.is_released). Stages stay
+  // structural (often is_released=false) and must not block released content.
   const questionReleased = asBool(questionData.is_released, false)
   const stageActive = asBool(stageData.active, true)
   const questionActive = asBool(questionData.active, true)
-  const isReleased = stageReleased && questionReleased
 
   const availability = evaluateContentAvailability({
-    is_released: isReleased,
+    is_released: questionReleased,
     active_stage: stageActive,
     active_question: questionActive,
   })
@@ -675,9 +668,9 @@ export async function advanceStudentTrailProgress(
     }
   }
 
-  // Destination must exist and ideally be released; if missing → completed.
+  // Destination must exist; if missing → completed.
   const destStageId = stageDocId(trailId, next.next_stage_number)
-  const destQuestionId = questionDocId(
+  const destQuestionId = trailStageQuestionDocId(
     trailId,
     next.next_stage_number,
     next.next_question_number,

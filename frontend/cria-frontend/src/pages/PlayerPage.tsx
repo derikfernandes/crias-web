@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import { useParams } from 'react-router-dom'
 import {
   advanceTrail,
   fetchNextContent,
@@ -18,16 +25,26 @@ type ChatMessage = {
 function contentToAssistantText(content: NextContentOk): string {
   const parts: string[] = []
   if (content.stage_title) parts.push(content.stage_title)
-  if (content.stage_type === 'ai' && content.prompt) {
-    parts.push(`_(Etapa com tutoria — ${content.prompt.slice(0, 120)}${content.prompt.length > 120 ? '…' : ''})_`)
-  }
   if (content.content) parts.push(content.content)
-  if (content.stage_type === 'ai' && !content.content) {
+  if (!content.content && content.stage_type === 'ai' && content.prompt) {
     parts.push(
-      'Esta etapa usa tutoria inteligente. Em breve você poderá conversar aqui; por enquanto, leia a orientação acima e continue quando estiver pronto.',
+      'Esta etapa usa tutoria. Envie uma mensagem para começar ou continue quando estiver pronto.',
     )
   }
   return parts.join('\n\n') || 'Conteúdo da etapa.'
+}
+
+function statusToSystemText(content: NextContentStatus): string {
+  if (content.status === 'blocked') {
+    return (
+      content.message ||
+      'Esta etapa ainda não foi liberada pela instituição.'
+    )
+  }
+  if (content.status === 'completed') {
+    return content.message || 'Trilha concluída.'
+  }
+  return content.message || `Indisponível (${content.status}).`
 }
 
 export default function PlayerPage() {
@@ -39,8 +56,10 @@ export default function PlayerPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState('')
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const appendedKeyRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
@@ -58,37 +77,57 @@ export default function PlayerPage() {
   useEffect(() => {
     appendedKeyRef.current = null
     setMessages([])
+    setDraft('')
     void load()
   }, [trailId, load])
 
   useEffect(() => {
-    if (content?.status !== 'ok') return
-    const key = `${content.stage_number}-${content.question_number}`
+    if (!content) return
+
+    if (content.status === 'ok') {
+      const key = `${content.stage_number}-${content.question_number}`
+      if (appendedKeyRef.current === key) return
+      appendedKeyRef.current = key
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${key}-${Date.now()}`,
+          role: 'assistant',
+          text: contentToAssistantText(content),
+          stageType: content.stage_type,
+        },
+      ])
+      return
+    }
+
+    const key = `status-${content.status}-${content.stage_number ?? ''}-${content.question_number ?? ''}`
     if (appendedKeyRef.current === key) return
     appendedKeyRef.current = key
     setMessages((prev) => [
       ...prev,
       {
-        id: `a-${key}-${Date.now()}`,
-        role: 'assistant',
-        text: contentToAssistantText(content),
-        stageType: content.stage_type,
+        id: `sys-${key}-${Date.now()}`,
+        role: 'system',
+        text: statusToSystemText(content),
       },
     ])
   }, [content])
 
   useEffect(() => {
-    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' })
+    threadRef.current?.scrollTo({
+      top: threadRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
   }, [messages, content])
 
-  async function onAdvance() {
+  useEffect(() => {
+    if (content?.status === 'ok') inputRef.current?.focus()
+  }, [content])
+
+  async function submitAdvance(userLine: string) {
     if (content?.status !== 'ok') return
     setBusy(true)
     setError(null)
-    const userLine =
-      content.stage_type === 'exercise' && selectedOption
-        ? selectedOption
-        : 'Continuar'
     setMessages((prev) => [
       ...prev,
       {
@@ -97,6 +136,7 @@ export default function PlayerPage() {
         text: userLine,
       },
     ])
+    setDraft('')
     try {
       const result = await advanceTrail(session.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
@@ -127,22 +167,54 @@ export default function PlayerPage() {
     }
   }
 
-  const showComposer =
-    content?.status === 'ok' &&
-    (content.stage_type !== 'exercise' ||
-      !Array.isArray(content.options) ||
-      content.options.length === 0 ||
-      selectedOption)
+  async function onSend(event?: FormEvent) {
+    event?.preventDefault()
+    if (busy || content?.status !== 'ok') return
+
+    const trimmed = draft.trim()
+    const hasOptions =
+      content.stage_type === 'exercise' &&
+      Array.isArray(content.options) &&
+      content.options.length > 0
+
+    if (hasOptions && !selectedOption && !trimmed) {
+      setError('Selecione uma opção ou digite sua resposta.')
+      return
+    }
+
+    let userLine: string
+    if (hasOptions && selectedOption) {
+      userLine = trimmed ? `${selectedOption}\n${trimmed}` : selectedOption
+    } else if (trimmed) {
+      userLine = trimmed
+    } else if (content.stage_type === 'ai') {
+      userLine = 'Vamos começar'
+    } else {
+      userLine = 'Continuar'
+    }
+
+    await submitAdvance(userLine)
+  }
+
+  function onComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      void onSend()
+    }
+  }
+
+  const canSend = content?.status === 'ok' && !busy
+  const placeholder =
+    content?.status !== 'ok'
+      ? 'Trilha indisponível no momento'
+      : content.stage_type === 'exercise'
+        ? 'Digite sua resposta ou selecione uma opção…'
+        : content.stage_type === 'ai'
+          ? 'Envie uma mensagem para continuar a trilha…'
+          : 'Digite uma mensagem ou envie para continuar…'
 
   return (
     <div className="chat-thread">
-      <div className="chat-thread__header">
-        <Link className="ghost" to="/">
-          Todas as trilhas
-        </Link>
-        <h1>{trailId}</h1>
-      </div>
-
       {error ? (
         <p className="error chat-thread__banner" role="alert">
           {error}
@@ -158,7 +230,7 @@ export default function PlayerPage() {
           >
             <p className="chat-bubble__label">
               {msg.role === 'assistant'
-                ? 'Trilha'
+                ? 'Crias'
                 : msg.role === 'user'
                   ? 'Você'
                   : 'Sistema'}
@@ -173,19 +245,6 @@ export default function PlayerPage() {
 
         {!content ? (
           <p className="muted chat-thread__loading">Carregando…</p>
-        ) : content.status === 'blocked' ? (
-          <article className="chat-bubble chat-bubble--system">
-            <p className="chat-bubble__body">
-              {content.message ||
-                'Esta etapa ainda não foi liberada pela instituição.'}
-            </p>
-          </article>
-        ) : content.status === 'completed' ? null : content.status !== 'ok' ? (
-          <article className="chat-bubble chat-bubble--system">
-            <p className="chat-bubble__body">
-              {content.message || `Indisponível (${content.status}).`}
-            </p>
-          </article>
         ) : null}
 
         {content?.status === 'ok' &&
@@ -203,7 +262,10 @@ export default function PlayerPage() {
                     name="opt"
                     value={label}
                     checked={selectedOption === label}
-                    onChange={() => setSelectedOption(label)}
+                    onChange={() => {
+                      setSelectedOption(label)
+                      setError(null)
+                    }}
                   />
                   {label}
                 </label>
@@ -217,21 +279,30 @@ export default function PlayerPage() {
         ) : null}
       </div>
 
-      {content?.status === 'ok' ? (
-        <footer className="chat-composer">
-          {content.stage_type === 'exercise' &&
-          Array.isArray(content.options) &&
-          content.options.length > 0 &&
-          !selectedOption ? (
-            <p className="muted">Selecione uma opção acima para continuar.</p>
-          ) : null}
-          {showComposer ? (
-            <button type="button" onClick={() => void onAdvance()} disabled={busy}>
-              {busy ? 'Enviando…' : 'Continuar'}
-            </button>
-          ) : null}
-        </footer>
-      ) : null}
+      <footer className="chat-composer">
+        <form className="chat-composer__form" onSubmit={(e) => void onSend(e)}>
+          <textarea
+            ref={inputRef}
+            className="chat-composer__input"
+            rows={1}
+            value={draft}
+            disabled={!canSend}
+            placeholder={placeholder}
+            aria-label="Mensagem"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onComposerKeyDown}
+          />
+          <button type="submit" disabled={!canSend} aria-label="Enviar">
+            {busy ? '…' : 'Enviar'}
+          </button>
+        </form>
+        {content?.status === 'ok' && content.stage_type !== 'exercise' ? (
+          <p className="muted chat-composer__hint">
+            Enter envia · Shift+Enter quebra linha
+            {content.stage_type === 'fixed' ? ' · mensagem vazia = Continuar' : ''}
+          </p>
+        ) : null}
+      </footer>
     </div>
   )
 }

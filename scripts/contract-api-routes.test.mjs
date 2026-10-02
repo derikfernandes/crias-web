@@ -75,6 +75,35 @@ test('vercel.json continua apontando o build para frontend/trilha-admin/dist', (
   assert.equal(vercel.buildCommand, 'npm run build')
 })
 
+test('vercel.json serve SPA do aluno em /aluno sem roubar /api', () => {
+  const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
+  const sources = vercel.rewrites.map((r) => r.source)
+
+  assert.ok(sources.includes('/aluno'))
+  assert.ok(sources.includes('/aluno/'))
+  assert.ok(
+    sources.includes('/aluno/((?!assets/).*)'),
+    'rewrite do aluno deve excluir /aluno/assets/*',
+  )
+
+  const catchAll = vercel.rewrites.find((r) =>
+    String(r.source).includes('?!api'),
+  )
+  assert.ok(catchAll, 'catch-all do admin deve excluir /api e /aluno')
+  assert.equal(catchAll.destination, '/index.html')
+  assert.match(String(catchAll.source), /aluno/)
+
+  const last = vercel.rewrites[vercel.rewrites.length - 1]
+  assert.equal(last.destination, '/index.html')
+})
+
+test('build raiz copia cria-frontend para dist/aluno', () => {
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  assert.match(pkg.scripts.build, /cria-frontend/)
+  assert.match(pkg.scripts.build, /copy-aluno-dist\.mjs/)
+  assert.equal(existsSync(join(root, 'scripts/copy-aluno-dist.mjs')), true)
+})
+
 test('handlers de API exportam default (contrato Vercel)', () => {
   for (const name of EXPECTED_API_FILES) {
     const src = readFileSync(join(root, 'api', name), 'utf8')

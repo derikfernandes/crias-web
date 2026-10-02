@@ -115,7 +115,13 @@
     },
     { "source": "/aluno", "destination": "/aluno/index.html" },
     { "source": "/aluno/", "destination": "/aluno/index.html" },
-    { "source": "/aluno/:path*", "destination": "/aluno/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/aluno/((?!assets/).*)",
+      "destination": "/aluno/index.html"
+    },
+    {
+      "source": "/((?!api(?:/|$)|aluno(?:/|$)).*)",
+      "destination": "/index.html"
+    }
   ]
 }

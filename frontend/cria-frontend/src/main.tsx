@@ -6,7 +6,7 @@ import './styles/app.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/aluno">
       <App />
     </BrowserRouter>
   </StrictMode>,

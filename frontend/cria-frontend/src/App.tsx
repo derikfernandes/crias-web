@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { getSession } from './lib/session'
+import ChatLayout from './layouts/ChatLayout'
 import LoginPage from './pages/LoginPage'
 import TrailsPage from './pages/TrailsPage'
 import PlayerPage from './pages/PlayerPage'
@@ -19,18 +20,13 @@ export default function App() {
           path="/"
           element={
             <RequireAuth>
-              <TrailsPage />
+              <ChatLayout />
             </RequireAuth>
           }
-        />
-        <Route
-          path="/trilha/:trailId"
-          element={
-            <RequireAuth>
-              <PlayerPage />
-            </RequireAuth>
-          }
-        />
+        >
+          <Route index element={<TrailsPage />} />
+          <Route path="trilha/:trailId" element={<PlayerPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

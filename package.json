@@ -9,7 +9,7 @@
     "dev": "npm run dev -w trilha-admin",
     "dev:admin": "npm run dev -w trilha-admin",
     "dev:aluno": "npm run dev -w cria-frontend",
-    "build": "npm run build -w trilha-admin",
+    "build": "npm run build -w trilha-admin && npm run build -w cria-frontend && node scripts/copy-aluno-dist.mjs",
     "build:admin": "npm run build -w trilha-admin",
     "build:aluno": "npm run build -w cria-frontend",
     "lint": "npm run lint -w trilha-admin",

@@ -32,6 +32,7 @@ Campos:
 - school_grade: string
 - student_level: 1 | 2 | 3
 - active: boolean
+- password_hash: string opcional (scrypt; definido via API/admin; nunca exposto em GET)
 - created_at: timestamp
 - updated_at: timestamp
 

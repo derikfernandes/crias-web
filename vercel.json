@@ -113,6 +113,9 @@
       "source": "/conversation_logs/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/conversation_logs?id=:id"
     },
+    { "source": "/aluno", "destination": "/aluno/index.html" },
+    { "source": "/aluno/", "destination": "/aluno/index.html" },
+    { "source": "/aluno/:path*", "destination": "/aluno/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

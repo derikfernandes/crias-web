@@ -20,6 +20,8 @@ export type ProgressErrorCode =
   | 'blocked'
   | 'completed'
   | 'invalid_payload'
+  | 'invalid_credentials'
+  | 'password_not_set'
   | 'internal_error'
 
 export type ProgressResult<T> =
@@ -148,15 +150,21 @@ function questionDocId(
 
 export async function identifyStudent(
   db: Firestore,
-  input: { phone_number: string; institution_code: string },
+  input: {
+    phone_number: string
+    institution_code: string
+    password: string
+  },
 ): Promise<ProgressResult<IdentifyOk>> {
   const phone = input.phone_number.replace(/\D/g, '')
   const institutionCode = input.institution_code.trim()
-  if (!phone || !institutionCode) {
+  const password = typeof input.password === 'string' ? input.password : ''
+  if (!phone || !institutionCode || !password.trim()) {
     return {
       ok: false,
       code: 'invalid_payload',
-      message: 'phone_number e institution_code são obrigatórios.',
+      message:
+        'phone_number, institution_code e password são obrigatórios.',
       httpStatus: 400,
     }
   }
@@ -211,6 +219,27 @@ export async function identifyStudent(
       code: 'inactive_student',
       message: 'Aluno inativo.',
       httpStatus: 403,
+    }
+  }
+
+  const { verifyStudentPassword } = await import('./studentPassword.js')
+  const passwordHash =
+    typeof data.password_hash === 'string' ? data.password_hash : null
+  if (!passwordHash) {
+    return {
+      ok: false,
+      code: 'password_not_set',
+      message:
+        'Senha ainda não definida. Peça à instituição para configurar sua senha de acesso.',
+      httpStatus: 403,
+    }
+  }
+  if (!verifyStudentPassword(password, passwordHash)) {
+    return {
+      ok: false,
+      code: 'invalid_credentials',
+      message: 'Telefone, instituição ou senha incorretos.',
+      httpStatus: 401,
     }
   }
 

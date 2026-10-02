@@ -75,14 +75,17 @@ async function parseJson(res: Response): Promise<unknown> {
 export async function identifyStudent(input: {
   phone_number: string
   institution_code: string
+  password: string
 }): Promise<IdentifyResponse> {
   const res = await fetch(`${API_BASE}/student/identify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  const body = (await parseJson(res)) as IdentifyResponse & ApiError
-  if (!res.ok || body.status !== 'ok') {
+  const body = (await parseJson(res)) as IdentifyResponse & ApiError & {
+    code?: string
+  }
+  if (!res.ok || (body as { status?: string }).status !== 'ok') {
     throw new Error(body.message || body.error || 'Não foi possível entrar.')
   }
   return body

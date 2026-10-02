@@ -8,6 +8,7 @@ export default function LoginPage() {
   const existing = getSession()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -21,6 +22,7 @@ export default function LoginPage() {
       const result = await identifyStudent({
         phone_number: phone,
         institution_code: code.trim(),
+        password,
       })
       setSession({
         student_id: result.student_id,
@@ -43,7 +45,7 @@ export default function LoginPage() {
         <p className="brand">Crias</p>
         <h1>Entre na sua trilha</h1>
         <p className="lede">
-          Use o telefone cadastrado e o código da sua instituição.
+          Telefone, código da instituição e senha definida pelo admin.
         </p>
         <label>
           Telefone
@@ -65,6 +67,17 @@ export default function LoginPage() {
             onChange={(e) => setCode(e.target.value)}
             placeholder="ex.: inst_1"
             required
+          />
+        </label>
+        <label>
+          Senha
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
           />
         </label>
         {error ? <p className="error" role="alert">{error}</p> : null}

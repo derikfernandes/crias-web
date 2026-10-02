@@ -12,6 +12,7 @@ Login por:
 
 - `phone_number` (normalizado, só dígitos)
 - `institution_code` — código da instituição (o `institution_id` já existente)
+- `password` — senha definida pelo admin (hash `password_hash` em Firestore via scrypt; ver `server/lib/studentPassword.ts`)
 
 Endpoint:
 
@@ -24,7 +25,8 @@ Body:
 ```json
 {
   "phone_number": "5512999990000",
-  "institution_code": "inst_1"
+  "institution_code": "inst_1",
+  "password": "senha-do-aluno"
 }
 ```
 
@@ -35,7 +37,7 @@ Respostas:
 - `inactive_student` — aluno inativo
 - `inactive_institution` — instituição inativa
 
-Não usa Firebase Auth do aluno nesta fase.
+Não usa Firebase Auth do aluno: credencial é telefone + instituição + senha armazenada com hash no documento `students`.
 
 ## 3. Conceitos (domínio inalterado)
 

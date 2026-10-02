@@ -349,17 +349,19 @@ async function handleRequest(request: Request): Promise<Response> {
           const institution_code =
             sanitizeString(body.institution_code) ??
             sanitizeString(body.institution_id)
-          if (!phone_number || !institution_code) {
+          const password = sanitizeString(body.password)
+          if (!phone_number || !institution_code || !password) {
             return respond(400, {
               status: 'error',
               code: 'invalid_payload',
               error:
-                'Campos "phone_number" e "institution_code" são obrigatórios.',
+                'Campos "phone_number", "institution_code" e "password" são obrigatórios.',
             })
           }
           const result = await identifyStudent(db, {
             phone_number,
             institution_code,
+            password,
           })
           if (!result.ok) {
             return respond(result.httpStatus, {
@@ -405,6 +407,21 @@ async function handleRequest(request: Request): Promise<Response> {
 
         const active = typeof body.active === 'boolean' ? body.active : true
 
+        let password_hash: string | undefined
+        const plainPassword = sanitizeString(body.password)
+        if (plainPassword) {
+          const { hashStudentPassword } = await import(
+            '../server/lib/studentPassword.js'
+          )
+          try {
+            password_hash = hashStudentPassword(plainPassword)
+          } catch (e) {
+            return respond(400, {
+              error: e instanceof Error ? e.message : 'Senha inválida.',
+            })
+          }
+        }
+
         const now = FieldValue.serverTimestamp()
 
         // IDs sequenciais: s1, s2, s3...
@@ -439,6 +456,7 @@ async function handleRequest(request: Request): Promise<Response> {
             school_grade,
             student_level: studentLevel,
             active,
+            ...(password_hash ? { password_hash } : {}),
             created_at: now,
             updated_at: now,
           })
@@ -526,6 +544,22 @@ async function handleRequest(request: Request): Promise<Response> {
         }
 
         if (typeof body.active === 'boolean') updates.active = body.active
+
+        if ('password' in body && body.password !== undefined) {
+          const plainPassword = sanitizeString(body.password)
+          if (plainPassword) {
+            const { hashStudentPassword } = await import(
+              '../server/lib/studentPassword.js'
+            )
+            try {
+              updates.password_hash = hashStudentPassword(plainPassword)
+            } catch (e) {
+              return respond(400, {
+                error: e instanceof Error ? e.message : 'Senha inválida.',
+              })
+            }
+          }
+        }
 
         updates.updated_at = FieldValue.serverTimestamp()
 

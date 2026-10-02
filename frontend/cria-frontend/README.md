@@ -1,7 +1,9 @@
 # Crias — App do aluno
 
-Player web mínimo: login (telefone + código da instituição), lista de trilhas e
-conteúdo por `stage_type` via API (`next-content` / `advance`).
+Player web: login (telefone + instituição + senha), UI estilo conversa e conteúdo
+por `stage_type` via API (`next-content` / `advance`).
+
+Produção: `https://crias-web.vercel.app/aluno/` (build copiado para `dist/aluno`).
 
 ```bash
 npm install

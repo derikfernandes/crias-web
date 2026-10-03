@@ -265,6 +265,28 @@ textarea::placeholder {
   filter: none;
 }
 
+/*
+ * R18-N01 / P28: Entrar disabled (offline) — superfície morta como Enviar,
+ * não verde fantasma via opacity:.55 no fill accent.
+ */
+.login-panel > button[type='submit']:disabled:not([aria-busy='true']) {
+  background: #3a3b48;
+  color: rgba(236, 236, 241, 0.48);
+  opacity: 1;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.login-panel > button[type='submit']:disabled[aria-busy='true'] {
+  opacity: 1;
+  background: color-mix(in srgb, var(--surface, #f4f4f5) 82%, var(--accent) 18%);
+  color: var(--ink);
+  box-shadow: none;
+  filter: none;
+}
+
 button {
   font: inherit;
   font-weight: 700;
@@ -1683,8 +1705,9 @@ button[aria-disabled='true'] {
 
 .chat-composer__hint {
   margin: 0.3rem 0 0;
-  font-size: 0.68rem;
-  line-height: 1.25;
+  /* R18-N02 / P28: ≥12–13px no telefone (antes .68rem = 10.88px). */
+  font-size: 0.8125rem;
+  line-height: 1.35;
   text-align: center;
   color: var(--muted-dim);
 }
@@ -1862,7 +1885,8 @@ button[aria-disabled='true'] {
   /* C2-R5 N06: chrome inferior mais compacto. */
   min-height: 2.75rem;
   margin: 0 auto;
-  padding: 0.35rem 0 0.35rem;
+  /* R18-N03 / P28: folga Continuar↔composer ≥8px (antes padding-bottom .35rem = 5.6px). */
+  padding: 0.35rem 0 0.5rem;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1968,6 +1992,21 @@ button[aria-disabled='true'] {
 .chat-continue__btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/*
+ * R18-N01 / P28: Continuar disabled offline (não-busy) — cinza morto como Enviar,
+ * não o mesmo verde fill só com opacity:.55 (verde fantasma).
+ * Exclui --leaving para não vencer R06-E10 (busy mid-flight).
+ */
+.chat-continue:not(.chat-continue--leaving)
+  .chat-continue__btn:disabled:not(.chat-continue__btn--secondary):not([aria-busy='true']) {
+  opacity: 1;
+  background: #3a3b48;
+  color: rgba(236, 236, 241, 0.48);
+  box-shadow: none;
+  filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* R06-E10: busy não vira verde fantasma — superfície legível + opacity plena. */

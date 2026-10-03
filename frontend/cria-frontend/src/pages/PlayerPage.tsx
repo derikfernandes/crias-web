@@ -27,9 +27,11 @@ import {
   isContinuarText,
   lightStripMarkdown,
   logsToMessages,
+  looksLikeLessonConclusion,
   normalizeTitleKey,
   renderMessageLines,
   stripDecorTitle,
+  stripMidLessonConclusion,
   trailCellKey,
   trailMessageId,
 } from '../lib/trailMessages'
@@ -277,6 +279,13 @@ export default function PlayerPage() {
   const initialAnchorPendingRef = useRef(true)
   /** Ignora onScroll gerado por scroll programático. */
   const programmaticScrollRef = useRef(false)
+  /** Timeout que libera programmaticScrollRef (smooth pode durar >2 frames). */
+  const programmaticScrollTimerRef = useRef<number | null>(null)
+  /**
+   * C4-MARIA-FALSE-PIN: pin/chip só após gesto real de scroll-up do usuário
+   * (wheel/touch/keys). Gap por crescimento de conteúdo NÃO arma pin.
+   */
+  const userScrollUpGestureRef = useRef(false)
   const reduceMotionRef = useRef(false)
   const historyBeforeRef = useRef<number | null>(null)
   const oldestLogMsRef = useRef<number | null>(null)
@@ -292,6 +301,95 @@ export default function PlayerPage() {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  /** Gestos de scroll-up do usuário → autorizam pin (C4-MARIA-FALSE-PIN). */
+  useEffect(() => {
+    const el = threadRef.current
+    if (!el || !historyReady) return
+
+    const markScrollUp = () => {
+      if (programmaticScrollRef.current || initialAnchorPendingRef.current) {
+        return
+      }
+      userScrollUpGestureRef.current = true
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) markScrollUp()
+    }
+    let touchY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0
+      // Dedo para baixo → conteúdo sobe (scroll-up).
+      if (y - touchY > 6) markScrollUp()
+      touchY = y
+    }
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'PageUp' || e.key === 'Home' || e.key === 'ArrowUp') {
+        markScrollUp()
+      }
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: true })
+    el.addEventListener('keydown', onKeyDown)
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('keydown', onKeyDown)
+    }
+  }, [historyReady])
+
+  /**
+   * Stick-to-bottom enquanto não há pin: crescimento de bolha/imagem/typing
+   * não deve abrir gap nem armar chip (C4-MARIA-FALSE-PIN).
+   */
+  useEffect(() => {
+    const el = threadRef.current
+    if (!el || !historyReady) return
+
+    const stickIfUnpinned = () => {
+      if (
+        pinnedAwayRef.current ||
+        isPinLocked() ||
+        initialAnchorPendingRef.current
+      ) {
+        return
+      }
+      const top = el.scrollHeight
+      if (Math.abs(el.scrollTop + el.clientHeight - el.scrollHeight) < 2) {
+        return
+      }
+      runProgrammaticScroll(() => {
+        el.scrollTop = top
+      })
+      nearBottomRef.current = true
+      setNewMsgChip(false)
+    }
+
+    const ro = new ResizeObserver(() => {
+      stickIfUnpinned()
+    })
+    ro.observe(el)
+    // Filhos crescem (imagens / enter animation) sem mudar clientHeight do scroller.
+    for (const child of Array.from(el.children)) {
+      ro.observe(child)
+    }
+
+    const onImgLoad = () => stickIfUnpinned()
+    el.addEventListener('load', onImgLoad, true)
+
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('load', onImgLoad, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyReady, messages.length, showTyping, mariaSidechat])
 
   /** Typing só após delay mínimo — evita flash em cache hit. */
   useEffect(() => {
@@ -341,6 +439,7 @@ export default function PlayerPage() {
     initialAnchorPendingRef.current = true
     pinnedAwayRef.current = false
     nearBottomRef.current = true
+    userScrollUpGestureRef.current = false
     try {
       // next-content primeiro — CTA não espera history.
       const contentPromise = fetchNextContent(session.student_id, trailId)
@@ -569,6 +668,20 @@ export default function PlayerPage() {
     if (initialAnchorPendingRef.current || programmaticScrollRef.current) {
       return false
     }
+    // Já pinado por gesto anterior e ainda longe do fundo.
+    if (pinnedAwayRef.current && !isScrollNearBottom(el)) {
+      nearBottomRef.current = false
+      pinnedScrollTopRef.current = el.scrollTop
+      return true
+    }
+    // C4: gap por crescimento de conteúdo sem gesto de scroll-up ≠ pin.
+    if (!userScrollUpGestureRef.current) {
+      if (isScrollNearBottom(el)) {
+        pinnedAwayRef.current = false
+        nearBottomRef.current = true
+      }
+      return false
+    }
     // Mede o DOM real — scrollTop programático pode não disparar onScroll.
     if (!isScrollNearBottom(el)) {
       pinnedAwayRef.current = true
@@ -578,6 +691,7 @@ export default function PlayerPage() {
     }
     pinnedAwayRef.current = false
     nearBottomRef.current = true
+    userScrollUpGestureRef.current = false
     return false
   }
 
@@ -621,6 +735,7 @@ export default function PlayerPage() {
       if (isScrollNearBottom(el)) {
         nearBottomRef.current = true
         pinnedAwayRef.current = false
+        userScrollUpGestureRef.current = false
         setNewMsgChip(false)
       }
       return
@@ -637,9 +752,12 @@ export default function PlayerPage() {
     nearBottomRef.current = near
     if (near) {
       pinnedAwayRef.current = false
+      userScrollUpGestureRef.current = false
       setNewMsgChip(false)
-    } else {
-      // Pin só após gesture real do usuário (onScroll).
+      return
+    }
+    // Longe do fundo: pin só se houve gesto de scroll-up (C4-MARIA-FALSE-PIN).
+    if (userScrollUpGestureRef.current || pinnedAwayRef.current) {
       pinnedAwayRef.current = true
       pinnedScrollTopRef.current = el.scrollTop
     }
@@ -647,13 +765,16 @@ export default function PlayerPage() {
 
   function runProgrammaticScroll(fn: () => void) {
     programmaticScrollRef.current = true
+    if (programmaticScrollTimerRef.current != null) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+      programmaticScrollTimerRef.current = null
+    }
     fn()
-    // Libera após 2 frames — layout/images ainda podem disparar onScroll.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        programmaticScrollRef.current = false
-      })
-    })
+    // Smooth pode gerar onScroll por ~300ms — segura a flag além de 2 frames.
+    programmaticScrollTimerRef.current = window.setTimeout(() => {
+      programmaticScrollRef.current = false
+      programmaticScrollTimerRef.current = null
+    }, 320)
   }
 
   function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
@@ -663,17 +784,22 @@ export default function PlayerPage() {
     pinHoldUntilRef.current = 0
     pinnedAwayRef.current = false
     nearBottomRef.current = true
+    userScrollUpGestureRef.current = false
     setNewMsgChip(false)
     const top = el.scrollHeight
+    const preferAuto = behavior === 'auto' || reduceMotionRef.current
     runProgrammaticScroll(() => {
-      el.scrollTo({
-        top,
-        behavior: reduceMotionRef.current ? 'auto' : behavior,
-      })
-      // auto: garante top=max mesmo se scrollTo smooth for interrompido.
-      if (behavior === 'auto' || reduceMotionRef.current) {
+      if (preferAuto) {
         el.scrollTop = top
+        return
       }
+      el.scrollTo({ top, behavior: 'smooth' })
+      // Reforça no fim do smooth — append/imagem pode crescer no meio.
+      window.setTimeout(() => {
+        if (!pinnedAwayRef.current && threadRef.current) {
+          threadRef.current.scrollTop = threadRef.current.scrollHeight
+        }
+      }, 280)
     })
   }
 
@@ -721,7 +847,13 @@ export default function PlayerPage() {
   }
 
   useEffect(() => {
-    return () => stopPinLock()
+    return () => {
+      stopPinLock()
+      if (programmaticScrollTimerRef.current != null) {
+        window.clearTimeout(programmaticScrollTimerRef.current)
+        programmaticScrollTimerRef.current = null
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -760,12 +892,9 @@ export default function PlayerPage() {
       setNewMsgChip(true)
       return
     }
-    // Não inferir pin de scrollTop sem gesture — só chip se já pinado.
-    if (!nearBottomRef.current) {
-      setNewMsgChip(true)
-      return
-    }
-    scrollToBottom('smooth')
+    // Sem pin do usuário: sempre stick-to-bottom (auto) — gap de append ≠ chip.
+    nearBottomRef.current = true
+    scrollToBottom('auto')
     // messages/busy/content drive presence; intentional deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
@@ -1022,6 +1151,7 @@ export default function PlayerPage() {
     if (!wasPinned) {
       pinnedAwayRef.current = false
       nearBottomRef.current = true
+      userScrollUpGestureRef.current = false
       setNewMsgChip(false)
       // Reusa o caminho de âncora (como mount) para o resume assentar no fim.
       initialAnchorPendingRef.current = true
@@ -1208,8 +1338,25 @@ export default function PlayerPage() {
   )
   const showHistoryCollapse =
     historyHasMore || hiddenHistoryCount > 0
-  const visibleMessages =
+  const rawVisibleMessages =
     historyExpanded || hiddenHistoryCount === 0 ? messages : collapsedTail
+  /**
+   * C4-STALE-CONCLUDE-DOM: mid-aula (status ok) não mostra “Parabéns por
+   * concluir a aula…” — strip do texto / drop bolha só-conclude.
+   * Expand ainda revela passado; conclude completo só faz sentido no fim.
+   */
+  const midLesson = content?.status === 'ok'
+  const visibleMessages = midLesson
+    ? rawVisibleMessages
+        .map((m) => {
+          if (!looksLikeLessonConclusion(m.text)) return m
+          const stripped = stripMidLessonConclusion(m.text)
+          if (!stripped) return null
+          if (stripped === m.text) return m
+          return { ...m, text: stripped }
+        })
+        .filter((m): m is ChatMessage => m != null)
+    : rawVisibleMessages
 
   async function onExpandHistory() {
     const el = threadRef.current

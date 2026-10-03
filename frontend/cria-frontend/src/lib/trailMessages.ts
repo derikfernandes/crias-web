@@ -42,6 +42,33 @@ export function isContinuarText(text: string): boolean {
   return text.trim().toLowerCase() === 'continuar'
 }
 
+/** Conclusão de aula embutida em BLOCO/feedback antigo (mid-aula). */
+const LESSON_CONCLUDE_RE =
+  /parab[eé]ns\s+por\s+concluir|concluiu\s+(esta\s+)?(aula|trilha)|resposta\s+final/i
+
+/** CTA de fechamento frequentemente colado após o conclude. */
+const LESSON_CONCLUDE_TRAILER_RE =
+  /💬\s*_?Ficou com alguma d[uú]vida\?[\s\S]*$/i
+
+export function looksLikeLessonConclusion(text: string): boolean {
+  return LESSON_CONCLUDE_RE.test(String(text ?? ''))
+}
+
+/**
+ * Remove “Parabéns por concluir a aula…” (e trailer) de bolhas mid-aula.
+ * Não apaga o restante do BLOCO/feedback — só o fecho prematuro.
+ */
+export function stripMidLessonConclusion(text: string): string {
+  let s = String(text ?? '')
+  if (!LESSON_CONCLUDE_RE.test(s)) return s
+  const m = s.match(LESSON_CONCLUDE_RE)
+  if (m && typeof m.index === 'number') {
+    s = s.slice(0, m.index)
+  }
+  s = s.replace(LESSON_CONCLUDE_TRAILER_RE, '')
+  return s.replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function metaSource(
   metadata: ConversationLogRow['metadata'],
 ): string {

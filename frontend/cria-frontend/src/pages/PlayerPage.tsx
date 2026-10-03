@@ -24,6 +24,7 @@ import { getSession } from '../lib/session'
 import {
   alignBlocoWithAttempt,
   type ChatMessage,
+  isBlocoRespostaContent,
   isContinuarText,
   lightStripMarkdown,
   logsToMessages,
@@ -62,24 +63,26 @@ function messagesForCollapsedTail(
       ? messages
       : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
   }
-  const current = messages.filter(
+  /**
+   * B1: a partir da 1ª bolha da question corrente, manter também sidechat
+   * local (Maria/resume/feedback) sem questionNumber — o sufixo “só animate”
+   * anterior sumia após Voltar à trilha inserir um resume com q.
+   */
+  const firstIdx = messages.findIndex(
     (m) => m.questionNumber === currentQuestion,
   )
-  // Mensagens sem q (resume local) ficam no fim se forem as mais recentes.
-  const trailingLocal: ChatMessage[] = []
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.questionNumber == null && (m.kind === 'resume' || m.animate)) {
-      trailingLocal.unshift(m)
-      continue
-    }
-    break
+  if (firstIdx < 0) {
+    return messages.slice(-Math.min(8, messages.length))
   }
-  const merged = [...current]
-  for (const m of trailingLocal) {
-    if (!merged.some((x) => x.id === m.id)) merged.push(m)
-  }
-  return merged.length > 0 ? merged : messages.slice(-Math.min(8, messages.length))
+  const slice = messages
+    .slice(firstIdx)
+    .filter(
+      (m) =>
+        m.questionNumber == null || m.questionNumber === currentQuestion,
+    )
+  return slice.length > 0
+    ? slice
+    : messages.slice(-Math.min(8, messages.length))
 }
 
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
@@ -289,6 +292,11 @@ export default function PlayerPage() {
   const reduceMotionRef = useRef(false)
   const historyBeforeRef = useRef<number | null>(null)
   const oldestLogMsRef = useRef<number | null>(null)
+  /**
+   * B3: após surfacer BLOCO RESPOSTA no feedback do exercício, o próximo
+   * Continuar não deve reexibir a mesma célula como 2ª bolha de feedback.
+   */
+  const skipNextBlocoDeliveryRef = useRef(false)
   contentRef.current = content
   busyReasonRef.current = busyReason
 
@@ -900,11 +908,12 @@ export default function PlayerPage() {
   }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
 
   useEffect(() => {
-    if (content?.status === 'ok' && content.stage_type !== 'exercise') {
-      // preventScroll: focus no composer não pode puxar .chat-thread__scroll (C2-40).
-      inputRef.current?.focus({ preventScroll: true })
-    }
-  }, [content])
+    if (content?.status !== 'ok') return
+    // B3: após feedback do exercício o composer libera — foca Maria.
+    if (content.stage_type === 'exercise' && !exerciseDone) return
+    // preventScroll: focus no composer não pode puxar .chat-thread__scroll (C2-40).
+    inputRef.current?.focus({ preventScroll: true })
+  }, [content, exerciseDone])
 
   /**
    * Após Continuar: só busca next-content (não recarrega 700+ logs).
@@ -919,6 +928,7 @@ export default function PlayerPage() {
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
       if (data.status !== 'ok') {
+        skipNextBlocoDeliveryRef.current = false
         const key = `status-${data.status}`
         if (deliveredKeyRef.current !== key) {
           deliveredKeyRef.current = key
@@ -933,6 +943,50 @@ export default function PlayerPage() {
         }
         return
       }
+
+      /**
+       * B3: BLOCO RESPOSTA já veio no feedback do exercício — marca entregue,
+       * não cria 2ª bolha, e avança de novo para o próximo passo da trilha.
+       */
+      if (
+        skipNextBlocoDeliveryRef.current &&
+        isBlocoRespostaContent({
+          stage_type: data.stage_type,
+          stage_title: data.stage_title,
+          prompt: data.prompt,
+        })
+      ) {
+        skipNextBlocoDeliveryRef.current = false
+        const blocoKey = trailCellKey(data.stage_number, data.question_number)
+        deliveredKeyRef.current = blocoKey
+        const advanceAgain = await advanceTrail(session.student_id, trailId)
+        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
+          setContent({
+            status: 'completed',
+            student_id: session.student_id,
+            trail_id: trailId,
+            message: 'Trilha concluída.',
+          })
+          setMessages((prev) => [
+            ...prev,
+            markAnimate({
+              id: `sys-${Date.now()}`,
+              role: 'system',
+              text: 'Parabéns! Você concluiu esta trilha.',
+            }),
+          ])
+          return
+        }
+        if (advanceAgain.status === 'ok') {
+          deliveredKeyRef.current = null
+          await loadNextAfterAdvance()
+          window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          return
+        }
+        setContent(advanceAgain as NextContentStatus)
+        return
+      }
+      skipNextBlocoDeliveryRef.current = false
 
       const key = trailCellKey(data.stage_number, data.question_number)
       const options =
@@ -1014,6 +1068,7 @@ export default function PlayerPage() {
         })
       }
     } catch (err) {
+      skipNextBlocoDeliveryRef.current = false
       setError(err instanceof Error ? err.message : 'Erro ao carregar etapa.')
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
@@ -1095,14 +1150,21 @@ export default function PlayerPage() {
 
   async function doMaria(userLine: string) {
     if (content?.status !== 'ok') return
-    // Exercício: Maria bloqueada até Continuar após o feedback.
-    if (content.stage_type === 'exercise') return
+    // Exercício: Maria bloqueada até o feedback (depois libera — B3).
+    if (content.stage_type === 'exercise' && !exerciseDone) return
     setBusy(true)
     setBusyReason('maria')
     setError(null)
+    const q = content.question_number
     setMessages((prev) => [
       ...prev,
-      markAnimate({ id: `u-${Date.now()}`, role: 'user', text: userLine }),
+      markAnimate({
+        id: `u-${Date.now()}`,
+        role: 'user',
+        text: userLine,
+        questionNumber: q,
+        kind: 'sidechat',
+      }),
     ])
     setDraft('')
     try {
@@ -1119,6 +1181,8 @@ export default function PlayerPage() {
           id: `m-${Date.now()}`,
           role: 'assistant',
           text: lightStripMarkdown(result.reply),
+          questionNumber: q,
+          kind: 'sidechat',
         }),
       ])
       setMariaSidechat(true)
@@ -1204,9 +1268,15 @@ export default function PlayerPage() {
     setPendingOptionKey(option.key)
     setError(null)
     setMariaSidechat(false)
+    const q = content.question_number
     setMessages((prev) => [
       ...prev,
-      markAnimate({ id: `u-${Date.now()}`, role: 'user', text: option.text }),
+      markAnimate({
+        id: `u-${Date.now()}`,
+        role: 'user',
+        text: option.text,
+        questionNumber: q,
+      }),
     ])
     try {
       const attempt = await submitExerciseAttempt({
@@ -1224,16 +1294,18 @@ export default function PlayerPage() {
           : attempt.is_correct
             ? 'Resposta correta!'
             : 'Resposta incorreta.'
-      let rich =
-        content.explanation?.trim() ||
-        attempt.pedagogical_feedback?.trim() ||
-        null
+      const pedagogical = attempt.pedagogical_feedback?.trim() || null
+      let rich = content.explanation?.trim() || pedagogical || null
       // R02: não misturar “Parabéns pelo acerto” com attempt errado.
       if (rich && attempt.score !== null) {
         rich = alignBlocoWithAttempt(rich, attempt.is_correct) || null
       }
       const feedbackParts = [resultLabel, rich].filter(Boolean)
       const feedbackText = feedbackParts.join('\n\n')
+      // B3: se o BLOCO seguinte já entrou neste feedback, pular reentrega.
+      skipNextBlocoDeliveryRef.current = Boolean(
+        pedagogical || content.explanation?.trim(),
+      )
       setMessages((prev) => [
         ...prev,
         markAnimate({
@@ -1242,6 +1314,7 @@ export default function PlayerPage() {
           text: lightStripMarkdown(feedbackText),
           stageType: 'exercise',
           kind: 'feedback',
+          questionNumber: q,
         }),
       ])
       await persistLog({
@@ -1271,6 +1344,7 @@ export default function PlayerPage() {
       })
       setExerciseDone(true)
     } catch (err) {
+      skipNextBlocoDeliveryRef.current = false
       setError(err instanceof Error ? err.message : 'Erro no exercício.')
       setPendingOptionKey(null)
     } finally {
@@ -1282,8 +1356,8 @@ export default function PlayerPage() {
   async function onSend(event?: FormEvent) {
     event?.preventDefault()
     if (busy || content?.status !== 'ok') return
-    // Exercício: sem free-text / Maria até sair da etapa via Continuar.
-    if (content.stage_type === 'exercise') return
+    // Exercício: sem free-text / Maria até o feedback (B3 libera depois).
+    if (content.stage_type === 'exercise' && !exerciseDone) return
     const trimmed = draft.trim()
     if (!trimmed) return
 
@@ -1305,12 +1379,11 @@ export default function PlayerPage() {
 
   const onExerciseStep =
     content?.status === 'ok' && content.stage_type === 'exercise'
-  const composerBlocked = onExerciseStep || busy || content?.status !== 'ok'
+  /** B2/B3: bloqueia só antes de responder; no feedback o composer abre. */
+  const composerBlocked =
+    (onExerciseStep && !exerciseDone) || busy || content?.status !== 'ok'
   const canSend =
-    content?.status === 'ok' &&
-    !busy &&
-    content.stage_type !== 'exercise' &&
-    !composerBlocked
+    content?.status === 'ok' && !busy && !composerBlocked
 
   const showContinuar =
     content?.status === 'ok' &&
@@ -1393,6 +1466,11 @@ export default function PlayerPage() {
     }
   }
 
+  const exerciseLockedComposer =
+    content?.status === 'ok' &&
+    content.stage_type === 'exercise' &&
+    !exerciseDone
+
   const placeholder =
     content == null
       ? historyReady
@@ -1400,22 +1478,22 @@ export default function PlayerPage() {
         : 'Carregando a trilha…'
       : content.status !== 'ok'
         ? 'Trilha indisponível no momento'
-        : content.stage_type === 'exercise'
-          ? exerciseComposerOpen
-            ? 'Responda a questão'
-            : 'Pergunte à Maria ou use Continuar…'
-          : mariaSidechat
-            ? 'Pergunte mais à Maria ou volte para a trilha…'
-            : 'Pergunte à Maria ou digite continuar…'
+        : exerciseLockedComposer
+          ? 'Responda a questão primeiro'
+          : content.stage_type === 'exercise' && exerciseDone
+            ? 'Pergunte à Maria ou use Continuar…'
+            : mariaSidechat
+              ? 'Pergunte mais à Maria ou volte para a trilha…'
+              : 'Pergunte à Maria ou digite continuar…'
 
   const hintKey =
     content?.status !== 'ok'
       ? 'off'
       : content.stage_type === 'exercise'
-        ? exerciseComposerOpen
-          ? 'ex-open'
-          : exerciseDone
-            ? 'ex-done'
+        ? exerciseDone
+          ? 'ex-done'
+          : exerciseComposerOpen
+            ? 'ex-locked'
             : 'ex-pending'
         : mariaSidechat
           ? 'maria'
@@ -1597,7 +1675,7 @@ export default function PlayerPage() {
                 disabled={busy}
                 onClick={onVoltarParaTrilha}
               >
-                Voltar para trilha
+                Voltar à trilha
               </button>
             </div>
           ) : null}
@@ -1630,8 +1708,41 @@ export default function PlayerPage() {
       ) : null}
       </div>
 
-      <footer className="chat-composer">
+      <footer
+        className={`chat-composer${exerciseLockedComposer ? ' chat-composer--locked' : ''}`}
+      >
         <form className="chat-composer__form" onSubmit={(e) => void onSend(e)}>
+          {exerciseLockedComposer ? (
+            <span
+              className="chat-composer__lock"
+              aria-hidden="true"
+              title="Responda a questão primeiro"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M7 11V8a5 5 0 0 1 10 0v3"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                />
+                <rect
+                  x="5"
+                  y="11"
+                  width="14"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+              </svg>
+            </span>
+          ) : null}
           <textarea
             ref={inputRef}
             className="chat-composer__input"
@@ -1639,7 +1750,11 @@ export default function PlayerPage() {
             value={draft}
             disabled={composerBlocked}
             placeholder={placeholder}
-            aria-label="Mensagem"
+            aria-label={
+              exerciseLockedComposer
+                ? 'Responda a questão primeiro'
+                : 'Mensagem'
+            }
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
@@ -1654,13 +1769,11 @@ export default function PlayerPage() {
         {content?.status === 'ok' ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
-              ? exerciseComposerOpen
-                ? 'Responda a questão pelas opções acima'
-                : exerciseDone
-                  ? 'Use Continuar para avançar a trilha'
-                  : 'Aguarde o feedback…'
+              ? exerciseDone
+                ? 'Pergunte à Maria ou use Continuar para avançar'
+                : 'Responda a questão primeiro'
               : mariaSidechat
-                ? 'Voltar para trilha reexibe o passo atual'
+                ? 'Voltar à trilha reexibe o passo atual'
                 : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}
           </p>
         ) : null}

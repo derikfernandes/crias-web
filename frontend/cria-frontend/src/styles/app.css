@@ -767,6 +767,21 @@ a.ghost:hover {
   transition: box-shadow 0.2s ease;
 }
 
+.chat-composer--locked .chat-composer__form {
+  opacity: 0.92;
+}
+
+.chat-composer__lock {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.75rem;
+  color: var(--muted-dim, rgba(255, 255, 255, 0.45));
+  align-self: center;
+}
+
 .chat-composer__form:focus-within {
   box-shadow:
     0 0 18px rgba(0, 0, 0, 0.14),

@@ -11,7 +11,25 @@ export type ChatMessage = {
   /** Só mensagens novas (pós-historyReady) entram com motion. */
   animate?: boolean
   /** Resume pós-Voltar — highlight de borda 1 ciclo. */
-  kind?: 'resume' | 'feedback'
+  kind?: 'resume' | 'feedback' | 'sidechat'
+}
+
+/** Detecta stage AI de feedback pedagógico (BLOCO RESPOSTA / FINAL). */
+export function isBlocoRespostaContent(input: {
+  stage_type?: string | null
+  stage_title?: string | null
+  prompt?: string | null
+}): boolean {
+  if (input.stage_type && input.stage_type !== 'ai') return false
+  const p = (input.prompt ?? '').toUpperCase()
+  const t = (input.stage_title ?? '').toUpperCase()
+  return (
+    p.includes('BLOCO RESPOSTA') ||
+    p.includes('OBJETIVO - BLOCO RESPOSTA') ||
+    p.includes('BLOCO FINAL') ||
+    p.includes('OBJETIVO - BLOCO FINAL') ||
+    (t.includes('RESPOSTA') && !t.includes('PERGUNTA'))
+  )
 }
 
 /** Remove *markdown* / # headings soltos usados como título. */

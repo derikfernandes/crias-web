@@ -2175,13 +2175,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
-    // C2-R14 N01: offline — não dispara envio fadado (parity Continuar/Entrar).
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      reportError(new TypeError('Failed to fetch'), 'Erro ao falar com Maria.', () => {
-        void doMaria(userLine)
-      })
-      return
-    }
+    // C2-R15 N03: offline — silent return (parity Enviar disabled; sem inventar Tentar).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     mariaCancelledRef.current = false
@@ -2356,6 +2351,8 @@ export default function PlayerPage() {
       return
     }
     if (exerciseDone || exercisePhase === 'submitting') return
+    // C2-R15 N01: offline — não dispara Enviar fadado (parity Continuar/Entrar/Maria).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     const option = normalizeExerciseOptions(content.options).find(
@@ -2495,6 +2492,8 @@ export default function PlayerPage() {
   async function onSend(event?: FormEvent) {
     event?.preventDefault()
     if (busy || content?.status !== 'ok') return
+    // C2-R15 N01/N03: Enter/submit offline — parity botão disabled (sem erro inventado).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
     // Exercício: Enviar confirma a opção selecionada (D#2); Maria bloqueada (D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) {
@@ -2503,6 +2502,9 @@ export default function PlayerPage() {
       }
       return
     }
+
+    // C2-R15 N03: com Tentar vivo, Enter não dispara Maria (recovery único).
+    if (canRetry) return
 
     const trimmed = draft.trim()
     if (!trimmed) return
@@ -2830,9 +2832,15 @@ export default function PlayerPage() {
     exerciseLockedComposer &&
     !selectedOptionKey &&
     exercisePhase !== 'submitting'
+  /**
+   * C2-R15 N01: no exercício com opção, Enviar segue canSubmitExercise
+   * (inclui offline) — residual P24 só cobria Maria free-text.
+   */
   const sendDisabledHard =
     exercisePhase === 'submitting' ||
-    (!exerciseLockedComposer && !canSend)
+    (exerciseLockedComposer
+      ? !!selectedOptionKey && !canSubmitExercise
+      : !canSend)
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
     content?.status === 'ok' &&
@@ -2867,10 +2875,13 @@ export default function PlayerPage() {
               type="button"
               className="chat-thread__retry"
               onClick={() => {
+                if (offline) return
                 const fn = retryFnRef.current
                 clearError()
                 fn?.()
               }}
+              disabled={offline}
+              aria-disabled={offline || undefined}
             >
               Tentar de novo
             </button>
@@ -3369,12 +3380,13 @@ export default function PlayerPage() {
             aria-label={
               exerciseSubmitting
                 ? 'Enviando resposta…'
-                : canSubmitExercise ||
-                    (exerciseLockedComposer && !!selectedOptionKey)
+                : canSubmitExercise
                   ? 'Enviar resposta'
                   : sendAriaDisabled
                     ? 'Enviar — escolha uma opção primeiro'
-                    : 'Enviar pergunta à Maria'
+                    : exerciseLockedComposer && !!selectedOptionKey
+                      ? 'Enviar — conecte-se para enviar'
+                      : 'Enviar pergunta à Maria'
             }
           >
             Enviar

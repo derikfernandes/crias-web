@@ -573,7 +573,7 @@ a.ghost:hover {
 .typing-dots {
   display: inline-flex;
   align-items: center;
-  gap: 0.38rem;
+  gap: 0.42rem;
   padding: 0.35rem 0.15rem;
 }
 
@@ -621,7 +621,7 @@ a.ghost:hover {
     opacity: 0.65;
   }
   30% {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     opacity: 1;
   }
 }
@@ -629,7 +629,7 @@ a.ghost:hover {
 @keyframes bubble-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -640,7 +640,7 @@ a.ghost:hover {
 @keyframes bubble-in-user {
   from {
     opacity: 0;
-    transform: translateX(8px) translateY(4px);
+    transform: translateX(8px) translateY(3px);
   }
   to {
     opacity: 1;
@@ -660,7 +660,7 @@ a.ghost:hover {
 @keyframes cta-in {
   from {
     opacity: 0;
-    transform: translateY(3px);
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
@@ -713,9 +713,11 @@ a.ghost:hover {
 @keyframes media-in {
   from {
     opacity: 0;
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -903,8 +905,8 @@ a.ghost:hover {
   align-items: center;
   justify-content: flex-start;
   /* Soft edge scroller → CTA (em vez de corte flat). */
-  border-top: 1px solid color-mix(in srgb, var(--border, #d0d4dc) 55%, transparent);
-  background: linear-gradient(to bottom, transparent 0%, var(--main, #fff) 48%);
+  border-top: 1px solid color-mix(in srgb, var(--border, #d0d4dc) 40%, transparent);
+  background: linear-gradient(to bottom, transparent 0%, var(--main, #fff) 52%);
   transition: opacity 0.2s ease;
 }
 
@@ -1001,7 +1003,8 @@ a.ghost:hover {
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
-    box-shadow 0.15s ease;
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
   width: max-content;
   margin: 0;
   display: block;
@@ -1016,6 +1019,7 @@ a.ghost:hover {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.12);
   box-shadow: 0 4px 18px rgba(25, 195, 125, 0.22);
+  transform: translateX(-50%) translateY(-1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1107,7 +1111,7 @@ a.ghost:hover {
     position: fixed;
     inset: 0;
     z-index: 25;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.4);
     border: none;
     padding: 0;
     animation: backdrop-in 0.32s ease-out both;

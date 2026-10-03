@@ -1,14 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   isAuthError,
   listStudentTrails,
   type StudentTrailRow,
 } from '../lib/api'
-import {
-  toUserFacingError,
-  isRetryableSystemError,
-} from '../lib/networkError'
+import { toUserFacingError } from '../lib/networkError'
 import {
   clearSession,
   getSession,
@@ -36,6 +33,15 @@ export default function ChatLayout() {
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
+  )
+  const [isNarrow, setIsNarrow] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 768px)').matches,
+  )
+  const drawerAsModal = isNarrow && sidebarOpen
 
   // ER05: sessão sumiu mid-app → login.
   useEffect(() => {
@@ -87,11 +93,46 @@ export default function ChatLayout() {
         toUserFacingError(err, 'Não foi possível carregar suas trilhas.'),
       )
       setRows(null)
-      void isRetryableSystemError(err)
     } finally {
       setTrailsLoading(false)
     }
   }, [navigate])
+
+  const reloadTrailsRef = useRef(reloadTrails)
+  reloadTrailsRef.current = reloadTrails
+
+  // R12-O01: indicador offline (não silencioso).
+  useEffect(() => {
+    const goOffline = () => setOffline(true)
+    const goOnline = () => {
+      setOffline(false)
+      void reloadTrailsRef.current()
+    }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const sync = () => setIsNarrow(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  // R03-A02 / A07: Escape fecha o drawer no mobile.
+  useEffect(() => {
+    if (!drawerAsModal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [drawerAsModal])
 
   useEffect(() => {
     void reloadTrails()
@@ -164,10 +205,18 @@ export default function ChatLayout() {
 
   return (
     <div className="chat-shell">
+      {offline ? (
+        <div className="chat-offline-banner" role="status" aria-live="polite">
+          Você está offline. Algumas ações podem falhar até a conexão voltar.
+        </div>
+      ) : null}
+
       <aside
         id="crias-sidebar"
         className={`chat-sidebar ${sidebarOpen ? 'chat-sidebar--open' : ''}`}
         aria-label="Trilhas"
+        aria-modal={drawerAsModal ? true : undefined}
+        role={drawerAsModal ? 'dialog' : 'navigation'}
       >
         <nav className="chat-sidebar__nav">
           <Link
@@ -239,7 +288,7 @@ export default function ChatLayout() {
         </div>
       </aside>
 
-      {sidebarOpen ? (
+      {drawerAsModal ? (
         <button
           type="button"
           className="chat-sidebar__backdrop"

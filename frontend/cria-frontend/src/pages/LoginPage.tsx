@@ -28,8 +28,22 @@ export default function LoginPage() {
   })
   const [canRetry, setCanRetry] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
+  )
 
   useEffect(() => bindVisualViewport(), [])
+
+  useEffect(() => {
+    const goOffline = () => setOffline(true)
+    const goOnline = () => setOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
 
   if (existing) return <Navigate to="/" replace />
 

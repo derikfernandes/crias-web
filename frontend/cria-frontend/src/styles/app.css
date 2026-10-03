@@ -2073,8 +2073,8 @@ button[aria-disabled='true'] {
   }
 
   .chat-topbar__menu {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0.25rem 0.4rem;
   }
 
@@ -2083,13 +2083,13 @@ button[aria-disabled='true'] {
   }
 
   .chat-cta-slot {
-    min-height: 2.15rem;
+    min-height: 2.75rem;
     padding: 0.15rem 0 0.2rem;
   }
 
   .chat-continue__btn {
-    padding: 0.4rem 0.85rem;
-    min-height: 40px;
+    padding: 0.45rem 0.85rem;
+    min-height: 44px;
   }
 
   .chat-composer {
@@ -2108,8 +2108,8 @@ button[aria-disabled='true'] {
   }
 
   .chat-composer button {
-    min-height: 40px;
-    min-width: 40px;
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .chat-composer__hint {
@@ -2146,13 +2146,21 @@ button[aria-disabled='true'] {
 }
 
 /*
- * R24-LS05: teclado landscape / composer focado —
- * esconde Continuar + hint; só input+Enviar acima do KB.
+ * R24-LS05 / C2-R2-N03: landscape + composer focado —
+ * mantém Continuar compacto (não some sem affordance); só esconde hint.
  */
 @media (max-height: 500px) and (orientation: landscape) {
   .chat-shell:has(.chat-composer__form:focus-within) .chat-cta-slot,
   .chat-main:has(.chat-composer__form:focus-within) .chat-cta-slot {
-    display: none;
+    display: flex;
+    min-height: 2.75rem;
+    padding: 0.1rem 0 0.15rem;
+  }
+
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-continue__btn,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-continue__btn {
+    min-height: 44px;
+    padding: 0.4rem 0.75rem;
   }
 
   .chat-shell:has(.chat-composer__form:focus-within) .chat-composer,
@@ -2172,6 +2180,7 @@ button[aria-disabled='true'] {
   }
 }
 
+/* Portrait: teclado virtual — esconde Continuar para caber input+Enviar. */
 html[data-keyboard='open'] .chat-cta-slot {
   display: none;
 }
@@ -2187,6 +2196,20 @@ html[data-keyboard='open'] .chat-composer {
 
 html[data-keyboard='open'] .chat-composer__form {
   padding: 0.45rem 0.65rem;
+}
+
+/* Landscape: Continuar permanece alcançável mesmo com KB / data-keyboard. */
+@media (max-height: 500px) and (orientation: landscape) {
+  html[data-keyboard='open'] .chat-cta-slot {
+    display: flex;
+    min-height: 2.75rem;
+    padding: 0.1rem 0 0.15rem;
+  }
+
+  html[data-keyboard='open'] .chat-continue__btn {
+    min-height: 44px;
+    padding: 0.4rem 0.75rem;
+  }
 }
 
 @media (max-height: 420px), (orientation: landscape) and (max-height: 500px) {

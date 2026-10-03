@@ -634,10 +634,16 @@ button[aria-disabled='true'] {
 .chat-bubble {
   width: 100%;
   padding: 1.15rem 0;
-  /* R19-H05: containment + content-visibility (windowing completo = follow-up) */
+  /* R19-H05: containment + content-visibility (windowing DOM = follow-up) */
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
-  contain: content;
+  contain: layout paint style;
+}
+
+.chat-bubble:has(.chat-bubble__embed),
+.chat-bubble:has(.chat-bubble__media) {
+  /* Estimativa maior evita jump ao revelar mídia offscreen. */
+  contain-intrinsic-size: auto 280px;
 }
 
 /* Só mensagens novas (flag animate) entram com motion — history no mount fica quieto. */
@@ -689,10 +695,11 @@ button[aria-disabled='true'] {
 
 .chat-bubble__label {
   margin: 0 0 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  /* R14-L03: label secundária — sem CAIXA ALTA competindo com o corpo */
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.01em;
   color: var(--label, var(--muted));
 }
 
@@ -1534,6 +1541,22 @@ button[aria-disabled='true'] {
   width: 88%;
 }
 
+/* R04-L06: skeleton no topo enquanto expand/prepend do histórico. */
+.chat-thread__skeleton--prepend {
+  padding: 0.65rem 1.25rem 0.85rem;
+  gap: 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.chat-thread__skeleton--prepend .chat-thread__skeleton-line {
+  opacity: 0.4;
+}
+
+.chat-thread__skeleton__label {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
 .chat-home {
   flex: 1;
   display: flex;
@@ -1674,5 +1697,75 @@ button[aria-disabled='true'] {
 
   .chat-bubble {
     padding: 0.65rem 0;
+  }
+
+  /* R24-LS06: embed/mídia cabem no VH curto sem engolir o fio. */
+  .chat-bubble__embed {
+    max-width: min(100%, 22rem);
+  }
+
+  .chat-bubble__embed-frame {
+    max-height: min(36vh, 180px);
+    aspect-ratio: 16 / 9;
+  }
+
+  .chat-bubble__media img {
+    max-height: min(36vh, 180px);
+    width: auto;
+  }
+}
+
+/*
+ * R24-LS05: teclado landscape / composer focado —
+ * esconde Continuar + hint; só input+Enviar acima do KB.
+ */
+@media (max-height: 500px) and (orientation: landscape) {
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-cta-slot,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-cta-slot {
+    display: none;
+  }
+
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-composer,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-composer {
+    padding-top: 0.25rem;
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-composer__form,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-composer__form {
+    padding: 0.45rem 0.65rem;
+  }
+
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-composer__hint,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-composer__hint {
+    display: none;
+  }
+}
+
+html[data-keyboard='open'] .chat-cta-slot {
+  display: none;
+}
+
+html[data-keyboard='open'] .chat-composer__hint {
+  display: none;
+}
+
+html[data-keyboard='open'] .chat-composer {
+  padding-top: 0.3rem;
+  padding-bottom: max(0.3rem, env(safe-area-inset-bottom, 0px));
+}
+
+html[data-keyboard='open'] .chat-composer__form {
+  padding: 0.45rem 0.65rem;
+}
+
+@media (max-height: 420px), (orientation: landscape) and (max-height: 500px) {
+  html[data-keyboard='open'] .chat-topbar {
+    padding: 0.25rem 0.65rem;
+    padding-top: max(0.25rem, env(safe-area-inset-top, 0px));
+  }
+
+  html[data-keyboard='open'] .chat-topbar__title {
+    font-size: 0.8rem;
   }
 }

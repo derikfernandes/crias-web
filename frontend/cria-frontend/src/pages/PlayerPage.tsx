@@ -128,15 +128,23 @@ function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: strin
   })
 }
 
+/** R08-M11: aviso de destino externo no chrome do link (sem hardcodar host). */
+function externalLinkLabel(label: string | undefined, href: string): string {
+  const base = (label || href).trim()
+  if (/abre em nova aba/i.test(base)) return base
+  return `${base} (abre em nova aba)`
+}
+
 function renderMessagePart(part: MessagePart): ReactNode {
   if (part.kind === 'image') {
     return (
       <p key={part.key} className="chat-bubble__media">
-        <img src={part.value} alt="" loading="lazy" />
+        <img src={part.value} alt="" loading="lazy" decoding="async" />
       </p>
     )
   }
   if (part.kind === 'embed' && part.embedUrl) {
+    const openLabel = externalLinkLabel(part.label, part.value)
     return (
       <div key={part.key} className="chat-bubble__embed">
         <div className="chat-bubble__embed-frame">
@@ -155,13 +163,15 @@ function renderMessagePart(part: MessagePart): ReactNode {
           target="_blank"
           rel="noopener noreferrer"
           className="chat-bubble__link"
+          aria-label={openLabel}
         >
-          {part.label || part.value}
+          {openLabel}
         </a>
       </div>
     )
   }
   if (part.kind === 'link') {
+    const openLabel = externalLinkLabel(part.label, part.value)
     return (
       <p key={part.key}>
         <a
@@ -169,8 +179,9 @@ function renderMessagePart(part: MessagePart): ReactNode {
           target="_blank"
           rel="noopener noreferrer"
           className="chat-bubble__link"
+          aria-label={openLabel}
         >
-          {part.label || part.value}
+          {openLabel}
         </a>
       </p>
     )
@@ -541,6 +552,54 @@ export default function PlayerPage() {
     window.addEventListener('orientationchange', reanchor)
     return () => window.removeEventListener('orientationchange', reanchor)
   }, [exercisePhase])
+
+  /**
+   * R24-LS06: em landscape curto, ancora mídia/link da etapa atual
+   * (fecho da aula + CTA YT) sem scroll cego.
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok') return
+    if (typeof window === 'undefined') return
+    const landShort = window.matchMedia(
+      '(orientation: landscape) and (max-height: 500px)',
+    )
+    if (!landShort.matches) return
+    if (pinnedAwayRef.current) return
+
+    const run = () => {
+      const scroller = threadRef.current
+      if (!scroller) return
+      const key = trailCellKey(content.stage_number, content.question_number)
+      const cell = scroller.querySelector(
+        `[data-cell-key="${key}"]`,
+      ) as HTMLElement | null
+      const media =
+        (cell?.querySelector(
+          '.chat-bubble__embed, .chat-bubble__media, .chat-bubble__link',
+        ) as HTMLElement | null) ||
+        (scroller.querySelector(
+          '.chat-bubble__embed, .chat-bubble__media',
+        ) as HTMLElement | null)
+      if (media) {
+        media.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        return
+      }
+      // Sem mídia: traz o fim da bolha atual (fecho) para a faixa útil.
+      cell?.scrollIntoView({ block: 'end', inline: 'nearest' })
+    }
+
+    const t = window.setTimeout(() => {
+      requestAnimationFrame(run)
+    }, 80)
+    const onOrient = () => {
+      if (landShort.matches) requestAnimationFrame(run)
+    }
+    window.addEventListener('orientationchange', onOrient)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('orientationchange', onOrient)
+    }
+  }, [content])
 
   /** R04-L07: limpa flag animate após a entrada — evita re-trigger no scroll. */
   useEffect(() => {
@@ -2066,6 +2125,20 @@ export default function PlayerPage() {
           aria-relevant="additions"
           aria-busy={historyLoadingMore || undefined}
         >
+        {/* R04-L06: busy observável no expand/prepend do histórico. */}
+        {historyLoadingMore ? (
+          <div
+            className="chat-thread__skeleton chat-thread__skeleton--prepend"
+            aria-hidden="true"
+          >
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" />
+            <p className="muted chat-thread__skeleton__label">
+              Carregando mensagens…
+            </p>
+          </div>
+        ) : null}
         {!historyExpanded && showHistoryCollapse ? (
           <div className="chat-history-collapse">
             <button
@@ -2077,8 +2150,8 @@ export default function PlayerPage() {
               onClick={() => void onExpandHistory()}
             >
               {historyLoadingMore
-                ? 'Carregando etapas…'
-                : `Mostrar etapas anteriores${
+                ? 'Carregando mensagens…'
+                : `Ver mensagens anteriores${
                     hiddenHistoryCount > 0
                       ? ` (${hiddenHistoryCount}${historyHasMore ? '+' : ''})`
                       : historyHasMore
@@ -2099,8 +2172,8 @@ export default function PlayerPage() {
                 onClick={() => void loadOlderHistory()}
               >
                 {historyLoadingMore
-                  ? 'Carregando etapas…'
-                  : 'Carregar etapas mais antigas'}
+                  ? 'Carregando mensagens…'
+                  : 'Carregar mensagens mais antigas'}
               </button>
             ) : null}
             <button
@@ -2110,7 +2183,7 @@ export default function PlayerPage() {
               aria-controls="crias-thread-log"
               onClick={() => setHistoryExpanded(false)}
             >
-              Recolher etapas anteriores
+              Recolher mensagens anteriores
             </button>
           </div>
         ) : null}
@@ -2384,10 +2457,11 @@ export default function PlayerPage() {
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
-              ? 'Pergunte à Maria ou use Continuar para avançar'
+              ? 'Pergunte à Maria; o botão verde avança a trilha'
               : mariaSidechat
                 ? 'Voltar à trilha reexibe o passo atual'
-                : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}
+                : // R01-F09 / R14-L01: sem microcopy de teclado desktop / homônimo Continuar
+                  'Enviar fala com Maria · o botão verde avança a trilha'}
           </p>
         ) : null}
       </footer>

@@ -225,9 +225,12 @@ export default function PlayerPage() {
   const nearBottomRef = useRef(true)
   /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
   const pinnedAwayRef = useRef(false)
+  const pinnedScrollTopRef = useRef(0)
+  const busyReasonRef = useRef<BusyReason>(null)
   const skipSmoothScrollRef = useRef(true)
   const reduceMotionRef = useRef(false)
   contentRef.current = content
+  busyReasonRef.current = busyReason
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -435,6 +438,14 @@ export default function PlayerPage() {
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
+    // Durante advance com pin: trava scrollTop (browser/focus não pode “puxar”).
+    if (pinnedAwayRef.current && busyReasonRef.current === 'trail') {
+      if (el.scrollTop !== pinnedScrollTopRef.current) {
+        el.scrollTop = pinnedScrollTopRef.current
+      }
+      nearBottomRef.current = false
+      return
+    }
     const near =
       el.scrollHeight - el.scrollTop - el.clientHeight < STICKY_BOTTOM_PX
     nearBottomRef.current = near
@@ -443,6 +454,7 @@ export default function PlayerPage() {
       setNewMsgChip(false)
     } else {
       pinnedAwayRef.current = true
+      pinnedScrollTopRef.current = el.scrollTop
     }
   }
 
@@ -606,11 +618,13 @@ export default function PlayerPage() {
     }
     if (pinnedAwayRef.current || !nearBottomRef.current) {
       pinnedAwayRef.current = true
+      pinnedScrollTopRef.current = threadRef.current?.scrollTop ?? 0
       setNewMsgChip(true)
     }
     setContinuarLeaving(true)
     setBusy(true)
     setBusyReason('trail')
+    busyReasonRef.current = 'trail'
     setError(null)
     setMariaSidechat(false)
     setDraft('')
@@ -649,7 +663,14 @@ export default function PlayerPage() {
     } finally {
       setBusy(false)
       setBusyReason(null)
+      busyReasonRef.current = null
       setContinuarLeaving(false)
+      // Restaura pin após advance (layout/focus podem ter movido o scroll).
+      if (pinnedAwayRef.current && threadRef.current) {
+        threadRef.current.scrollTop = pinnedScrollTopRef.current
+        nearBottomRef.current = false
+        setNewMsgChip(true)
+      }
     }
   }
 

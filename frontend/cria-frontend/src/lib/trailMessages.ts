@@ -11,7 +11,7 @@ export type ChatMessage = {
   /** Só mensagens novas (pós-historyReady) entram com motion. */
   animate?: boolean
   /** Resume pós-Voltar — highlight de borda 1 ciclo. */
-  kind?: 'resume' | 'feedback' | 'sidechat'
+  kind?: 'resume' | 'feedback' | 'sidechat' | 'exercise-answer'
 }
 
 /** Detecta stage AI de feedback pedagógico (BLOCO RESPOSTA / FINAL). */
@@ -194,6 +194,10 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
       continue
     }
 
+    const isExerciseAnswer =
+      l.sender === 'student' &&
+      (l.message_type === 'exercise' || source === 'exercise_attempt')
+
     out.push({
       id: l.id,
       role: l.sender === 'student' ? 'user' : 'assistant',
@@ -202,6 +206,12 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
         typeof l.question_number === 'number' && l.question_number >= 1
           ? l.question_number
           : undefined,
+      kind: isExerciseAnswer
+        ? 'exercise-answer'
+        : isFeedback
+          ? 'feedback'
+          : undefined,
+      stageType: isExerciseAnswer || isFeedback ? 'exercise' : undefined,
     })
   }
 

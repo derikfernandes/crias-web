@@ -204,6 +204,9 @@ function appendTrailMessage(
 
 function bubbleClassName(msg: ChatMessage): string {
   const parts = [`chat-bubble`, `chat-bubble--${msg.role}`]
+  if (msg.kind === 'exercise-answer') {
+    parts.push('chat-bubble--exercise-answer')
+  }
   if (msg.animate) {
     parts.push('chat-bubble--enter')
     if (msg.role === 'user') parts.push('chat-bubble--enter-user')
@@ -1269,15 +1272,6 @@ export default function PlayerPage() {
     setError(null)
     setMariaSidechat(false)
     const q = content.question_number
-    setMessages((prev) => [
-      ...prev,
-      markAnimate({
-        id: `u-${Date.now()}`,
-        role: 'user',
-        text: option.text,
-        questionNumber: q,
-      }),
-    ])
     try {
       const attempt = await submitExerciseAttempt({
         student_id: session.student_id,
@@ -1306,8 +1300,17 @@ export default function PlayerPage() {
       skipNextBlocoDeliveryRef.current = Boolean(
         pedagogical || content.explanation?.trim(),
       )
+      // B5: opção escolhida vira banner no histórico (não some).
       setMessages((prev) => [
         ...prev,
+        markAnimate({
+          id: `u-${Date.now()}`,
+          role: 'user',
+          text: option.text,
+          stageType: 'exercise',
+          kind: 'exercise-answer',
+          questionNumber: q,
+        }),
         markAnimate({
           id: `f-${Date.now()}`,
           role: 'assistant',
@@ -1403,16 +1406,14 @@ export default function PlayerPage() {
       : []
 
   /**
-   * C5-COMPOSER-STALE-EXERCISE: opções somem no mesmo tick do click
-   * (pendingOptionKey); placeholder/hint não podem ficar em “Responda…”
-   * até o feedback terminar (~1.5–2s).
+   * B5: opções ficam visíveis com a escolha destacada durante o submit;
+   * só saem do slot interativo após exerciseDone (banner já está no thread).
    */
   const optionsVisible =
     content?.status === 'ok' &&
     content.stage_type === 'exercise' &&
     !exerciseDone &&
-    options.length > 0 &&
-    !(busy && busyReason === 'exercise' && pendingOptionKey)
+    options.length > 0
   const exerciseComposerOpen = optionsVisible
 
   const currentQuestion =
@@ -1632,7 +1633,11 @@ export default function PlayerPage() {
         ) : null}
 
         {optionsVisible ? (
-          <div className="chat-exercise" role="group" aria-label="Opções">
+          <div
+            className={`chat-exercise${pendingOptionKey ? ' chat-exercise--pending' : ''}`}
+            role="group"
+            aria-label="Opções"
+          >
             <p className="chat-exercise__legend">Responda a questão</p>
             <div className="chat-exercise__options">
               {options.map((opt) => {

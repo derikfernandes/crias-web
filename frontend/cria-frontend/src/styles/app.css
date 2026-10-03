@@ -508,6 +508,18 @@ a.ghost:hover {
   background: var(--main-alt);
 }
 
+/* B5: opção escolhida no histórico — banner destacado (ref). */
+.chat-bubble--exercise-answer {
+  background: #2c2d3a;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chat-bubble--exercise-answer .chat-bubble__body {
+  font-weight: 500;
+  color: var(--ink);
+}
+
 .chat-bubble--assistant,
 .chat-bubble--system {
   background: transparent;
@@ -768,8 +780,32 @@ a.ghost:hover {
   transition: box-shadow 0.2s ease;
 }
 
+/* B4: composer bloqueado precisa parecer bloqueado (não só disabled). */
 .chat-composer--locked .chat-composer__form {
-  opacity: 0.92;
+  background: #2a2b35;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.22);
+  opacity: 1;
+}
+
+.chat-composer--locked .chat-composer__form:focus-within {
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.22);
+}
+
+.chat-composer--locked button {
+  background: #355648;
+  color: rgba(236, 236, 241, 0.45);
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.chat-composer--locked button:hover:not(:disabled),
+.chat-composer--locked button:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  filter: none;
 }
 
 .chat-composer__lock {
@@ -780,7 +816,7 @@ a.ghost:hover {
   align-items: center;
   gap: 0.45rem;
   height: 1.75rem;
-  color: var(--muted-dim, rgba(255, 255, 255, 0.45));
+  color: rgba(142, 142, 160, 0.95);
   align-self: center;
   white-space: nowrap;
 }
@@ -931,8 +967,14 @@ a.ghost:hover {
   opacity: 1;
 }
 
+.chat-exercise--pending .chat-exercise__option.is-selected {
+  background: #2c2d3a;
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
 .chat-exercise__option.is-dimmed {
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .chat-exercise__option:disabled {

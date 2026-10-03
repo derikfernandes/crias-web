@@ -80,6 +80,11 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <div className="login-atmosphere" aria-hidden />
+      {offline ? (
+        <div className="chat-offline-banner" role="status" aria-live="polite">
+          Você está offline. Conecte-se para entrar.
+        </div>
+      ) : null}
       <form className="login-panel" onSubmit={(e) => void onSubmit(e)}>
         <p className="brand">Crias</p>
         <h1>Entre na sua trilha</h1>

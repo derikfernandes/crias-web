@@ -1,4 +1,10 @@
-import { useEffect, useState, type FormEvent, type FocusEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type FocusEvent,
+} from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { identifyStudent } from '../lib/api'
 import {
@@ -47,6 +53,10 @@ export default function LoginPage() {
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
   )
+  /** C2-R16 N02: Tentar pós-erro rede — autofocus (não limbo BODY). */
+  const retryBtnRef = useRef<HTMLButtonElement>(null)
+  const canRetryRef = useRef(false)
+  canRetryRef.current = canRetry
 
   useEffect(() => bindVisualViewport(), [])
 
@@ -60,6 +70,34 @@ export default function LoginPage() {
       window.removeEventListener('online', goOnline)
     }
   }, [])
+
+  /** C2-R16 N02: alert + Tentar montaram → foco no recovery único. */
+  useEffect(() => {
+    if (!canRetry || !error) return
+    const tryFocus = () => {
+      const btn = retryBtnRef.current
+      if (!btn || btn.disabled) return false
+      btn.focus({ preventScroll: true })
+      return document.activeElement === btn
+    }
+    window.requestAnimationFrame(() => {
+      tryFocus()
+      for (const ms of [16, 50, 120, 300, 800] as const) {
+        window.setTimeout(() => {
+          if (!canRetryRef.current) return
+          const active = document.activeElement
+          if (active === retryBtnRef.current) return
+          if (
+            !active ||
+            active === document.body ||
+            active === document.documentElement
+          ) {
+            tryFocus()
+          }
+        }, ms)
+      }
+    })
+  }, [canRetry, error])
 
   if (existing) {
     return <Navigate to={resolvePostLoginPath(loginState)} replace />
@@ -164,6 +202,7 @@ export default function LoginPage() {
             <p className="error">{error}</p>
             {canRetry ? (
               <button
+                ref={retryBtnRef}
                 type="button"
                 className="login-retry"
                 onClick={() => void onSubmit()}

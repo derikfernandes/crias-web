@@ -67,7 +67,8 @@ function isTrailDeliveryLog(l: ConversationLogRow): boolean {
  * filtra Continuar; strip markdown leve.
  */
 export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
-  const seenTrailCells = new Set<string>()
+  /** Índice da bolha trail por célula — preferimos a entrega mais recente. */
+  const trailCellIndex = new Map<string, number>()
   const out: ChatMessage[] = []
 
   for (const l of logs) {
@@ -82,14 +83,20 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
 
     if (isTrailDeliveryLog(l)) {
       const cell = `${l.stage_number}-${l.question_number}`
-      if (seenTrailCells.has(cell)) continue
-      seenTrailCells.add(cell)
-      out.push({
+      const prevIdx = trailCellIndex.get(cell)
+      const msg: ChatMessage = {
         id: `trail-${cell}`,
         role: 'assistant',
         text,
         cellKey: cell,
-      })
+      }
+      if (prevIdx !== undefined) {
+        // force_regenerate / BLOCO corrigido: substitui a bolha antiga da célula.
+        out[prevIdx] = msg
+      } else {
+        trailCellIndex.set(cell, out.length)
+        out.push(msg)
+      }
       continue
     }
 

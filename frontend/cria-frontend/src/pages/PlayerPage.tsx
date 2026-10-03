@@ -381,27 +381,33 @@ export default function PlayerPage() {
         }
       } else if (data.stage_type === 'ai') {
         deliveredKeyRef.current = key
-        const hasAi = logs.some(
-          (l) =>
-            l.sender === 'system' &&
-            l.stage_number === data.stage_number &&
-            l.question_number === data.question_number &&
-            (l.message_type === 'instruction' ||
-              (l.metadata &&
-                typeof l.metadata === 'object' &&
-                (l.metadata as { source?: string }).source === 'trail-ai')),
-        )
-        if (!hasAi && text) {
+        if (text) {
           const msgId = trailMessageId(data.stage_number, data.question_number)
-          setMessages((prev) =>
-            appendTrailMessage(prev, {
+          // Sempre alinha a bolha da célula ao next-content atual
+          // (cache regenerado pode diferir do log antigo no history).
+          setMessages((prev) => {
+            const idx = prev.findIndex(
+              (m) => m.id === msgId || m.cellKey === key,
+            )
+            if (idx >= 0) {
+              if (prev[idx].text === text) return prev
+              const next = [...prev]
+              next[idx] = {
+                ...prev[idx],
+                text,
+                stageType: 'ai',
+                cellKey: key,
+              }
+              return next
+            }
+            return appendTrailMessage(prev, {
               id: msgId,
               role: 'assistant',
               text,
               stageType: 'ai',
               cellKey: key,
-            }).messages,
-          )
+            }).messages
+          })
         }
       }
     } catch (err) {

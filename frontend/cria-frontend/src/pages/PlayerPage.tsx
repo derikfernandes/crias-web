@@ -729,6 +729,7 @@ export default function PlayerPage() {
     return s
   }
 
+  // Header chrome: progresso + sessão Maria (C2-R5 N02).
   useEffect(() => {
     if (content?.status !== 'ok') return
     const title = content.stage_title?.trim() || null
@@ -739,10 +740,11 @@ export default function PlayerPage() {
           stageNumber: content.stage_number,
           questionNumber: content.question_number,
           stageTitle: title,
+          mariaActive: mariaSidechat,
         },
       }),
     )
-  }, [content, trailId])
+  }, [content, trailId, mariaSidechat])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -2953,7 +2955,7 @@ export default function PlayerPage() {
               <button
                 ref={voltarBtnRef}
                 type="button"
-                className="chat-continue__btn chat-continue__btn--secondary"
+                className="chat-continue__btn"
                 onClick={onVoltarParaTrilha}
               >
                 Voltar à trilha
@@ -3014,7 +3016,7 @@ export default function PlayerPage() {
           exerciseLockedComposer ? ' chat-composer--locked' : ''
         }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
           showContinuar ? ' chat-composer--with-continue' : ''
-        }`}
+        }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
       >
 <form
           className="chat-composer__form"

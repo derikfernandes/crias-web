@@ -111,7 +111,8 @@ export default function ChatLayout() {
   const [playerChrome, setPlayerChrome] = useState<{
     stageTitle: string | null
     stageNumber: number | null
-  }>({ stageTitle: null, stageNumber: null })
+    mariaActive: boolean
+  }>({ stageTitle: null, stageNumber: null, mariaActive: false })
   const drawerAsModal = isNarrow && sidebarOpen
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -344,12 +345,14 @@ export default function ChatLayout() {
         trailId?: string
         stageTitle?: string | null
         stageNumber?: number
+        mariaActive?: boolean
       }
       if (detail?.trailId && detail.trailId !== activeTrailId) return
       setPlayerChrome({
         stageTitle: detail.stageTitle ?? null,
         stageNumber:
           typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
+        mariaActive: Boolean(detail.mariaActive),
       })
     }
     window.addEventListener('crias:player-chrome', onChrome)
@@ -358,7 +361,11 @@ export default function ChatLayout() {
 
   useEffect(() => {
     if (!activeTrailId) {
-      setPlayerChrome({ stageTitle: null, stageNumber: null })
+      setPlayerChrome({
+        stageTitle: null,
+        stageNumber: null,
+        mariaActive: false,
+      })
     }
   }, [activeTrailId])
 
@@ -540,9 +547,8 @@ export default function ChatLayout() {
             <span className="chat-topbar__title">
               {activeTrailId
                 ? [
-                    playerChrome.stageTitle ||
-                      trailNames[activeTrailId] ||
-                      'Trilha',
+                    /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
+                    trailNames[activeTrailId] || 'Trilha',
                     (() => {
                       const n = playerChrome.stageNumber
                       if (n == null) return null
@@ -559,7 +565,8 @@ export default function ChatLayout() {
                     .join(' · ')
                 : 'Suas trilhas'}
             </span>
-            {activeTrailId ? (
+            {/* C2-R5 N02: chip MARIA só na sessão sidechat — não no chrome da aula. */}
+            {activeTrailId && playerChrome.mariaActive ? (
               <span className="chat-topbar__maria">MARIA</span>
             ) : null}
           </div>

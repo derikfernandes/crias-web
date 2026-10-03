@@ -10,12 +10,14 @@
   /* R21-W01 / R01-F24: placeholder ≥ AA; ainda distinto de --ink. */
   --placeholder: #c4ccd8;
   --accent: #17ea9d;
+  /* C2-R5 N04: seleção / ícone — papel distinto do CTA. */
+  --accent-2: #5b9fd4;
   --accent-ink: #04140f;
   --cta-continue: #17ea9d;
   --cta-send: #12c986;
   --error: #f2a4a4;
-  /* R21-W03: non-text um pouco mais legível outdoor. */
-  --border: rgba(23, 234, 157, 0.52);
+  /* C2-R5 N04: chrome neutro — verde só no CTA/accent. */
+  --border: rgba(255, 255, 255, 0.48);
   --border-subtle: rgba(255, 255, 255, 0.18);
   --radius: 12px;
   --radius-sm: 10px;
@@ -59,7 +61,12 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--ink);
-  background: var(--main);
+  /* C2-R5 N06: atmosfera no body (não flat navy). */
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -12%, rgba(23, 234, 157, 0.16), transparent 58%),
+    radial-gradient(ellipse 70% 48% at 96% 108%, rgba(91, 159, 212, 0.14), transparent 52%),
+    linear-gradient(180deg, #1b2333 0%, var(--main) 48%, #121722 100%);
+  background-attachment: fixed;
   font-size: 16px;
   line-height: 1.5;
   overflow: hidden;
@@ -650,11 +657,11 @@ a.ghost:hover {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* R05-V04: atmosfera de marca (UI Maria — tons do mockup). */
+  /* R05-V04 / C2-R5 N06: atmosfera de marca reforçada. */
   background:
-    radial-gradient(ellipse 75% 48% at 10% -6%, rgba(23, 234, 157, 0.12), transparent 55%),
-    radial-gradient(ellipse 65% 40% at 95% 110%, rgba(30, 41, 59, 0.7), transparent 50%),
-    linear-gradient(180deg, #1b2333 0%, var(--main) 45%, #121722 100%);
+    radial-gradient(ellipse 75% 48% at 10% -6%, rgba(23, 234, 157, 0.18), transparent 55%),
+    radial-gradient(ellipse 65% 40% at 95% 110%, rgba(91, 159, 212, 0.14), transparent 50%),
+    linear-gradient(180deg, #1b2333 0%, transparent 45%, transparent 100%);
   position: relative;
 }
 
@@ -1366,7 +1373,8 @@ button[aria-disabled='true'] {
   position: sticky;
   bottom: 0;
   /* Shell já encolhe com --vv-height; só safe-area aqui (sem double-count do KB). */
-  padding: 0.75rem 1rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
+  /* C2-R5 N06: chrome inferior compacto. */
+  padding: 0.4rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
   padding-left: max(1rem, env(safe-area-inset-left, 0px));
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
   background: linear-gradient(transparent, var(--main) 42%);
@@ -1603,14 +1611,32 @@ button[aria-disabled='true'] {
   filter: none;
 }
 
+/* C2-R5 N03: Voltar à trilha = primário; Enviar neutro na Maria. */
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
+.chat-composer--with-voltar:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover,
+.chat-composer--with-voltar:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
+  border-color: var(--accent);
+  background: rgba(23, 234, 157, 0.1);
+  box-shadow: 0 2px 10px rgba(23, 234, 157, 0.16);
+  filter: none;
+}
+
 .chat-composer__send:disabled {
   opacity: 0.4;
   box-shadow: none;
 }
 
 .chat-composer__hint {
-  margin: 0.55rem 0 0;
-  font-size: 0.72rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
   text-align: center;
   color: var(--muted-dim);
 }
@@ -1728,32 +1754,32 @@ button[aria-disabled='true'] {
 }
 
 .chat-exercise__option:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.12);
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.14);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-2) 28%, transparent);
 }
 
 .chat-exercise__option:active:not(:disabled) {
   transform: scale(0.98);
-  background: rgba(25, 195, 125, 0.2);
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-2) 22%, transparent);
+  border-color: var(--accent-2);
 }
 
 .chat-exercise__option.is-selected {
-  border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.18);
-  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.35);
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 40%, transparent);
   opacity: 1;
 }
 
 /* R21-W04: manter cue de seleção no pending (não apagar accent). */
 .chat-exercise--pending .chat-exercise__option.is-selected {
-  background: rgba(25, 195, 125, 0.22);
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-2) 26%, transparent);
+  border-color: var(--accent-2);
   box-shadow:
-    0 0 0 1px rgba(25, 195, 125, 0.45),
-    inset 0 0 0 1px rgba(25, 195, 125, 0.2);
+    0 0 0 1px color-mix(in srgb, var(--accent-2) 50%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 22%, transparent);
   opacity: 1;
 }
 
@@ -1785,16 +1811,17 @@ button[aria-disabled='true'] {
   z-index: 3;
   max-width: 48rem;
   width: calc(100% - 2.5rem);
-  min-height: 3.25rem;
+  /* C2-R5 N06: chrome inferior mais compacto. */
+  min-height: 2.75rem;
   margin: 0 auto;
-  padding: 0.55rem 0 0.65rem;
+  padding: 0.35rem 0 0.35rem;
   display: flex;
   align-items: center;
   /* C2-R2-N01: full-bleed como tip6 (não ~44% à direita). */
   justify-content: flex-start;
   gap: 0.55rem;
   /* Soft edge scroller → CTA (em vez de corte flat). */
-  border-top: 1px solid rgba(23, 234, 157, 0.12);
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   background: linear-gradient(to bottom, transparent 0%, var(--main) 52%);
   transition: opacity 0.2s ease;
 }
@@ -1824,13 +1851,14 @@ button[aria-disabled='true'] {
   min-height: 44px;
   padding: 0.7rem 1.15rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--ink);
+  /* C2-R5 N01: Continuar fill primário (≥ composer) — não ghost outline. */
+  border: none;
+  background: var(--cta-continue, var(--accent));
+  color: var(--accent-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 0 12px rgba(23, 234, 157, 0.12);
+  box-shadow: 0 4px 16px rgba(23, 234, 157, 0.28);
   touch-action: manipulation;
   -webkit-touch-callout: none;
   user-select: none;
@@ -1844,16 +1872,16 @@ button[aria-disabled='true'] {
 
 .chat-continue__btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: rgba(23, 234, 157, 0.1);
-  box-shadow: 0 4px 14px rgba(23, 234, 157, 0.28);
+  box-shadow: 0 6px 18px rgba(23, 234, 157, 0.38);
+  filter: brightness(1.05);
 }
 
-/* R27-T02: pressed do Continuar — tint no outline Maria (não fill sólido escuro). */
+/* R27-T02: pressed do Continuar escurece o fill. */
 .chat-continue__btn:active:not(:disabled) {
   transform: scale(0.98);
   box-shadow: none;
-  background: rgba(23, 234, 157, 0.22);
-  filter: none;
+  background: color-mix(in srgb, var(--cta-continue, var(--accent)) 72%, #0a0a0a);
+  filter: brightness(0.92);
 }
 
 .chat-continue__btn:disabled {
@@ -1903,6 +1931,7 @@ button[aria-disabled='true'] {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
+  box-shadow: none;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
@@ -1974,9 +2003,10 @@ button[aria-disabled='true'] {
   gap: 0.9rem;
   align-items: flex-start;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(23, 234, 157, 0.35);
+  /* C2-R5 N04: borda/ícone em accent-2 — CTA fica com --accent. */
+  border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
   background: rgba(26, 34, 48, 0.92);
-  box-shadow: 0 0 24px rgba(23, 234, 157, 0.08);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent-2) 12%, transparent);
 }
 
 .lesson-card__icon {
@@ -1987,10 +2017,10 @@ button[aria-disabled='true'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: rgba(23, 234, 157, 0.16);
-  border: 1px solid rgba(23, 234, 157, 0.45);
-  box-shadow: 0 0 16px rgba(23, 234, 157, 0.35);
+  color: #061018;
+  background: var(--accent-2);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 70%, white);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent-2) 40%, transparent);
 }
 
 .lesson-card__title {
@@ -2175,7 +2205,7 @@ button[aria-disabled='true'] {
 
 @media (prefers-contrast: more) {
   :root {
-    --border: rgba(23, 234, 157, 0.72);
+    --border: rgba(255, 255, 255, 0.72);
     --muted: #f4f4f8;
     --muted-dim: #e0e0ea;
     --placeholder: #e0e0ea;

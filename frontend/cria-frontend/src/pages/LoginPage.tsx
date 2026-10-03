@@ -28,8 +28,22 @@ export default function LoginPage() {
   })
   const [canRetry, setCanRetry] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
+  )
 
   useEffect(() => bindVisualViewport(), [])
+
+  useEffect(() => {
+    const goOffline = () => setOffline(true)
+    const goOnline = () => setOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
 
   if (existing) return <Navigate to="/" replace />
 
@@ -66,6 +80,11 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <div className="login-atmosphere" aria-hidden />
+      {offline ? (
+        <div className="chat-offline-banner" role="status" aria-live="polite">
+          Você está offline. Conecte-se para entrar.
+        </div>
+      ) : null}
       <form className="login-panel" onSubmit={(e) => void onSubmit(e)}>
         <p className="brand">Crias</p>
         <h1>Entre na sua trilha</h1>

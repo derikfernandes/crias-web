@@ -10,6 +10,9 @@ const SERVER_RE =
 
 const AUTH_EN_RE = /^(unauthorized|forbidden)$/i
 
+const SYSTEM_LOAD_RE =
+  /não foi possível (conectar|carregar|avançar|falar|registrar|gravar)|serviço está temporariamente|conexão demorou|opções desta questão/i
+
 const HTMLISH_RE = /^\s*</
 
 export function toUserFacingError(err: unknown, fallback: string): string {
@@ -46,10 +49,34 @@ export function toUserFacingError(err: unknown, fallback: string): string {
   return raw || fallback
 }
 
+function httpStatusOf(err: unknown): number | null {
+  if (!err || typeof err !== 'object') return null
+  const status = (err as { status?: unknown }).status
+  return typeof status === 'number' ? status : null
+}
+
+function isAuthFailedFlag(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === 'object' &&
+      (err as { authFailed?: unknown }).authFailed === true,
+  )
+}
+
 export function isRetryableSystemError(err: unknown): boolean {
   if (err instanceof TypeError) return true
+  const status = httpStatusOf(err)
+  if (isAuthFailedFlag(err) || status === 401 || status === 403) return false
+  if (status != null && (status >= 500 || status === 408 || status === 429)) {
+    return true
+  }
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   if (!raw) return true
   if (AUTH_EN_RE.test(raw.trim())) return false
-  return NETWORK_RE.test(raw) || TIMEOUT_RE.test(raw) || SERVER_RE.test(raw)
+  if (NETWORK_RE.test(raw) || TIMEOUT_RE.test(raw) || SERVER_RE.test(raw)) {
+    return true
+  }
+  // Fallbacks PT já normalizados (body vazio / 5xx) ainda são retryáveis.
+  if (SYSTEM_LOAD_RE.test(raw)) return true
+  return false
 }

@@ -478,6 +478,16 @@ export default function PlayerPage() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  // R12-O07 / R18-N05: ao voltar online, libera busy preso; erro+retry permanece.
+  useEffect(() => {
+    const onOnline = () => {
+      setBusy(false)
+      setBusyReason(null)
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
+
   useEffect(() => bindVisualViewport(), [])
 
   /** Gestos de scroll-up do usuário → autorizam pin (C4-MARIA-FALSE-PIN). */

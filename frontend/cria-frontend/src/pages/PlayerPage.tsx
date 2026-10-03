@@ -1405,7 +1405,11 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   const showVoltarTrilha =
-    content?.status === 'ok' && !busy && mariaSidechat
+    content?.status === 'ok' &&
+    !busy &&
+    (mariaSidechat ||
+      mariaEntrance ||
+      messages.some((m) => m.kind === 'sidechat'))
 
   const options =
     content?.status === 'ok' && content.stage_type === 'exercise'

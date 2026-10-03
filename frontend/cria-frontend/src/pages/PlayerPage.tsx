@@ -1912,6 +1912,11 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
+    setMariaEntrance(false)
+    // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
+    setBusy(false)
+    setBusyReason(null)
+    setShowTyping(false)
     clearError()
     const current = contentRef.current
     if (current?.status !== 'ok') return
@@ -2211,12 +2216,13 @@ export default function PlayerPage() {
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
 
-  /** Voltar no limbo pós-envio / typing; UI Maria também quando entrance/histórico. */
+  /**
+   * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
+   * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
+   */
   const showVoltarTrilha =
     content?.status === 'ok' &&
-    (mariaSidechat ||
-      mariaEntrance ||
-      messages.some((m) => m.kind === 'sidechat')) &&
+    mariaSidechat &&
     (!busy || busyReason === 'maria')
 
   /** D#10 / R14-L14 — UI Maria mantém seta. */

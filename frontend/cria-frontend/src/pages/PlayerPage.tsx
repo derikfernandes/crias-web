@@ -647,6 +647,8 @@ export default function PlayerPage() {
     | null
   >(null)
   const continuarBtnRef = useRef<HTMLButtonElement>(null)
+  /** C2-R8 N01: lesson-card focável pós-Continuar (tabIndex=-1). */
+  const lessonCardRef = useRef<HTMLElement | null>(null)
 
   const clearJumpChip = useCallback(() => {
     setJumpChip(false)
@@ -667,6 +669,93 @@ export default function PlayerPage() {
     el.focus({ preventScroll: true })
     return true
   }, [])
+
+  /**
+   * C2-R8 N01: âncora pós-advance — lesson-card / opção do exercício /
+   * bolha; nunca limbo BODY enquanto Continuar some no busy.
+   */
+  const focusCurrentLessonOrExercise = useCallback(() => {
+    const lesson =
+      lessonCardRef.current ??
+      (document.querySelector('.lesson-card') as HTMLElement | null)
+    if (lesson) {
+      lesson.focus({ preventScroll: true })
+      if (document.activeElement === lesson) return true
+    }
+    const radio =
+      (document.querySelector(
+        '.chat-exercise__option.is-selected, .chat-exercise__option[tabindex="0"]',
+      ) as HTMLButtonElement | null) ||
+      (document.querySelector(
+        '.chat-exercise__option',
+      ) as HTMLButtonElement | null)
+    if (radio && !radio.disabled) {
+      radio.focus({ preventScroll: true })
+      if (document.activeElement === radio) return true
+    }
+    const exercise = document.querySelector('.chat-exercise') as HTMLElement | null
+    if (exercise) {
+      if (!exercise.hasAttribute('tabindex')) exercise.tabIndex = -1
+      exercise.focus({ preventScroll: true })
+      if (document.activeElement === exercise) return true
+    }
+    return false
+  }, [])
+
+  const focusAfterAdvance = useCallback(
+    (next: NextContentOk | NextContentStatus | null | undefined) => {
+      const title =
+        next && next.status === 'ok' && next.stage_title
+          ? stripDecorTitle(next.stage_title)
+          : ''
+      const stageBit = title
+        ? `Nova etapa: ${title}`
+        : 'Nova etapa da trilha disponível'
+      setSrAnnounce(`Progresso salvo. ${stageBit}`)
+
+      const tryFocus = () => {
+        if (focusCurrentLessonOrExercise()) return true
+        const lastAssistant = [...messagesRef.current]
+          .reverse()
+          .find((m) => m.role === 'assistant' || m.role === 'system')
+        if (focusMessageById(lastAssistant?.id)) return true
+        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+          continuarBtnRef.current.focus({ preventScroll: true })
+          return document.activeElement === continuarBtnRef.current
+        }
+        const input = inputRef.current
+        if (input && !input.readOnly && !input.disabled) {
+          input.focus({ preventScroll: true })
+          return document.activeElement === input
+        }
+        return false
+      }
+
+      window.requestAnimationFrame(() => {
+        tryFocus()
+        for (const ms of [16, 50, 120, 300, 800, 1600] as const) {
+          window.setTimeout(() => {
+            const active = document.activeElement
+            if (
+              active &&
+              active !== document.body &&
+              active !== document.documentElement &&
+              (active === lessonCardRef.current ||
+                active === continuarBtnRef.current ||
+                active === inputRef.current ||
+                (active as HTMLElement).closest?.(
+                  '.lesson-card, .chat-exercise, [data-msg-id]',
+                ))
+            ) {
+              return
+            }
+            tryFocus()
+          }, ms)
+        }
+      })
+    },
+    [focusCurrentLessonOrExercise, focusMessageById],
+  )
 
   /**
    * C2-R7 N01 / R23-L04: pós-Enviar Maria o soft-KB fecha e o browser
@@ -1739,7 +1828,9 @@ export default function PlayerPage() {
    * Após Continuar: só busca next-content (não recarrega 700+ logs).
    * Dedupe por célula; em erro reconcilia content.
    */
-  async function loadNextAfterAdvance() {
+  async function loadNextAfterAdvance(): Promise<
+    NextContentOk | NextContentStatus | null
+  > {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
@@ -1763,7 +1854,7 @@ export default function PlayerPage() {
             }),
           ])
         }
-        return
+        return data
       }
 
       /**
@@ -1783,12 +1874,13 @@ export default function PlayerPage() {
         deliveredKeyRef.current = blocoKey
         const advanceAgain = await advanceTrail(session.student_id, trailId)
         if (advanceAgain.status === 'ok' && advanceAgain.completed) {
-          setContent({
+          const completed: NextContentStatus = {
             status: 'completed',
             student_id: session.student_id,
             trail_id: trailId,
             message: 'Trilha concluída.',
-          })
+          }
+          setContent(completed)
           setMessages((prev) => [
             ...prev,
             markAnimate({
@@ -1797,16 +1889,16 @@ export default function PlayerPage() {
               text: 'Parabéns! Você concluiu esta trilha.',
             }),
           ])
-          return
+          return completed
         }
         if (advanceAgain.status === 'ok') {
           deliveredKeyRef.current = null
-          await loadNextAfterAdvance()
+          const nested = await loadNextAfterAdvance()
           window.dispatchEvent(new CustomEvent('crias:trail-progress'))
-          return
+          return nested
         }
         setContent(advanceAgain as NextContentStatus)
-        return
+        return advanceAgain as NextContentStatus
       }
       skipNextBlocoDeliveryRef.current = false
 
@@ -1846,7 +1938,7 @@ export default function PlayerPage() {
             metadata: { source: 'next-content', stage_type: 'exercise' },
           })
         }
-        return
+        return data
       }
 
       if (data.stage_type === 'ai') {
@@ -1862,7 +1954,7 @@ export default function PlayerPage() {
             }).messages,
           )
         }
-        return
+        return data
       }
 
       // fixed
@@ -1889,6 +1981,7 @@ export default function PlayerPage() {
           metadata: { source: 'next-content', stage_type: data.stage_type },
         })
       }
+      return data
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
       reportError(err, 'Erro ao carregar a etapa.', () => {
@@ -1897,6 +1990,7 @@ export default function PlayerPage() {
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
         setContent(reconciled)
+        return reconciled
       } catch {
         /* ignore */
       }
@@ -1963,18 +2057,20 @@ export default function PlayerPage() {
     setMariaSidechat(false)
     mariaCancelledRef.current = false
     let advanceSucceeded = false
+    let advancedContent: NextContentOk | NextContentStatus | null = null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       const result = await advanceTrail(liveSession.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
         advanceCommittedRef.current = false
         advanceSucceeded = true
-        setContent({
+        advancedContent = {
           status: 'completed',
           student_id: liveSession.student_id,
           trail_id: trailId,
           message: 'Trilha concluída.',
-        })
+        }
+        setContent(advancedContent)
         setMessages((prev) => [
           ...prev,
           markAnimate({
@@ -1987,7 +2083,7 @@ export default function PlayerPage() {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
         setTrailBusyLabel('Carregando etapa…')
-        await loadNextAfterAdvance()
+        advancedContent = await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         advanceSucceeded = true
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
@@ -2026,24 +2122,9 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // R15-Y04 / R23-L01: ACK “salvo” só no sucesso (OM03 — sem vazamento no fail).
+      // C2-R8 N01 / R15-Y04: ACK + foco na nova etapa (nunca BODY limbo).
       if (advanceSucceeded) {
-        window.requestAnimationFrame(() => {
-          const lastAssistant = [...messagesRef.current]
-            .reverse()
-            .find((m) => m.role === 'assistant' || m.role === 'system')
-          setSrAnnounce(
-            lastAssistant
-              ? 'Progresso salvo. Nova etapa da trilha disponível'
-              : 'Progresso salvo. Etapa atualizada',
-          )
-          if (focusMessageById(lastAssistant?.id)) return
-          if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
-            continuarBtnRef.current.focus()
-          } else {
-            inputRef.current?.focus({ preventScroll: true })
-          }
-        })
+        focusAfterAdvance(advancedContent)
       }
     }
   }
@@ -2559,7 +2640,10 @@ export default function PlayerPage() {
     }
   }
 
-  /** F06: setas movem entre opções; nunca vazam foco para iframe. */
+  /**
+   * F06 / C2-R8 N02: radiogroup APG — setas movem seleção+foco;
+   * nunca vazam para iframe. Tab stop único via tabIndex roving.
+   */
   function onOptionKeyDown(
     e: KeyboardEvent<HTMLButtonElement>,
     optIndex: number,
@@ -2573,10 +2657,8 @@ export default function PlayerPage() {
     const delta =
       e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1
     const next = (optIndex + delta + opts.length) % opts.length
-    const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
-      '.chat-exercise__option',
-    )
-    buttons?.[next]?.focus()
+    const target = opts[next]
+    if (target) onOptionSelect(target)
   }
 
   const exerciseLockedComposer =
@@ -2652,8 +2734,14 @@ export default function PlayerPage() {
       continuarLeaving ||
       (busy && busyReason === 'trail') ||
       (busy && busyReason === 'maria' && mariaSidechat))
-  /** F02/F07: Enviar permanece no Tab com aria-disabled no exercício sem seleção. */
-  const sendAriaDisabled = exerciseLockedComposer && !canSubmitExercise
+  /**
+   * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
+   * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
+   */
+  const sendAriaDisabled =
+    exerciseLockedComposer &&
+    !selectedOptionKey &&
+    exercisePhase !== 'submitting'
   const sendDisabledHard = !exerciseLockedComposer && !canSend
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
@@ -2776,8 +2864,14 @@ export default function PlayerPage() {
         ) : null}
         {!trailShellUnavailable && showLessonCard ? (
           <section
+            ref={(node) => {
+              lessonCardRef.current = node
+            }}
             className="lesson-card"
-            aria-label="Conteúdo da etapa"
+            tabIndex={-1}
+            aria-label={
+              lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'
+            }
             data-current-step="true"
           >
             <span className="lesson-card__icon" aria-hidden>
@@ -2955,12 +3049,21 @@ export default function PlayerPage() {
               {options.map((opt, optIndex) => {
                 const selected = highlightOptionKey === opt.key
                 const dimmed = exerciseSubmitting && !selected
+                // C2-R8 N02: um tab stop — marcada (ou a 1ª se nenhuma).
+                const rovingTabIndex = highlightOptionKey
+                  ? selected
+                    ? 0
+                    : -1
+                  : optIndex === 0
+                    ? 0
+                    : -1
                 return (
                   <button
                     key={opt.key}
                     type="button"
                     role="radio"
                     aria-checked={selected}
+                    tabIndex={rovingTabIndex}
                     className={[
                       'chat-exercise__option',
                       selected ? 'is-selected' : '',
@@ -3159,11 +3262,14 @@ export default function PlayerPage() {
             aria-disabled={sendAriaDisabled || undefined}
             className={sendAriaDisabled ? 'is-aria-disabled' : undefined}
             aria-label={
-              canSubmitExercise
-                ? 'Enviar resposta'
-                : sendAriaDisabled
-                  ? 'Enviar — escolha uma opção primeiro'
-                  : 'Enviar pergunta à Maria'
+              exerciseSubmitting
+                ? 'Enviando resposta…'
+                : canSubmitExercise ||
+                    (exerciseLockedComposer && !!selectedOptionKey)
+                  ? 'Enviar resposta'
+                  : sendAriaDisabled
+                    ? 'Enviar — escolha uma opção primeiro'
+                    : 'Enviar pergunta à Maria'
             }
           >
             Enviar

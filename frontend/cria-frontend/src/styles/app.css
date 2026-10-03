@@ -1177,7 +1177,14 @@ button[aria-disabled='true'] {
   min-height: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+/* C2-R4 N03: espera longa da Maria — status além das dots. */
+.chat-bubble--typing-long .chat-bubble__text {
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .chat-bubble--typing {
@@ -1216,6 +1223,13 @@ button[aria-disabled='true'] {
   display: none;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.typing-dots__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
 }
 
 @keyframes typing-in {
@@ -2056,6 +2070,11 @@ button[aria-disabled='true'] {
   flex-shrink: 0;
   filter: drop-shadow(0 0 14px rgba(23, 234, 157, 0.55));
   animation: maria-bob 2.8s ease-in-out infinite;
+}
+
+/* C2-R4 N04: durante a espera da resposta, só as typing-dots loopam. */
+.maria-mascot--static {
+  animation: none;
 }
 
 .maria-entrance__intro {

@@ -118,19 +118,29 @@ export default function ChatLayout() {
   const sidebarRef = useRef<HTMLElement>(null)
   const restoreFocusRef = useRef(false)
 
+  // ER05: sessão sumiu mid-app → login (guarda rota para pós-login).
   useEffect(() => {
     if (!session) {
-      navigate('/login', { replace: true, state: { reason: 'missing' } })
+      navigate('/login', {
+        replace: true,
+        state: { reason: 'missing', from: location },
+      })
     }
-  }, [session, navigate])
+  }, [session, navigate, location])
 
   useEffect(() => {
     const onCleared = () => {
-      navigate('/login', { replace: true, state: { reason: 'auth' } })
+      navigate('/login', {
+        replace: true,
+        state: { reason: 'auth', from: location },
+      })
     }
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'crias_student_session' && !e.newValue) {
-        navigate('/login', { replace: true, state: { reason: 'missing' } })
+        navigate('/login', {
+          replace: true,
+          state: { reason: 'missing', from: location },
+        })
       }
     }
     window.addEventListener(SESSION_CLEARED_EVENT, onCleared)
@@ -139,13 +149,16 @@ export default function ChatLayout() {
       window.removeEventListener(SESSION_CLEARED_EVENT, onCleared)
       window.removeEventListener('storage', onStorage)
     }
-  }, [navigate])
+  }, [navigate, location])
 
   const reloadTrails = useCallback(async () => {
     const s = getSession()
     if (!s) {
       clearSession('missing')
-      navigate('/login', { replace: true, state: { reason: 'missing' } })
+      navigate('/login', {
+        replace: true,
+        state: { reason: 'missing', from: location },
+      })
       return
     }
     setTrailsLoading(true)
@@ -158,7 +171,11 @@ export default function ChatLayout() {
         clearSession('auth')
         navigate('/login', {
           replace: true,
-          state: { reason: 'auth', message: (err as Error).message },
+          state: {
+            reason: 'auth',
+            message: (err as Error).message,
+            from: location,
+          },
         })
         return
       }
@@ -169,7 +186,7 @@ export default function ChatLayout() {
     } finally {
       setTrailsLoading(false)
     }
-  }, [navigate])
+  }, [navigate, location])
 
   const reloadTrailsRef = useRef(reloadTrails)
   reloadTrailsRef.current = reloadTrails

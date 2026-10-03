@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getSession } from './lib/session'
 import ChatLayout from './layouts/ChatLayout'
 import LoginPage from './pages/LoginPage'
@@ -7,7 +7,11 @@ import PlayerPage from './pages/PlayerPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const session = getSession()
-  if (!session) return <Navigate to="/login" replace />
+  const location = useLocation()
+  // C2-R10 N01: guarda destino (deep-link) para restaurar após login.
+  if (!session) {
+    return <Navigate to="/login" replace state={{ from: location }} />
+  }
   return children
 }
 

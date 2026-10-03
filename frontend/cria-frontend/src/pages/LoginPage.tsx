@@ -5,24 +5,39 @@ import {
   isRetryableSystemError,
   toUserFacingError,
 } from '../lib/networkError'
+import { canonicalizeStudentPhone } from '../lib/phone'
 import { getSession, setSession } from '../lib/session'
 import {
   bindVisualViewport,
   scrollFocusedIntoView,
 } from '../lib/visualViewport'
 
+type LoginLocationState = {
+  message?: string
+  reason?: string
+  from?: { pathname?: string; search?: string; hash?: string }
+} | null
+
+/** Destino pós-login: deep-link guardado em RequireAuth, senão home. */
+function resolvePostLoginPath(state: LoginLocationState): string {
+  const from = state?.from
+  const path = from?.pathname?.trim()
+  if (!path || path === '/login') return '/'
+  return `${path}${from?.search ?? ''}${from?.hash ?? ''}`
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const loginState = location.state as LoginLocationState
   const existing = getSession()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(() => {
-    const st = location.state as { message?: string; reason?: string } | null
-    if (st?.message) return st.message
-    if (st?.reason === 'auth' || st?.reason === 'missing') {
+    if (loginState?.message) return loginState.message
+    if (loginState?.reason === 'auth' || loginState?.reason === 'missing') {
       return 'Entre de novo para continuar.'
     }
     return null
@@ -46,16 +61,19 @@ export default function LoginPage() {
     }
   }, [])
 
-  if (existing) return <Navigate to="/" replace />
+  if (existing) {
+    return <Navigate to={resolvePostLoginPath(loginState)} replace />
+  }
 
   async function onSubmit(e?: FormEvent) {
     e?.preventDefault()
+    if (offline) return
     setError(null)
     setCanRetry(false)
     setLoading(true)
     try {
       const result = await identifyStudent({
-        phone_number: phone,
+        phone_number: canonicalizeStudentPhone(phone),
         institution_code: code.trim(),
         password,
       })
@@ -65,7 +83,7 @@ export default function LoginPage() {
         name: result.name,
         phone_number: result.phone_number,
       })
-      navigate('/', { replace: true })
+      navigate(resolvePostLoginPath(loginState), { replace: true })
     } catch (err) {
       setError(toUserFacingError(err, 'Não foi possível entrar.'))
       setCanRetry(isRetryableSystemError(err))
@@ -77,6 +95,8 @@ export default function LoginPage() {
   function onFieldFocus(e: FocusEvent<HTMLInputElement>) {
     scrollFocusedIntoView(e.currentTarget)
   }
+
+  const entrarDisabled = loading || offline
 
   return (
     <main className="login-page">
@@ -147,14 +167,18 @@ export default function LoginPage() {
                 type="button"
                 className="login-retry"
                 onClick={() => void onSubmit()}
-                disabled={loading}
+                disabled={entrarDisabled}
               >
                 Tentar de novo
               </button>
             ) : null}
           </div>
         ) : null}
-        <button type="submit" disabled={loading}>
+        <button
+          type="submit"
+          disabled={entrarDisabled}
+          aria-disabled={entrarDisabled || undefined}
+        >
           {loading ? 'Entrando…' : 'Entrar'}
         </button>
       </form>

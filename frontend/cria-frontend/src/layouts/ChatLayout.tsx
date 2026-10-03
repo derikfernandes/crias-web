@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  fetchTrailStageTotals,
   isAuthError,
   listStudentTrails,
   type StudentTrailRow,
@@ -52,6 +53,8 @@ export default function ChatLayout() {
   const [rows, setRows] = useState<StudentTrailRow[] | null>(null)
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
+  /** R28-I01: totais p/ “Etapa X de Y” (sem prefixo EN `q`). */
+  const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
@@ -224,6 +227,20 @@ export default function ChatLayout() {
     }
   }, [reloadTrails, location.pathname])
 
+  useEffect(() => {
+    let cancelled = false
+    void fetchTrailStageTotals()
+      .then((map) => {
+        if (!cancelled) setStageTotals(map)
+      })
+      .catch(() => {
+        if (!cancelled) setStageTotals({})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Player / rotas compactas: nunca reabrir drawer só por navegar.
   useEffect(() => {
     if (isCompactViewport()) {
@@ -283,13 +300,21 @@ export default function ChatLayout() {
 
   if (!session) return null
 
+  const activeStageTotal =
+    activeTrailId && stageTotals[activeTrailId] > 0
+      ? stageTotals[activeTrailId]
+      : activeRow
+        ? Math.max(activeRow.current_stage_number, 1)
+        : null
+  const activeStageNumber =
+    playerChrome.stageNumber ?? activeRow?.current_stage_number ?? null
   const trailLabel = activeTrailId
     ? [
         playerChrome.stageTitle || activeTrailId,
-        playerChrome.stageNumber != null
-          ? `etapa ${playerChrome.stageNumber}`
-          : activeRow
-            ? `etapa ${activeRow.current_stage_number}`
+        activeStageNumber != null && activeStageTotal != null
+          ? `Etapa ${activeStageNumber} de ${activeStageTotal}`
+          : activeStageNumber != null
+            ? `Etapa ${activeStageNumber}`
             : null,
       ]
         .filter(Boolean)
@@ -346,6 +371,10 @@ export default function ChatLayout() {
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
+                const total =
+                  stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
+                    ? stageTotals[row.trail_id]
+                    : Math.max(row.current_stage_number, 1)
                 return (
                   <li key={row.id}>
                     <Link
@@ -360,11 +389,8 @@ export default function ChatLayout() {
                       <span className="trail-copy">
                         <span className="trail-id">{row.trail_id}</span>
                         <span className="trail-meta">
-                          {STATUS_LABEL[row.status]} · etapa{' '}
-                          {row.current_stage_number}
-                          {row.current_question_number
-                            ? ` · q${row.current_question_number}`
-                            : ''}
+                          {STATUS_LABEL[row.status]} · Etapa{' '}
+                          {row.current_stage_number} de {total}
                         </span>
                       </span>
                     </Link>

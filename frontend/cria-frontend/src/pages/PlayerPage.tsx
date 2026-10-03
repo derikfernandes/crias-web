@@ -43,6 +43,7 @@ import {
   stripDecorTitle,
   stripHardcodedVerdict,
   stripMidLessonConclusion,
+  textHasEmbed,
   trailCellKey,
   trailMessageId,
 } from '../lib/trailMessages'
@@ -179,7 +180,68 @@ function externalLinkLabel(label: string | undefined, href: string): string {
   return `${base} (abre em nova aba)`
 }
 
-function renderMessagePart(part: MessagePart): ReactNode {
+type MediaPartHandlers = {
+  /** R08-M05: marca saída externa para cue de retorno. */
+  onOpenExternalMedia?: (href: string) => void
+}
+
+/**
+ * R19-H05 (barato): monta iframe só perto do viewport — evita peso DOM
+ * de dezenas de embeds offscreen sem lib de virtualização.
+ */
+function LazyEmbedFrame({
+  src,
+  title,
+}: {
+  src: string
+  title: string
+}): ReactNode {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(false)
+
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el || active) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setActive(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setActive(true)
+          io.disconnect()
+        }
+      },
+      { root: null, rootMargin: '240px 0px', threshold: 0.01 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [active])
+
+  return (
+    <div ref={hostRef} className="chat-bubble__embed-frame">
+      {active ? (
+        <iframe
+          src={src}
+          title={title}
+          tabIndex={-1}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      ) : (
+        <div className="chat-bubble__embed-skeleton" aria-hidden="true" />
+      )}
+    </div>
+  )
+}
+
+function renderMessagePart(
+  part: MessagePart,
+  handlers?: MediaPartHandlers,
+): ReactNode {
   if (part.kind === 'image') {
     return (
       <p key={part.key} className="chat-bubble__media">
@@ -190,24 +252,22 @@ function renderMessagePart(part: MessagePart): ReactNode {
   if (part.kind === 'embed' && part.embedUrl) {
     const openLabel = externalLinkLabel(part.label, part.value)
     return (
-      <div key={part.key} className="chat-bubble__embed">
-        <div className="chat-bubble__embed-frame">
-          <iframe
-            src={part.embedUrl}
-            title={part.label || 'Mídia da aula'}
-            tabIndex={-1}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
+      <div
+        key={part.key}
+        className="chat-bubble__embed"
+        data-embed-kind={part.embedKind || undefined}
+      >
+        <LazyEmbedFrame
+          src={part.embedUrl}
+          title={part.label || 'Mídia da aula'}
+        />
         <a
           href={part.value}
           target="_blank"
           rel="noopener noreferrer"
-          className="chat-bubble__link"
+          className="chat-bubble__link chat-bubble__link--chip"
           aria-label={openLabel}
+          onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
           {openLabel}
         </a>
@@ -222,8 +282,9 @@ function renderMessagePart(part: MessagePart): ReactNode {
           href={part.value}
           target="_blank"
           rel="noopener noreferrer"
-          className="chat-bubble__link"
+          className="chat-bubble__link chat-bubble__link--chip"
           aria-label={openLabel}
+          onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
           {openLabel}
         </a>
@@ -427,7 +488,15 @@ export default function PlayerPage() {
   const [continuarLeaving, setContinuarLeaving] = useState(false)
   /** R23-L01/L02/L07: anúncios SR de etapa / feedback / Continuar. */
   const [srAnnounce, setSrAnnounce] = useState('')
+  /** R08-M05: bolha com cue visual ao voltar de mídia externa. */
+  const [mediaResumeMsgId, setMediaResumeMsgId] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  /** R08-M05: última saída YT/Drive externa (aba/popup). */
+  const externalMediaOpenRef = useRef<{
+    msgId: string
+    href: string
+    at: number
+  } | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesRef = useRef<ChatMessage[]>([])
   const voltarBtnRef = useRef<HTMLButtonElement>(null)
@@ -601,6 +670,46 @@ export default function PlayerPage() {
     }
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
+  }, [])
+
+  /**
+   * R08-M05: ao voltar da aba/popup de YT/Drive, reancora a bolha da mídia,
+   * anuncia e destaca Continuar — sem inventar botão novo.
+   */
+  useEffect(() => {
+    let clearTimer: number | null = null
+    const onReturn = () => {
+      if (document.visibilityState && document.visibilityState !== 'visible') {
+        return
+      }
+      const open = externalMediaOpenRef.current
+      if (!open) return
+      if (Date.now() - open.at > 30 * 60_000) {
+        externalMediaOpenRef.current = null
+        return
+      }
+      externalMediaOpenRef.current = null
+      setMediaResumeMsgId(open.msgId)
+      setSrAnnounce('De volta à aula. Continuar trilha quando quiser.')
+      window.requestAnimationFrame(() => {
+        const node = threadRef.current?.querySelector(
+          `[data-msg-id="${CSS.escape(open.msgId)}"]`,
+        )
+        node?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+          continuarBtnRef.current.focus({ preventScroll: true })
+        }
+      })
+      if (clearTimer != null) window.clearTimeout(clearTimer)
+      clearTimer = window.setTimeout(() => setMediaResumeMsgId(null), 2400)
+    }
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('focus', onReturn)
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('focus', onReturn)
+      if (clearTimer != null) window.clearTimeout(clearTimer)
+    }
   }, [])
 
   /** R24-LS03: pós-rotate, reancora enunciado/opções na viewport. */
@@ -2067,6 +2176,18 @@ export default function PlayerPage() {
   /** D#10 / R14-L14: rótulo canônico do CTA de avanço. */
   const continuarLabel = 'Continuar trilha'
 
+  /**
+   * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
+   * (outline) para não competir com a mídia como CTA verde primário.
+   */
+  const currentStageHasEmbed =
+    content?.status === 'ok' &&
+    textHasEmbed(contentToAssistantText(content))
+
+  const markExternalMediaOpen = useCallback((msgId: string, href: string) => {
+    externalMediaOpenRef.current = { msgId, href, at: Date.now() }
+  }, [])
+
   const exerciseLockLabel =
     exercisePhase === 'submitting'
       ? 'Enviando resposta…'
@@ -2331,16 +2452,18 @@ export default function PlayerPage() {
                 : 'Sistema'
           const labelId = `bubble-label-${msg.id}`
           const isFeedback = msg.kind === 'feedback'
+          const mediaResume = mediaResumeMsgId === msg.id
           return (
             <article
               key={msg.id}
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
-              }`}
+              }${mediaResume ? ' chat-bubble--media-resume' : ''}`}
               data-msg-id={msg.id}
               data-stage-type={msg.stageType}
               data-cell-key={msg.cellKey || undefined}
               data-animate={msg.animate ? 'true' : undefined}
+              data-media-resume={mediaResume ? 'true' : undefined}
               aria-labelledby={labelId}
               tabIndex={-1}
               {...(isFeedback
@@ -2357,7 +2480,10 @@ export default function PlayerPage() {
               ) : (
                 <div className="chat-bubble__body">
                   {renderMessageLines(msg.text).map((part) =>
-                    renderMessagePart(part),
+                    renderMessagePart(part, {
+                      onOpenExternalMedia: (href) =>
+                        markExternalMediaOpen(msg.id, href),
+                    }),
                   )}
                 </div>
               )}
@@ -2500,12 +2626,25 @@ export default function PlayerPage() {
 
           {showContinuar || trailBusy ? (
             <div
-              className={`chat-continue${trailBusy ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
+              className={`chat-continue${trailBusy ? ' chat-continue--leaving' : ' chat-continue--enter'}${
+                currentStageHasEmbed && !trailBusy
+                  ? ' chat-continue--with-media'
+                  : ''
+              }`}
             >
+              {currentStageHasEmbed && !trailBusy ? (
+                <p className="chat-cta-slot__media-hint">
+                  Vídeo na etapa — Continuar trilha quando quiser
+                </p>
+              ) : null}
               <button
                 ref={continuarBtnRef}
                 type="button"
-                className="chat-continue__btn"
+                className={`chat-continue__btn${
+                  currentStageHasEmbed && !trailBusy
+                    ? ' chat-continue__btn--secondary'
+                    : ''
+                }`}
                 disabled={busy || continuarLeaving || advanceInFlightRef.current}
                 aria-busy={trailBusy || undefined}
                 onClick={() => void doAdvance()}

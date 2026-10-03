@@ -78,7 +78,7 @@ export default function TrailsPage() {
               <p className="muted chat-home__hint">
                 {primary.trail_id}
                 {primary.status === 'in_progress'
-                  ? ` · etapa ${primary.current_stage_number}`
+                  ? ` · Etapa ${primary.current_stage_number}`
                   : ''}
                 {trailRows && trailRows.length > 1
                   ? ' · outras trilhas no menu'

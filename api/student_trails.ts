@@ -24,6 +24,9 @@ import {
   parseIntLoose,
   type StudentTrailStatus,
 } from '../server/lib/studentTrailValidation'
+import { ensureTrailAiContent } from '../server/lib/trail-ai/ensureTrailAiContent'
+import { listTrailConversationLogsSafe } from '../server/lib/trail-ai/resolveDeliveredAiContent'
+import { askMariaTutor } from '../server/lib/maria/askMariaTutor'
 
 type Json = Record<string, unknown>
 
@@ -296,6 +299,38 @@ async function handleRequest(request: Request): Promise<Response> {
         })
       }
 
+      if (action === 'history') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const logs = await listTrailConversationLogsSafe(
+          db,
+          qStudentId,
+          qTrailId,
+        )
+        return jsonResponse(
+          logs.map((row) => ({
+            id: row.id,
+            student_id: row.student_id,
+            trail_id: row.trail_id,
+            stage_number: row.stage_number,
+            question_number: row.question_number,
+            sender: row.sender,
+            message_text: row.message_text,
+            institution_id: row.institution_id,
+            message_type: row.message_type,
+            metadata: row.metadata,
+            created_at: null,
+            created_at_brasilia: row.created_at_brasilia,
+          })) as Json[],
+          { status: 200, headers: corsHeaders() },
+        )
+      }
+
       if (action === 'status') {
         if (!qStudentId || !qTrailId) {
           return respond(400, {
@@ -419,6 +454,90 @@ async function handleRequest(request: Request): Promise<Response> {
           status: 200,
           headers: corsHeaders(),
         })
+      }
+
+      if (action === 'ensure-ai') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        if (!targetStudentId || !targetTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id" e "trail_id" são obrigatórios.',
+          })
+        }
+        try {
+          const ensured = await ensureTrailAiContent(db, {
+            student_id: targetStudentId,
+            trail_id: targetTrailId,
+          })
+          return jsonResponse(
+            { status: 'ok', ...ensured } as Json,
+            { status: 200, headers: corsHeaders() },
+          )
+        } catch (e) {
+          return respond(500, {
+            status: 'error',
+            code: 'internal_error',
+            error: e instanceof Error ? e.message : 'Falha ensure-ai',
+          })
+        }
+      }
+
+      if (action === 'maria') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        const message = sanitizeString(body.message)
+        if (!targetStudentId || !targetTrailId || !message) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id", "trail_id" e "message" são obrigatórios.',
+          })
+        }
+        try {
+          const result = await askMariaTutor(db, {
+            student_id: targetStudentId,
+            trail_id: targetTrailId,
+            message,
+            stage_number:
+              typeof body.stage_number === 'number'
+                ? body.stage_number
+                : undefined,
+            question_number:
+              typeof body.question_number === 'number'
+                ? body.question_number
+                : undefined,
+          })
+          return jsonResponse(result as unknown as Json, {
+            status: 200,
+            headers: corsHeaders(),
+          })
+        } catch (e) {
+          return respond(500, {
+            status: 'error',
+            code: 'internal_error',
+            error: e instanceof Error ? e.message : 'Falha Maria tutora',
+          })
+        }
       }
 
       if (id) {

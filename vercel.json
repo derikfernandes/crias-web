@@ -4,7 +4,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/trilha-admin/dist",
   "functions": {
-    "api/dashboard_summary.ts": { "maxDuration": 60 }
+    "api/dashboard_summary.ts": { "maxDuration": 60 },
+    "api/student_trails.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/institution/", "destination": "/api/institution" },
@@ -101,6 +102,9 @@
     { "source": "/student_trails/next-content", "destination": "/api/student_trails?action=next-content" },
     { "source": "/student_trails/advance", "destination": "/api/student_trails?action=advance" },
     { "source": "/student_trails/status", "destination": "/api/student_trails?action=status" },
+    { "source": "/student_trails/history", "destination": "/api/student_trails?action=history" },
+    { "source": "/student_trails/ensure-ai", "destination": "/api/student_trails?action=ensure-ai" },
+    { "source": "/student_trails/maria", "destination": "/api/student_trails?action=maria" },
     { "source": "/student_trails/", "destination": "/api/student_trails" },
     { "source": "/student_trails", "destination": "/api/student_trails" },
     { "source": "/conversation_logs/", "destination": "/api/conversation_logs" },
@@ -113,6 +117,8 @@
       "source": "/conversation_logs/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/conversation_logs?id=:id"
     },
+    { "source": "/exercise_attempts/", "destination": "/api/exercise_attempts" },
+    { "source": "/exercise_attempts", "destination": "/api/exercise_attempts" },
     { "source": "/aluno", "destination": "/aluno/index.html" },
     { "source": "/aluno/", "destination": "/aluno/index.html" },
     {

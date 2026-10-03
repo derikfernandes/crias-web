@@ -62,6 +62,44 @@ export type AdvanceResponse = {
   message?: string
 }
 
+export type ConversationLogRow = {
+  id: string
+  student_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+  sender: 'system' | 'student' | string
+  message_text: string
+  institution_id?: string | null
+  message_type?: string | null
+  metadata?: Record<string, unknown> | null
+  created_at?: string | null
+  created_at_brasilia?: string | null
+}
+
+export type ExerciseAttemptResult = {
+  id: string
+  student_id: string
+  institution_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+  student_answer: string
+  correct_option?: string
+  is_correct: boolean
+  score: number | null
+  feedback?: string | null
+  attempt_number: number
+}
+
+export type MariaReply = {
+  status: 'ok'
+  reply: string
+  model: string
+  stage_number: number
+  question_number: number
+}
+
 async function parseJson(res: Response): Promise<unknown> {
   const text = await res.text()
   if (!text) return null
@@ -124,6 +162,48 @@ export async function fetchNextContent(
   return body as NextContentOk | NextContentStatus
 }
 
+export async function fetchTrailHistory(
+  studentId: string,
+  trailId: string,
+): Promise<ConversationLogRow[]> {
+  const url = new URL(
+    `${API_BASE}/student_trails/history`,
+    window.location.origin,
+  )
+  url.searchParams.set('student_id', studentId)
+  url.searchParams.set('trail_id', trailId)
+  const res = await fetch(url.pathname + url.search)
+  const body = await parseJson(res)
+  if (!res.ok) {
+    const err = body as ApiError
+    throw new Error(err.message || err.error || 'Falha ao carregar histórico.')
+  }
+  return Array.isArray(body) ? (body as ConversationLogRow[]) : []
+}
+
+export async function createConversationLog(input: {
+  student_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+  sender: 'system' | 'student'
+  message_text: string
+  institution_id?: string | null
+  message_type?: 'text' | 'instruction' | 'exercise' | 'feedback' | null
+  metadata?: Record<string, unknown> | null
+}): Promise<ConversationLogRow> {
+  const res = await fetch(`${API_BASE}/conversation_logs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = (await parseJson(res)) as ConversationLogRow & ApiError
+  if (!res.ok) {
+    throw new Error(body.message || body.error || 'Falha ao gravar mensagem.')
+  }
+  return body
+}
+
 export async function advanceTrail(
   studentId: string,
   trailId: string,
@@ -136,6 +216,48 @@ export async function advanceTrail(
   const body = (await parseJson(res)) as AdvanceResponse & ApiError
   if (!res.ok) {
     throw new Error(body.message || body.error || 'Falha ao avançar.')
+  }
+  return body
+}
+
+export async function askMaria(input: {
+  student_id: string
+  trail_id: string
+  message: string
+  stage_number?: number
+  question_number?: number
+}): Promise<MariaReply> {
+  const res = await fetch(`${API_BASE}/student_trails/maria`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = (await parseJson(res)) as MariaReply & ApiError
+  if (!res.ok || body.status !== 'ok') {
+    throw new Error(body.message || body.error || 'Falha ao consultar Maria.')
+  }
+  return body
+}
+
+export async function submitExerciseAttempt(input: {
+  student_id: string
+  institution_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+  student_answer: string
+  feedback?: string | null
+}): Promise<ExerciseAttemptResult> {
+  const res = await fetch(`${API_BASE}/exercise_attempts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const body = (await parseJson(res)) as ExerciseAttemptResult & ApiError
+  if (!res.ok) {
+    throw new Error(
+      body.message || body.error || 'Falha ao registrar tentativa.',
+    )
   }
   return body
 }

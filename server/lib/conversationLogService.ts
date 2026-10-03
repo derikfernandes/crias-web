@@ -12,6 +12,40 @@ import type {
 } from './conversationLogValidation'
 import { formatDateTimeBrasilia } from './brasiliaDateTime'
 
+/** Epoch ms for sorting without Firestore orderBy (índice composto). */
+export function conversationLogCreatedAtMillis(
+  data: Record<string, unknown>,
+): number {
+  const brasilia =
+    typeof data.created_at_brasilia === 'string' ? data.created_at_brasilia : ''
+  if (brasilia) {
+    const parsed = Date.parse(brasilia.replace(' ', 'T'))
+    if (Number.isFinite(parsed)) return parsed
+  }
+  const created = data.created_at
+  if (
+    created &&
+    typeof created === 'object' &&
+    'toDate' in created &&
+    typeof (created as { toDate?: unknown }).toDate === 'function'
+  ) {
+    try {
+      return (created as { toDate: () => Date }).toDate().getTime()
+    } catch {
+      /* ignore */
+    }
+  }
+  if (
+    created &&
+    typeof created === 'object' &&
+    'seconds' in created &&
+    typeof (created as { seconds?: unknown }).seconds === 'number'
+  ) {
+    return ((created as { seconds: number }).seconds || 0) * 1000
+  }
+  return 0
+}
+
 export type ConversationLogRuntime = {
   id: string
   student_id: string

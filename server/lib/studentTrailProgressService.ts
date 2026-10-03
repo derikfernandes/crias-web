@@ -495,7 +495,7 @@ export async function getNextContent(
     stageType === 'ai' && typeof stageData.prompt === 'string'
       ? stageData.prompt
       : null
-  const content =
+  let content =
     typeof questionData.content === 'string' ? questionData.content : null
   const options = Array.isArray(questionData.options)
     ? (questionData.options as unknown[])
@@ -506,6 +506,29 @@ export async function getNextContent(
       : null
   const stageTitle =
     typeof stageData.title === 'string' ? stageData.title : null
+
+  // stage_type=ai → gera/recupera conteúdo via Gemini (Vertex gemini-3.7-flash).
+  if (stageType === 'ai') {
+    try {
+      const { ensureTrailAiContent } = await import(
+        './trail-ai/ensureTrailAiContent.js'
+      )
+      const ensured = await ensureTrailAiContent(db, {
+        student_id: studentId,
+        trail_id: trailId,
+      })
+      content = ensured.content
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : 'Falha ao gerar conteúdo de IA.'
+      return {
+        ok: false,
+        code: 'internal_error',
+        message: msg,
+        httpStatus: 500,
+      }
+    }
+  }
 
   return {
     ok: true,

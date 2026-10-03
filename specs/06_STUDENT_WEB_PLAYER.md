@@ -2,9 +2,9 @@
 
 ## 1. Objetivo
 
-Permitir que o aluno autentique-se e consuma o próximo conteúdo da trilha em um app web, sem Firestore Client no player.
+Permitir que o aluno autentique-se e consuma o próximo conteúdo da trilha em um app web (`/aluno`), sem Firestore Client no player.
 
-A lógica de progressão e liberação fica na API. O app aluno apenas renderiza o payload e solicita avanço.
+A lógica de progressão, liberação e geração de IA fica na API. O app aluno renderiza o histórico, o payload e solicita avanço / Maria / tentativas de exercício.
 
 ## 2. Autenticação (MVP)
 
@@ -36,6 +36,7 @@ Respostas:
 - `not_found` — telefone/instituição sem match
 - `inactive_student` — aluno inativo
 - `inactive_institution` — instituição inativa
+- `password_not_set` / `invalid_credentials` — senha ausente ou incorreta
 
 Não usa Firebase Auth do aluno: credencial é telefone + instituição + senha armazenada com hash no documento `students`.
 
@@ -101,6 +102,8 @@ Resposta `ok`:
 }
 ```
 
+Para `stage_type=ai`, a API chama `ensureTrailAiContent` (Gemini Vertex) e devolve o texto gerado em `content` (idempotente via `conversation_logs`).
+
 Status possíveis:
 
 - `ok` — conteúdo liberado e ativo
@@ -109,21 +112,75 @@ Status possíveis:
 - `not_found` — aluno/trilha/vínculo ausente
 - `inactive_student` / `inactive_trail`
 
-## 6. Renderização por `stage_type`
+## 6. Histórico do chat
+
+```text
+GET /student_trails/history?student_id={id}&trail_id={id}
+```
+
+Lista `conversation_logs` do aluno+trilha (ordenação em memória). O player carrega o histórico ao abrir a trilha e grava novas bolhas (entrega, Continuar, exercício, Maria).
+
+Também: `POST /conversation_logs` para persistir mensagens avulsas do cliente.
+
+## 7. Renderização por `stage_type`
 
 ### `fixed`
 
-Exibir `content` (e `stage_title` se houver). CTA: Continuar → `POST advance`.
+Exibir `content` (e `stage_title` se houver). Botão **Continuar** → `POST advance`.
 
 ### `ai`
 
-Exibir conteúdo gerado a partir de `prompt` + `content` (MVP: mostrar `content` e/ou `prompt` como texto da etapa). CTA: Continuar → advance.
+Gerar conteúdo com o prompt gerador (`specs/prompts/prompt_gerador_trilha_maria_unica_tutora.md`) + variáveis:
+
+| Variável | Fonte |
+|---|---|
+| `NAME` | primeiro nome de `students.name` |
+| `SCHOOL_GRADE` | `students.school_grade` |
+| `STUDENT_LEVEL` | `students.student_level` |
+| `CONTEXT` | `conversation_logs` recentes |
+| `PROMPT` / `CONTENT` | stage/question |
+
+Modelo: Vertex `projects/crias-mvp/locations/global/publishers/google/models/gemini-3.7-flash:generateContent` com `maxOutputTokens: 8000`.
+
+CTA: **Continuar** → advance.
+
+Endpoints auxiliares:
+
+```text
+POST /student_trails/ensure-ai
+```
 
 ### `exercise`
 
-Exibir enunciado (`content`) e `options` quando existirem. Aluno responde; em seguida chama advance (validação de gabarito pode usar `exercise_attempts` quando disponível).
+Exibir enunciado (`content`) e **um botão clicável por item** de `options[]` (quantidade = `options.length`).
 
-## 7. Avanço
+Ao clicar:
+
+1. `POST /exercise_attempts` (registra attempt + `is_correct`)
+2. Mostra feedback (`explanation` / resultado)
+3. Exibe botão **Continuar** → advance
+
+## 8. Free-text → Maria (sem avançar)
+
+Se o aluno envia texto no composer e **não** é Continuar (botão) nem a palavra `"continuar"` (case-insensitive):
+
+```text
+POST /student_trails/maria
+```
+
+Body:
+
+```json
+{
+  "student_id": "s1",
+  "trail_id": "t1",
+  "message": "O que é fração?"
+}
+```
+
+Usa o prompt tutora (`specs/prompts/prompt_maria_tutora_crias.md`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
+
+## 9. Avanço
 
 ```text
 POST /student_trails/advance
@@ -149,9 +206,9 @@ Resposta:
 }
 ```
 
-A API aplica a grade, checa liberação do destino e atualiza `student_trails`.
+Disparado pelo botão Continuar ou pelo texto `"continuar"`.
 
-## 8. Lista de trilhas do aluno
+## 10. Lista de trilhas do aluno
 
 ```text
 GET /student_trails?student_id={id}
@@ -159,16 +216,16 @@ GET /student_trails?student_id={id}
 
 Retorna vínculos `student_trails` do aluno (status, posição, `trail_id`).
 
-## 9. Estados de UI
+## 11. Estados de UI
 
 | Estado | Quando | UI |
 |--------|--------|-----|
-| Login | Sem sessão | Telefone + código instituição |
+| Login | Sem sessão | Telefone + código instituição + senha |
 | Lista vazia | Sem `student_trails` | Mensagem “nenhuma trilha vinculada” |
 | Bloqueado | `status=blocked` ou next-content `blocked` | Conteúdo ainda não liberado |
 | Concluído | `status=completed` ou next-content `completed` | Trilha concluída |
-| Player | `ok` | Render por `stage_type` |
+| Player | `ok` | Histórico + render por `stage_type` + Continuar / opções / Maria |
 
-## 10. Regra de ouro
+## 12. Regra de ouro
 
-O app aluno não decide progressão nem contorna `is_released`. A API retorna o próximo estado.
+O app aluno não decide progressão nem contorna `is_released`. A API retorna o próximo estado. Texto livre fala com Maria; só Continuar avança a trilha.

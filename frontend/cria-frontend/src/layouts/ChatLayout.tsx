@@ -442,6 +442,9 @@ className={`trail-card${active ? ' is-active' : ''}`}
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
             <LogoutIcon />
             Sair
+            <span className="chat-sidebar__logout-hint">
+              Seu progresso fica salvo
+            </span>
           </button>
         </div>
       </aside>

@@ -493,6 +493,10 @@ export default function PlayerPage() {
   const [continuarLeaving, setContinuarLeaving] = useState(false)
   /** R23-L01/L02/L07: anúncios SR de etapa / feedback / Continuar. */
   const [srAnnounce, setSrAnnounce] = useState('')
+  /** OM04: espelha banner offline — Continuar não convida toque fadado. */
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
+  )
   /** R08-M05: bolha com cue visual ao voltar de mídia externa. */
   const [mediaResumeMsgId, setMediaResumeMsgId] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -657,24 +661,37 @@ export default function PlayerPage() {
   }, [])
 
   // R12-O07 / R18-N05: ao voltar online, libera busy preso; erro+retry permanece.
+  // OM01: NÃO zerar advanceInFlight mid-flight — finally do fetch libera o lock.
+  // OM04: sincroniza flag offline com o banner do shell.
   useEffect(() => {
+    const goOffline = () => setOffline(true)
     const onOnline = () => {
+      setOffline(false)
+      // R18-N06: se submit estava em voo, vira error (card + seleção ficam).
+      setPendingOptionKey((pending) => {
+        if (pending) {
+          window.setTimeout(() => {
+            setExercisePhase('error')
+            // OM03: não deixar ACK de Continuar stale no fail de exercício.
+            setSrAnnounce('')
+          }, 0)
+        }
+        return null
+      })
+      // OM01: mutate ainda em voo — busy/lock ficam até settle/abort.
+      if (advanceInFlightRef.current) return
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
       setContinuarLeaving(false)
-      advanceInFlightRef.current = false
-      // R18-N06: se submit estava em voo, vira error (card + seleção ficam).
-      setPendingOptionKey((pending) => {
-        if (pending) {
-          window.setTimeout(() => setExercisePhase('error'), 0)
-        }
-        return null
-      })
       setTrailBusyLabel('Preparando etapa…')
     }
+    window.addEventListener('offline', goOffline)
     window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', onOnline)
+    }
   }, [])
 
   /**
@@ -1704,6 +1721,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
+    // OM04: offline — não dispara advance fadado.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     // R18-N02: se advance já commitou, só resync — não avança de novo.
@@ -1727,11 +1746,13 @@ export default function PlayerPage() {
     clearError()
     setMariaSidechat(false)
     mariaCancelledRef.current = false
+    let advanceSucceeded = false
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       const result = await advanceTrail(liveSession.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
         advanceCommittedRef.current = false
+        advanceSucceeded = true
         setContent({
           status: 'completed',
           student_id: liveSession.student_id,
@@ -1752,6 +1773,7 @@ export default function PlayerPage() {
         setTrailBusyLabel('Carregando etapa…')
         await loadNextAfterAdvance()
         advanceCommittedRef.current = false
+        advanceSucceeded = true
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       } else {
         setContent(result as NextContentStatus)
@@ -1788,23 +1810,25 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // R15-Y04 / R23-L01: ACK “salvo” + anunciar etapa; focar bolha (não composer).
-      window.requestAnimationFrame(() => {
-        const lastAssistant = [...messagesRef.current]
-          .reverse()
-          .find((m) => m.role === 'assistant' || m.role === 'system')
-        setSrAnnounce(
-          lastAssistant
-            ? 'Progresso salvo. Nova etapa da trilha disponível'
-            : 'Progresso salvo. Etapa atualizada',
-        )
-        if (focusMessageById(lastAssistant?.id)) return
-        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
-          continuarBtnRef.current.focus()
-        } else {
-          inputRef.current?.focus({ preventScroll: true })
-        }
-      })
+      // R15-Y04 / R23-L01: ACK “salvo” só no sucesso (OM03 — sem vazamento no fail).
+      if (advanceSucceeded) {
+        window.requestAnimationFrame(() => {
+          const lastAssistant = [...messagesRef.current]
+            .reverse()
+            .find((m) => m.role === 'assistant' || m.role === 'system')
+          setSrAnnounce(
+            lastAssistant
+              ? 'Progresso salvo. Nova etapa da trilha disponível'
+              : 'Progresso salvo. Etapa atualizada',
+          )
+          if (focusMessageById(lastAssistant?.id)) return
+          if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+            continuarBtnRef.current.focus()
+          } else {
+            inputRef.current?.focus({ preventScroll: true })
+          }
+        })
+      }
     }
   }
 
@@ -2091,12 +2115,13 @@ export default function PlayerPage() {
       )
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
-      // R18-N06: falha → error; mantém card + seleção + retry.
+      // R18-N06: falha → error; mantém card + seleção.
+      // OM02: um recovery — Enviar (não 2× “Tentar de novo” banner+card).
+      // OM03: limpa ACK stale de Continuar no fail de envio.
       setExercisePhase('error')
       setPendingOptionKey(null)
-      reportError(err, 'Erro ao enviar a resposta.', () => {
-        void submitSelectedOption()
-      })
+      setSrAnnounce('')
+      reportError(err, 'Erro ao enviar a resposta.')
     } finally {
       setBusy(false)
       setBusyReason(null)
@@ -2737,15 +2762,10 @@ export default function PlayerPage() {
             </div>
             {exercisePhase === 'error' ? (
               <div className="chat-exercise__retry" role="status">
-                <p>Não foi possível enviar. Sua escolha foi mantida.</p>
-                <button
-                  type="button"
-                  className="chat-exercise__retry-btn"
-                  onClick={() => void submitSelectedOption()}
-                  disabled={!selectedOptionKey || busy}
-                >
-                  Tentar de novo
-                </button>
+                <p>
+                  Não foi possível enviar. Sua escolha foi mantida. Toque em
+                  Enviar para tentar de novo.
+                </p>
               </div>
             ) : null}
             {exerciseSubmitting ? (
@@ -2797,7 +2817,12 @@ export default function PlayerPage() {
                     ? ' chat-continue__btn--secondary'
                     : ''
                 }`}
-                disabled={busy || continuarLeaving || advanceInFlightRef.current}
+                disabled={
+                  busy ||
+                  continuarLeaving ||
+                  advanceInFlightRef.current ||
+                  offline
+                }
                 aria-busy={trailBusy || undefined}
                 onClick={() => void doAdvance()}
               >

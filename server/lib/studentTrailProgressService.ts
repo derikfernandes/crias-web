@@ -235,13 +235,36 @@ export async function peekNextBlocoRespostaCached(
     const { resolveDeliveredAiContent } = await import(
       './trail-ai/resolveDeliveredAiContent.js'
     )
+    const { blocoMismatchesSubject } = await import(
+      './trail-ai/blocoSubjectGuard.js'
+    )
     const hit = await resolveDeliveredAiContent(db, {
       student_id: input.student_id,
       trail_id: input.trail_id,
       stage_number: next.next_stage_number,
       question_number: next.next_question_number,
     })
-    return hit?.message_text?.trim() || null
+    const text = hit?.message_text?.trim() || null
+    if (!text) return null
+    // Não surfacer BLOCO de outra matéria no feedback do exercício atual.
+    const questionsCollection =
+      process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+    const exSnap = await db
+      .collection(questionsCollection)
+      .doc(
+        trailStageQuestionDocId(
+          input.trail_id,
+          input.stage_number,
+          input.question_number,
+        ),
+      )
+      .get()
+    const exContent =
+      typeof exSnap.data()?.content === 'string'
+        ? String(exSnap.data()?.content)
+        : ''
+    if (exContent && blocoMismatchesSubject(text, exContent)) return null
+    return text
   } catch {
     return null
   }

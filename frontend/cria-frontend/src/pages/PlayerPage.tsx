@@ -279,105 +279,14 @@ export default function PlayerPage() {
     setNewMsgChip(false)
     skipSmoothScrollRef.current = true
     try {
-      const [logs, data] = await Promise.all([
-        fetchTrailHistory(session.student_id, trailId),
-        fetchNextContent(session.student_id, trailId),
-      ])
-      // History: sem animate — evita cascata no mount/relogin.
-      setMessages(logsToMessages(logs))
+      // WS-4: next-content primeiro — CTA não espera o payload enorme do history.
+      const contentPromise = fetchNextContent(session.student_id, trailId)
+      const historyPromise = fetchTrailHistory(session.student_id, trailId)
+
+      const data = await contentPromise
       setContent(data)
-      setHistoryReady(true)
 
-      if (data.status === 'ok') {
-        const key = trailCellKey(data.stage_number, data.question_number)
-        const options =
-          data.stage_type === 'exercise'
-            ? normalizeExerciseOptions(data.options)
-            : []
-        const text = contentToAssistantText(data, {
-          stripOptions: options.length > 0,
-        })
-
-        if (data.stage_type === 'exercise') {
-          setExerciseDone(
-            cellHasExerciseFeedback(
-              logs,
-              data.stage_number,
-              data.question_number,
-            ),
-          )
-        }
-
-        const already = logs.some(
-          (l) =>
-            l.sender === 'system' &&
-            l.stage_number === data.stage_number &&
-            l.question_number === data.question_number &&
-            (l.message_type === 'instruction' ||
-              l.message_type === 'exercise' ||
-              (l.metadata &&
-                typeof l.metadata === 'object' &&
-                ['trail-ai', 'next-content'].includes(
-                  String((l.metadata as { source?: string }).source ?? ''),
-                ))),
-        )
-        // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
-        if (
-          !already &&
-          data.stage_type !== 'ai' &&
-          deliveredKeyRef.current !== key
-        ) {
-          deliveredKeyRef.current = key
-          const msgId = trailMessageId(data.stage_number, data.question_number)
-          let isNew = false
-          setMessages((prev) => {
-            const result = appendTrailMessage(prev, {
-              id: msgId,
-              role: 'assistant',
-              text,
-              stageType: data.stage_type,
-              cellKey: key,
-            })
-            isNew = result.isNew
-            return result.messages
-          })
-          if (isNew) {
-            void persistLog({
-              sender: 'system',
-              message_text: text,
-              stage_number: data.stage_number,
-              question_number: data.question_number,
-              message_type:
-                data.stage_type === 'exercise' ? 'exercise' : 'instruction',
-              metadata: { source: 'next-content', stage_type: data.stage_type },
-            })
-          }
-        } else if (data.stage_type === 'ai') {
-          deliveredKeyRef.current = key
-          const hasAi = logs.some(
-            (l) =>
-              l.sender === 'system' &&
-              l.stage_number === data.stage_number &&
-              l.question_number === data.question_number &&
-              (l.message_type === 'instruction' ||
-                (l.metadata &&
-                  typeof l.metadata === 'object' &&
-                  (l.metadata as { source?: string }).source === 'trail-ai')),
-          )
-          if (!hasAi && text) {
-            const msgId = trailMessageId(data.stage_number, data.question_number)
-            setMessages((prev) =>
-              appendTrailMessage(prev, {
-                id: msgId,
-                role: 'assistant',
-                text,
-                stageType: 'ai',
-                cellKey: key,
-              }).messages,
-            )
-          }
-        }
-      } else {
+      if (data.status !== 'ok') {
         const key = `status-${data.status}`
         if (deliveredKeyRef.current !== key) {
           deliveredKeyRef.current = key
@@ -389,6 +298,110 @@ export default function PlayerPage() {
               text: statusToSystemText(data),
             }),
           ])
+        }
+        setHistoryReady(true)
+        void historyPromise.catch(() => undefined)
+        return
+      }
+
+      const key = trailCellKey(data.stage_number, data.question_number)
+      const options =
+        data.stage_type === 'exercise'
+          ? normalizeExerciseOptions(data.options)
+          : []
+      const text = contentToAssistantText(data, {
+        stripOptions: options.length > 0,
+      })
+
+      // Libera composer/CTA assim que o passo atual existe.
+      setHistoryReady(true)
+
+      let logs: Awaited<ReturnType<typeof fetchTrailHistory>> = []
+      try {
+        logs = await historyPromise
+      } catch {
+        logs = []
+      }
+      // History: sem animate — evita cascata no mount/relogin.
+      setMessages(logsToMessages(logs))
+
+      if (data.stage_type === 'exercise') {
+        setExerciseDone(
+          cellHasExerciseFeedback(
+            logs,
+            data.stage_number,
+            data.question_number,
+          ),
+        )
+      }
+
+      const already = logs.some(
+        (l) =>
+          l.sender === 'system' &&
+          l.stage_number === data.stage_number &&
+          l.question_number === data.question_number &&
+          (l.message_type === 'instruction' ||
+            l.message_type === 'exercise' ||
+            (l.metadata &&
+              typeof l.metadata === 'object' &&
+              ['trail-ai', 'next-content'].includes(
+                String((l.metadata as { source?: string }).source ?? ''),
+              ))),
+      )
+      // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
+      if (
+        !already &&
+        data.stage_type !== 'ai' &&
+        deliveredKeyRef.current !== key
+      ) {
+        deliveredKeyRef.current = key
+        const msgId = trailMessageId(data.stage_number, data.question_number)
+        let isNew = false
+        setMessages((prev) => {
+          const result = appendTrailMessage(prev, {
+            id: msgId,
+            role: 'assistant',
+            text,
+            stageType: data.stage_type,
+            cellKey: key,
+          })
+          isNew = result.isNew
+          return result.messages
+        })
+        if (isNew) {
+          void persistLog({
+            sender: 'system',
+            message_text: text,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message_type:
+              data.stage_type === 'exercise' ? 'exercise' : 'instruction',
+            metadata: { source: 'next-content', stage_type: data.stage_type },
+          })
+        }
+      } else if (data.stage_type === 'ai') {
+        deliveredKeyRef.current = key
+        const hasAi = logs.some(
+          (l) =>
+            l.sender === 'system' &&
+            l.stage_number === data.stage_number &&
+            l.question_number === data.question_number &&
+            (l.message_type === 'instruction' ||
+              (l.metadata &&
+                typeof l.metadata === 'object' &&
+                (l.metadata as { source?: string }).source === 'trail-ai')),
+        )
+        if (!hasAi && text) {
+          const msgId = trailMessageId(data.stage_number, data.question_number)
+          setMessages((prev) =>
+            appendTrailMessage(prev, {
+              id: msgId,
+              role: 'assistant',
+              text,
+              stageType: 'ai',
+              cellKey: key,
+            }).messages,
+          )
         }
       }
     } catch (err) {
@@ -836,13 +849,19 @@ export default function PlayerPage() {
       : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
 
   const placeholder =
-    content?.status !== 'ok'
-      ? 'Trilha indisponível no momento'
-      : content.stage_type === 'exercise'
-        ? 'Responda a questão'
-        : mariaSidechat
-          ? 'Pergunte mais à Maria ou volte para a trilha…'
-          : 'Pergunte à Maria ou digite continuar…'
+    content == null
+      ? historyReady
+        ? 'Trilha indisponível no momento'
+        : 'Carregando a trilha…'
+      : content.status !== 'ok'
+        ? 'Trilha indisponível no momento'
+        : content.stage_type === 'exercise'
+          ? exerciseDone
+            ? 'Pergunte à Maria ou use Continuar…'
+            : 'Responda a questão'
+          : mariaSidechat
+            ? 'Pergunte mais à Maria ou volte para a trilha…'
+            : 'Pergunte à Maria ou digite continuar…'
 
   const hintKey =
     content?.status !== 'ok'
@@ -968,7 +987,8 @@ export default function PlayerPage() {
         {content?.status === 'ok' &&
         content.stage_type === 'exercise' &&
         !exerciseDone &&
-        options.length > 0 ? (
+        options.length > 0 &&
+        !(busy && busyReason === 'exercise' && pendingOptionKey) ? (
           <div className="chat-exercise" role="group" aria-label="Opções">
             <p className="chat-exercise__legend">Responda a questão</p>
             <div className="chat-exercise__options">

@@ -7,6 +7,14 @@ import {
   buildTrailAiPrompt,
   formatContextFromLogs,
 } from './buildTrailAiPrompt'
+import {
+  blocoMismatchesSubject,
+  contentFingerprint,
+  enrichBlocoContent,
+  extractCorrectLetterFromText,
+  filterContextForBloco,
+  isBlocoRespostaPrompt,
+} from './blocoSubjectGuard'
 import { formatAiAnswer } from './formatAiAnswer'
 import {
   generateContentWithGemini,
@@ -16,6 +24,7 @@ import {
   claimTrailAiGeneration,
   invalidateTrailAiDelivery,
   listRecentContextLogs,
+  readTrailAiDeliveryFingerprint,
   releaseTrailAiClaim,
   resolveDeliveredAiContent,
   trailAiDeliveryDocId,
@@ -60,6 +69,192 @@ function asResult(
     question_number: questionNumber,
     title,
   }
+}
+
+type CellMeta = {
+  prompt: string
+  baseContent: string
+  enrichedContent: string
+  title: string | null
+  fingerprint: string
+  subjectSource: string
+  isBloco: boolean
+}
+
+async function loadPreviousExercise(
+  db: Firestore,
+  trailId: string,
+  stageNumber: number,
+  questionNumber: number,
+): Promise<{
+  content: string
+  title: string | null
+  correct_option: string | null
+} | null> {
+  const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+
+  for (let s = stageNumber - 1; s >= Math.max(1, stageNumber - 6); s--) {
+    const stageSnap = await db
+      .collection(stagesCollection)
+      .doc(stageDocId(trailId, s))
+      .get()
+    if (!stageSnap.exists) continue
+    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+    const stageType =
+      typeof stageData.stage_type === 'string'
+        ? stageData.stage_type.trim().toLowerCase()
+        : ''
+    if (stageType !== 'exercise') continue
+
+    const qSnap = await db
+      .collection(questionsCollection)
+      .doc(trailStageQuestionDocId(trailId, s, questionNumber))
+      .get()
+    if (!qSnap.exists) continue
+    const qData = (qSnap.data() ?? {}) as Record<string, unknown>
+    const content = typeof qData.content === 'string' ? qData.content : ''
+    if (!content.trim()) continue
+    return {
+      content,
+      title:
+        typeof stageData.title === 'string'
+          ? stageData.title
+          : typeof qData.title === 'string'
+            ? qData.title
+            : null,
+      correct_option:
+        typeof qData.correct_option === 'string' ? qData.correct_option : null,
+    }
+  }
+  return null
+}
+
+async function loadCellMeta(
+  db: Firestore,
+  trailId: string,
+  stageNumber: number,
+  questionNumber: number,
+): Promise<CellMeta & { stageType: string }> {
+  const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+
+  const [stageSnap, questionSnap] = await Promise.all([
+    db.collection(stagesCollection).doc(stageDocId(trailId, stageNumber)).get(),
+    db
+      .collection(questionsCollection)
+      .doc(trailStageQuestionDocId(trailId, stageNumber, questionNumber))
+      .get(),
+  ])
+
+  const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+  const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
+  const stageType =
+    typeof stageData.stage_type === 'string'
+      ? stageData.stage_type.trim().toLowerCase()
+      : ''
+  const prompt = typeof stageData.prompt === 'string' ? stageData.prompt : ''
+  const baseContent =
+    typeof questionData.content === 'string' ? questionData.content : ''
+  const title =
+    typeof stageData.title === 'string'
+      ? stageData.title
+      : typeof questionData.title === 'string'
+        ? questionData.title
+        : null
+
+  const isBloco = isBlocoRespostaPrompt(prompt, title)
+  let enrichedContent = baseContent
+  let subjectSource = baseContent
+  let prevContent = ''
+  let prevCorrect: string | null = null
+  let prevTitle: string | null = null
+
+  if (isBloco) {
+    const prev = await loadPreviousExercise(
+      db,
+      trailId,
+      stageNumber,
+      questionNumber,
+    )
+    if (prev) {
+      prevContent = prev.content
+      prevCorrect = prev.correct_option
+      prevTitle = prev.title
+      subjectSource = prev.content
+      const letter =
+        extractCorrectLetterFromText(baseContent) ||
+        (prev.correct_option
+          ? /^\d+$/.test(prev.correct_option)
+            ? String.fromCharCode(64 + Number(prev.correct_option))
+            : prev.correct_option.toUpperCase()
+          : null)
+      enrichedContent = enrichBlocoContent({
+        blocoContent: baseContent,
+        exerciseContent: prev.content,
+        exerciseTitle: prev.title,
+        correctOption: prev.correct_option,
+        correctLetter: letter,
+      })
+    }
+  }
+
+  const fingerprint = contentFingerprint([
+    prompt,
+    baseContent,
+    prevContent,
+    prevCorrect,
+    prevTitle,
+    title,
+  ])
+
+  return {
+    prompt,
+    baseContent,
+    enrichedContent,
+    title,
+    fingerprint,
+    subjectSource,
+    isBloco,
+    stageType,
+  }
+}
+
+async function cachedDeliveryIsValid(
+  db: Firestore,
+  cell: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+  messageText: string,
+  meta: CellMeta,
+): Promise<boolean> {
+  if (meta.isBloco && blocoMismatchesSubject(messageText, meta.subjectSource)) {
+    return false
+  }
+  const cached = await readTrailAiDeliveryFingerprint(db, cell)
+  if (cached?.content_fingerprint) {
+    return cached.content_fingerprint === meta.fingerprint
+  }
+  // Legado sem fingerprint: se é BLOCO e o texto não contém âncoras do exercício
+  // quando o exercício tem termos claros, força regeneração uma vez.
+  if (meta.isBloco && meta.subjectSource.trim().length > 40) {
+    const subjectTokens = meta.subjectSource
+      .toLowerCase()
+      .match(
+        /\b(di[aâ]metro|raio|circunfer[eê]ncia|c[ií]rculo|gostar|reg[eê]ncia)\b/gi,
+      )
+    if (subjectTokens && subjectTokens.length > 0) {
+      const lower = messageText.toLowerCase()
+      const hit = subjectTokens.some((t) => lower.includes(t.toLowerCase()))
+      if (!hit) return false
+    }
+  }
+  return true
 }
 
 /**
@@ -115,68 +310,11 @@ export async function ensureTrailAiContent(
     question_number: questionNumber,
   }
 
+  const meta = await loadCellMeta(db, trailId, stageNumber, questionNumber)
+
   const forceRegenerate = input.force_regenerate === true
   if (forceRegenerate) {
     await invalidateTrailAiDelivery(db, cell)
-  }
-
-  if (!forceRegenerate) {
-    const claim = await claimTrailAiGeneration(db, cell)
-    if (claim.kind === 'ready') {
-      return asResult(
-        claim.content.message_text,
-        false,
-        null,
-        stageNumber,
-        questionNumber,
-        null,
-      )
-    }
-
-    if (claim.kind === 'pending') {
-      const waited = await waitForTrailAiDelivery(db, cell)
-      if (waited) {
-        return asResult(
-          waited.message_text,
-          false,
-          null,
-          stageNumber,
-          questionNumber,
-          null,
-        )
-      }
-      // Timeout / failed: tenta reclaim; se outro vencer, espera de novo.
-      const reclaim = await claimTrailAiGeneration(db, cell)
-      if (reclaim.kind === 'ready') {
-        return asResult(
-          reclaim.content.message_text,
-          false,
-          null,
-          stageNumber,
-          questionNumber,
-          null,
-        )
-      }
-      if (reclaim.kind === 'pending') {
-        const waited2 = await waitForTrailAiDelivery(db, cell, {
-          timeoutMs: 6_000,
-        })
-        if (waited2) {
-          return asResult(
-            waited2.message_text,
-            false,
-            null,
-            stageNumber,
-            questionNumber,
-            null,
-          )
-        }
-        throw new Error('Timeout aguardando geração trail-ai da célula.')
-      }
-      // reclaim.kind === 'claimed' → segue para generate abaixo
-    }
-  } else {
-    // force: marca pending sem tratar log antigo como ready.
     const id = trailAiDeliveryDocId(
       studentId,
       trailId,
@@ -198,7 +336,68 @@ export async function ensureTrailAiContent(
       message_text: null,
       log_id: null,
       force_regenerate: true,
+      content_fingerprint: null,
     })
+  }
+
+  let hasClaim = forceRegenerate
+  if (!forceRegenerate) {
+    // Até 3 tentativas: ready inválido (matéria errada) → invalidate → reclaim.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const claim = await claimTrailAiGeneration(db, cell)
+      if (claim.kind === 'ready') {
+        const valid = await cachedDeliveryIsValid(
+          db,
+          cell,
+          claim.content.message_text,
+          meta,
+        )
+        if (valid) {
+          return asResult(
+            claim.content.message_text,
+            false,
+            null,
+            stageNumber,
+            questionNumber,
+            meta.title,
+          )
+        }
+        await invalidateTrailAiDelivery(db, cell)
+        continue
+      }
+      if (claim.kind === 'pending') {
+        const waited = await waitForTrailAiDelivery(db, cell, {
+          timeoutMs: attempt === 0 ? 12_000 : 6_000,
+        })
+        if (waited) {
+          const valid = await cachedDeliveryIsValid(
+            db,
+            cell,
+            waited.message_text,
+            meta,
+          )
+          if (valid) {
+            return asResult(
+              waited.message_text,
+              false,
+              null,
+              stageNumber,
+              questionNumber,
+              meta.title,
+            )
+          }
+          await invalidateTrailAiDelivery(db, cell)
+          continue
+        }
+        continue
+      }
+      // claim.kind === 'claimed'
+      hasClaim = true
+      break
+    }
+    if (!hasClaim) {
+      throw new Error('Timeout aguardando geração trail-ai da célula.')
+    }
   }
 
   // claimed — único gerador desta célula
@@ -207,56 +406,41 @@ export async function ensureTrailAiContent(
     if (!forceRegenerate) {
       const existingLog = await resolveDeliveredAiContent(db, cell)
       if (existingLog) {
-        await upsertTrailAiDeliveryCache(db, {
-          ...cell,
-          message_text: existingLog.message_text,
-          log_id: existingLog.log_id,
-        })
-        return asResult(
+        const valid = await cachedDeliveryIsValid(
+          db,
+          cell,
           existingLog.message_text,
-          false,
-          null,
-          stageNumber,
-          questionNumber,
-          null,
+          meta,
         )
+        if (valid) {
+          await upsertTrailAiDeliveryCache(db, {
+            ...cell,
+            message_text: existingLog.message_text,
+            log_id: existingLog.log_id,
+            content_fingerprint: meta.fingerprint,
+          })
+          return asResult(
+            existingLog.message_text,
+            false,
+            null,
+            stageNumber,
+            questionNumber,
+            meta.title,
+          )
+        }
+        // log legado inválido (matéria errada): não reusa — gera de novo
       }
     }
 
-    const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
-    const questionsCollection =
-      process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
-    const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
-    const logsCollection =
-      process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
-
-    const [stageSnap, questionSnap, studentSnap] = await Promise.all([
-      db.collection(stagesCollection).doc(stageDocId(trailId, stageNumber)).get(),
-      db
-        .collection(questionsCollection)
-        .doc(trailStageQuestionDocId(trailId, stageNumber, questionNumber))
-        .get(),
-      db.collection(studentsCollection).doc(studentId).get(),
-    ])
-
-    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
-    const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
-    const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
-
-    if (stageData.stage_type !== 'ai') {
+    if (meta.stageType !== 'ai') {
       await releaseTrailAiClaim(db, cell)
       throw new Error('ensure-ai só aplica a stages do tipo "ai".')
     }
 
-    const prompt = typeof stageData.prompt === 'string' ? stageData.prompt : ''
-    const content =
-      typeof questionData.content === 'string' ? questionData.content : ''
-    const title =
-      typeof stageData.title === 'string'
-        ? stageData.title
-        : typeof questionData.title === 'string'
-          ? questionData.title
-          : null
+    const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+    const studentSnap = await db.collection(studentsCollection).doc(studentId).get()
+    const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
+
     const name = typeof studentData.name === 'string' ? studentData.name : ''
     const school_grade =
       typeof studentData.school_grade === 'string'
@@ -287,15 +471,23 @@ export async function ensureTrailAiContent(
       trail_id: trailId,
       limit: contextLimit(env),
     })
-    const context = formatContextFromLogs(recent, contextLimit(env))
+    let context = formatContextFromLogs(recent, contextLimit(env))
+    if (meta.isBloco) {
+      context = filterContextForBloco(context, {
+        stage_number: stageNumber,
+        question_number: questionNumber,
+        subjectSource: meta.subjectSource,
+      })
+    }
+
     const built = buildTrailAiPrompt({
       name,
       school_grade,
       student_level,
-      prompt,
-      content,
+      prompt: meta.prompt,
+      content: meta.enrichedContent,
       context,
-      trail_title: title,
+      trail_title: meta.title,
     })
 
     let rawText: string
@@ -316,33 +508,53 @@ export async function ensureTrailAiContent(
       throw new Error(msg)
     }
 
-    const formatted = formatAiAnswer(rawText)
+    let formatted = formatAiAnswer(rawText)
     if (!formatted) {
       await releaseTrailAiClaim(db, cell)
       throw new Error('Resposta da IA vazia após formatação.')
+    }
+
+    // Guardrail pós-geração: se ainda veio matéria errada, não cacheia.
+    if (
+      meta.isBloco &&
+      blocoMismatchesSubject(formatted, meta.subjectSource)
+    ) {
+      await releaseTrailAiClaim(db, cell)
+      throw new Error(
+        'Geração BLOCO RESPOSTA incoerente com o exercício (matéria divergente). Tente novamente.',
+      )
     }
 
     // Nunca segundo log trail-ai na mesma célula (exceto force_regenerate).
     if (!forceRegenerate) {
       const raced = await resolveDeliveredAiContent(db, cell)
       if (raced) {
-        await upsertTrailAiDeliveryCache(db, {
-          ...cell,
-          message_text: raced.message_text,
-          log_id: raced.log_id,
-        })
-        return asResult(
+        const valid = await cachedDeliveryIsValid(
+          db,
+          cell,
           raced.message_text,
-          false,
-          null,
-          stageNumber,
-          questionNumber,
-          title,
+          meta,
         )
+        if (valid) {
+          await upsertTrailAiDeliveryCache(db, {
+            ...cell,
+            message_text: raced.message_text,
+            log_id: raced.log_id,
+            content_fingerprint: meta.fingerprint,
+          })
+          return asResult(
+            raced.message_text,
+            false,
+            null,
+            stageNumber,
+            questionNumber,
+            meta.title,
+          )
+        }
       }
     }
 
-    const created = await createConversationLog(db, logsCollection, {
+    const created = await createConversationLog(db, logsCollectionName(), {
       student_id: studentId,
       trail_id: trailId,
       stage_number: stageNumber,
@@ -356,6 +568,7 @@ export async function ensureTrailAiContent(
         stage_type: 'ai',
         model,
         channel: 'app',
+        content_fingerprint: meta.fingerprint,
         ...(forceRegenerate ? { force_regenerate: true } : {}),
       },
     })
@@ -364,6 +577,7 @@ export async function ensureTrailAiContent(
       ...cell,
       message_text: formatted,
       log_id: typeof created?.id === 'string' ? created.id : null,
+      content_fingerprint: meta.fingerprint,
     })
 
     return asResult(
@@ -372,7 +586,7 @@ export async function ensureTrailAiContent(
       model,
       stageNumber,
       questionNumber,
-      title,
+      meta.title,
     )
   } catch (e) {
     await releaseTrailAiClaim(db, cell).catch(() => {
@@ -380,4 +594,8 @@ export async function ensureTrailAiContent(
     })
     throw e
   }
+}
+
+function logsCollectionName(): string {
+  return process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 }

@@ -25,7 +25,16 @@ export {
   invalidateTrailAiDelivery,
   listRecentContextLogs,
   listTrailConversationLogsSafe,
+  readTrailAiDeliveryFingerprint,
   resolveDeliveredAiContent,
   trailAiDeliveryDocId,
   upsertTrailAiDeliveryCache,
 } from './resolveDeliveredAiContent'
+export {
+  blocoMismatchesSubject,
+  contentFingerprint,
+  enrichBlocoContent,
+  extractCorrectLetterFromText,
+  filterContextForBloco,
+  isBlocoRespostaPrompt,
+} from './blocoSubjectGuard'

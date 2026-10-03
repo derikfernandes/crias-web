@@ -44,6 +44,8 @@ export async function upsertTrailAiDeliveryCache(
     question_number: number
     message_text: string
     log_id?: string | null
+    /** Fingerprint prompt+content(+exercício) — mismatch força regeneração. */
+    content_fingerprint?: string | null
   },
 ): Promise<void> {
   const studentId = input.student_id.trim()
@@ -58,6 +60,11 @@ export async function upsertTrailAiDeliveryCache(
     input.stage_number,
     input.question_number,
   )
+  const fp =
+    typeof input.content_fingerprint === 'string' &&
+    input.content_fingerprint.trim()
+      ? input.content_fingerprint.trim()
+      : null
   await db
     .collection(trailAiDeliveriesCollection())
     .doc(id)
@@ -72,9 +79,41 @@ export async function upsertTrailAiDeliveryCache(
         status: 'ready',
         source: 'trail-ai',
         updated_at_ms: Date.now(),
+        ...(fp ? { content_fingerprint: fp } : {}),
       },
       { merge: true },
     )
+}
+
+/** Lê fingerprint armazenado no cache O(1) da célula (se houver). */
+export async function readTrailAiDeliveryFingerprint(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<{ message_text: string; content_fingerprint: string | null } | null> {
+  const id = trailAiDeliveryDocId(
+    input.student_id.trim(),
+    input.trail_id.trim(),
+    input.stage_number,
+    input.question_number,
+  )
+  const snap = await db.collection(trailAiDeliveriesCollection()).doc(id).get()
+  if (!snap.exists) return null
+  const data = (snap.data() ?? {}) as Record<string, unknown>
+  const text =
+    typeof data.message_text === 'string' ? data.message_text.trim() : ''
+  if (!text) return null
+  return {
+    message_text: text,
+    content_fingerprint:
+      typeof data.content_fingerprint === 'string'
+        ? data.content_fingerprint
+        : null,
+  }
 }
 
 export type TrailAiClaimResult =

@@ -6,7 +6,8 @@ import type {
 import { FieldValue } from 'firebase-admin/firestore'
 
 import type { ExerciseAttemptCreatePayload } from './exerciseAttemptValidation'
-import { answersMatch } from './exerciseOptions'
+import { answersMatch, resolveExerciseOptions } from './exerciseOptions'
+import { extractCorrectLetterFromText } from './trail-ai/blocoSubjectGuard'
 
 export type ExerciseAttemptRuntime = {
   id: string
@@ -179,12 +180,22 @@ export async function createExerciseAttemptWithQuestionLookup(
     }
 
     const q = readQuestionData(questionSnap)
+    const questionRaw = (questionSnap.data() ?? {}) as Record<string, unknown>
+    const qContent =
+      typeof questionRaw.content === 'string' ? questionRaw.content : ''
 
     if (q.annulled) {
       throw new Error(
         'Questão anulada. Não é possível registrar tentativa nem pontuar acerto/erro.',
       )
     }
+
+    // Lê próxima questão (possível BLOCO com "letra X") antes de qualquer write.
+    const nextQSnap = await tx.get(
+      questionsRef.doc(
+        `${data.trail_id}_stage_${data.stage_number + 1}_q_${data.question_number}`,
+      ),
+    )
 
     const attemptsQuery = await tx.get(
       attemptsRef
@@ -205,11 +216,34 @@ export async function createExerciseAttemptWithQuestionLookup(
 
     const attempt_number = maxAttempt + 1
     const studentAnswer = data.student_answer.trim()
+
+    // Gabarito: campo correct_option, ou inferência da letra no BLOCO/base
+    // da etapa seguinte (ex.: stage 11 sem correct_option mas "letra A" no 12).
+    let resolvedCorrect = q.correct_option ?? null
+    if (!resolvedCorrect) {
+      const hasOptions = Boolean(
+        resolveExerciseOptions(questionRaw.options, qContent),
+      )
+      if (hasOptions) {
+        if (nextQSnap.exists) {
+          const nextData = (nextQSnap.data() ?? {}) as Record<string, unknown>
+          const nextContent =
+            typeof nextData.content === 'string' ? nextData.content : ''
+          const letter = extractCorrectLetterFromText(nextContent)
+          if (letter) resolvedCorrect = letter
+        }
+        if (!resolvedCorrect && typeof data.feedback === 'string') {
+          const letter = extractCorrectLetterFromText(data.feedback)
+          if (letter) resolvedCorrect = letter
+        }
+      }
+    }
+
     // Sem gabarito: registra tentativa unscored (não 500).
-    const correct_option = q.correct_option ?? ''
-    const hasGabarito = Boolean(q.correct_option)
+    const correct_option = resolvedCorrect ?? ''
+    const hasGabarito = Boolean(resolvedCorrect)
     const is_correct = hasGabarito
-      ? answersMatch(studentAnswer, q.correct_option as string)
+      ? answersMatch(studentAnswer, resolvedCorrect as string)
       : false
     const score = hasGabarito ? (is_correct ? 1 : 0) : null
 

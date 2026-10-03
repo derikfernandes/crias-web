@@ -44,7 +44,7 @@ export function isContinuarText(text: string): boolean {
 
 /** Conclusão de aula embutida em BLOCO/feedback antigo (mid-aula). */
 const LESSON_CONCLUDE_RE =
-  /parab[eé]ns\s+por\s+concluir|concluiu\s+(esta\s+)?(aula|trilha)|resposta\s+final/i
+  /parab[eé]ns\s+por\s+concluir(?:\s+a\s+aula)?/i
 
 /** CTA de fechamento frequentemente colado após o conclude. */
 const LESSON_CONCLUDE_TRAILER_RE =
@@ -57,6 +57,7 @@ export function looksLikeLessonConclusion(text: string): boolean {
 /**
  * Remove “Parabéns por concluir a aula…” (e trailer) de bolhas mid-aula.
  * Não apaga o restante do BLOCO/feedback — só o fecho prematuro.
+ * (Não usa “Resposta Final” como âncora — é título legítimo do BLOCO.)
  */
 export function stripMidLessonConclusion(text: string): string {
   let s = String(text ?? '')

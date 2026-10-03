@@ -430,10 +430,11 @@ function typingCopy(reason: BusyReason): {
     }
   }
   if (reason === 'exercise') {
+    // R11-C12: chrome neutro (sem “CRIAS” + jargão “feedback da questão”).
     return {
-      label: 'Crias',
-      aria: 'Preparando feedback da questão',
-      reduced: 'Preparando feedback…',
+      label: 'Aula',
+      aria: 'Preparando a resposta',
+      reduced: 'Preparando a resposta…',
     }
   }
   return {
@@ -1242,6 +1243,17 @@ export default function PlayerPage() {
     writeMariaPersist(trailId, { draft, mariaSidechat })
   }, [trailId, draft, mariaSidechat])
 
+  /** R15-Y03: avisa ao fechar aba se há rascunho no composer. */
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!draft.trim()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [draft])
+
   function capturePinFromScroll() {
     const el = threadRef.current
     if (!el) return false
@@ -1776,15 +1788,15 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // R23-L01: anunciar etapa + focar bolha nova (não roubar para composer).
+      // R15-Y04 / R23-L01: ACK “salvo” + anunciar etapa; focar bolha (não composer).
       window.requestAnimationFrame(() => {
         const lastAssistant = [...messagesRef.current]
           .reverse()
           .find((m) => m.role === 'assistant' || m.role === 'system')
         setSrAnnounce(
           lastAssistant
-            ? 'Nova etapa da trilha disponível'
-            : 'Etapa atualizada',
+            ? 'Progresso salvo. Nova etapa da trilha disponível'
+            : 'Progresso salvo. Etapa atualizada',
         )
         if (focusMessageById(lastAssistant?.id)) return
         if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
@@ -2897,7 +2909,7 @@ className={`chat-composer__send${sendAriaDisabled ? ' is-aria-disabled' : ''}`}
                 ? 'Enviar resposta'
                 : sendAriaDisabled
                   ? 'Enviar — escolha uma opção primeiro'
-                  : 'Enviar'
+                  : 'Enviar pergunta à Maria'
             }
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>

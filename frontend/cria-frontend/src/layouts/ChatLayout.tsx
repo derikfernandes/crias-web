@@ -296,6 +296,11 @@ export default function ChatLayout() {
   }, [location.pathname])
 
   function logout() {
+    // R15-Y02: confirm antes de Sair (chrome; progresso já está na escola).
+    const ok = window.confirm(
+      'Sair da conta? Seu progresso na trilha fica salvo.',
+    )
+    if (!ok) return
     clearSession('logout')
     navigate('/login', { replace: true })
   }
@@ -305,6 +310,23 @@ export default function ChatLayout() {
     ? decodeURIComponent(trailMatch[1])
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
+
+  /** R14-L11: trilha em andamento (ou a ativa) para “Continuar aula”. */
+  const continueAulaRow =
+    activeRow ||
+    rows?.find((r) => r.status === 'in_progress') ||
+    rows?.find((r) => r.status === 'not_started') ||
+    null
+  const continueAulaHref = continueAulaRow
+    ? `/trilha/${encodeURIComponent(continueAulaRow.trail_id)}`
+    : null
+  const continueAulaLabel =
+    continueAulaRow?.status === 'not_started'
+      ? 'Começar aula'
+      : 'Continuar aula'
+  const showContinueAula =
+    Boolean(continueAulaHref) &&
+    location.pathname !== continueAulaHref
 
   useEffect(() => {
     const onChrome = (e: Event) => {
@@ -369,6 +391,16 @@ export default function ChatLayout() {
             </span>{' '}
             Minhas trilhas
           </Link>
+
+          {showContinueAula && continueAulaHref ? (
+            <Link
+              to={continueAulaHref}
+              className="chat-sidebar__continue-aula"
+              onClick={() => closeDrawer(false)}
+            >
+              {continueAulaLabel}
+            </Link>
+          ) : null}
 
           {trailsLoading && rows === null ? (
             <p className="muted chat-sidebar__empty">Carregando trilhas…</p>

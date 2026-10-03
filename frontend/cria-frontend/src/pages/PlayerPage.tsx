@@ -535,7 +535,7 @@ export default function PlayerPage() {
     )
   }
 
-  function startPinLock(holdMs = 1200) {
+  function startPinLock(holdMs = 2500) {
     pinHoldUntilRef.current = Date.now() + holdMs
     if (pinLockRafRef.current != null) return
     const tick = () => {
@@ -661,7 +661,8 @@ export default function PlayerPage() {
 
   useEffect(() => {
     if (content?.status === 'ok' && content.stage_type !== 'exercise') {
-      inputRef.current?.focus()
+      // preventScroll: focus no composer não pode puxar .chat-thread__scroll (C2-40).
+      inputRef.current?.focus({ preventScroll: true })
     }
   }, [content])
 
@@ -842,7 +843,7 @@ export default function PlayerPage() {
         threadRef.current.scrollTop = pinnedScrollTopRef.current
         nearBottomRef.current = false
         setNewMsgChip(true)
-        startPinLock(1200)
+        startPinLock(2500)
       } else {
         stopPinLock()
       }

@@ -415,6 +415,29 @@ a.ghost:hover {
   padding: 2rem;
 }
 
+.chat-history-collapse {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 1.25rem 0.75rem;
+}
+
+.chat-history-collapse__btn {
+  appearance: none;
+  border: 1px solid var(--border, #d0d4dc);
+  background: var(--main-alt, #f4f5f7);
+  color: var(--muted, #5c6578);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius, 8px);
+  cursor: pointer;
+}
+
+.chat-history-collapse__btn:hover {
+  color: var(--ink, #111);
+  border-color: var(--muted, #5c6578);
+}
+
 .chat-bubble {
   width: 100%;
   padding: 1.15rem 0;

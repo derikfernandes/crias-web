@@ -483,10 +483,25 @@ async function handleRequest(request: Request): Promise<Response> {
             error: 'Campos "student_id" e "trail_id" são obrigatórios.',
           })
         }
+        const stageNumber =
+          typeof body.stage_number === 'number' && body.stage_number >= 1
+            ? Math.trunc(body.stage_number)
+            : undefined
+        const questionNumber =
+          typeof body.question_number === 'number' && body.question_number >= 1
+            ? Math.trunc(body.question_number)
+            : undefined
+        const forceRegenerate =
+          body.force_regenerate === true ||
+          body.force_regenerate === 'true' ||
+          url.searchParams.get('force_regenerate') === '1'
         try {
           const ensured = await ensureTrailAiContent(db, {
             student_id: targetStudentId,
             trail_id: targetTrailId,
+            stage_number: stageNumber,
+            question_number: questionNumber,
+            force_regenerate: forceRegenerate,
           })
           return jsonResponse(
             { status: 'ok', ...ensured } as Json,

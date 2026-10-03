@@ -22,6 +22,7 @@ export {
   resolveVertexTarget,
 } from './geminiClient'
 export {
+  invalidateTrailAiDelivery,
   listRecentContextLogs,
   listTrailConversationLogsSafe,
   resolveDeliveredAiContent,

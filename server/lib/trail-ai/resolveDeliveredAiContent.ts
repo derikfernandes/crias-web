@@ -236,6 +236,36 @@ export async function releaseTrailAiClaim(
   }
 }
 
+/**
+ * Apaga o cache O(1) da célula (ready ou pending) para forçar regeneração.
+ * Usado quando BLOCO RESPOSTA conflita com o attempt ou via force_regenerate.
+ */
+export async function invalidateTrailAiDelivery(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<boolean> {
+  const id = trailAiDeliveryDocId(
+    input.student_id.trim(),
+    input.trail_id.trim(),
+    input.stage_number,
+    input.question_number,
+  )
+  const ref = db.collection(trailAiDeliveriesCollection()).doc(id)
+  try {
+    const snap = await ref.get()
+    if (!snap.exists) return false
+    await ref.delete()
+    return true
+  } catch {
+    return false
+  }
+}
+
 function asPositiveInt(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v) && v >= 1) {
     return Math.trunc(v)
@@ -332,8 +362,8 @@ export async function resolveDeliveredAiContent(
       typeof data.message_text === 'string' ? data.message_text.trim() : ''
     if (!text) continue
     const rank = conversationLogCreatedAtMillis(data)
-    // Prefere a entrega mais antiga (primeiro generate da célula).
-    if (!best || rank < best.rank) {
+    // Prefere a entrega mais recente (force_regenerate / cache alinhado).
+    if (!best || rank > best.rank) {
       best = { rank, message_text: text, log_id: doc.id }
     }
   }

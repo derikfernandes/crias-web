@@ -107,7 +107,57 @@ export function trailMessageId(stage: number, question: number): string {
   return `trail-${stage}-${question}`
 }
 
-/** Autolink + embed básico de imagens (ibb) / links Drive. */
+/** Label amigável para URLs conhecidas (YouTube / Drive / genérico). */
+export function linkLabelForUrl(url: string): string {
+  if (/youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\//i.test(url)) {
+    return 'Assistir no YouTube'
+  }
+  if (/drive\.google\.com/i.test(url)) return 'Abrir no Drive'
+  if (/docs\.google\.com/i.test(url)) return 'Abrir no Google Docs'
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    return host || url
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Remove linhas do BLOCO RESPOSTA que contradizem o resultado do attempt
+ * (ex.: "Parabéns pelo acerto" após resposta incorreta).
+ */
+export function alignBlocoWithAttempt(
+  bloco: string,
+  isCorrect: boolean,
+): string {
+  const celebrate =
+    /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta|muito\s+bem[,!]?\s*(voc|$)/i
+  const mourn =
+    /resposta\s+incorreta|voc[eê]\s+errou|n[aã]o\s+acert|infelizmente|n[aã]o\s+foi\s+dessa/i
+  const lines = bloco.split(/\r?\n/)
+  const kept = lines.filter((line) => {
+    const t = line.trim()
+    if (!t) return true
+    if (!isCorrect && celebrate.test(t)) return false
+    if (isCorrect && mourn.test(t)) return false
+    return true
+  })
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+export function blocoConflictsWithAttempt(
+  bloco: string,
+  isCorrect: boolean,
+): boolean {
+  const celebrate =
+    /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta/i
+  const mourn = /resposta\s+incorreta|voc[eê]\s+errou|n[aã]o\s+acert/i
+  if (!isCorrect && celebrate.test(bloco)) return true
+  if (isCorrect && mourn.test(bloco)) return true
+  return false
+}
+
+/** Autolink + embed básico de imagens (ibb) / links Drive/YouTube. */
 export function renderMessageLines(text: string): Array<{
   key: string
   kind: 'text' | 'image' | 'link'
@@ -154,7 +204,7 @@ export function renderMessageLines(text: string): Array<{
             key: `a-${lineIdx}-${i}`,
             kind: 'link',
             value: clean,
-            label: /drive\.google\.com/i.test(clean) ? 'Abrir no Drive' : clean,
+            label: linkLabelForUrl(clean),
           })
         }
       } else {

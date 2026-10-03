@@ -336,6 +336,7 @@ async function handleRequest(request: Request): Promise<Response> {
           trail_id: validated.data.trail_id,
           stage_number: validated.data.stage_number,
           question_number: validated.data.question_number,
+          is_correct: result.is_correct,
         })
       } catch {
         pedagogical_feedback = null

@@ -14,9 +14,11 @@ import {
 } from './geminiClient'
 import {
   claimTrailAiGeneration,
+  invalidateTrailAiDelivery,
   listRecentContextLogs,
   releaseTrailAiClaim,
   resolveDeliveredAiContent,
+  trailAiDeliveryDocId,
   upsertTrailAiDeliveryCache,
   waitForTrailAiDelivery,
 } from './resolveDeliveredAiContent'
@@ -73,6 +75,8 @@ export async function ensureTrailAiContent(
     /** Prefetch / célula explícita; default = posição atual do aluno. */
     stage_number?: number
     question_number?: number
+    /** QA/admin: apaga cache da célula e regenera Gemini. */
+    force_regenerate?: boolean
   },
   env: NodeJS.ProcessEnv = process.env,
   generateImpl: typeof generateContentWithGemini = generateContentWithGemini,
@@ -111,23 +115,16 @@ export async function ensureTrailAiContent(
     question_number: questionNumber,
   }
 
-  const claim = await claimTrailAiGeneration(db, cell)
-  if (claim.kind === 'ready') {
-    return asResult(
-      claim.content.message_text,
-      false,
-      null,
-      stageNumber,
-      questionNumber,
-      null,
-    )
+  const forceRegenerate = input.force_regenerate === true
+  if (forceRegenerate) {
+    await invalidateTrailAiDelivery(db, cell)
   }
 
-  if (claim.kind === 'pending') {
-    const waited = await waitForTrailAiDelivery(db, cell)
-    if (waited) {
+  if (!forceRegenerate) {
+    const claim = await claimTrailAiGeneration(db, cell)
+    if (claim.kind === 'ready') {
       return asResult(
-        waited.message_text,
+        claim.content.message_text,
         false,
         null,
         stageNumber,
@@ -135,25 +132,12 @@ export async function ensureTrailAiContent(
         null,
       )
     }
-    // Timeout / failed: tenta reclaim; se outro vencer, espera de novo.
-    const reclaim = await claimTrailAiGeneration(db, cell)
-    if (reclaim.kind === 'ready') {
-      return asResult(
-        reclaim.content.message_text,
-        false,
-        null,
-        stageNumber,
-        questionNumber,
-        null,
-      )
-    }
-    if (reclaim.kind === 'pending') {
-      const waited2 = await waitForTrailAiDelivery(db, cell, {
-        timeoutMs: 6_000,
-      })
-      if (waited2) {
+
+    if (claim.kind === 'pending') {
+      const waited = await waitForTrailAiDelivery(db, cell)
+      if (waited) {
         return asResult(
-          waited2.message_text,
+          waited.message_text,
           false,
           null,
           stageNumber,
@@ -161,29 +145,82 @@ export async function ensureTrailAiContent(
           null,
         )
       }
-      throw new Error('Timeout aguardando geração trail-ai da célula.')
+      // Timeout / failed: tenta reclaim; se outro vencer, espera de novo.
+      const reclaim = await claimTrailAiGeneration(db, cell)
+      if (reclaim.kind === 'ready') {
+        return asResult(
+          reclaim.content.message_text,
+          false,
+          null,
+          stageNumber,
+          questionNumber,
+          null,
+        )
+      }
+      if (reclaim.kind === 'pending') {
+        const waited2 = await waitForTrailAiDelivery(db, cell, {
+          timeoutMs: 6_000,
+        })
+        if (waited2) {
+          return asResult(
+            waited2.message_text,
+            false,
+            null,
+            stageNumber,
+            questionNumber,
+            null,
+          )
+        }
+        throw new Error('Timeout aguardando geração trail-ai da célula.')
+      }
+      // reclaim.kind === 'claimed' → segue para generate abaixo
     }
-    // reclaim.kind === 'claimed' → segue para generate abaixo
+  } else {
+    // force: marca pending sem tratar log antigo como ready.
+    const id = trailAiDeliveryDocId(
+      studentId,
+      trailId,
+      stageNumber,
+      questionNumber,
+    )
+    const deliveries =
+      process.env.TRAIL_AI_DELIVERIES_COLLECTION ?? 'trail_ai_deliveries'
+    const now = Date.now()
+    await db.collection(deliveries).doc(id).set({
+      student_id: studentId,
+      trail_id: trailId,
+      stage_number: stageNumber,
+      question_number: questionNumber,
+      status: 'pending',
+      source: 'trail-ai',
+      claimed_at_ms: now,
+      updated_at_ms: now,
+      message_text: null,
+      log_id: null,
+      force_regenerate: true,
+    })
   }
 
   // claimed — único gerador desta célula
   try {
-    // Re-check logs (outra via pode ter persistido).
-    const existingLog = await resolveDeliveredAiContent(db, cell)
-    if (existingLog) {
-      await upsertTrailAiDeliveryCache(db, {
-        ...cell,
-        message_text: existingLog.message_text,
-        log_id: existingLog.log_id,
-      })
-      return asResult(
-        existingLog.message_text,
-        false,
-        null,
-        stageNumber,
-        questionNumber,
-        null,
-      )
+    // Re-check logs (outra via pode ter persistido) — skip se force.
+    if (!forceRegenerate) {
+      const existingLog = await resolveDeliveredAiContent(db, cell)
+      if (existingLog) {
+        await upsertTrailAiDeliveryCache(db, {
+          ...cell,
+          message_text: existingLog.message_text,
+          log_id: existingLog.log_id,
+        })
+        return asResult(
+          existingLog.message_text,
+          false,
+          null,
+          stageNumber,
+          questionNumber,
+          null,
+        )
+      }
     }
 
     const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
@@ -285,22 +322,24 @@ export async function ensureTrailAiContent(
       throw new Error('Resposta da IA vazia após formatação.')
     }
 
-    // Nunca segundo log trail-ai na mesma célula.
-    const raced = await resolveDeliveredAiContent(db, cell)
-    if (raced) {
-      await upsertTrailAiDeliveryCache(db, {
-        ...cell,
-        message_text: raced.message_text,
-        log_id: raced.log_id,
-      })
-      return asResult(
-        raced.message_text,
-        false,
-        null,
-        stageNumber,
-        questionNumber,
-        title,
-      )
+    // Nunca segundo log trail-ai na mesma célula (exceto force_regenerate).
+    if (!forceRegenerate) {
+      const raced = await resolveDeliveredAiContent(db, cell)
+      if (raced) {
+        await upsertTrailAiDeliveryCache(db, {
+          ...cell,
+          message_text: raced.message_text,
+          log_id: raced.log_id,
+        })
+        return asResult(
+          raced.message_text,
+          false,
+          null,
+          stageNumber,
+          questionNumber,
+          title,
+        )
+      }
     }
 
     const created = await createConversationLog(db, logsCollection, {
@@ -317,6 +356,7 @@ export async function ensureTrailAiContent(
         stage_type: 'ai',
         model,
         channel: 'app',
+        ...(forceRegenerate ? { force_regenerate: true } : {}),
       },
     })
 

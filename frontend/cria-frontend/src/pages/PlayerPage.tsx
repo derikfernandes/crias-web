@@ -22,6 +22,7 @@ import {
 } from '../lib/api'
 import { getSession } from '../lib/session'
 import {
+  alignBlocoWithAttempt,
   type ChatMessage,
   isContinuarText,
   lightStripMarkdown,
@@ -32,6 +33,9 @@ import {
   trailCellKey,
   trailMessageId,
 } from '../lib/trailMessages'
+
+/** Quantas bolhas recentes ficam visíveis antes do colapso de histórico. */
+const HISTORY_VISIBLE_TAIL = 28
 
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
 function stripOptionLines(text: string): string {
@@ -108,15 +112,39 @@ function cellHasExerciseFeedback(
   )
 }
 
+/**
+ * Entrega visual do passo: se a célula já existe, reancora no fim
+ * (replay) em vez de no-op — corrige Continuar pós-Voltar (R01).
+ * Retorna também se foi delivery nova (para evitar 2º log BE).
+ */
 function appendTrailMessage(
   prev: ChatMessage[],
   msg: ChatMessage,
-): ChatMessage[] {
-  if (msg.cellKey && prev.some((m) => m.cellKey === msg.cellKey || m.id === msg.id)) {
-    return prev
+): { messages: ChatMessage[]; isNew: boolean } {
+  if (msg.cellKey) {
+    const had = prev.some(
+      (m) => m.cellKey === msg.cellKey || m.id === msg.id,
+    )
+    if (had) {
+      const without = prev.filter(
+        (m) => m.cellKey !== msg.cellKey && m.id !== msg.id,
+      )
+      return {
+        messages: [
+          ...without,
+          {
+            ...msg,
+            id: `trail-replay-${msg.cellKey}-${Date.now()}`,
+          },
+        ],
+        isNew: false,
+      }
+    }
   }
-  if (prev.some((m) => m.id === msg.id)) return prev
-  return [...prev, msg]
+  if (prev.some((m) => m.id === msg.id)) {
+    return { messages: prev, isNew: false }
+  }
+  return { messages: [...prev, msg], isNew: true }
 }
 
 export default function PlayerPage() {
@@ -133,6 +161,8 @@ export default function PlayerPage() {
   /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
+  /** WS-D: colapsa bolhas antigas; expandir revela o histórico completo. */
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
@@ -217,24 +247,29 @@ export default function PlayerPage() {
         ) {
           deliveredKeyRef.current = key
           const msgId = trailMessageId(data.stage_number, data.question_number)
-          setMessages((prev) =>
-            appendTrailMessage(prev, {
+          let isNew = false
+          setMessages((prev) => {
+            const result = appendTrailMessage(prev, {
               id: msgId,
               role: 'assistant',
               text,
               stageType: data.stage_type,
               cellKey: key,
-            }),
-          )
-          void persistLog({
-            sender: 'system',
-            message_text: text,
-            stage_number: data.stage_number,
-            question_number: data.question_number,
-            message_type:
-              data.stage_type === 'exercise' ? 'exercise' : 'instruction',
-            metadata: { source: 'next-content', stage_type: data.stage_type },
+            })
+            isNew = result.isNew
+            return result.messages
           })
+          if (isNew) {
+            void persistLog({
+              sender: 'system',
+              message_text: text,
+              stage_number: data.stage_number,
+              question_number: data.question_number,
+              message_type:
+                data.stage_type === 'exercise' ? 'exercise' : 'instruction',
+              metadata: { source: 'next-content', stage_type: data.stage_type },
+            })
+          }
         } else if (data.stage_type === 'ai') {
           deliveredKeyRef.current = key
           const hasAi = logs.some(
@@ -256,7 +291,7 @@ export default function PlayerPage() {
                 text,
                 stageType: 'ai',
                 cellKey: key,
-              }),
+              }).messages,
             )
           }
         }
@@ -286,6 +321,7 @@ export default function PlayerPage() {
     setMessages([])
     setDraft('')
     setMariaSidechat(false)
+    setHistoryExpanded(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
 
@@ -342,23 +378,28 @@ export default function PlayerPage() {
 
       if (data.stage_type === 'exercise') {
         setExerciseDone(false)
-        setMessages((prev) =>
-          appendTrailMessage(prev, {
+        let isNew = false
+        setMessages((prev) => {
+          const result = appendTrailMessage(prev, {
             id: msgId,
             role: 'assistant',
             text,
             stageType: 'exercise',
             cellKey: key,
-          }),
-        )
-        void persistLog({
-          sender: 'system',
-          message_text: text,
-          stage_number: data.stage_number,
-          question_number: data.question_number,
-          message_type: 'exercise',
-          metadata: { source: 'next-content', stage_type: 'exercise' },
+          })
+          isNew = result.isNew
+          return result.messages
         })
+        if (isNew) {
+          void persistLog({
+            sender: 'system',
+            message_text: text,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message_type: 'exercise',
+            metadata: { source: 'next-content', stage_type: 'exercise' },
+          })
+        }
         return
       }
 
@@ -371,30 +412,35 @@ export default function PlayerPage() {
               text,
               stageType: 'ai',
               cellKey: key,
-            }),
+            }).messages,
           )
         }
         return
       }
 
       // fixed
-      setMessages((prev) =>
-        appendTrailMessage(prev, {
+      let isNewFixed = false
+      setMessages((prev) => {
+        const result = appendTrailMessage(prev, {
           id: msgId,
           role: 'assistant',
           text,
           stageType: data.stage_type,
           cellKey: key,
-        }),
-      )
-      void persistLog({
-        sender: 'system',
-        message_text: text,
-        stage_number: data.stage_number,
-        question_number: data.question_number,
-        message_type: 'instruction',
-        metadata: { source: 'next-content', stage_type: data.stage_type },
+        })
+        isNewFixed = result.isNew
+        return result.messages
       })
+      if (isNewFixed) {
+        void persistLog({
+          sender: 'system',
+          message_text: text,
+          stage_number: data.stage_number,
+          question_number: data.question_number,
+          message_type: 'instruction',
+          metadata: { source: 'next-content', stage_type: data.stage_type },
+        })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar etapa.')
       try {
@@ -493,7 +539,7 @@ export default function PlayerPage() {
     if (current?.status !== 'ok') return
 
     const key = trailCellKey(current.stage_number, current.question_number)
-    const resumeId = `trail-resume-${key}`
+    const resumeId = `trail-resume-${key}-${Date.now()}`
     const options =
       current.stage_type === 'exercise'
         ? normalizeExerciseOptions(current.options)
@@ -504,7 +550,17 @@ export default function PlayerPage() {
     const text = `Continuando a trilha:\n\n${body}`
 
     setMessages((prev) => {
-      if (prev.some((m) => m.id === resumeId)) return prev
+      const last = prev[prev.length - 1]
+      // Evita flood: substitui resume consecutivo idêntico da mesma célula.
+      const lastIsSameResume =
+        !!last &&
+        last.role === 'assistant' &&
+        typeof last.id === 'string' &&
+        last.id.startsWith(`trail-resume-${key}-`) &&
+        last.text === text
+      if (lastIsSameResume) {
+        return [...prev.slice(0, -1), { ...last, id: resumeId, text }]
+      }
       return [
         ...prev,
         {
@@ -546,10 +602,14 @@ export default function PlayerPage() {
           : attempt.is_correct
             ? 'Resposta correta!'
             : 'Resposta incorreta.'
-      const rich =
+      let rich =
         content.explanation?.trim() ||
         attempt.pedagogical_feedback?.trim() ||
         null
+      // R02: não misturar “Parabéns pelo acerto” com attempt errado.
+      if (rich && attempt.score !== null) {
+        rich = alignBlocoWithAttempt(rich, attempt.is_correct) || null
+      }
       const feedbackParts = [resultLabel, rich].filter(Boolean)
       const feedbackText = feedbackParts.join('\n\n')
       setMessages((prev) => [
@@ -639,6 +699,12 @@ export default function PlayerPage() {
       ? normalizeExerciseOptions(content.options)
       : []
 
+  const hiddenHistoryCount = Math.max(0, messages.length - HISTORY_VISIBLE_TAIL)
+  const visibleMessages =
+    historyExpanded || hiddenHistoryCount === 0
+      ? messages
+      : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
+
   const placeholder =
     content?.status !== 'ok'
       ? 'Trilha indisponível no momento'
@@ -657,11 +723,34 @@ export default function PlayerPage() {
       ) : null}
 
       <div className="chat-thread__scroll" ref={threadRef}>
-        {messages.map((msg) => (
+        {!historyExpanded && hiddenHistoryCount > 0 ? (
+          <div className="chat-history-collapse">
+            <button
+              type="button"
+              className="chat-history-collapse__btn"
+              onClick={() => setHistoryExpanded(true)}
+            >
+              Mostrar etapas anteriores ({hiddenHistoryCount})
+            </button>
+          </div>
+        ) : null}
+        {historyExpanded && hiddenHistoryCount > 0 ? (
+          <div className="chat-history-collapse">
+            <button
+              type="button"
+              className="chat-history-collapse__btn"
+              onClick={() => setHistoryExpanded(false)}
+            >
+              Recolher etapas anteriores
+            </button>
+          </div>
+        ) : null}
+        {visibleMessages.map((msg) => (
           <article
             key={msg.id}
             className={`chat-bubble chat-bubble--${msg.role}`}
             data-stage-type={msg.stageType}
+            data-cell-key={msg.cellKey || undefined}
           >
             <p className="chat-bubble__label">
               {msg.role === 'assistant'

@@ -88,6 +88,37 @@ export function isBlocoRespostaStage(
   )
 }
 
+const BLOCO_CELEBRATE_RE =
+  /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta/i
+const BLOCO_MOURN_RE =
+  /resposta\s+incorreta|voc[eê]\s+errou|n[aã]o\s+acert|infelizmente/i
+
+/** Cache BLOCO conflita com o resultado do attempt atual. */
+export function blocoConflictsWithAttempt(
+  text: string,
+  isCorrect: boolean,
+): boolean {
+  if (!isCorrect && BLOCO_CELEBRATE_RE.test(text)) return true
+  if (isCorrect && BLOCO_MOURN_RE.test(text)) return true
+  return false
+}
+
+/** Remove linhas do BLOCO que celebram acerto em attempt errado (e vice-versa). */
+export function alignBlocoWithAttempt(
+  text: string,
+  isCorrect: boolean,
+): string {
+  const lines = text.split(/\r?\n/)
+  const kept = lines.filter((line) => {
+    const t = line.trim()
+    if (!t) return true
+    if (!isCorrect && BLOCO_CELEBRATE_RE.test(t)) return false
+    if (isCorrect && BLOCO_MOURN_RE.test(t)) return false
+    return true
+  })
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 /**
  * Garante/recupera o texto do próximo stage se for BLOCO RESPOSTA (AI).
  * Usado no feedback pós-exercício — não avança o progresso do aluno.
@@ -99,6 +130,8 @@ export async function ensureNextBlocoRespostaFeedback(
     trail_id: string
     stage_number: number
     question_number: number
+    /** Quando informado, alinha/invalida cache se o texto contradiz o attempt. */
+    is_correct?: boolean | null
   },
 ): Promise<string | null> {
   try {
@@ -130,16 +163,31 @@ export async function ensureNextBlocoRespostaFeedback(
       typeof stageData.title === 'string' ? stageData.title : null
     if (!isBlocoRespostaStage(prompt, title)) return null
 
-    const { ensureTrailAiContent } = await import(
-      './trail-ai/ensureTrailAiContent.js'
-    )
-    const ensured = await ensureTrailAiContent(db, {
+    const cell = {
       student_id: input.student_id,
       trail_id: input.trail_id,
       stage_number: next.next_stage_number,
       question_number: next.next_question_number,
-    })
-    return ensured.content?.trim() || null
+    }
+
+    const { ensureTrailAiContent } = await import(
+      './trail-ai/ensureTrailAiContent.js'
+    )
+    let ensured = await ensureTrailAiContent(db, cell)
+    let text = ensured.content?.trim() || null
+    if (!text) return null
+
+    if (
+      typeof input.is_correct === 'boolean' &&
+      blocoConflictsWithAttempt(text, input.is_correct)
+    ) {
+      // Não regrava o cache da célula com texto “podado” (a etapa BLOCO
+      // ainda pode celebrar o gabarito quando o aluno chega nela via Continuar).
+      // Só alinha o feedback do attempt atual; force_regenerate fica p/ QA.
+      text = alignBlocoWithAttempt(text, input.is_correct) || null
+    }
+
+    return text
   } catch {
     return null
   }

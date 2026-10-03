@@ -1301,18 +1301,28 @@ button[aria-disabled='true'] {
   flex: 1;
   resize: none;
   border: none;
-  outline: none; /* anel fica no form:focus-within (F03) */
+  outline: none; /* mouse: sem anel; teclado via :focus-visible */
   background: transparent;
   font: inherit;
   color: var(--ink);
-  min-height: 1.5rem;
+  /* C2-R3 N04: alvo tocável ≥44 (antes ~30px). */
+  min-height: 44px;
   max-height: 8rem;
-  padding: 0.2rem 0.15rem;
+  padding: 0.45rem 0.15rem;
   line-height: 1.45;
 }
 
+/* C2-R3 N01: anel no controle focável (não só chrome do form). */
 .chat-composer__input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* C2-R3 N02: Enviar — foco distinto do resting/enabled. */
+.chat-composer button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .chat-composer__input::placeholder {
@@ -2104,7 +2114,7 @@ button[aria-disabled='true'] {
 
   .chat-composer__input {
     max-height: 3.2rem;
-    min-height: 2.2rem;
+    min-height: 44px;
   }
 
   .chat-composer button {

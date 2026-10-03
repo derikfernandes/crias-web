@@ -1541,6 +1541,7 @@ export default function PlayerPage() {
     visibleMessages.some((m) => m.kind === 'sidechat')
 
   const chatMessages = visibleMessages.filter((msg) => {
+    if (!String(msg.text ?? '').trim()) return false
     if (
       showLessonCard &&
       currentCell &&

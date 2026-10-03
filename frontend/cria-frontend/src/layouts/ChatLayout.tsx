@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  fetchTrailNames,
   fetchTrailStageTotals,
   isAuthError,
   listStudentTrails,
@@ -100,6 +101,8 @@ export default function ChatLayout() {
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
+  /** C2-R1 N04: nome humano da trilha (nunca ID cru na UI). */
+  const [trailNames, setTrailNames] = useState<Record<string, string>>({})
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
@@ -282,6 +285,13 @@ export default function ChatLayout() {
       .catch(() => {
         if (!cancelled) setStageTotals({})
       })
+    void fetchTrailNames()
+      .then((map) => {
+        if (!cancelled) setTrailNames(map)
+      })
+      .catch(() => {
+        if (!cancelled) setTrailNames({})
+      })
     return () => {
       cancelled = true
     }
@@ -422,26 +432,38 @@ export default function ChatLayout() {
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
-                const total =
+                const totalRaw =
                   stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
                     ? stageTotals[row.trail_id]
-                    : Math.max(row.current_stage_number, 1)
-                const pct = Math.min(
-                  100,
-                  Math.round((row.current_stage_number / total) * 100),
-                )
+                    : null
+                const total =
+                  totalRaw != null
+                    ? Math.max(totalRaw, row.current_stage_number)
+                    : null
+                const pct =
+                  total != null
+                    ? Math.min(
+                        100,
+                        Math.round((row.current_stage_number / total) * 100),
+                      )
+                    : 0
+                const label = trailNames[row.trail_id] || 'Trilha'
+                const etapaMeta =
+                  total != null
+                    ? `Etapa ${row.current_stage_number} de ${total}`
+                    : `Etapa ${row.current_stage_number}`
                 return (
                   <li key={row.id}>
                     <Link
                       to={href}
-className={`trail-card${active ? ' is-active' : ''}`}
+                      className={`trail-card${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       onClick={() => closeDrawer(false)}
                     >
                       <span className="trail-card__top">
                         <span className="trail-card__head">
                           <DocumentIcon />
-                          <span className="trail-card__id">{row.trail_id}</span>
+                          <span className="trail-card__id">{label}</span>
                         </span>
                         <span
                           className={`trail-card__status trail-card__status--${row.status}`}
@@ -450,9 +472,7 @@ className={`trail-card${active ? ' is-active' : ''}`}
                           {STATUS_LABEL[row.status]}
                         </span>
                       </span>
-                      <span className="trail-card__meta">
-                        Etapa {row.current_stage_number} de {total}
-                      </span>
+                      <span className="trail-card__meta">{etapaMeta}</span>
                       <span className="trail-card__progress" aria-hidden>
                         <span className="trail-card__progress-track">
                           <span
@@ -520,10 +540,20 @@ className={`trail-card${active ? ' is-active' : ''}`}
             <span className="chat-topbar__title">
               {activeTrailId
                 ? [
-                    playerChrome.stageTitle || activeTrailId,
-                    playerChrome.stageNumber != null
-                      ? `etapa ${playerChrome.stageNumber}`
-                      : null,
+                    playerChrome.stageTitle ||
+                      trailNames[activeTrailId] ||
+                      'Trilha',
+                    (() => {
+                      const n = playerChrome.stageNumber
+                      if (n == null) return null
+                      const totalRaw =
+                        stageTotals[activeTrailId] > 0
+                          ? stageTotals[activeTrailId]
+                          : null
+                      // C2-R1 N01: sem fallback current→total (“N de N” / “5 de 4”).
+                      if (totalRaw == null) return `Etapa ${n}`
+                      return `Etapa ${n} de ${Math.max(totalRaw, n)}`
+                    })(),
                   ]
                     .filter(Boolean)
                     .join(' · ')
@@ -542,6 +572,7 @@ className={`trail-card${active ? ' is-active' : ''}`}
               trailsLoading,
               retryTrails: () => void reloadTrails(),
               activeTrailRow: activeRow,
+              trailNames,
             }}
           />
         </div>

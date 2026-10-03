@@ -328,6 +328,29 @@ export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
   return map
 }
 
+/** Nomes humanos por trilha — home/sidebar/topbar sem ID cru `t47` (C2-R1 N04). */
+export async function fetchTrailNames(): Promise<Record<string, string>> {
+  const url = new URL(`${API_BASE}/trails`, window.location.origin)
+  url.searchParams.set('simple', '1')
+  const res = await fetch(url.pathname + url.search)
+  const body = await parseJson(res)
+  if (!res.ok || !Array.isArray(body)) return {}
+  const map: Record<string, string> = {}
+  for (const row of body as Array<{
+    id?: string
+    name?: string
+    subject?: string
+  }>) {
+    const tid = typeof row.id === 'string' ? row.id.trim() : ''
+    if (!tid) continue
+    const name = typeof row.name === 'string' ? row.name.trim() : ''
+    const subject = typeof row.subject === 'string' ? row.subject.trim() : ''
+    const label = name || subject
+    if (label) map[tid] = label
+  }
+  return map
+}
+
 export async function fetchNextContent(
   studentId: string,
   trailId: string,

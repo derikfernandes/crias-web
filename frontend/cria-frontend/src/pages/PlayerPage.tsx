@@ -99,6 +99,18 @@ function messagesForCollapsedTail(
     : messages.slice(-Math.min(8, messages.length))
 }
 
+/**
+ * C2-R1 N02: no tail colapsado (fora do sidechat Maria), só passo da trilha —
+ * entrega/feedback/opção/resume. Histórico livre da Maria fica no expand.
+ */
+function isTrailStepMessage(m: ChatMessage): boolean {
+  if (m.kind === 'feedback' || m.kind === 'exercise-answer' || m.kind === 'resume') {
+    return true
+  }
+  if (m.kind === 'sidechat') return false
+  return Boolean(m.cellKey)
+}
+
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
@@ -2270,14 +2282,21 @@ export default function PlayerPage() {
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
   const collapsedTail = messagesForCollapsedTail(messages, currentQuestion)
+  /** Fora do sidechat: tail focado na aula (N02) — Maria hist só no expand. */
+  const focusedCollapsedTail =
+    mariaSidechat || historyExpanded
+      ? collapsedTail
+      : collapsedTail.filter(isTrailStepMessage)
   const hiddenHistoryCount = Math.max(
     0,
-    messages.length - collapsedTail.length,
+    messages.length - focusedCollapsedTail.length,
   )
   const showHistoryCollapse =
     historyHasMore || hiddenHistoryCount > 0
   const rawVisibleMessages =
-    historyExpanded || hiddenHistoryCount === 0 ? messages : collapsedTail
+    historyExpanded || hiddenHistoryCount === 0
+      ? messages
+      : focusedCollapsedTail
   /**
    * C4-STALE-CONCLUDE-DOM: mid-aula (status ok) não mostra “Parabéns por
    * concluir a aula…” — strip do texto / drop bolha só-conclude.
@@ -2339,28 +2358,33 @@ export default function PlayerPage() {
         ? 'Trilha indisponível no momento'
         : 'Pergunte à Maria...'
 
+  const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   const hintKey =
     content?.status !== 'ok'
       ? 'off'
-      : content.stage_type === 'exercise'
-        ? exerciseDone
-          ? 'ex-done'
-          : exerciseComposerOpen
-            ? 'ex-locked'
-            : 'ex-pending'
-        : mariaSidechat
-          ? 'maria'
-          : 'trail'
+      : trailBusy
+        ? 'busy'
+        : content.stage_type === 'exercise'
+          ? exerciseDone
+            ? 'ex-done'
+            : exerciseComposerOpen
+              ? 'ex-locked'
+              : 'ex-pending'
+          : mariaSidechat
+            ? 'maria'
+            : 'trail'
 
   const typing = typingCopy(busyReason)
   /**
-   * R04-L03 / R01-F25 / R01-F05 / R09-X09:
-   * typing só Maria/feedback — e nunca junto do card “Enviando…”.
+   * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
+   * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
    */
   const showTypingBubble =
     busy &&
     showTyping &&
-    (busyReason === 'maria' || busyReason === 'exercise') &&
+    (busyReason === 'maria' ||
+      busyReason === 'exercise' ||
+      busyReason === 'trail') &&
     exercisePhase !== 'submitting'
   const showCtaSlot =
     content?.status === 'ok' &&
@@ -2369,7 +2393,6 @@ export default function PlayerPage() {
       continuarLeaving ||
       (busy && busyReason === 'trail') ||
       (busy && busyReason === 'maria' && mariaSidechat))
-  const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /** F02/F07: Enviar permanece no Tab com aria-disabled no exercício sem seleção. */
   const sendAriaDisabled = exerciseLockedComposer && !canSubmitExercise
   const sendDisabledHard = !exerciseLockedComposer && !canSend
@@ -2956,16 +2979,18 @@ className={`chat-composer__send${sendAriaDisabled ? ' is-aria-disabled' : ''}`}
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
-            {/* R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar (UI Maria) */}
-            {content.stage_type === 'exercise'
-              ? showContinuar
-                ? 'Pergunte à Maria · Continuar trilha avança'
-                : 'Pergunte à Maria; o botão verde avança a trilha'
-              : mariaSidechat
-                ? 'Voltar à trilha reexibe o passo atual'
-                : showContinuar
-                  ? 'Enviar fala com Maria · Continuar trilha avança'
-                  : 'Enviar fala com Maria · o botão verde avança a trilha'}
+            {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
+            {trailBusy
+              ? 'Aguarde — salvando e carregando a próxima etapa'
+              : content.stage_type === 'exercise'
+                ? showContinuar
+                  ? 'Pergunte à Maria · Continuar trilha avança'
+                  : 'Pergunte à Maria; o botão verde avança a trilha'
+                : mariaSidechat
+                  ? 'Voltar à trilha reexibe o passo atual'
+                  : showContinuar
+                    ? 'Enviar fala com Maria · Continuar trilha avança'
+                    : 'Enviar fala com Maria · o botão verde avança a trilha'}
           </p>
         ) : null}
       </footer>

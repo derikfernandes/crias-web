@@ -2069,6 +2069,15 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   box-shadow: 0 0 24px color-mix(in srgb, var(--accent-2) 12%, transparent);
 }
 
+/* C2-R8 N01: focável via tabIndex=-1 pós-Continuar (anel teclado). */
+.lesson-card:focus {
+  outline: none;
+}
+.lesson-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .lesson-card__icon {
   flex-shrink: 0;
   width: 2.5rem;

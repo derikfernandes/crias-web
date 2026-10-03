@@ -1905,6 +1905,10 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
+    // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
+    setBusy(false)
+    setBusyReason(null)
+    setShowTyping(false)
     clearError()
     const current = contentRef.current
     if (current?.status !== 'ok') return

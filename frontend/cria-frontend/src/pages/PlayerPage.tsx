@@ -223,6 +223,8 @@ export default function PlayerPage() {
   const deliveredKeyRef = useRef<string | null>(null)
   const contentRef = useRef(content)
   const nearBottomRef = useRef(true)
+  /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
+  const pinnedAwayRef = useRef(false)
   const skipSmoothScrollRef = useRef(true)
   const reduceMotionRef = useRef(false)
   contentRef.current = content
@@ -436,19 +438,24 @@ export default function PlayerPage() {
     const near =
       el.scrollHeight - el.scrollTop - el.clientHeight < STICKY_BOTTOM_PX
     nearBottomRef.current = near
-    // Scroll manual de volta ao fim: esconde o chip sem exigir clique.
-    if (near) setNewMsgChip(false)
+    if (near) {
+      pinnedAwayRef.current = false
+      setNewMsgChip(false)
+    } else {
+      pinnedAwayRef.current = true
+    }
   }
 
   function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
     const el = threadRef.current
     if (!el) return
+    pinnedAwayRef.current = false
+    nearBottomRef.current = true
+    setNewMsgChip(false)
     el.scrollTo({
       top: el.scrollHeight,
       behavior: reduceMotionRef.current ? 'auto' : behavior,
     })
-    setNewMsgChip(false)
-    nearBottomRef.current = true
   }
 
   useEffect(() => {
@@ -458,11 +465,12 @@ export default function PlayerPage() {
       scrollToBottom('auto')
       return
     }
-    if (nearBottomRef.current) {
-      scrollToBottom('smooth')
-    } else {
+    // Preserva leitura do histórico: chip em vez de puxar a thread.
+    if (pinnedAwayRef.current || !nearBottomRef.current) {
       setNewMsgChip(true)
+      return
     }
+    scrollToBottom('smooth')
     // messages/busy/content drive presence; intentional deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
@@ -592,6 +600,14 @@ export default function PlayerPage() {
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
     if (content?.status !== 'ok') return
+    // Evita scrollIntoView do botão focado puxar a thread ao fundo (C1-40).
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    if (pinnedAwayRef.current || !nearBottomRef.current) {
+      pinnedAwayRef.current = true
+      setNewMsgChip(true)
+    }
     setContinuarLeaving(true)
     setBusy(true)
     setBusyReason('trail')

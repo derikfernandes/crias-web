@@ -417,6 +417,8 @@ a.ghost:hover {
   flex-direction: column;
   gap: 0;
   min-height: 0;
+  /* Impede o browser de “ancorar” o scroll quando typing/CTA mudam o layout. */
+  overflow-anchor: none;
 }
 
 .chat-thread__loading {

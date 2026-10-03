@@ -671,6 +671,9 @@ export default function PlayerPage() {
     | null
   >(null)
   const continuarBtnRef = useRef<HTMLButtonElement>(null)
+  /** C2-R16 N01/N03: “Tentar de novo” — recovery único pós-erro rede. */
+  const retryBtnRef = useRef<HTMLButtonElement>(null)
+  const canRetryRef = useRef(false)
   /** C2-R8 N01: lesson-card focável pós-Continuar (tabIndex=-1). */
   const lessonCardRef = useRef<HTMLElement | null>(null)
 
@@ -838,9 +841,64 @@ export default function PlayerPage() {
     })
   }, [focusMessageById])
 
+  /**
+   * C2-R16 N01/N03: ao montar alert + Tentar, mover foco para o recovery —
+   * nunca limbo BODY (Continuar sumiu) nem composer com Enviar off.
+   */
+  const focusRetryAfterError = useCallback(() => {
+    const tryFocus = () => {
+      const btn = retryBtnRef.current
+      if (!btn || btn.disabled) return false
+      btn.focus({ preventScroll: true })
+      return document.activeElement === btn
+    }
+    const settleMs = [16, 50, 120, 300, 800, 1600] as const
+    window.requestAnimationFrame(() => {
+      tryFocus()
+      for (const ms of settleMs) {
+        window.setTimeout(() => {
+          if (!canRetryRef.current) return
+          const active = document.activeElement
+          if (active === retryBtnRef.current) return
+          const onBody =
+            !active ||
+            active === document.body ||
+            active === document.documentElement
+          const onComposer = active === inputRef.current
+          // Recovery único: reclaim BODY / composer morto; não rouba Tab noutro alvo.
+          if (onBody || onComposer) tryFocus()
+        }, ms)
+      }
+    })
+  }, [])
+
+  /**
+   * C2-R16 N04 / R17-M01: enquanto CTA busy (“Salvando…”) permanece no DOM,
+   * reter foco nele — disabled não pode jogar activeElement → BODY.
+   */
+  const holdFocusOnTrailBusy = useCallback(() => {
+    const hold = () => {
+      const btn = continuarBtnRef.current
+      if (!btn) return
+      const active = document.activeElement
+      if (
+        !active ||
+        active === document.body ||
+        active === document.documentElement
+      ) {
+        btn.focus({ preventScroll: true })
+      }
+    }
+    hold()
+    for (const ms of [16, 50, 100, 200, 400, 800] as const) {
+      window.setTimeout(hold, ms)
+    }
+  }, [])
+
   contentRef.current = content
   busyReasonRef.current = busyReason
   messagesRef.current = messages
+  canRetryRef.current = canRetry
 
   const goLoginAuth = useCallback(
     (message?: string) => {
@@ -1189,6 +1247,22 @@ export default function PlayerPage() {
     const t = window.setTimeout(() => setMariaLongWait(true), MARIA_LONG_WAIT_MS)
     return () => window.clearTimeout(t)
   }, [busy, busyReason])
+
+  /** C2-R16 N01/N03: Tentar montou → autofocus no recovery (não BODY/composer). */
+  useEffect(() => {
+    if (!canRetry || !error) return
+    focusRetryAfterError()
+  }, [canRetry, error, focusRetryAfterError])
+
+  /**
+   * C2-R16 N04: mid-flight Continuar busy — reafirma foco no CTA enquanto
+   * `aria-busy` e o botão seguem montados (antes do settle lesson-card).
+   */
+  useEffect(() => {
+    const midBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
+    if (!midBusy) return
+    holdFocusOnTrailBusy()
+  }, [busy, busyReason, continuarLeaving, trailBusyLabel, holdFocusOnTrailBusy])
 
   const persistLog = useCallback(
     async (input: {
@@ -2075,7 +2149,7 @@ export default function PlayerPage() {
       return
     }
     advanceInFlightRef.current = true
-    // R17-M01 / F04: não blur → BODY; mantém foco no CTA busy.
+    // R17-M01 / F04 / C2-R16 N04: não blur → BODY; mantém foco no CTA busy.
     const pinned = capturePinFromScroll()
     if (pinned) {
       showJumpChip({ unseen: true })
@@ -2089,6 +2163,10 @@ export default function PlayerPage() {
     clearError()
     setMariaSidechat(false)
     mariaCancelledRef.current = false
+    // Reafirma no mesmo frame do disable — Chromium mobile joga BODY no :disabled.
+    window.requestAnimationFrame(() => {
+      continuarBtnRef.current?.focus({ preventScroll: true })
+    })
     let advanceSucceeded = false
     let advancedContent: NextContentOk | NextContentStatus | null = null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
@@ -2245,9 +2323,12 @@ export default function PlayerPage() {
       if (mariaAcked) {
         focusAfterMariaAck()
       } else if (!mariaCancelledRef.current) {
-        window.requestAnimationFrame(() => {
-          inputRef.current?.focus({ preventScroll: true })
-        })
+        // C2-R16 N03: com Tentar (canRetry), recovery único — não composer c/ Enviar off.
+        if (!retryFnRef.current) {
+          window.requestAnimationFrame(() => {
+            inputRef.current?.focus({ preventScroll: true })
+          })
+        }
       }
     }
   }
@@ -2902,6 +2983,7 @@ export default function PlayerPage() {
           <p className="chat-thread__banner-text">{error}</p>
           {canRetry ? (
             <button
+              ref={retryBtnRef}
               type="button"
               className="chat-thread__retry"
               onClick={() => {

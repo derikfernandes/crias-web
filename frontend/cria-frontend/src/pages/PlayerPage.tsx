@@ -548,7 +548,7 @@ export default function PlayerPage() {
             </p>
             <div className="chat-bubble__body">
               {msg.text.split('\n').map((line, i) => (
-                <p key={i}>{line || '\u00a0'}</p>
+                <p key={i}>{stripDecorTitle(line) || '\u00a0'}</p>
               ))}
             </div>
           </article>

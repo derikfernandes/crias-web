@@ -236,6 +236,8 @@ export default function PlayerPage() {
   const pinnedAwayRef = useRef(false)
   const pinnedScrollTopRef = useRef(0)
   const pinLockRafRef = useRef<number | null>(null)
+  /** Segura pin além do busy — layout/focus pós-Continuar ainda puxam o scroll. */
+  const pinHoldUntilRef = useRef(0)
   const busyReasonRef = useRef<BusyReason>(null)
   const skipSmoothScrollRef = useRef(true)
   const reduceMotionRef = useRef(false)
@@ -526,18 +528,23 @@ export default function PlayerPage() {
     return false
   }
 
-  function startPinLock() {
+  function isPinLocked(): boolean {
+    return (
+      pinnedAwayRef.current &&
+      (busyReasonRef.current === 'trail' || Date.now() < pinHoldUntilRef.current)
+    )
+  }
+
+  function startPinLock(holdMs = 1200) {
+    pinHoldUntilRef.current = Date.now() + holdMs
     if (pinLockRafRef.current != null) return
     const tick = () => {
       const el = threadRef.current
-      if (
-        el &&
-        pinnedAwayRef.current &&
-        busyReasonRef.current === 'trail'
-      ) {
+      if (el && isPinLocked()) {
         if (el.scrollTop !== pinnedScrollTopRef.current) {
           el.scrollTop = pinnedScrollTopRef.current
         }
+        nearBottomRef.current = false
         pinLockRafRef.current = requestAnimationFrame(tick)
         return
       }
@@ -556,8 +563,8 @@ export default function PlayerPage() {
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
-    // Durante advance com pin: trava scrollTop (browser/focus não pode “puxar”).
-    if (pinnedAwayRef.current && busyReasonRef.current === 'trail') {
+    // Durante/após Continuar com pin: trava scrollTop.
+    if (isPinLocked()) {
       if (el.scrollTop !== pinnedScrollTopRef.current) {
         el.scrollTop = pinnedScrollTopRef.current
       }
@@ -579,6 +586,7 @@ export default function PlayerPage() {
     const el = threadRef.current
     if (!el) return
     stopPinLock()
+    pinHoldUntilRef.current = 0
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     setNewMsgChip(false)
@@ -630,6 +638,11 @@ export default function PlayerPage() {
     }
     // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     const el = threadRef.current
+    if (isPinLocked() || pinnedAwayRef.current) {
+      if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
+      setNewMsgChip(true)
+      return
+    }
     if (el && !isScrollNearBottom(el)) {
       pinnedAwayRef.current = true
       nearBottomRef.current = false
@@ -637,7 +650,7 @@ export default function PlayerPage() {
       setNewMsgChip(true)
       return
     }
-    if (pinnedAwayRef.current || !nearBottomRef.current) {
+    if (!nearBottomRef.current) {
       setNewMsgChip(true)
       return
     }
@@ -824,19 +837,14 @@ export default function PlayerPage() {
       setBusyReason(null)
       busyReasonRef.current = null
       setContinuarLeaving(false)
-      stopPinLock()
-      // Restaura pin após advance (layout/focus podem ter movido o scroll).
+      // Mantém lock ~1.2s — paint/focus pós-busy ainda tentam puxar o scroll.
       if (pinnedAwayRef.current && threadRef.current) {
         threadRef.current.scrollTop = pinnedScrollTopRef.current
         nearBottomRef.current = false
         setNewMsgChip(true)
-        // Re-aplica após paint (typing/CTA saindo).
-        requestAnimationFrame(() => {
-          if (pinnedAwayRef.current && threadRef.current) {
-            threadRef.current.scrollTop = pinnedScrollTopRef.current
-            setNewMsgChip(true)
-          }
-        })
+        startPinLock(1200)
+      } else {
+        stopPinLock()
       }
     }
   }

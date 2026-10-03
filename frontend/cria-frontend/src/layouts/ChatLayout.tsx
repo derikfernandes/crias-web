@@ -295,7 +295,13 @@ export default function ChatLayout() {
     stageTitle: string | null
     stageNumber: number | null
     questionNumber: number | null
-  }>({ stageTitle: null, stageNumber: null, questionNumber: null })
+    mariaActive: boolean
+  }>({
+    stageTitle: null,
+    stageNumber: null,
+    questionNumber: null,
+    mariaActive: false,
+  })
 
   useEffect(() => {
     const onChrome = (e: Event) => {
@@ -304,6 +310,7 @@ export default function ChatLayout() {
         stageTitle?: string | null
         stageNumber?: number
         questionNumber?: number
+        mariaActive?: boolean
       }
       if (detail?.trailId && detail.trailId !== activeTrailId) return
       setPlayerChrome({
@@ -314,6 +321,7 @@ export default function ChatLayout() {
           typeof detail.questionNumber === 'number'
             ? detail.questionNumber
             : null,
+        mariaActive: Boolean(detail.mariaActive),
       })
     }
     window.addEventListener('crias:player-chrome', onChrome)
@@ -326,6 +334,7 @@ export default function ChatLayout() {
         stageTitle: null,
         stageNumber: null,
         questionNumber: null,
+        mariaActive: false,
       })
     }
   }, [activeTrailId])
@@ -347,11 +356,12 @@ export default function ChatLayout() {
     activeStageTotalRaw != null && activeStageNumber != null
       ? Math.max(activeStageTotalRaw, activeStageNumber)
       : activeStageTotalRaw
-  /** Player: stage_title vivo; senão nome humano da trilha (nunca `t47`). */
+  /**
+   * C2-R5 N05: topbar = nome da trilha · Etapa N (não ecoa stage_title do card).
+   * Nome humano da trilha — nunca `t47`.
+   */
   const activeTrailLabel =
-    playerChrome.stageTitle ||
-    (activeTrailId ? trailNames[activeTrailId] : null) ||
-    null
+    (activeTrailId ? trailNames[activeTrailId] : null) || null
   const trailLabel = activeTrailId
     ? [
         activeTrailLabel || 'Trilha',

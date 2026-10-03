@@ -10,6 +10,8 @@
   /* R21-W01 / R01-F24: placeholder ≥ AA no composer; ainda distinto de --ink. */
   --placeholder: #d0d0dc;
   --accent: #19c37d;
+  /* C2-R5 N04: seleção / ícone — papel distinto do CTA primário. */
+  --accent-2: #3d9ecc;
   --accent-ink: #0d0d0d;
   --cta-continue: #19c37d;
   --cta-send: #15a86c;
@@ -52,7 +54,12 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--ink);
-  background: var(--main);
+  /* C2-R5 N06: atmosfera no body (não flat ChatGPT). */
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -12%, rgba(25, 195, 125, 0.18), transparent 58%),
+    radial-gradient(ellipse 70% 48% at 96% 108%, rgba(61, 158, 204, 0.12), transparent 52%),
+    linear-gradient(180deg, #3a3b4a 0%, var(--main) 48%, #2c2d38 100%);
+  background-attachment: fixed;
   font-size: 16px;
   line-height: 1.5;
   overflow: hidden;
@@ -557,11 +564,11 @@ a.ghost:hover {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* R05-V04: atmosfera de marca (não flat ChatGPT). */
+  /* R05-V04 / C2-R5 N06: atmosfera de marca reforçada. */
   background:
-    radial-gradient(ellipse 80% 50% at 12% -8%, rgba(25, 195, 125, 0.14), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 92% 108%, rgba(64, 65, 79, 0.55), transparent 50%),
-    linear-gradient(180deg, #3a3b4a 0%, var(--main) 42%, #2f303c 100%);
+    radial-gradient(ellipse 80% 50% at 12% -8%, rgba(25, 195, 125, 0.2), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 92% 108%, rgba(61, 158, 204, 0.14), transparent 50%),
+    linear-gradient(180deg, #3a3b4a 0%, transparent 42%, transparent 100%);
   position: relative;
 }
 
@@ -1225,7 +1232,8 @@ button[aria-disabled='true'] {
   position: sticky;
   bottom: 0;
   /* Shell já encolhe com --vv-height; só safe-area aqui (sem double-count do KB). */
-  padding: 0.75rem 1rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
+  /* C2-R5 N06: padding inferior mais curto — conteúdo respira. */
+  padding: 0.4rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
   padding-left: max(1rem, env(safe-area-inset-left, 0px));
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
   background: linear-gradient(transparent, var(--main) 42%);
@@ -1240,7 +1248,7 @@ button[aria-disabled='true'] {
   display: flex;
   align-items: flex-end;
   gap: 0.55rem;
-  padding: 0.75rem 0.85rem;
+  padding: 0.55rem 0.75rem;
   border: none;
   border-radius: var(--radius);
   background: var(--composer);
@@ -1439,9 +1447,25 @@ button[aria-disabled='true'] {
   filter: none;
 }
 
+/* C2-R5 N03: com Voltar à trilha (Maria), Enviar/composer ficam neutros. */
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.1);
+  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.16);
+  filter: none;
+}
+
 .chat-composer__hint {
-  margin: 0.55rem 0 0;
-  font-size: 0.72rem;
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
   text-align: center;
   color: var(--muted-dim);
 }
@@ -1559,32 +1583,32 @@ button[aria-disabled='true'] {
 }
 
 .chat-exercise__option:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.12);
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.14);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-2) 28%, transparent);
 }
 
 .chat-exercise__option:active:not(:disabled) {
   transform: scale(0.98);
-  background: rgba(25, 195, 125, 0.2);
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-2) 22%, transparent);
+  border-color: var(--accent-2);
 }
 
 .chat-exercise__option.is-selected {
-  border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.18);
-  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.35);
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 40%, transparent);
   opacity: 1;
 }
 
 /* R21-W04: manter cue de seleção no pending (não apagar accent). */
 .chat-exercise--pending .chat-exercise__option.is-selected {
-  background: rgba(25, 195, 125, 0.22);
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-2) 26%, transparent);
+  border-color: var(--accent-2);
   box-shadow:
-    0 0 0 1px rgba(25, 195, 125, 0.45),
-    inset 0 0 0 1px rgba(25, 195, 125, 0.2);
+    0 0 0 1px color-mix(in srgb, var(--accent-2) 50%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 22%, transparent);
   opacity: 1;
 }
 
@@ -1616,9 +1640,10 @@ button[aria-disabled='true'] {
   z-index: 3;
   max-width: 48rem;
   width: calc(100% - 2.5rem);
-  min-height: 3.25rem;
+  /* C2-R5 N06: chrome inferior mais compacto. */
+  min-height: 2.75rem;
   margin: 0 auto;
-  padding: 0.55rem 0 0.65rem;
+  padding: 0.35rem 0 0.35rem;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -1881,8 +1906,8 @@ button[aria-disabled='true'] {
   gap: 0.85rem;
   align-items: flex-start;
   border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--main-alt) 78%, var(--accent) 8%);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--border));
+  background: color-mix(in srgb, var(--main-alt) 82%, var(--accent-2) 8%);
   animation: lesson-card-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -1894,8 +1919,8 @@ button[aria-disabled='true'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-ink);
-  background: var(--accent);
+  color: #061018;
+  background: var(--accent-2);
 }
 
 .lesson-card__title {

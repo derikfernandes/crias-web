@@ -19,10 +19,22 @@ const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   blocked: 'Bloqueada',
 }
 
-/** ≤768px: drawer overlay — default closed so Continuar não fica sob a lista (C5-MOBILE-SIDEBAR-CTA). */
+/**
+ * Shell compacto (= drawer): portrait estreito OU landscape de telefone.
+ * R24-LS01: só max-width:768 falhava em 844×390 (sidebar desktop sem ☰).
+ */
+const COMPACT_MQ =
+  '(max-width: 768px), (max-height: 500px) and (orientation: landscape)'
+
+function isCompactViewport() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia(COMPACT_MQ).matches
+}
+
+/** Compacto: drawer fechado por padrão (C5-MOBILE-SIDEBAR-CTA / LS01). */
 function initialSidebarOpen() {
   if (typeof window === 'undefined') return true
-  return !window.matchMedia('(max-width: 768px)').matches
+  return !isCompactViewport()
 }
 
 function focusableIn(root: HTMLElement): HTMLElement[] {
@@ -44,11 +56,7 @@ export default function ChatLayout() {
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
   )
-  const [isNarrow, setIsNarrow] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(max-width: 768px)').matches,
-  )
+  const [isNarrow, setIsNarrow] = useState(() => isCompactViewport())
   const drawerAsModal = isNarrow && sidebarOpen
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -128,8 +136,13 @@ export default function ChatLayout() {
   }, [])
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)')
-    const sync = () => setIsNarrow(mq.matches)
+    const mq = window.matchMedia(COMPACT_MQ)
+    const sync = () => {
+      const compact = mq.matches
+      setIsNarrow(compact)
+      // R24-LS01: ao girar para landscape compacto, fecha sidebar permanente.
+      if (compact) setSidebarOpen(false)
+    }
     sync()
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
@@ -206,9 +219,9 @@ export default function ChatLayout() {
     }
   }, [reloadTrails, location.pathname])
 
-  // Player / rotas estreitas: nunca reabrir drawer só por navegar; desktop ignora --open no CSS.
+  // Player / rotas compactas: nunca reabrir drawer só por navegar.
   useEffect(() => {
-    if (window.matchMedia('(max-width: 768px)').matches) {
+    if (isCompactViewport()) {
       restoreFocusRef.current = false
       setSidebarOpen(false)
     }

@@ -301,7 +301,7 @@ export function linkLabelForUrl(url: string): string {
   }
 }
 
-export type EmbedKind = 'youtube' | 'drive'
+export type EmbedKind = 'youtube' | 'youtube-shorts' | 'drive'
 
 /** True se o texto da bolha/etapa contém YT/Drive embutível (R08-M02). */
 export function textHasEmbed(text: string): boolean {
@@ -313,6 +313,30 @@ export function textHasEmbed(text: string): boolean {
     if (embedInfoForUrl(clean)) return true
   }
   return false
+}
+
+/**
+ * C2-R11 N01: hint do CTA conforme o tipo de mídia da etapa
+ * (não hardcodar “Vídeo” em Drive/imagem).
+ */
+export function mediaHintForText(text: string): string | null {
+  if (!text) return null
+  const kinds = new Set<EmbedKind>()
+  const urlRe = /https?:\/\/[^\s<]+/gi
+  let m: RegExpExecArray | null
+  while ((m = urlRe.exec(text))) {
+    const clean = m[0].replace(/[),.;]+$/, '')
+    const info = embedInfoForUrl(clean)
+    if (info) kinds.add(info.kind)
+  }
+  if (kinds.size === 0) return null
+  const onlyDrive = kinds.size === 1 && kinds.has('drive')
+  const onlyVideo = [...kinds].every(
+    (k) => k === 'youtube' || k === 'youtube-shorts',
+  )
+  if (onlyDrive) return 'Material na etapa — Continuar trilha quando quiser'
+  if (onlyVideo) return 'Vídeo na etapa — Continuar trilha quando quiser'
+  return 'Mídia na etapa — Continuar trilha quando quiser'
 }
 
 /** URL de embed in-app para YT/Drive; null se não suportado. */
@@ -345,7 +369,7 @@ export function embedInfoForUrl(
       const shorts = u.pathname.match(/^\/shorts\/([^/]+)/)
       if (shorts?.[1]) {
         return {
-          kind: 'youtube',
+          kind: 'youtube-shorts',
           embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(shorts[1])}`,
         }
       }
@@ -491,6 +515,25 @@ export function renderMessageLines(text: string): MessagePart[] {
       }
     })
   })
+
+  /**
+   * C2-R11 N04: Drive preview + imagem nativa da mesma figura —
+   * preferir a img; Drive vira chip de link (sem iframe 16:9 duplicado).
+   */
+  const hasImage = out.some((p) => p.kind === 'image')
+  if (hasImage) {
+    for (let i = 0; i < out.length; i++) {
+      const p = out[i]
+      if (p?.kind === 'embed' && p.embedKind === 'drive') {
+        out[i] = {
+          key: p.key.replace(/^emb-/, 'a-'),
+          kind: 'link',
+          value: p.value,
+          label: p.label || linkLabelForUrl(p.value),
+        }
+      }
+    }
+  }
 
   return out
 }

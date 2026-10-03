@@ -431,7 +431,14 @@ export default function ChatLayout() {
           ) : null}
 
           {trailsLoading && rows === null ? (
-            <p className="muted chat-sidebar__empty">Carregando trilhas…</p>
+            <p
+              className="muted chat-sidebar__empty"
+              role="status"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              Carregando trilhas…
+            </p>
           ) : trailsError ? (
             <div className="chat-sidebar__error" role="alert">
               <p className="muted">{trailsError}</p>

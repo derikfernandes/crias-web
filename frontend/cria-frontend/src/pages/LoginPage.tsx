@@ -178,6 +178,7 @@ export default function LoginPage() {
           type="submit"
           disabled={entrarDisabled}
           aria-disabled={entrarDisabled || undefined}
+          aria-busy={loading || undefined}
         >
           {loading ? 'Entrando…' : 'Entrar'}
         </button>

@@ -1036,6 +1036,14 @@ button[aria-disabled='true'] {
   min-height: 1.5rem;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+/* C2-R4 N03: espera longa da Maria — status além das dots. */
+.chat-bubble--typing-long .chat-bubble__body {
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .chat-bubble--typing {
@@ -1074,6 +1082,13 @@ button[aria-disabled='true'] {
   display: none;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.typing-dots__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
 }
 
 @keyframes typing-in {

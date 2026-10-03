@@ -58,8 +58,66 @@ const HISTORY_PAGE_LIMIT = 40
 /** Evita flash de typing em respostas rápidas (cache-hit). */
 const TYPING_MIN_DELAY_MS = 280
 
+/** C2-R4 N03: após espera longa da Maria, troca o estágio do typing. */
+const MARIA_LONG_WAIT_MS = 3000
+
+/**
+ * C2-R4 N02: history não compete com first paint / Continuar —
+ * sob demanda em idle (timeout garante prefetch cedo o bastante).
+ */
+const HISTORY_IDLE_TIMEOUT_MS = 900
+
 /** Distância do fim para considerar “sticky bottom”. */
 const STICKY_BOTTOM_PX = 120
+
+function scheduleIdle(fn: () => void, timeout = HISTORY_IDLE_TIMEOUT_MS): () => void {
+  const w = window as Window & {
+    requestIdleCallback?: (
+      cb: IdleRequestCallback,
+      opts?: IdleRequestOptions,
+    ) => number
+    cancelIdleCallback?: (id: number) => void
+  }
+  if (typeof w.requestIdleCallback === 'function') {
+    const id = w.requestIdleCallback(() => fn(), { timeout })
+    return () => {
+      w.cancelIdleCallback?.(id)
+    }
+  }
+  const t = window.setTimeout(fn, Math.min(450, timeout))
+  return () => {
+    window.clearTimeout(t)
+  }
+}
+
+/**
+ * C2-R4 N02: aplica history sem clobber de advance/Maria locais.
+ * History vira prefixo; extras locais (animate/sidechat/células novas) ficam.
+ */
+function mergeHistoryIntoMessages(
+  logs: ConversationLogRow[],
+  prev: ChatMessage[],
+): ChatMessage[] {
+  const fromHistory = logsToMessages(logs)
+  if (prev.length === 0) return fromHistory
+  const extras = prev.filter((m) => {
+    if (fromHistory.some((h) => h.id === m.id)) return false
+    if (
+      m.cellKey &&
+      m.kind !== 'sidechat' &&
+      fromHistory.some(
+        (h) =>
+          h.cellKey === m.cellKey &&
+          h.role === m.role &&
+          h.kind !== 'sidechat',
+      )
+    ) {
+      return false
+    }
+    return true
+  })
+  return extras.length ? [...fromHistory, ...extras] : fromHistory
+}
 
 function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < px
@@ -427,12 +485,23 @@ function bubbleClassName(msg: ChatMessage): string {
   return parts.join(' ')
 }
 
-function typingCopy(reason: BusyReason): {
+function typingCopy(
+  reason: BusyReason,
+  opts?: { trailLabel?: string; mariaLongWait?: boolean },
+): {
   label: string
   aria: string
   reduced: string
 } {
   if (reason === 'maria') {
+    // C2-R4 N03: estágio longo — não só dots eternas.
+    if (opts?.mariaLongWait) {
+      return {
+        label: 'Maria',
+        aria: 'Maria ainda está pensando',
+        reduced: 'Maria ainda está pensando…',
+      }
+    }
     return {
       label: 'Maria',
       aria: 'Maria está digitando',
@@ -447,10 +516,12 @@ function typingCopy(reason: BusyReason): {
       reduced: 'Preparando a resposta…',
     }
   }
+  // C2-R4 N01: typing alinhado ao CTA (Salvando… → Carregando etapa…).
+  const trailLabel = opts?.trailLabel?.trim() || 'Carregando etapa…'
   return {
-    label: 'Preparando etapa…',
-    aria: 'Preparando próxima etapa da trilha',
-    reduced: 'Preparando etapa…',
+    label: trailLabel,
+    aria: trailLabel.replace(/…$/, ''),
+    reduced: trailLabel.endsWith('…') ? trailLabel : `${trailLabel}…`,
   }
 }
 
@@ -491,6 +562,8 @@ export default function PlayerPage() {
   >('idle')
   /** R04-L05: progresso multi-etapa no Continuar. */
   const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
+  /** C2-R4 N03: Maria em espera longa (>3s) — estágio “ainda pensando”. */
+  const [mariaLongWait, setMariaLongWait] = useState(false)
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(
     () => readMariaPersist(trailId).mariaSidechat,
@@ -560,6 +633,9 @@ export default function PlayerPage() {
   const advanceInFlightRef = useRef(false)
   /** advance OK mas next-content falhou — retry só resync (R18-N02). */
   const advanceCommittedRef = useRef(false)
+  /** C2-R4 N02: invalida prefetch history stale (trail change / remount). */
+  const historyFetchGenRef = useRef(0)
+  const historyIdleCancelRef = useRef<(() => void) | null>(null)
   /** Usuário saiu da Maria enquanto a resposta ainda vinha. */
   const mariaCancelledRef = useRef(false)
   /** Última ação retryável (rede/sistema). */
@@ -923,6 +999,17 @@ export default function PlayerPage() {
     return () => window.clearTimeout(t)
   }, [busy])
 
+  /** C2-R4 N03: após ~3s na Maria, eleva o feedback de espera. */
+  useEffect(() => {
+    if (!busy || busyReason !== 'maria') {
+      setMariaLongWait(false)
+      return
+    }
+    setMariaLongWait(false)
+    const t = window.setTimeout(() => setMariaLongWait(true), MARIA_LONG_WAIT_MS)
+    return () => window.clearTimeout(t)
+  }, [busy, busyReason])
+
   const persistLog = useCallback(
     async (input: {
       sender: 'system' | 'student'
@@ -956,6 +1043,12 @@ export default function PlayerPage() {
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     mariaCancelledRef.current = false
     advanceInFlightRef.current = false
+    // C2-R4 N02: cancela prefetch history pendente desta trilha.
+    historyFetchGenRef.current += 1
+    if (historyIdleCancelRef.current) {
+      historyIdleCancelRef.current()
+      historyIdleCancelRef.current = null
+    }
     setHistoryReady(false)
     setHistoryExpanded(false)
     setHistoryHasMore(false)
@@ -967,16 +1060,10 @@ export default function PlayerPage() {
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     userScrollUpGestureRef.current = false
+    setMessages([])
     try {
-      // next-content primeiro — CTA não espera history.
-      const contentPromise = fetchNextContent(session.student_id, trailId)
-      const historyPromise = fetchTrailHistoryPage(
-        session.student_id,
-        trailId,
-        { limit: HISTORY_PAGE_LIMIT },
-      )
-
-      const data = await contentPromise
+      // next-content primeiro — CTA / first paint não esperam history.
+      const data = await fetchNextContent(session.student_id, trailId)
       setContent(data)
 
       if (data.status !== 'ok') {
@@ -993,7 +1080,6 @@ export default function PlayerPage() {
           ])
         }
         setHistoryReady(true)
-        void historyPromise.catch(() => undefined)
         return
       }
 
@@ -1008,143 +1094,167 @@ export default function PlayerPage() {
 
       // Libera composer/CTA assim que o passo atual existe.
       setHistoryReady(true)
+      setExercisePhase('idle')
 
-      let logs: ConversationLogRow[] = []
-      try {
-        const page = await historyPromise
-        logs = page.logs
-        setHistoryHasMore(page.has_more)
-        historyBeforeRef.current = page.next_before
-        const oldest = logs[0]
-        oldestLogMsRef.current =
-          typeof oldest?.created_at_ms === 'number'
-            ? oldest.created_at_ms
-            : page.next_before
-      } catch {
-        logs = []
-        setHistoryHasMore(false)
-      }
-      // History: sem animate — evita cascata no mount/relogin.
-      setMessages(logsToMessages(logs))
-
-      if (data.stage_type === 'exercise') {
-        const done = cellHasExerciseFeedback(
-          logs,
-          data.stage_number,
-          data.question_number,
-        )
-        setExerciseDone(done)
-        setExercisePhase(done ? 'done' : 'idle')
-      } else {
-        setExercisePhase('idle')
-      }
-
-      const already = logs.some(
-        (l) =>
-          l.stage_number === data.stage_number &&
-          l.question_number === data.question_number &&
-          isTrailDeliveryLog(l),
-      )
-      // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
-      if (
-        !already &&
-        data.stage_type !== 'ai' &&
-        deliveredKeyRef.current !== key
-      ) {
-        deliveredKeyRef.current = key
-        const msgId = trailMessageId(data.stage_number, data.question_number)
-        let isNew = false
-        setMessages((prev) => {
-          const result = appendTrailMessage(prev, {
+      // Semeia o passo corrente sem esperar history (lesson-card + bolha).
+      // Persist só depois do history (evita log duplicado no remount).
+      deliveredKeyRef.current = key
+      const msgId = trailMessageId(data.stage_number, data.question_number)
+      if (text || data.stage_type !== 'ai') {
+        setMessages((prev) =>
+          appendTrailMessage(prev, {
             id: msgId,
             role: 'assistant',
             text,
             stageType: data.stage_type,
             cellKey: key,
             questionNumber: data.question_number,
-          })
-          isNew = result.isNew
-          return result.messages
-        })
-        if (isNew) {
-          void persistLog({
-            sender: 'system',
-            message_text: text,
-            stage_number: data.stage_number,
-            question_number: data.question_number,
-            message_type:
-              data.stage_type === 'exercise' ? 'exercise' : 'instruction',
-            metadata: { source: 'next-content', stage_type: data.stage_type },
-          })
-        }
-      } else if (
-        already &&
-        data.stage_type === 'exercise' &&
-        text.trim()
-      ) {
-        // History pode ter delivery fora da 1ª página ou texto incompleto —
-        // garante bolha da célula alinhada ao next-content (enunciado).
-        deliveredKeyRef.current = key
-        const msgId = trailMessageId(data.stage_number, data.question_number)
-        setMessages((prev) => {
-          const idx = prev.findIndex(
-            (m) => m.id === msgId || m.cellKey === key,
-          )
-          if (idx >= 0) {
-            const cur = prev[idx]
-            if (cur.text === text) return prev
-            const next = [...prev]
-            next[idx] = {
-              ...cur,
-              text,
-              stageType: 'exercise',
-              cellKey: key,
-              questionNumber: data.question_number,
-            }
-            return next
-          }
-          return appendTrailMessage(prev, {
-            id: msgId,
-            role: 'assistant',
-            text,
-            stageType: 'exercise',
-            cellKey: key,
-            questionNumber: data.question_number,
-          }).messages
-        })
-      } else if (data.stage_type === 'ai') {
-        deliveredKeyRef.current = key
-        if (text) {
-          const msgId = trailMessageId(data.stage_number, data.question_number)
-          // Sempre alinha a bolha da célula ao next-content atual
-          // (cache regenerado pode diferir do log antigo no history).
-          setMessages((prev) => {
-            const idx = prev.findIndex(
-              (m) => m.id === msgId || m.cellKey === key,
-            )
-            if (idx >= 0) {
-              if (prev[idx].text === text) return prev
-              const next = [...prev]
-              next[idx] = {
-                ...prev[idx],
-                text,
-                stageType: 'ai',
-                cellKey: key,
-                questionNumber: data.question_number,
-              }
-              return next
-            }
-            return appendTrailMessage(prev, {
-              id: msgId,
-              role: 'assistant',
-              text,
-              stageType: 'ai',
-              cellKey: key,
-              questionNumber: data.question_number,
-            }).messages
-          })
-        }
+          }).messages,
+        )
       }
+
+      // C2-R4 N02: history em idle — sem waterfall silencioso no mount.
+      const gen = historyFetchGenRef.current
+      historyIdleCancelRef.current = scheduleIdle(() => {
+        historyIdleCancelRef.current = null
+        void (async () => {
+          if (gen !== historyFetchGenRef.current) return
+          try {
+            const page = await fetchTrailHistoryPage(
+              session.student_id,
+              trailId,
+              { limit: HISTORY_PAGE_LIMIT },
+            )
+            if (gen !== historyFetchGenRef.current) return
+            const logs = page.logs
+            setHistoryHasMore(page.has_more)
+            historyBeforeRef.current = page.next_before
+            const oldest = logs[0]
+            oldestLogMsRef.current =
+              typeof oldest?.created_at_ms === 'number'
+                ? oldest.created_at_ms
+                : page.next_before
+            // Merge: não apaga advance/Maria locais se o aluno já seguiu.
+            setMessages((prev) => mergeHistoryIntoMessages(logs, prev))
+
+            const already = logs.some(
+              (l) =>
+                l.stage_number === data.stage_number &&
+                l.question_number === data.question_number &&
+                isTrailDeliveryLog(l),
+            )
+
+            if (data.stage_type === 'exercise') {
+              const done = cellHasExerciseFeedback(
+                logs,
+                data.stage_number,
+                data.question_number,
+              )
+              setExerciseDone(done)
+              setExercisePhase(done ? 'done' : 'idle')
+              if (text.trim()) {
+                const alignId = trailMessageId(
+                  data.stage_number,
+                  data.question_number,
+                )
+                setMessages((prev) => {
+                  const idx = prev.findIndex(
+                    (m) => m.id === alignId || m.cellKey === key,
+                  )
+                  if (idx < 0) {
+                    return appendTrailMessage(prev, {
+                      id: alignId,
+                      role: 'assistant',
+                      text,
+                      stageType: 'exercise',
+                      cellKey: key,
+                      questionNumber: data.question_number,
+                    }).messages
+                  }
+                  if (prev[idx].text === text) return prev
+                  const next = [...prev]
+                  next[idx] = {
+                    ...prev[idx],
+                    text,
+                    stageType: 'exercise',
+                    cellKey: key,
+                    questionNumber: data.question_number,
+                  }
+                  return next
+                })
+              }
+            } else if (data.stage_type === 'ai' && text) {
+              const alignId = trailMessageId(
+                data.stage_number,
+                data.question_number,
+              )
+              setMessages((prev) => {
+                const idx = prev.findIndex(
+                  (m) => m.id === alignId || m.cellKey === key,
+                )
+                if (idx < 0) {
+                  return appendTrailMessage(prev, {
+                    id: alignId,
+                    role: 'assistant',
+                    text,
+                    stageType: 'ai',
+                    cellKey: key,
+                    questionNumber: data.question_number,
+                  }).messages
+                }
+                if (prev[idx].text === text) return prev
+                const next = [...prev]
+                next[idx] = {
+                  ...prev[idx],
+                  text,
+                  stageType: 'ai',
+                  cellKey: key,
+                  questionNumber: data.question_number,
+                }
+                return next
+              })
+            }
+
+            // AI já persiste no ensure-ai; fixed/exercise só se history não tem.
+            if (
+              !already &&
+              data.stage_type !== 'ai' &&
+              text.trim()
+            ) {
+              void persistLog({
+                sender: 'system',
+                message_text: text,
+                stage_number: data.stage_number,
+                question_number: data.question_number,
+                message_type:
+                  data.stage_type === 'exercise' ? 'exercise' : 'instruction',
+                metadata: {
+                  source: 'next-content',
+                  stage_type: data.stage_type,
+                },
+              })
+            }
+          } catch {
+            if (gen !== historyFetchGenRef.current) return
+            setHistoryHasMore(false)
+            // Sem history: ainda grava fixed/exercise uma vez (primeira entrega).
+            if (data.stage_type !== 'ai' && text.trim()) {
+              void persistLog({
+                sender: 'system',
+                message_text: text,
+                stage_number: data.stage_number,
+                question_number: data.question_number,
+                message_type:
+                  data.stage_type === 'exercise' ? 'exercise' : 'instruction',
+                metadata: {
+                  source: 'next-content',
+                  stage_type: data.stage_type,
+                },
+              })
+            }
+          }
+        })()
+      })
     } catch (err) {
       reportError(err, 'Erro ao carregar a trilha.', () => {
         void loadHistoryAndContent()
@@ -2398,7 +2508,9 @@ export default function PlayerPage() {
     content?.status !== 'ok'
       ? 'off'
       : trailBusy
-        ? 'busy'
+        ? trailBusyLabel.startsWith('Salvando')
+          ? 'busy-save'
+          : 'busy-load'
         : content.stage_type === 'exercise'
           ? exerciseDone
             ? 'ex-done'
@@ -2409,7 +2521,11 @@ export default function PlayerPage() {
             ? 'maria'
             : 'trail'
 
-  const typing = typingCopy(busyReason)
+  // C2-R4 N01/N03: typing alinhado ao CTA (trail) e estágio longo (Maria).
+  const typing = typingCopy(busyReason, {
+    trailLabel: trailBusyLabel,
+    mariaLongWait,
+  })
   /**
    * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
    * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
@@ -2635,10 +2751,17 @@ export default function PlayerPage() {
 
         {showTypingBubble ? (
           <article
-            className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}`}
+            className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
+              mariaLongWait && busyReason === 'maria'
+                ? ' chat-bubble--typing-long'
+                : ''
+            }`}
             aria-live="polite"
             aria-label={typing.aria}
             data-busy-reason={busyReason || undefined}
+            data-long-wait={
+              mariaLongWait && busyReason === 'maria' ? 'true' : undefined
+            }
           >
             <p className="chat-bubble__label">{typing.label}</p>
             <div className="chat-bubble__body">
@@ -2648,6 +2771,11 @@ export default function PlayerPage() {
                 <span />
               </span>
               <span className="typing-dots__reduced">{typing.reduced}</span>
+              {mariaLongWait && busyReason === 'maria' ? (
+                <p className="typing-dots__status" aria-hidden="true">
+                  Ainda pensando…
+                </p>
+              ) : null}
             </div>
           </article>
         ) : null}
@@ -2898,7 +3026,10 @@ export default function PlayerPage() {
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {trailBusy
-              ? 'Aguarde — salvando e carregando a próxima etapa'
+              ? // C2-R4 N01: rodapé na mesma fase do CTA/typing
+                trailBusyLabel.startsWith('Salvando')
+                ? 'Aguarde — salvando progresso'
+                : 'Aguarde — carregando a próxima etapa'
               : content.stage_type === 'exercise'
                 ? showContinuar
                   ? 'Pergunte à Maria · Continuar trilha avança'

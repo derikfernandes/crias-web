@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   advanceTrail,
   askMaria,
@@ -459,7 +459,13 @@ function typingCopy(reason: BusyReason): {
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
+  const { trailNames } = useOutletContext<{
+    trailNames?: Record<string, string>
+  }>()
   const session = getSession()!
+  /** C2-R3 N03: H1 SR com nome humano — nunca ID cru (`t47`). */
+  const trailHeading =
+    (trailId && trailNames?.[trailId]?.trim()) || 'Trilha'
   const [content, setContent] = useState<NextContentOk | NextContentStatus | null>(
     null,
   )
@@ -2477,7 +2483,7 @@ export default function PlayerPage() {
       aria-labelledby="crias-player-heading"
     >
       <h1 id="crias-player-heading" className="visually-hidden">
-        Player da trilha {trailId}
+        Player da trilha {trailHeading}
       </h1>
       <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {srAnnounce}

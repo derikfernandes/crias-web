@@ -115,6 +115,50 @@ function exercisePromptFromContent(content: NextContentOk): string {
   return stripOptionLines((content.content ?? '').trim())
 }
 
+/** R10-Z07: draft + modo Maria sobrevivem a reload mid-sidechat. */
+function mariaPersistKey(trailId: string): string {
+  return `crias:maria-draft:${trailId}`
+}
+
+function readMariaPersist(trailId: string): {
+  draft: string
+  mariaSidechat: boolean
+} {
+  if (!trailId || typeof sessionStorage === 'undefined') {
+    return { draft: '', mariaSidechat: false }
+  }
+  try {
+    const raw = sessionStorage.getItem(mariaPersistKey(trailId))
+    if (!raw) return { draft: '', mariaSidechat: false }
+    const parsed = JSON.parse(raw) as {
+      draft?: unknown
+      mariaSidechat?: unknown
+    }
+    return {
+      draft: typeof parsed.draft === 'string' ? parsed.draft : '',
+      mariaSidechat: Boolean(parsed.mariaSidechat),
+    }
+  } catch {
+    return { draft: '', mariaSidechat: false }
+  }
+}
+
+function writeMariaPersist(
+  trailId: string,
+  state: { draft: string; mariaSidechat: boolean },
+) {
+  if (!trailId || typeof sessionStorage === 'undefined') return
+  try {
+    if (!state.draft && !state.mariaSidechat) {
+      sessionStorage.removeItem(mariaPersistKey(trailId))
+      return
+    }
+    sessionStorage.setItem(mariaPersistKey(trailId), JSON.stringify(state))
+  } catch {
+    // quota / private mode — ignore
+  }
+}
+
 function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: string): ReactNode {
   if (!segments || segments.length === 0) return fallback || '\u00a0'
   return segments.map((seg) => {
@@ -350,7 +394,9 @@ export default function PlayerPage() {
   const [busy, setBusy] = useState(false)
   const [busyReason, setBusyReason] = useState<BusyReason>(null)
   const [showTyping, setShowTyping] = useState(false)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(
+    () => readMariaPersist(trailId).draft,
+  )
   const [exerciseDone, setExerciseDone] = useState(false)
   /** Opção escolhida (select) — submit só via Enviar (D#2). */
   const [selectedOptionKey, setSelectedOptionKey] = useState<string | null>(null)
@@ -366,7 +412,9 @@ export default function PlayerPage() {
   /** R04-L05: progresso multi-etapa no Continuar. */
   const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
-  const [mariaSidechat, setMariaSidechat] = useState(false)
+  const [mariaSidechat, setMariaSidechat] = useState(
+    () => readMariaPersist(trailId).mariaSidechat,
+  )
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
@@ -744,7 +792,7 @@ export default function PlayerPage() {
     setPendingOptionKey(null)
     setExercisePhase('idle')
     setTrailBusyLabel('Preparando etapa…')
-    setMariaSidechat(false)
+    // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     mariaCancelledRef.current = false
     advanceInFlightRef.current = false
     setHistoryReady(false)
@@ -1049,8 +1097,9 @@ export default function PlayerPage() {
   useEffect(() => {
     deliveredKeyRef.current = null
     setMessages([])
-    setDraft('')
-    setMariaSidechat(false)
+    const saved = readMariaPersist(trailId)
+    setDraft(saved.draft)
+    setMariaSidechat(saved.mariaSidechat)
     setHistoryExpanded(false)
     setPendingOptionKey(null)
     setBusy(false)
@@ -1058,6 +1107,11 @@ export default function PlayerPage() {
     setContinuarLeaving(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
+
+  /** R10-Z07: persiste draft + modo Maria (reload mid-dúvida). */
+  useEffect(() => {
+    writeMariaPersist(trailId, { draft, mariaSidechat })
+  }, [trailId, draft, mariaSidechat])
 
   function capturePinFromScroll() {
     const el = threadRef.current
@@ -2048,13 +2102,7 @@ export default function PlayerPage() {
         : 'Carregando a trilha…'
       : content.status !== 'ok'
         ? 'Trilha indisponível no momento'
-        : exerciseLockedComposer
-          ? 'Responda a questão primeiro'
-          : content.stage_type === 'exercise' && exerciseDone
-            ? 'Pergunte à Maria…'
-            : mariaSidechat
-              ? 'Pergunte à Maria…'
-              : 'Pergunte à Maria…'
+        : 'Pergunte à Maria…'
 
   const hintKey =
     content?.status !== 'ok'
@@ -2070,11 +2118,15 @@ export default function PlayerPage() {
           : 'trail'
 
   const typing = typingCopy(busyReason)
-  /** R04-L03 / R01-F25: typing só enquanto espera Maria/feedback — não sobre UI pronta do trail. */
+  /**
+   * R04-L03 / R01-F25 / R01-F05 / R09-X09:
+   * typing só Maria/feedback — e nunca junto do card “Enviando…”.
+   */
   const showTypingBubble =
     busy &&
     showTyping &&
-    (busyReason === 'maria' || busyReason === 'exercise')
+    (busyReason === 'maria' || busyReason === 'exercise') &&
+    exercisePhase !== 'submitting'
   const showCtaSlot =
     content?.status === 'ok' &&
     (showContinuar ||
@@ -2086,6 +2138,19 @@ export default function PlayerPage() {
   /** F02/F07: Enviar permanece no Tab com aria-disabled no exercício sem seleção. */
   const sendAriaDisabled = exerciseLockedComposer && !canSubmitExercise
   const sendDisabledHard = !exerciseLockedComposer && !canSend
+  /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
+  const activeExerciseCellKey =
+    content?.status === 'ok' &&
+    content.stage_type === 'exercise' &&
+    !exerciseDone
+      ? trailCellKey(content.stage_number, content.question_number)
+      : null
+  const exerciseLegend =
+    exerciseSubmitting
+      ? 'Enviando resposta…'
+      : exercisePhase === 'error'
+        ? 'Não foi possível enviar'
+        : 'Responda a questão'
 
   return (
     <main
@@ -2187,26 +2252,43 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {visibleMessages.map((msg) => (
-          <article
-            key={msg.id}
-            className={bubbleClassName(msg)}
-            data-stage-type={msg.stageType}
-            data-cell-key={msg.cellKey || undefined}
-            data-animate={msg.animate ? 'true' : undefined}
-          >
-            <p className="chat-bubble__label">
-              {msg.role === 'assistant'
-                ? 'Maria'
-                : msg.role === 'user'
-                  ? 'Você'
-                  : 'Sistema'}
-            </p>
-            <div className="chat-bubble__body">
-              {renderMessageLines(msg.text).map((part) => renderMessagePart(part))}
-            </div>
-          </article>
-        ))}
+        {visibleMessages.map((msg) => {
+          const promptMovedToCard =
+            Boolean(activeExerciseCellKey) &&
+            msg.role === 'assistant' &&
+            msg.stageType === 'exercise' &&
+            msg.cellKey === activeExerciseCellKey
+          return (
+            <article
+              key={msg.id}
+              className={`${bubbleClassName(msg)}${
+                promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
+              }`}
+              data-stage-type={msg.stageType}
+              data-cell-key={msg.cellKey || undefined}
+              data-animate={msg.animate ? 'true' : undefined}
+            >
+              <p className="chat-bubble__label">
+                {msg.role === 'assistant'
+                  ? 'Maria'
+                  : msg.role === 'user'
+                    ? 'Você'
+                    : 'Sistema'}
+              </p>
+              {promptMovedToCard ? (
+                <div className="chat-bubble__body chat-bubble__body--cue">
+                  <p className="muted">Questão abaixo — escolha uma opção.</p>
+                </div>
+              ) : (
+                <div className="chat-bubble__body">
+                  {renderMessageLines(msg.text).map((part) =>
+                    renderMessagePart(part),
+                  )}
+                </div>
+              )}
+            </article>
+          )
+        })}
 
         {showTypingBubble ? (
           <article
@@ -2262,7 +2344,7 @@ export default function PlayerPage() {
             aria-busy={exerciseSubmitting || undefined}
             data-exercise-phase={exercisePhase}
           >
-            <p className="chat-exercise__legend">Responda a questão</p>
+            <p className="chat-exercise__legend">{exerciseLegend}</p>
             {exercisePrompt ? (
               <div className="chat-exercise__prompt">
                 {renderMessageLines(exercisePrompt).map((part) =>
@@ -2373,7 +2455,9 @@ export default function PlayerPage() {
       <footer
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
-        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}`}
+        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
+          showContinuar ? ' chat-composer--with-continue' : ''
+        }`}
       >
         <form
           className="chat-composer__form"
@@ -2457,11 +2541,15 @@ export default function PlayerPage() {
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
-              ? 'Pergunte à Maria; o botão verde avança a trilha'
+              ? showContinuar
+                ? 'Pergunte à Maria · Continuar trilha avança'
+                : 'Pergunte à Maria; o botão verde avança a trilha'
               : mariaSidechat
                 ? 'Voltar à trilha reexibe o passo atual'
-                : // R01-F09 / R14-L01: sem microcopy de teclado desktop / homônimo Continuar
-                  'Enviar fala com Maria · o botão verde avança a trilha'}
+                : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                  showContinuar
+                  ? 'Enviar fala com Maria · Continuar trilha avança'
+                  : 'Enviar fala com Maria · o botão verde avança a trilha'}
           </p>
         ) : null}
       </footer>

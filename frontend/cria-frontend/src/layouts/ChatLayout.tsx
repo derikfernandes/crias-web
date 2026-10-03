@@ -379,6 +379,9 @@ export default function ChatLayout() {
           </div>
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
             Sair
+            <span className="chat-sidebar__logout-hint">
+              Seu progresso fica salvo
+            </span>
           </button>
         </div>
       </aside>

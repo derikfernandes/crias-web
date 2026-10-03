@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(() => {
     const st = location.state as { message?: string; reason?: string } | null
     if (st?.message) return st.message
@@ -89,7 +90,7 @@ export default function LoginPage() {
         <p className="brand">Crias</p>
         <h1>Entre na sua trilha</h1>
         <p className="lede">
-          Telefone, código da instituição e senha definida pelo admin.
+          Use o telefone, o código da sua escola e a senha que você recebeu.
         </p>
         <label>
           Telefone
@@ -100,7 +101,7 @@ export default function LoginPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             onFocus={onFieldFocus}
-            placeholder="5511999990000"
+            placeholder="DDD + número"
             required
           />
         </label>
@@ -111,21 +112,32 @@ export default function LoginPage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             onFocus={onFieldFocus}
-            placeholder="ex.: inst_1"
+            placeholder="código da sua escola"
             required
           />
         </label>
         <label>
           Senha
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onFocus={onFieldFocus}
-            required
-            minLength={6}
-          />
+          <div className="login-password-row">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onFocus={onFieldFocus}
+              required
+              minLength={6}
+            />
+            <button
+              type="button"
+              className="login-password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-pressed={showPassword}
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              {showPassword ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
         </label>
         {error ? (
           <div className="login-error" role="alert">

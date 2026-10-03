@@ -1,6 +1,7 @@
 import {
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -20,23 +21,30 @@ import {
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
+import {
+  isRetryableSystemError,
+  toUserFacingError,
+} from '../lib/networkError'
 import { getSession } from '../lib/session'
 import {
   alignBlocoWithAttempt,
   type ChatMessage,
+  type InlineSeg,
+  type MessagePart,
   isBlocoRespostaContent,
   isContinuarText,
   isTrailDeliveryLog,
-  lightStripMarkdown,
   logsToMessages,
   looksLikeLessonConclusion,
   normalizeTitleKey,
   renderMessageLines,
   stripDecorTitle,
+  stripHardcodedVerdict,
   stripMidLessonConclusion,
   trailCellKey,
   trailMessageId,
 } from '../lib/trailMessages'
+import { bindVisualViewport } from '../lib/visualViewport'
 
 /** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
@@ -102,8 +110,71 @@ function stripOptionLines(text: string): string {
 
 /** Enunciado exibido no card do exercício (acima das opções). */
 function exercisePromptFromContent(content: NextContentOk): string {
-  const body = stripOptionLines((content.content ?? '').trim())
-  return lightStripMarkdown(body)
+  return stripOptionLines((content.content ?? '').trim())
+}
+
+function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: string): ReactNode {
+  if (!segments || segments.length === 0) return fallback || '\u00a0'
+  return segments.map((seg) => {
+    if (seg.kind === 'strong') {
+      return <strong key={seg.key}>{seg.value}</strong>
+    }
+    if (seg.kind === 'em') {
+      return <em key={seg.key}>{seg.value}</em>
+    }
+    return <span key={seg.key}>{seg.value}</span>
+  })
+}
+
+function renderMessagePart(part: MessagePart): ReactNode {
+  if (part.kind === 'image') {
+    return (
+      <p key={part.key} className="chat-bubble__media">
+        <img src={part.value} alt="" loading="lazy" />
+      </p>
+    )
+  }
+  if (part.kind === 'embed' && part.embedUrl) {
+    return (
+      <div key={part.key} className="chat-bubble__embed">
+        <div className="chat-bubble__embed-frame">
+          <iframe
+            src={part.embedUrl}
+            title={part.label || 'Mídia da aula'}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+        <a
+          href={part.value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="chat-bubble__link"
+        >
+          {part.label || part.value}
+        </a>
+      </div>
+    )
+  }
+  if (part.kind === 'link') {
+    return (
+      <p key={part.key}>
+        <a
+          href={part.value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="chat-bubble__link"
+        >
+          {part.label || part.value}
+        </a>
+      </p>
+    )
+  }
+  return (
+    <p key={part.key}>{renderInlineSegments(part.segments, part.value)}</p>
+  )
 }
 
 /**
@@ -137,7 +208,8 @@ function contentToAssistantText(
   const parts: string[] = []
   if (title) parts.push(title)
   if (body) parts.push(body)
-  return lightStripMarkdown(parts.join('\n\n') || 'Conteúdo da etapa.')
+  // Preserva markdown inline (_em_ / **bold**) para o renderer.
+  return parts.join('\n\n') || 'Conteúdo da etapa.'
 }
 
 function statusToSystemText(content: NextContentStatus): string {
@@ -258,13 +330,18 @@ export default function PlayerPage() {
   )
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [error, setError] = useState<string | null>(null)
+  /** Retry só para erro rede/sistema (D#9). */
+  const [canRetry, setCanRetry] = useState(false)
   const [busy, setBusy] = useState(false)
   const [busyReason, setBusyReason] = useState<BusyReason>(null)
   const [showTyping, setShowTyping] = useState(false)
   const [draft, setDraft] = useState('')
   const [exerciseDone, setExerciseDone] = useState(false)
+  /** Opção escolhida (select) — submit só via Enviar (D#2). */
+  const [selectedOptionKey, setSelectedOptionKey] = useState<string | null>(null)
+  /** Opção em voo de submit (pending visual). */
   const [pendingOptionKey, setPendingOptionKey] = useState<string | null>(null)
-  /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
+  /** Sidechat Maria: esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
@@ -308,8 +385,30 @@ export default function PlayerPage() {
    * Continuar não deve reexibir a mesma célula como 2ª bolha de feedback.
    */
   const skipNextBlocoDeliveryRef = useRef(false)
+  /** Race guard síncrono — double-tap Continuar (R04-L01 / R06-E02). */
+  const advanceInFlightRef = useRef(false)
+  /** Usuário saiu da Maria enquanto a resposta ainda vinha. */
+  const mariaCancelledRef = useRef(false)
+  /** Última ação retryável (rede/sistema). */
+  const retryFnRef = useRef<(() => void) | null>(null)
   contentRef.current = content
   busyReasonRef.current = busyReason
+
+  const reportError = useCallback(
+    (err: unknown, fallback: string, retry?: () => void) => {
+      setError(toUserFacingError(err, fallback))
+      const retryable = isRetryableSystemError(err) && typeof retry === 'function'
+      retryFnRef.current = retryable ? retry! : null
+      setCanRetry(retryable)
+    },
+    [],
+  )
+
+  const clearError = useCallback(() => {
+    setError(null)
+    setCanRetry(false)
+    retryFnRef.current = null
+  }, [])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -320,6 +419,8 @@ export default function PlayerPage() {
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
+
+  useEffect(() => bindVisualViewport(), [])
 
   /** Gestos de scroll-up do usuário → autorizam pin (C4-MARIA-FALSE-PIN). */
   useEffect(() => {
@@ -444,10 +545,13 @@ export default function PlayerPage() {
   )
 
   const loadHistoryAndContent = useCallback(async () => {
-    setError(null)
+    clearError()
     setExerciseDone(false)
+    setSelectedOptionKey(null)
     setPendingOptionKey(null)
     setMariaSidechat(false)
+    mariaCancelledRef.current = false
+    advanceInFlightRef.current = false
     setHistoryReady(false)
     setHistoryExpanded(false)
     setHistoryHasMore(false)
@@ -636,11 +740,13 @@ export default function PlayerPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar.')
+      reportError(err, 'Erro ao carregar a trilha.', () => {
+        void loadHistoryAndContent()
+      })
       setContent(null)
       setHistoryReady(true)
     }
-  }, [persistLog, session.student_id, trailId])
+  }, [clearError, persistLog, reportError, session.student_id, trailId])
 
   const loadOlderHistory = useCallback(async () => {
     if (historyLoadingMore || !historyHasMore) return
@@ -960,8 +1066,10 @@ export default function PlayerPage() {
    */
   async function loadNextAfterAdvance() {
     setExerciseDone(false)
+    setSelectedOptionKey(null)
     setPendingOptionKey(null)
     setMariaSidechat(false)
+    mariaCancelledRef.current = false
     try {
       const data = await fetchNextContent(session.student_id, trailId)
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
@@ -1108,7 +1216,9 @@ export default function PlayerPage() {
       }
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
-      setError(err instanceof Error ? err.message : 'Erro ao carregar etapa.')
+      reportError(err, 'Erro ao carregar a etapa.', () => {
+        void loadNextAfterAdvance()
+      })
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
         setContent(reconciled)
@@ -1122,6 +1232,9 @@ export default function PlayerPage() {
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
     if (content?.status !== 'ok') return
+    // Race guard síncrono — React disabled ainda não pintou (R04-L01).
+    if (advanceInFlightRef.current || busy) return
+    advanceInFlightRef.current = true
     // Evita scrollIntoView do botão focado puxar a thread ao fundo (C2-40).
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
@@ -1135,8 +1248,9 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setError(null)
+    clearError()
     setMariaSidechat(false)
+    mariaCancelledRef.current = false
     setDraft('')
     try {
       const result = await advanceTrail(session.student_id, trailId)
@@ -1163,7 +1277,9 @@ export default function PlayerPage() {
         setContent(result as NextContentStatus)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao avançar.')
+      reportError(err, 'Erro ao avançar a trilha.', () => {
+        void doAdvance()
+      })
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
         setContent(reconciled)
@@ -1171,6 +1287,7 @@ export default function PlayerPage() {
         /* ignore */
       }
     } finally {
+      advanceInFlightRef.current = false
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
@@ -1189,18 +1306,22 @@ export default function PlayerPage() {
 
   async function doMaria(userLine: string) {
     if (content?.status !== 'ok') return
-    // Exercício: Maria bloqueada até o feedback (depois libera — B3).
+    // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
+    mariaCancelledRef.current = false
+    // Entra no sidechat já no envio — evita limbo sem Continuar/Voltar (R07-P02).
+    setMariaSidechat(true)
     setBusy(true)
     setBusyReason('maria')
-    setError(null)
+    clearError()
     const q = content.question_number
+    const askLine = userLine
     setMessages((prev) => [
       ...prev,
       markAnimate({
         id: `u-${Date.now()}`,
         role: 'user',
-        text: userLine,
+        text: askLine,
         questionNumber: q,
         kind: 'sidechat',
       }),
@@ -1210,7 +1331,7 @@ export default function PlayerPage() {
       const result = await askMaria({
         student_id: session.student_id,
         trail_id: trailId,
-        message: userLine,
+        message: askLine,
         stage_number: content.stage_number,
         question_number: content.question_number,
       })
@@ -1219,14 +1340,22 @@ export default function PlayerPage() {
         markAnimate({
           id: `m-${Date.now()}`,
           role: 'assistant',
-          text: lightStripMarkdown(result.reply),
+          text: result.reply,
           questionNumber: q,
           kind: 'sidechat',
         }),
       ])
-      setMariaSidechat(true)
+      // Se o aluno já voltou, não reabre o limbo do sidechat.
+      if (!mariaCancelledRef.current) {
+        setMariaSidechat(true)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao falar com Maria.')
+      reportError(err, 'Erro ao falar com Maria.', () => {
+        void doMaria(askLine)
+      })
+      if (!mariaCancelledRef.current) {
+        setMariaSidechat(true)
+      }
     } finally {
       setBusy(false)
       setBusyReason(null)
@@ -1234,8 +1363,9 @@ export default function PlayerPage() {
   }
 
   function onVoltarParaTrilha() {
+    mariaCancelledRef.current = true
     setMariaSidechat(false)
-    setError(null)
+    clearError()
     const current = contentRef.current
     if (current?.status !== 'ok') return
 
@@ -1297,15 +1427,30 @@ export default function PlayerPage() {
     })
   }
 
-  async function onOptionClick(option: ExerciseOption) {
+  /** D#2: toque só seleciona; Enviar confirma. */
+  function onOptionSelect(option: ExerciseOption) {
+    if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
+      return
+    }
+    if (exerciseDone || pendingOptionKey) return
+    setSelectedOptionKey(option.key)
+    clearError()
+  }
+
+  async function submitSelectedOption() {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
     if (exerciseDone) return
+    const option = normalizeExerciseOptions(content.options).find(
+      (o) => o.key === selectedOptionKey,
+    )
+    if (!option) return
+
     setBusy(true)
     setBusyReason('exercise')
     setPendingOptionKey(option.key)
-    setError(null)
+    clearError()
     setMariaSidechat(false)
     const q = content.question_number
     try {
@@ -1318,44 +1463,50 @@ export default function PlayerPage() {
         student_answer: option.key,
         feedback: content.explanation,
       })
-      const resultLabel =
-        attempt.score === null
-          ? 'Resposta registrada.'
-          : attempt.is_correct
-            ? 'Resposta correta!'
-            : 'Resposta incorreta.'
+      // D#3: só feedback da escola / IA — sem hardcode de veredito.
       const pedagogical = attempt.pedagogical_feedback?.trim() || null
-      let rich = content.explanation?.trim() || pedagogical || null
+      let rich =
+        content.explanation?.trim() ||
+        pedagogical ||
+        attempt.feedback?.trim() ||
+        null
+      if (rich) {
+        rich = stripHardcodedVerdict(rich) || null
+      }
       // R02: não misturar “Parabéns pelo acerto” com attempt errado.
       if (rich && attempt.score !== null) {
         rich = alignBlocoWithAttempt(rich, attempt.is_correct) || null
       }
-      const feedbackParts = [resultLabel, rich].filter(Boolean)
-      const feedbackText = feedbackParts.join('\n\n')
+      const feedbackText = rich?.trim() || null
       // B3: se o BLOCO seguinte já entrou neste feedback, pular reentrega.
-      skipNextBlocoDeliveryRef.current = Boolean(
-        pedagogical || content.explanation?.trim(),
-      )
+      skipNextBlocoDeliveryRef.current = Boolean(feedbackText)
       // B5: opção escolhida vira banner no histórico (não some).
-      setMessages((prev) => [
-        ...prev,
-        markAnimate({
-          id: `u-${Date.now()}`,
-          role: 'user',
-          text: option.text,
-          stageType: 'exercise',
-          kind: 'exercise-answer',
-          questionNumber: q,
-        }),
-        markAnimate({
-          id: `f-${Date.now()}`,
-          role: 'assistant',
-          text: lightStripMarkdown(feedbackText),
-          stageType: 'exercise',
-          kind: 'feedback',
-          questionNumber: q,
-        }),
-      ])
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          markAnimate({
+            id: `u-${Date.now()}`,
+            role: 'user',
+            text: option.text,
+            stageType: 'exercise' as const,
+            kind: 'exercise-answer' as const,
+            questionNumber: q,
+          }),
+        ]
+        if (feedbackText) {
+          next.push(
+            markAnimate({
+              id: `f-${Date.now()}`,
+              role: 'assistant',
+              text: feedbackText,
+              stageType: 'exercise',
+              kind: 'feedback',
+              questionNumber: q,
+            }),
+          )
+        }
+        return next
+      })
       await persistLog({
         sender: 'student',
         message_text: option.text,
@@ -1369,22 +1520,27 @@ export default function PlayerPage() {
           attempt_number: attempt.attempt_number,
         },
       })
-      await persistLog({
-        sender: 'system',
-        message_text: feedbackText,
-        stage_number: content.stage_number,
-        question_number: content.question_number,
-        message_type: 'feedback',
-        metadata: {
-          source: 'exercise_feedback',
-          is_correct: attempt.is_correct,
-          score: attempt.score,
-        },
-      })
+      if (feedbackText) {
+        await persistLog({
+          sender: 'system',
+          message_text: feedbackText,
+          stage_number: content.stage_number,
+          question_number: content.question_number,
+          message_type: 'feedback',
+          metadata: {
+            source: 'exercise_feedback',
+            is_correct: attempt.is_correct,
+            score: attempt.score,
+          },
+        })
+      }
       setExerciseDone(true)
+      setSelectedOptionKey(null)
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
-      setError(err instanceof Error ? err.message : 'Erro no exercício.')
+      reportError(err, 'Erro ao enviar a resposta.', () => {
+        void submitSelectedOption()
+      })
       setPendingOptionKey(null)
     } finally {
       setBusy(false)
@@ -1395,8 +1551,15 @@ export default function PlayerPage() {
   async function onSend(event?: FormEvent) {
     event?.preventDefault()
     if (busy || content?.status !== 'ok') return
-    // Exercício: sem free-text / Maria até o feedback (B3 libera depois).
-    if (content.stage_type === 'exercise' && !exerciseDone) return
+
+    // Exercício: Enviar confirma a opção selecionada (D#2); Maria bloqueada (D#6).
+    if (content.stage_type === 'exercise' && !exerciseDone) {
+      if (selectedOptionKey) {
+        await submitSelectedOption()
+      }
+      return
+    }
+
     const trimmed = draft.trim()
     if (!trimmed) return
 
@@ -1418,23 +1581,32 @@ export default function PlayerPage() {
 
   const onExerciseStep =
     content?.status === 'ok' && content.stage_type === 'exercise'
-  /** B2/B3: bloqueia só antes de responder; no feedback o composer abre. */
+  /** Maria/free-text bloqueados no exercício até feedback (D#6). */
+  const mariaLockedOnExercise = onExerciseStep && !exerciseDone
   const composerBlocked =
-    (onExerciseStep && !exerciseDone) || busy || content?.status !== 'ok'
-  const canSend =
-    content?.status === 'ok' && !busy && !composerBlocked
+    mariaLockedOnExercise || busy || content?.status !== 'ok'
+  /** Enviar confirma opção selecionada no exercício (D#2). */
+  const canSubmitExercise =
+    mariaLockedOnExercise && !!selectedOptionKey && !busy && !pendingOptionKey
+  const canSendFreeText =
+    content?.status === 'ok' && !busy && !composerBlocked && !!draft.trim()
+  const canSend = canSubmitExercise || canSendFreeText
 
   const showContinuar =
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
     !mariaSidechat &&
+    !advanceInFlightRef.current &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
 
+  /** Voltar permanece no limbo pós-envio / durante typing da Maria. */
   const showVoltarTrilha =
-    content?.status === 'ok' && !busy && mariaSidechat
+    content?.status === 'ok' &&
+    mariaSidechat &&
+    (!busy || busyReason === 'maria')
 
   const options =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -1455,6 +1627,7 @@ export default function PlayerPage() {
     !exerciseDone &&
     options.length > 0
   const exerciseComposerOpen = optionsVisible
+  const highlightOptionKey = pendingOptionKey || selectedOptionKey
 
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
@@ -1546,14 +1719,28 @@ export default function PlayerPage() {
     (showContinuar ||
       showVoltarTrilha ||
       continuarLeaving ||
-      (busy && busyReason === 'trail'))
+      (busy && busyReason === 'trail') ||
+      (busy && busyReason === 'maria' && mariaSidechat))
 
   return (
     <div className="chat-thread">
       {error ? (
-        <p className="error chat-thread__banner" role="alert">
-          {error}
-        </p>
+        <div className="error chat-thread__banner" role="alert">
+          <p className="chat-thread__banner-text">{error}</p>
+          {canRetry ? (
+            <button
+              type="button"
+              className="chat-thread__retry"
+              onClick={() => {
+                const fn = retryFnRef.current
+                clearError()
+                fn?.()
+              }}
+            >
+              Tentar de novo
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="chat-thread__body">
@@ -1621,30 +1808,7 @@ export default function PlayerPage() {
                   : 'Sistema'}
             </p>
             <div className="chat-bubble__body">
-              {renderMessageLines(msg.text).map((part) => {
-                if (part.kind === 'image') {
-                  return (
-                    <p key={part.key} className="chat-bubble__media">
-                      <img src={part.value} alt="" loading="lazy" />
-                    </p>
-                  )
-                }
-                if (part.kind === 'link') {
-                  return (
-                    <p key={part.key}>
-                      <a
-                        href={part.value}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="chat-bubble__link"
-                      >
-                        {part.label || part.value}
-                      </a>
-                    </p>
-                  )
-                }
-                return <p key={part.key}>{part.value || '\u00a0'}</p>
-              })}
+              {renderMessageLines(msg.text).map((part) => renderMessagePart(part))}
             </div>
           </article>
         ))}
@@ -1681,40 +1845,25 @@ export default function PlayerPage() {
             <p className="chat-exercise__legend">Responda a questão</p>
             {exercisePrompt ? (
               <div className="chat-exercise__prompt">
-                {renderMessageLines(exercisePrompt).map((part) => {
-                  if (part.kind === 'image') {
-                    return (
-                      <p key={part.key} className="chat-bubble__media">
-                        <img src={part.value} alt="" loading="lazy" />
-                      </p>
-                    )
-                  }
-                  if (part.kind === 'link') {
-                    return (
-                      <p key={part.key}>
-                        <a
-                          href={part.value}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="chat-bubble__link"
-                        >
-                          {part.label || part.value}
-                        </a>
-                      </p>
-                    )
-                  }
-                  return <p key={part.key}>{part.value || '\u00a0'}</p>
-                })}
+                {renderMessageLines(exercisePrompt).map((part) =>
+                  renderMessagePart(part),
+                )}
               </div>
             ) : null}
-            <div className="chat-exercise__options">
+            <div
+              className="chat-exercise__options"
+              role="radiogroup"
+              aria-label="Opções da questão"
+            >
               {options.map((opt) => {
-                const selected = pendingOptionKey === opt.key
+                const selected = highlightOptionKey === opt.key
                 const dimmed = !!pendingOptionKey && !selected
                 return (
                   <button
                     key={opt.key}
                     type="button"
+                    role="radio"
+                    aria-checked={selected}
                     className={[
                       'chat-exercise__option',
                       selected ? 'is-selected' : '',
@@ -1723,7 +1872,7 @@ export default function PlayerPage() {
                       .filter(Boolean)
                       .join(' ')}
                     disabled={busy || !!pendingOptionKey}
-                    onClick={() => void onOptionClick(opt)}
+                    onClick={() => onOptionSelect(opt)}
                   >
                     {opt.text}
                   </button>
@@ -1745,7 +1894,6 @@ export default function PlayerPage() {
               <button
                 type="button"
                 className="chat-continue__btn chat-continue__btn--secondary"
-                disabled={busy}
                 onClick={onVoltarParaTrilha}
               >
                 Voltar à trilha
@@ -1760,7 +1908,7 @@ export default function PlayerPage() {
               <button
                 type="button"
                 className="chat-continue__btn"
-                disabled={busy || continuarLeaving}
+                disabled={busy || continuarLeaving || advanceInFlightRef.current}
                 onClick={() => void doAdvance()}
               >
                 Continuar
@@ -1782,14 +1930,20 @@ export default function PlayerPage() {
       </div>
 
       <footer
-        className={`chat-composer${exerciseLockedComposer ? ' chat-composer--locked' : ''}`}
+        className={`chat-composer${
+          exerciseLockedComposer ? ' chat-composer--locked' : ''
+        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}`}
       >
         <form className="chat-composer__form" onSubmit={(e) => void onSend(e)}>
           {exerciseLockedComposer ? (
             <span
               className="chat-composer__lock"
               aria-hidden="true"
-              title="Responda a questão primeiro"
+              title={
+                selectedOptionKey
+                  ? 'Toque em Enviar para confirmar'
+                  : 'Escolha uma opção e toque em Enviar'
+              }
             >
               <svg
                 width="16"
@@ -1815,7 +1969,9 @@ export default function PlayerPage() {
                 />
               </svg>
               <span className="chat-composer__lock-label">
-                Responda a questão primeiro
+                {selectedOptionKey
+                  ? 'Toque em Enviar para confirmar'
+                  : 'Escolha uma opção e toque em Enviar'}
               </span>
             </span>
           ) : null}
@@ -1828,16 +1984,23 @@ export default function PlayerPage() {
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
               exerciseLockedComposer
-                ? 'Responda a questão primeiro'
+                ? selectedOptionKey
+                  ? 'Toque em Enviar para confirmar a opção'
+                  : 'Escolha uma opção e toque em Enviar'
                 : 'Mensagem'
             }
+            enterKeyHint={canSubmitExercise ? 'send' : 'send'}
+            inputMode="text"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
           <button
             type="submit"
-            disabled={!canSend || !draft.trim()}
-            aria-label="Enviar"
+            disabled={!canSend}
+            aria-label={canSubmitExercise ? 'Enviar resposta' : 'Enviar'}
           >
             Enviar
           </button>

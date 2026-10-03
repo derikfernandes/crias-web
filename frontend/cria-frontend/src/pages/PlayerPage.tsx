@@ -347,6 +347,15 @@ export default function PlayerPage() {
   const [selectedOptionKey, setSelectedOptionKey] = useState<string | null>(null)
   /** Opção em voo de submit (pending visual). */
   const [pendingOptionKey, setPendingOptionKey] = useState<string | null>(null)
+  /**
+   * R18-N06: FSM do exercício — idle | selected | submitting | error | done.
+   * Em erro o card permanece com seleção + retry (nunca some sem ack).
+   */
+  const [exercisePhase, setExercisePhase] = useState<
+    'idle' | 'selected' | 'submitting' | 'error' | 'done'
+  >('idle')
+  /** R04-L05: progresso multi-etapa no Continuar. */
+  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
   /** Entrada Clippy da Maria — persiste após a 1ª chamada na sessão do player. */
@@ -510,11 +519,32 @@ export default function PlayerPage() {
       busyReasonRef.current = null
       setContinuarLeaving(false)
       advanceInFlightRef.current = false
-      setPendingOptionKey(null)
+      // R18-N06: se submit estava em voo, vira error (card + seleção ficam).
+      setPendingOptionKey((pending) => {
+        if (pending) {
+          window.setTimeout(() => setExercisePhase('error'), 0)
+        }
+        return null
+      })
+      setTrailBusyLabel('Preparando etapa…')
     }
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
   }, [])
+
+  /** R24-LS03: pós-rotate, reancora enunciado/opções na viewport. */
+  useEffect(() => {
+    const reanchor = () => {
+      if (exercisePhase === 'done' || exercisePhase === 'idle') return
+      window.requestAnimationFrame(() => {
+        document
+          .querySelector('.chat-exercise')
+          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      })
+    }
+    window.addEventListener('orientationchange', reanchor)
+    return () => window.removeEventListener('orientationchange', reanchor)
+  }, [exercisePhase])
 
   /** R04-L07: limpa flag animate após a entrada — evita re-trigger no scroll. */
   useEffect(() => {
@@ -657,6 +687,8 @@ export default function PlayerPage() {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
+    setExercisePhase('idle')
+    setTrailBusyLabel('Preparando etapa…')
     setMariaSidechat(false)
     setMariaEntrance(false)
     mariaCancelledRef.current = false
@@ -733,13 +765,15 @@ export default function PlayerPage() {
       setMessages(logsToMessages(logs))
 
       if (data.stage_type === 'exercise') {
-        setExerciseDone(
-          cellHasExerciseFeedback(
-            logs,
-            data.stage_number,
-            data.question_number,
-          ),
+        const done = cellHasExerciseFeedback(
+          logs,
+          data.stage_number,
+          data.question_number,
         )
+        setExerciseDone(done)
+        setExercisePhase(done ? 'done' : 'idle')
+      } else {
+        setExercisePhase('idle')
       }
 
       const already = logs.some(
@@ -1395,6 +1429,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
+    setTrailBusyLabel('Carregando etapa…')
     clearError()
     try {
       deliveredKeyRef.current = null
@@ -1409,6 +1444,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
+      setTrailBusyLabel('Preparando etapa…')
       setContinuarLeaving(false)
       advanceInFlightRef.current = false
     }
@@ -1438,6 +1474,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
+    setTrailBusyLabel('Salvando progresso…')
     clearError()
     setMariaSidechat(false)
     mariaCancelledRef.current = false
@@ -1463,6 +1500,7 @@ export default function PlayerPage() {
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
+        setTrailBusyLabel('Carregando etapa…')
         await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
@@ -1490,6 +1528,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
+      setTrailBusyLabel('Preparando etapa…')
       setContinuarLeaving(false)
       // Mantém lock ~1.2s — paint/focus pós-busy ainda tentam puxar o scroll.
       if (pinnedAwayRef.current && threadRef.current) {
@@ -1660,8 +1699,10 @@ export default function PlayerPage() {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
-    if (exerciseDone || pendingOptionKey) return
+    if (exerciseDone || exercisePhase === 'submitting') return
     setSelectedOptionKey(option.key)
+    setExercisePhase('selected')
+    setPendingOptionKey(null)
     clearError()
   }
 
@@ -1669,7 +1710,7 @@ export default function PlayerPage() {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
-    if (exerciseDone) return
+    if (exerciseDone || exercisePhase === 'submitting') return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     const option = normalizeExerciseOptions(content.options).find(
@@ -1680,6 +1721,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('exercise')
     setPendingOptionKey(option.key)
+    setExercisePhase('submitting')
     clearError()
     setMariaSidechat(false)
     const q = content.question_number
@@ -1765,13 +1807,17 @@ export default function PlayerPage() {
         })
       }
       setExerciseDone(true)
+      setExercisePhase('done')
       setSelectedOptionKey(null)
+      setPendingOptionKey(null)
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
+      // R18-N06: falha → error; mantém card + seleção + retry.
+      setExercisePhase('error')
+      setPendingOptionKey(null)
       reportError(err, 'Erro ao enviar a resposta.', () => {
         void submitSelectedOption()
       })
-      setPendingOptionKey(null)
     } finally {
       setBusy(false)
       setBusyReason(null)
@@ -1825,7 +1871,11 @@ export default function PlayerPage() {
     mariaLockedOnExercise || busy || content?.status !== 'ok'
   /** Enviar confirma opção selecionada no exercício (D#2). */
   const canSubmitExercise =
-    mariaLockedOnExercise && !!selectedOptionKey && !busy && !pendingOptionKey
+    mariaLockedOnExercise &&
+    !!selectedOptionKey &&
+    !busy &&
+    exercisePhase !== 'submitting' &&
+    (exercisePhase === 'selected' || exercisePhase === 'error')
   const canSendFreeText =
     content?.status === 'ok' && !busy && !composerBlocked && !!draft.trim()
   const canSend = canSubmitExercise || canSendFreeText
@@ -1849,14 +1899,26 @@ export default function PlayerPage() {
       messages.some((m) => m.kind === 'sidechat')) &&
     (!busy || busyReason === 'maria')
 
+  /** D#10 / R14-L14 — UI Maria mantém seta. */
+  const continuarLabel = 'Continuar trilha →'
+
+  const exerciseLockLabel =
+    exercisePhase === 'submitting'
+      ? 'Enviando resposta…'
+      : exercisePhase === 'error'
+        ? 'Falha ao enviar — toque em Enviar para tentar de novo'
+        : selectedOptionKey
+          ? 'Toque em Enviar para confirmar'
+          : 'Escolha uma opção e toque em Enviar'
+
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
       ? exercisePromptFromContent(content)
       : ''
 
   /**
-   * B5: opções ficam visíveis com a escolha destacada durante o submit;
-   * só saem do slot interativo após exerciseDone (banner já está no thread).
+   * B5 / R18-N06: opções ficam visíveis em idle→error→submitting;
+   * só saem após exerciseDone (banner já está no thread). Nunca some sem ack.
    */
   const optionsVisible =
     content?.status === 'ok' &&
@@ -1865,6 +1927,7 @@ export default function PlayerPage() {
     options.length > 0
   const exerciseComposerOpen = optionsVisible
   const highlightOptionKey = pendingOptionKey || selectedOptionKey
+  const exerciseSubmitting = exercisePhase === 'submitting'
 
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
@@ -2241,9 +2304,17 @@ export default function PlayerPage() {
 
         {optionsVisible ? (
           <div
-            className={`chat-exercise${pendingOptionKey ? ' chat-exercise--pending' : ''}`}
+            className={[
+              'chat-exercise',
+              exerciseSubmitting ? 'chat-exercise--pending' : '',
+              exercisePhase === 'error' ? 'chat-exercise--error-state' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             role="group"
             aria-label="Responda a questão"
+            aria-busy={exerciseSubmitting || undefined}
+            data-exercise-phase={exercisePhase}
           >
             <p className="chat-exercise__legend">Responda a questão</p>
             {exercisePrompt ? (
@@ -2260,7 +2331,7 @@ export default function PlayerPage() {
             >
               {options.map((opt, optIndex) => {
                 const selected = highlightOptionKey === opt.key
-                const dimmed = !!pendingOptionKey && !selected
+                const dimmed = exerciseSubmitting && !selected
                 return (
                   <button
                     key={opt.key}
@@ -2274,7 +2345,7 @@ export default function PlayerPage() {
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                    disabled={busy || !!pendingOptionKey}
+                    disabled={busy || exerciseSubmitting}
                     onClick={() => onOptionSelect(opt)}
                     onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
                   >
@@ -2283,6 +2354,24 @@ export default function PlayerPage() {
                 )
               })}
             </div>
+            {exercisePhase === 'error' ? (
+              <div className="chat-exercise__retry" role="status">
+                <p>Não foi possível enviar. Sua escolha foi mantida.</p>
+                <button
+                  type="button"
+                  className="chat-exercise__retry-btn"
+                  onClick={() => void submitSelectedOption()}
+                  disabled={!selectedOptionKey || busy}
+                >
+                  Tentar de novo
+                </button>
+              </div>
+            ) : null}
+            {exerciseSubmitting ? (
+              <p className="chat-exercise__pending-label" aria-live="polite">
+                Enviando resposta…
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -2317,7 +2406,7 @@ export default function PlayerPage() {
                 aria-busy={trailBusy || undefined}
                 onClick={() => void doAdvance()}
               >
-{trailBusy ? 'Preparando etapa…' : 'Continuar trilha →'}
+                {trailBusy ? trailBusyLabel : continuarLabel}
               </button>
             </div>
           ) : null}
@@ -2364,11 +2453,7 @@ export default function PlayerPage() {
             <span
               className="chat-composer__lock"
               aria-hidden="true"
-              title={
-                selectedOptionKey
-                  ? 'Toque em Enviar para confirmar'
-                  : 'Escolha uma opção e toque em Enviar'
-              }
+              title={exerciseLockLabel}
             >
               <svg
                 width="16"
@@ -2394,9 +2479,7 @@ export default function PlayerPage() {
                 />
               </svg>
               <span className="chat-composer__lock-label">
-                {selectedOptionKey
-                  ? 'Toque em Enviar para confirmar'
-                  : 'Escolha uma opção e toque em Enviar'}
+                {exerciseLockLabel}
               </span>
             </span>
           ) : null}
@@ -2409,11 +2492,7 @@ export default function PlayerPage() {
             readOnly={exerciseLockedComposer}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
-              exerciseLockedComposer
-                ? selectedOptionKey
-                  ? 'Toque em Enviar para confirmar a opção'
-                  : 'Escolha uma opção e toque em Enviar'
-                : 'Pergunte à Maria'
+              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria'
             }
             enterKeyHint={canSubmitExercise ? 'send' : 'send'}
             inputMode="text"

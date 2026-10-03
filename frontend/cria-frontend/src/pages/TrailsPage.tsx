@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { getSession } from '../lib/session'
 import type { StudentTrailRow } from '../lib/api'
 
@@ -9,6 +9,24 @@ type LayoutOutlet = {
   retryTrails: () => void
 }
 
+function pickHomeTrail(
+  rows: StudentTrailRow[] | null,
+): StudentTrailRow | null {
+  if (!rows || rows.length === 0) return null
+  return (
+    rows.find((r) => r.status === 'in_progress') ||
+    rows.find((r) => r.status === 'not_started') ||
+    rows.find((r) => r.status !== 'blocked') ||
+    rows[0]
+  )
+}
+
+function homeCtaLabel(row: StudentTrailRow): string {
+  if (row.status === 'not_started') return 'Começar trilha'
+  if (row.status === 'completed') return 'Rever trilha'
+  return 'Continuar trilha'
+}
+
 export default function TrailsPage() {
   const session = getSession()!
   const { trailRows, trailsError, trailsLoading, retryTrails } =
@@ -16,6 +34,7 @@ export default function TrailsPage() {
 
   const empty =
     !trailsLoading && !trailsError && Array.isArray(trailRows) && trailRows.length === 0
+  const primary = pickHomeTrail(trailRows)
 
   return (
     <div className="chat-home">
@@ -36,21 +55,41 @@ export default function TrailsPage() {
             à sua conta.
           </p>
           <p className="muted chat-home__hint">
-            Fale com a escola para liberar uma trilha. O menu ao lado também
-            mostra quando não há vínculos.
+            Fale com a escola para liberar uma trilha. O menu também mostra quando
+            não há vínculos.
           </p>
         </>
       ) : (
         <>
           <p className="lede">
-            Olá, {session.name.split(' ')[0] || 'aluno'}. Abra uma trilha no menu
-            para continuar a aula.
+            Olá, {session.name.split(' ')[0] || 'aluno'}. Continue sua aula por
+            aqui.
           </p>
-          <p className="muted chat-home__hint">
-            {trailsLoading
-              ? 'Carregando suas trilhas…'
-              : 'Cada mensagem segue a ordem da sua instituição: conteúdo fixo, exercícios e etapas com tutoria.'}
-          </p>
+          {trailsLoading && !primary ? (
+            <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+          ) : primary ? (
+            <>
+              <Link
+                to={`/trilha/${encodeURIComponent(primary.trail_id)}`}
+                className="chat-home__cta"
+              >
+                {homeCtaLabel(primary)}
+              </Link>
+              <p className="muted chat-home__hint">
+                {primary.trail_id}
+                {primary.status === 'in_progress'
+                  ? ` · etapa ${primary.current_stage_number}`
+                  : ''}
+                {trailRows && trailRows.length > 1
+                  ? ' · outras trilhas no menu'
+                  : ''}
+              </p>
+            </>
+          ) : (
+            <p className="muted chat-home__hint">
+              Abra uma trilha no menu para continuar a aula.
+            </p>
+          )}
         </>
       )}
     </div>

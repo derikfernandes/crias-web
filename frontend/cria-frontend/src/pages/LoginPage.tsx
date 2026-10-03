@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type FocusEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { identifyStudent } from '../lib/api'
 import {
   isRetryableSystemError,
@@ -13,11 +13,19 @@ import {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const existing = getSession()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() => {
+    const st = location.state as { message?: string; reason?: string } | null
+    if (st?.message) return st.message
+    if (st?.reason === 'auth' || st?.reason === 'missing') {
+      return 'Entre de novo para continuar.'
+    }
+    return null
+  })
   const [canRetry, setCanRetry] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -44,7 +52,7 @@ export default function LoginPage() {
       })
       navigate('/', { replace: true })
     } catch (err) {
-      setError(toUserFacingError(err, 'Erro ao entrar.'))
+      setError(toUserFacingError(err, 'Não foi possível entrar.'))
       setCanRetry(isRetryableSystemError(err))
     } finally {
       setLoading(false)

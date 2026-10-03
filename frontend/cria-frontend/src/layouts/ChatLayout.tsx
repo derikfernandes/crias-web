@@ -1,11 +1,17 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchTrailStageTotals,
+  isAuthError,
   listStudentTrails,
   type StudentTrailRow,
 } from '../lib/api'
-import { clearSession, getSession } from '../lib/session'
+import { toUserFacingError } from '../lib/networkError'
+import {
+  clearSession,
+  getSession,
+  SESSION_CLEARED_EVENT,
+} from '../lib/session'
 
 const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   not_started: 'Não iniciada',
@@ -67,33 +73,82 @@ function LogoutIcon() {
 }
 
 export default function ChatLayout() {
-  const session = getSession()!
+  const session = getSession()
   const navigate = useNavigate()
   const location = useLocation()
   const [rows, setRows] = useState<StudentTrailRow[] | null>(null)
+  const [trailsError, setTrailsError] = useState<string | null>(null)
+  const [trailsLoading, setTrailsLoading] = useState(true)
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
+  const [playerChrome, setPlayerChrome] = useState<{
+    stageTitle: string | null
+    stageNumber: number | null
+  }>({ stageTitle: null, stageNumber: null })
 
   useEffect(() => {
-    let cancelled = false
-    async function reload() {
-      try {
-        const data = await listStudentTrails(session.student_id)
-        if (!cancelled) setRows(data)
-      } catch {
-        if (!cancelled) setRows([])
+    if (!session) {
+      navigate('/login', { replace: true, state: { reason: 'missing' } })
+    }
+  }, [session, navigate])
+
+  useEffect(() => {
+    const onCleared = () => {
+      navigate('/login', { replace: true, state: { reason: 'auth' } })
+    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'crias_student_session' && !e.newValue) {
+        navigate('/login', { replace: true, state: { reason: 'missing' } })
       }
     }
-    void reload()
+    window.addEventListener(SESSION_CLEARED_EVENT, onCleared)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(SESSION_CLEARED_EVENT, onCleared)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [navigate])
+
+  const reloadTrails = useCallback(async () => {
+    const s = getSession()
+    if (!s) {
+      clearSession('missing')
+      navigate('/login', { replace: true, state: { reason: 'missing' } })
+      return
+    }
+    setTrailsLoading(true)
+    setTrailsError(null)
+    try {
+      const data = await listStudentTrails(s.student_id)
+      setRows(data)
+    } catch (err) {
+      if (isAuthError(err)) {
+        clearSession('auth')
+        navigate('/login', {
+          replace: true,
+          state: { reason: 'auth', message: (err as Error).message },
+        })
+        return
+      }
+      setTrailsError(
+        toUserFacingError(err, 'Não foi possível carregar suas trilhas.'),
+      )
+      setRows(null)
+    } finally {
+      setTrailsLoading(false)
+    }
+  }, [navigate])
+
+  useEffect(() => {
+    void reloadTrails()
     const onProgress = () => {
-      void reload()
+      void reloadTrails()
     }
     window.addEventListener('crias:trail-progress', onProgress)
     return () => {
-      cancelled = true
       window.removeEventListener('crias:trail-progress', onProgress)
     }
-  }, [session.student_id, location.pathname])
+  }, [reloadTrails, location.pathname])
 
   useEffect(() => {
     let cancelled = false
@@ -117,7 +172,7 @@ export default function ChatLayout() {
   }, [location.pathname])
 
   function logout() {
-    clearSession()
+    clearSession('logout')
     navigate('/login', { replace: true })
   }
 
@@ -126,14 +181,41 @@ export default function ChatLayout() {
     ? decodeURIComponent(trailMatch[1])
     : null
 
+  useEffect(() => {
+    const onChrome = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        trailId?: string
+        stageTitle?: string | null
+        stageNumber?: number
+      }
+      if (detail?.trailId && detail.trailId !== activeTrailId) return
+      setPlayerChrome({
+        stageTitle: detail.stageTitle ?? null,
+        stageNumber:
+          typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
+      })
+    }
+    window.addEventListener('crias:player-chrome', onChrome)
+    return () => window.removeEventListener('crias:player-chrome', onChrome)
+  }, [activeTrailId])
+
+  useEffect(() => {
+    if (!activeTrailId) {
+      setPlayerChrome({ stageTitle: null, stageNumber: null })
+    }
+  }, [activeTrailId])
+
   const firstName = useMemo(
-    () => session.name.split(' ')[0] || 'Aluno',
-    [session.name],
+    () => session?.name.split(' ')[0] || 'Aluno',
+    [session?.name],
   )
+
+  if (!session) return null
 
   return (
     <div className="chat-shell">
       <aside
+        id="crias-sidebar"
         className={`chat-sidebar ${sidebarOpen ? 'chat-sidebar--open' : ''}`}
         aria-label="Trilhas"
       >
@@ -149,11 +231,22 @@ export default function ChatLayout() {
             Minhas trilhas
           </Link>
 
-          {rows === null ? (
+          {trailsLoading && rows === null ? (
             <p className="muted chat-sidebar__empty">Carregando trilhas…</p>
-          ) : rows.length === 0 ? (
+          ) : trailsError ? (
+            <div className="chat-sidebar__error" role="alert">
+              <p className="muted">{trailsError}</p>
+              <button
+                type="button"
+                className="chat-sidebar__retry"
+                onClick={() => void reloadTrails()}
+              >
+                Tentar de novo
+              </button>
+            </div>
+          ) : rows && rows.length === 0 ? (
             <p className="muted chat-sidebar__empty">Nenhuma trilha vinculada.</p>
-          ) : (
+          ) : rows ? (
             <ul className="chat-sidebar__list">
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
@@ -171,6 +264,7 @@ export default function ChatLayout() {
                     <Link
                       to={href}
                       className={`trail-card${active ? ' is-active' : ''}`}
+                      aria-current={active ? 'page' : undefined}
                       onClick={() => setSidebarOpen(false)}
                     >
                       <span className="trail-card__top">
@@ -202,7 +296,7 @@ export default function ChatLayout() {
                 )
               })}
             </ul>
-          )}
+          ) : null}
         </nav>
 
         <div className="chat-sidebar__foot">
@@ -232,20 +326,39 @@ export default function ChatLayout() {
             type="button"
             className="chat-topbar__menu"
             aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="crias-sidebar"
             onClick={() => setSidebarOpen((v) => !v)}
           >
             ☰
           </button>
           <div className="chat-topbar__titles">
             <span className="chat-topbar__title">
-              {activeTrailId ? `Crias · ${activeTrailId}` : 'Crias · Sua trilha'}
+              {activeTrailId
+                ? [
+                    'Crias',
+                    playerChrome.stageTitle || activeTrailId,
+                    playerChrome.stageNumber != null
+                      ? `etapa ${playerChrome.stageNumber}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : 'Crias · Suas trilhas'}
             </span>
             {activeTrailId ? (
               <span className="chat-topbar__maria">MARIA</span>
             ) : null}
           </div>
         </header>
-        <Outlet context={{ trailRows: rows }} />
+        <Outlet
+          context={{
+            trailRows: rows,
+            trailsError,
+            trailsLoading,
+            retryTrails: () => void reloadTrails(),
+          }}
+        />
       </div>
     </div>
   )

@@ -7,6 +7,9 @@ export type StudentSession = {
 
 const KEY = 'crias_student_session'
 
+/** Disparado quando a sessão some (logout / auth / wipe). */
+export const SESSION_CLEARED_EVENT = 'crias:session-cleared'
+
 export function getSession(): StudentSession | null {
   try {
     const raw = localStorage.getItem(KEY)
@@ -19,10 +22,24 @@ export function getSession(): StudentSession | null {
   }
 }
 
+/** Sessão válida ou null — nunca lança. */
+export function requireSession(): StudentSession | null {
+  return getSession()
+}
+
 export function setSession(session: StudentSession): void {
   localStorage.setItem(KEY, JSON.stringify(session))
 }
 
-export function clearSession(): void {
+export function clearSession(reason?: 'logout' | 'auth' | 'missing'): void {
   localStorage.removeItem(KEY)
+  try {
+    window.dispatchEvent(
+      new CustomEvent(SESSION_CLEARED_EVENT, {
+        detail: { reason: reason ?? 'logout' },
+      }),
+    )
+  } catch {
+    /* ignore */
+  }
 }

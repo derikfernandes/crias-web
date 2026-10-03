@@ -1,3 +1,5 @@
+import { toUserFacingError } from './networkError'
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
   /\/$/,
   '',
@@ -8,6 +10,30 @@ export type ApiError = {
   code?: string
   message?: string
   error?: string
+}
+
+/** Erro HTTP tipado — auth (401/403) vs sistema. */
+export class ApiRequestError extends Error {
+  readonly status: number
+  readonly code?: string
+  readonly authFailed: boolean
+
+  constructor(
+    message: string,
+    status: number,
+    opts?: { code?: string; authFailed?: boolean },
+  ) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.code = opts?.code
+    this.authFailed =
+      opts?.authFailed ?? (status === 401 || status === 403)
+  }
+}
+
+export function isAuthError(err: unknown): boolean {
+  return err instanceof ApiRequestError && err.authFailed
 }
 
 export type IdentifyResponse = {
@@ -144,14 +170,64 @@ export type MariaReply = {
   question_number: number
 }
 
+function looksLikeHtml(text: string): boolean {
+  const t = text.trim()
+  return (
+    t.startsWith('<') ||
+    /<\/?(html|body|head|pre|div|span)\b/i.test(t) ||
+    /bad gateway|nginx|cloudflare/i.test(t)
+  )
+}
+
+/** Extrai mensagem sem crash em body null / HTML (ER03/ER04). */
+export function messageFromBody(body: unknown, fallback: string): string {
+  if (body == null) return fallback
+  if (typeof body === 'string') {
+    const t = body.trim()
+    if (!t || looksLikeHtml(t)) return fallback
+    return t
+  }
+  if (typeof body === 'object') {
+    const o = body as ApiError
+    const msg =
+      (typeof o.message === 'string' && o.message.trim()) ||
+      (typeof o.error === 'string' && o.error.trim()) ||
+      ''
+    if (!msg || looksLikeHtml(msg)) return fallback
+    return msg
+  }
+  return fallback
+}
+
 async function parseJson(res: Response): Promise<unknown> {
   const text = await res.text()
   if (!text) return null
   try {
     return JSON.parse(text) as unknown
   } catch {
-    return { error: text }
+    // HTML / texto não-JSON — não vazar markup (ER04).
+    if (looksLikeHtml(text)) return null
+    return { error: text.slice(0, 200) }
   }
+}
+
+function throwHttpError(
+  res: Response,
+  body: unknown,
+  fallback: string,
+): never {
+  if (res.status === 401 || res.status === 403) {
+    throw new ApiRequestError(
+      res.status === 401
+        ? 'Sua sessão expirou. Entre de novo para continuar.'
+        : 'Você não tem permissão para esta ação. Entre de novo.',
+      res.status,
+      { authFailed: true },
+    )
+  }
+  const raw = messageFromBody(body, fallback)
+  const friendly = toUserFacingError(new Error(raw), fallback)
+  throw new ApiRequestError(friendly, res.status)
 }
 
 export async function identifyStudent(input: {
@@ -167,8 +243,28 @@ export async function identifyStudent(input: {
   const body = (await parseJson(res)) as IdentifyResponse & ApiError & {
     code?: string
   }
-  if (!res.ok || (body as { status?: string }).status !== 'ok') {
-    throw new Error(body.message || body.error || 'Não foi possível entrar.')
+  if (!res.ok || (body as { status?: string } | null)?.status !== 'ok') {
+    // ER08: 401/Unauthorized → mesma copy PT de credenciais.
+    const code = typeof body?.code === 'string' ? body.code : ''
+    const raw = messageFromBody(body, '')
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      /unauthorized|forbidden|invalid_credentials|password_not_set/i.test(
+        `${code} ${raw}`,
+      )
+    ) {
+      throw new ApiRequestError(
+        'Telefone, instituição ou senha incorretos.',
+        res.status || 401,
+        { code: code || undefined, authFailed: false },
+      )
+    }
+    const fallback = 'Não foi possível entrar.'
+    throw new ApiRequestError(
+      toUserFacingError(new Error(raw || fallback), fallback),
+      res.status || 500,
+    )
   }
   return body
 }
@@ -181,13 +277,12 @@ export async function listStudentTrails(
   const res = await fetch(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
-    const err = body as ApiError
-    throw new Error(err.message || err.error || 'Falha ao listar trilhas.')
+    throwHttpError(res, body, 'Não foi possível carregar suas trilhas.')
   }
   return Array.isArray(body) ? (body as StudentTrailRow[]) : []
 }
 
-/** Contagem de etapas por trail_id (para card “Etapa N de T” / progresso). */
+/** Totais de etapas por trilha (sidebar Maria — progresso). */
 export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
   const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
   url.searchParams.set('simple', '1')
@@ -215,10 +310,9 @@ export async function fetchNextContent(
   url.searchParams.set('student_id', studentId)
   url.searchParams.set('trail_id', trailId)
   const res = await fetch(url.pathname + url.search)
-  const body = (await parseJson(res)) as NextContentOk | NextContentStatus | ApiError
+  const body = await parseJson(res)
   if (!res.ok) {
-    const err = body as ApiError
-    throw new Error(err.message || err.error || 'Falha ao carregar conteúdo.')
+    throwHttpError(res, body, 'Não foi possível carregar a aula.')
   }
   return body as NextContentOk | NextContentStatus
 }
@@ -248,8 +342,7 @@ export async function fetchTrailHistoryPage(
   const res = await fetch(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
-    const err = body as ApiError
-    throw new Error(err.message || err.error || 'Falha ao carregar histórico.')
+    throwHttpError(res, body, 'Não foi possível carregar o histórico.')
   }
   // Backcompat: array puro (deploy antigo).
   if (Array.isArray(body)) {
@@ -300,11 +393,11 @@ export async function createConversationLog(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  const body = (await parseJson(res)) as ConversationLogRow & ApiError
+  const body = await parseJson(res)
   if (!res.ok) {
-    throw new Error(body.message || body.error || 'Falha ao gravar mensagem.')
+    throwHttpError(res, body, 'Não foi possível gravar a mensagem.')
   }
-  return body
+  return body as ConversationLogRow
 }
 
 export async function advanceTrail(
@@ -316,11 +409,11 @@ export async function advanceTrail(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ student_id: studentId, trail_id: trailId }),
   })
-  const body = (await parseJson(res)) as AdvanceResponse & ApiError
+  const body = await parseJson(res)
   if (!res.ok) {
-    throw new Error(body.message || body.error || 'Falha ao avançar.')
+    throwHttpError(res, body, 'Não foi possível avançar a trilha.')
   }
-  return body
+  return body as AdvanceResponse
 }
 
 export async function askMaria(input: {
@@ -335,11 +428,18 @@ export async function askMaria(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  const body = (await parseJson(res)) as MariaReply & ApiError
-  if (!res.ok || body.status !== 'ok') {
-    throw new Error(body.message || body.error || 'Falha ao consultar Maria.')
+  const body = await parseJson(res)
+  if (!res.ok) {
+    throwHttpError(res, body, 'Não foi possível falar com Maria.')
   }
-  return body
+  const reply = body as MariaReply & ApiError
+  if (reply?.status !== 'ok') {
+    throw new ApiRequestError(
+      messageFromBody(body, 'Não foi possível falar com Maria.'),
+      500,
+    )
+  }
+  return reply
 }
 
 export async function submitExerciseAttempt(input: {
@@ -356,11 +456,9 @@ export async function submitExerciseAttempt(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  const body = (await parseJson(res)) as ExerciseAttemptResult & ApiError
+  const body = await parseJson(res)
   if (!res.ok) {
-    throw new Error(
-      body.message || body.error || 'Falha ao registrar tentativa.',
-    )
+    throwHttpError(res, body, 'Não foi possível enviar a resposta.')
   }
-  return body
+  return body as ExerciseAttemptResult
 }

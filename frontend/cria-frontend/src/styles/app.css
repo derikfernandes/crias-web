@@ -349,6 +349,34 @@ a.ghost:hover {
   overflow: hidden;
 }
 
+/* C2-R17 N02: dismiss explícito dentro do dialog (além de backdrop/Esc). */
+.chat-sidebar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+  margin-bottom: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.chat-sidebar__close:hover {
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.1);
+}
+
 .chat-sidebar__new {
   display: flex;
   align-items: center;
@@ -2197,11 +2225,24 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
     animation: backdrop-in 0.32s ease-out both;
   }
 
-  /* Acima da sidebar (30) e do backdrop (25) — senão “Fechar menu” cai em “+ Minhas trilhas”. */
   .chat-topbar__menu {
     display: inline-flex;
     position: relative;
     z-index: 40;
+  }
+
+  /*
+   * C2-R17 N01: z-index:40 no ☰ (position:relative) ficava preso no stacking do
+   * .chat-topbar (flex item z-index:2) — abaixo da sidebar fixed z:30.
+   * Com drawer aberto, eleva o topbar inteiro acima da sidebar/backdrop.
+   * padding-top na sidebar evita “+ Minhas trilhas” sob a faixa do topbar.
+   */
+  .chat-shell--drawer-open .chat-topbar {
+    z-index: 40;
+  }
+
+  .chat-shell--drawer-open .chat-sidebar--open {
+    padding-top: max(3.5rem, calc(env(safe-area-inset-top, 0px) + 3rem));
   }
 
   .chat-sidebar {

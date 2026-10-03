@@ -1,4 +1,5 @@
 import { Link, useOutletContext } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
 import { getSession } from '../lib/session'
 import type { StudentTrailRow } from '../lib/api'
 
@@ -32,6 +33,7 @@ export default function TrailsPage() {
   const session = getSession()!
   const { trailRows, trailsError, trailsLoading, retryTrails, trailNames } =
     useOutletContext<LayoutOutlet>()
+  const ctaRef = useRef<HTMLAnchorElement>(null)
 
   const empty =
     !trailsLoading && !trailsError && Array.isArray(trailRows) && trailRows.length === 0
@@ -44,6 +46,17 @@ export default function TrailsPage() {
         : null
 
   const homeLoading = trailsLoading && !primary && !trailsError && !empty
+
+  // C2-R17 N03: pós-Minhas trilhas o layout zera restore → BODY; focar CTA útil.
+  useEffect(() => {
+    if (!primary || homeLoading) return
+    const ae = document.activeElement
+    if (ae && ae !== document.body && ae !== document.documentElement) return
+    const id = window.requestAnimationFrame(() => {
+      ctaRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [primary?.trail_id, homeLoading])
 
   return (
     <div
@@ -89,6 +102,7 @@ export default function TrailsPage() {
           ) : primary ? (
             <>
               <Link
+                ref={ctaRef}
                 to={`/trilha/${encodeURIComponent(primary.trail_id)}`}
                 className="chat-home__cta"
               >

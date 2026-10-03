@@ -396,7 +396,11 @@ export default function ChatLayout() {
   const mainInert = drawerAsModal
 
   return (
-    <div className={`chat-shell${offline ? ' chat-shell--offline' : ''}`}>
+    <div
+      className={`chat-shell${offline ? ' chat-shell--offline' : ''}${
+        drawerAsModal ? ' chat-shell--drawer-open' : ''
+      }`}
+    >
       <aside
         id="crias-sidebar"
         ref={sidebarRef}
@@ -407,6 +411,17 @@ export default function ChatLayout() {
         inert={sidebarInert || undefined}
       >
         <nav className="chat-sidebar__nav" aria-label="Lista de trilhas">
+          {/* C2-R17 N02: Fechar dentro do dialog (trap); N01: ☰ topbar sobe via CSS. */}
+          {drawerAsModal ? (
+            <button
+              type="button"
+              className="chat-sidebar__close"
+              aria-label="Fechar menu"
+              onClick={() => closeDrawer(true)}
+            >
+              Fechar
+            </button>
+          ) : null}
           <Link
             to="/"
             className="chat-sidebar__new"

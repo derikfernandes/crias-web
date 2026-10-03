@@ -457,17 +457,17 @@ a.ghost:hover {
 /* Só mensagens novas (flag animate) entram com motion — history no mount fica quieto. */
 .chat-bubble--enter-assistant,
 .chat-bubble--enter:not(.chat-bubble--enter-user) {
-  animation: bubble-in 0.32s ease-out both;
+  animation: bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-bubble--enter-user {
-  animation: bubble-in-user 0.32s ease-out both;
+  animation: bubble-in-user 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-bubble--resume-flash {
   animation:
-    bubble-in 0.32s ease-out both,
-    resume-border 0.9s ease-out;
+    bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both,
+    resume-border 1.05s ease-out;
 }
 
 .chat-bubble--user {
@@ -540,6 +540,10 @@ a.ghost:hover {
   align-items: center;
 }
 
+.chat-bubble--typing {
+  animation: typing-in 0.18s ease-out both;
+}
+
 .typing-dots {
   display: inline-flex;
   align-items: center;
@@ -552,7 +556,7 @@ a.ghost:hover {
   height: 0.48rem;
   border-radius: 50%;
   background: var(--muted);
-  opacity: 0.55;
+  opacity: 0.65;
   animation: typing-bounce 1.28s ease-in-out infinite;
 }
 
@@ -574,15 +578,24 @@ a.ghost:hover {
   font-size: 0.95rem;
 }
 
+@keyframes typing-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes typing-bounce {
   0%,
   60%,
   100% {
     transform: translateY(0);
-    opacity: 0.55;
+    opacity: 0.65;
   }
   30% {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
     opacity: 1;
   }
 }
@@ -601,7 +614,7 @@ a.ghost:hover {
 @keyframes bubble-in-user {
   from {
     opacity: 0;
-    transform: translateX(10px) translateY(4px);
+    transform: translateX(8px) translateY(4px);
   }
   to {
     opacity: 1;
@@ -657,6 +670,17 @@ a.ghost:hover {
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes exercise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -723,7 +747,7 @@ a.ghost:hover {
 }
 
 .chat-composer__hint--fade {
-  animation: hint-fade 0.28s ease-out both;
+  animation: hint-fade 0.32s ease-out both;
 }
 
 .chat-exercise {
@@ -735,6 +759,7 @@ a.ghost:hover {
   padding: 1rem;
   background: rgba(255, 255, 255, 0.04);
   color: var(--ink);
+  animation: exercise-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-exercise__legend {
@@ -759,6 +784,11 @@ a.ghost:hover {
   color: var(--ink);
   font: inherit;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.12s ease;
 }
 
 .chat-exercise__option:hover:not(:disabled) {
@@ -808,7 +838,7 @@ a.ghost:hover {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  background: linear-gradient(transparent, var(--main, #fff) 40%);
+  background: linear-gradient(transparent, var(--main, #fff) 48%);
 }
 
 .chat-cta-slot--busy {
@@ -822,11 +852,11 @@ a.ghost:hover {
 }
 
 .chat-continue--enter {
-  animation: cta-in 0.22s ease-out both;
+  animation: cta-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-continue--leaving {
-  animation: cta-out 0.18s ease-out both;
+  animation: cta-out 0.2s ease-out both;
   pointer-events: none;
 }
 
@@ -863,6 +893,11 @@ a.ghost:hover {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    opacity 0.2s ease,
+    transform 0.15s ease;
 }
 
 .chat-continue__btn--secondary:hover:not(:disabled) {
@@ -887,7 +922,10 @@ a.ghost:hover {
   border-radius: var(--radius);
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-  animation: chip-in 0.22s ease-out both;
+  animation: chip-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
   width: max-content;
   margin: 0;
   display: block;
@@ -904,9 +942,11 @@ a.ghost:hover {
   .chat-bubble--enter-assistant,
   .chat-bubble--enter-user,
   .chat-bubble--resume-flash,
+  .chat-bubble--typing,
   .chat-continue--enter,
   .chat-continue--leaving,
   .chat-composer__hint--fade,
+  .chat-exercise,
   .chat-new-msg-chip {
     animation: none !important;
   }

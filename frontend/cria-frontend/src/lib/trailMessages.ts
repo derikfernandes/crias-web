@@ -73,12 +73,66 @@ export function stripDecorTitle(raw: string): string {
   return s
 }
 
-/** Strip leve de *bold* no corpo (não só título de linha). */
+/**
+ * Strip leve de *bold* — só quando o texto precisa ir cru (ex.: title key).
+ * Display usa parseInlineMarkdown / renderMessageLines (preserva ênfase).
+ */
 export function lightStripMarkdown(raw: string): string {
   return raw
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+}
+
+export type InlineSeg = {
+  key: string
+  kind: 'text' | 'em' | 'strong'
+  value: string
+}
+
+/**
+ * Parse inline markdown comum da escola/IA: **bold**, __bold__, *em*, _em_.
+ * Não reescreve conteúdo — só marca segmentos para o renderer.
+ */
+export function parseInlineMarkdown(raw: string): InlineSeg[] {
+  const src = String(raw ?? '')
+  if (!src) return []
+  const out: InlineSeg[] = []
+  // Ordem: ** / __ antes de * / _
+  const re = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_)/g
+  let last = 0
+  let m: RegExpExecArray | null
+  let i = 0
+  while ((m = re.exec(src)) != null) {
+    if (m.index > last) {
+      out.push({ key: `t${i++}`, kind: 'text', value: src.slice(last, m.index) })
+    }
+    if (m[2] != null) {
+      out.push({ key: `s${i++}`, kind: 'strong', value: m[2] })
+    } else if (m[3] != null) {
+      out.push({ key: `s${i++}`, kind: 'strong', value: m[3] })
+    } else if (m[4] != null) {
+      out.push({ key: `e${i++}`, kind: 'em', value: m[4] })
+    } else if (m[5] != null) {
+      out.push({ key: `e${i++}`, kind: 'em', value: m[5] })
+    }
+    last = m.index + m[0].length
+  }
+  if (last < src.length) {
+    out.push({ key: `t${i++}`, kind: 'text', value: src.slice(last) })
+  }
+  return out.length > 0 ? out : [{ key: 't0', kind: 'text', value: src }]
+}
+
+/** Remove vereditos hardcoded do player legado no histórico. */
+export function stripHardcodedVerdict(text: string): string {
+  return String(text ?? '')
+    .replace(
+      /^(Resposta correta!|Resposta incorreta\.|Resposta registrada\.)(\s*\n+)?/i,
+      '',
+    )
+    .trim()
 }
 
 export function normalizeTitleKey(raw: string): string {
@@ -150,7 +204,7 @@ const FOREIGN_LANG_RE =
 
 /** Alinha feedback antigo que mistura incorreta + celebração. */
 export function sanitizeFeedbackText(text: string): string {
-  const raw = String(text ?? '').trim()
+  let raw = stripHardcodedVerdict(String(text ?? '').trim())
   if (!raw) return raw
   const incorrect = /resposta\s+incorreta/i.test(raw)
   if (incorrect) return alignBlocoWithAttempt(raw, false) || raw
@@ -200,7 +254,8 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
       }
     }
 
-    const text = lightStripMarkdown(raw)
+    // Preserva markdown inline (_em_ / **bold**) para o renderer.
+    const text = raw
 
     if (isTrailDeliveryLog(l)) {
       const cell = `${l.stage_number}-${l.question_number}`
@@ -282,6 +337,73 @@ export function linkLabelForUrl(url: string): string {
   }
 }
 
+export type EmbedKind = 'youtube' | 'drive'
+
+/** URL de embed in-app para YT/Drive; null se não suportado. */
+export function embedInfoForUrl(
+  url: string,
+): { kind: EmbedKind; embedUrl: string } | null {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (host === 'youtu.be') {
+      const id = u.pathname.split('/').filter(Boolean)[0]
+      if (id) {
+        return {
+          kind: 'youtube',
+          embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(id)}`,
+        }
+      }
+    }
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (u.pathname === '/watch') {
+        const id = u.searchParams.get('v')
+        if (id) {
+          return {
+            kind: 'youtube',
+            embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(id)}`,
+          }
+        }
+      }
+      const shorts = u.pathname.match(/^\/shorts\/([^/]+)/)
+      if (shorts?.[1]) {
+        return {
+          kind: 'youtube',
+          embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(shorts[1])}`,
+        }
+      }
+      const embed = u.pathname.match(/^\/embed\/([^/]+)/)
+      if (embed?.[1]) {
+        return {
+          kind: 'youtube',
+          embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(embed[1])}`,
+        }
+      }
+    }
+
+    if (host === 'drive.google.com') {
+      const file = u.pathname.match(/\/file\/d\/([^/]+)/)
+      if (file?.[1]) {
+        return {
+          kind: 'drive',
+          embedUrl: `https://drive.google.com/file/d/${encodeURIComponent(file[1])}/preview`,
+        }
+      }
+      const openId = u.searchParams.get('id')
+      if (openId) {
+        return {
+          kind: 'drive',
+          embedUrl: `https://drive.google.com/file/d/${encodeURIComponent(openId)}/preview`,
+        }
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 /**
  * Remove linhas do BLOCO RESPOSTA que contradizem o resultado do attempt
  * (ex.: "Parabéns pelo acerto" após resposta incorreta).
@@ -317,20 +439,21 @@ export function blocoConflictsWithAttempt(
   return false
 }
 
-/** Autolink + embed básico de imagens (ibb) / links Drive/YouTube. */
-export function renderMessageLines(text: string): Array<{
+export type MessagePart = {
   key: string
-  kind: 'text' | 'image' | 'link'
+  kind: 'text' | 'image' | 'link' | 'embed'
   value: string
   label?: string
-}> {
+  /** Segmentos inline (markdown) — só em kind=text. */
+  segments?: InlineSeg[]
+  embedKind?: EmbedKind
+  embedUrl?: string
+}
+
+/** Autolink + embed YT/Drive/imagens (ibb) — markdown inline preservado. */
+export function renderMessageLines(text: string): MessagePart[] {
   const lines = text.split('\n')
-  const out: Array<{
-    key: string
-    kind: 'text' | 'image' | 'link'
-    value: string
-    label?: string
-  }> = []
+  const out: MessagePart[] = []
   const urlRe = /(https?:\/\/[^\s<]+)/gi
 
   lines.forEach((line, lineIdx) => {
@@ -342,10 +465,12 @@ export function renderMessageLines(text: string): Array<{
 
     const parts = trimmed.split(urlRe)
     if (parts.length === 1) {
+      const value = stripDecorTitle(trimmed)
       out.push({
         key: `t-${lineIdx}`,
         kind: 'text',
-        value: stripDecorTitle(lightStripMarkdown(trimmed)),
+        value,
+        segments: parseInlineMarkdown(value),
       })
       return
     }
@@ -359,19 +484,33 @@ export function renderMessageLines(text: string): Array<{
           /\.(png|jpe?g|gif|webp)(\?|$)/i.test(clean)
         if (isImg) {
           out.push({ key: `img-${lineIdx}-${i}`, kind: 'image', value: clean })
-        } else {
+          return
+        }
+        const embed = embedInfoForUrl(clean)
+        if (embed) {
           out.push({
-            key: `a-${lineIdx}-${i}`,
-            kind: 'link',
+            key: `emb-${lineIdx}-${i}`,
+            kind: 'embed',
             value: clean,
             label: linkLabelForUrl(clean),
+            embedKind: embed.kind,
+            embedUrl: embed.embedUrl,
           })
+          return
         }
+        out.push({
+          key: `a-${lineIdx}-${i}`,
+          kind: 'link',
+          value: clean,
+          label: linkLabelForUrl(clean),
+        })
       } else {
+        const value = stripDecorTitle(part)
         out.push({
           key: `t-${lineIdx}-${i}`,
           kind: 'text',
-          value: stripDecorTitle(lightStripMarkdown(part)),
+          value,
+          segments: parseInlineMarkdown(value),
         })
       }
     })

@@ -36,6 +36,8 @@ body,
 #root {
   min-height: 100%;
   height: 100%;
+  height: 100dvh;
+  height: var(--vv-height, 100dvh);
 }
 
 body {
@@ -45,11 +47,13 @@ body {
   background: var(--main);
   font-size: 16px;
   line-height: 1.5;
+  overflow: hidden;
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100%;
   height: 100%;
+  height: var(--vv-height, 100dvh);
 }
 
 .brand {
@@ -76,12 +80,21 @@ h1 {
 }
 
 .login-page {
-  min-height: 100vh;
+  min-height: 100%;
+  height: var(--vv-height, 100dvh);
   display: grid;
-  place-items: center;
+  align-content: start;
+  justify-items: center;
   padding: 1.5rem;
+  padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
+  padding-bottom: calc(
+    1.5rem + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)
+  );
   position: relative;
   background: var(--main);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login-atmosphere {
@@ -108,6 +121,8 @@ h1 {
 .login-panel {
   position: relative;
   width: min(100%, 420px);
+  margin-top: auto;
+  margin-bottom: auto;
   padding: 2rem 1.75rem;
   background: var(--sidebar);
   border-radius: var(--radius);
@@ -118,6 +133,18 @@ h1 {
   gap: 0.85rem;
   animation: rise 0.55s ease-out both;
   color: var(--ink);
+}
+
+.login-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.login-retry {
+  align-self: flex-start;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
 }
 
 @keyframes rise {
@@ -142,6 +169,7 @@ label {
 
 input {
   font: inherit;
+  font-size: 16px; /* evita zoom iOS que amplifica o teclado */
   padding: 0.7rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -205,11 +233,15 @@ a.ghost:hover {
 /* —— ChatGPT-clone shell —— */
 .chat-shell {
   display: flex;
-  height: 100vh;
-  min-height: 100vh;
+  height: 100%;
+  height: var(--vv-height, 100dvh);
+  min-height: 0;
+  max-height: var(--vv-height, 100dvh);
   background: var(--main);
   color: var(--ink);
   overflow: hidden;
+  /* Compensa visualViewport.offsetTop quando o browser pans com teclado. */
+  transform: translateY(var(--vv-offset-top, 0px));
 }
 
 .chat-sidebar {
@@ -528,6 +560,24 @@ a.ghost:hover {
 
 .chat-thread__banner {
   margin: 0.5rem 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.chat-thread__banner-text {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+
+.chat-thread__retry {
+  flex-shrink: 0;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 55%, transparent);
 }
 
 /* Scroll + chip overlay (chip fora do fluxo — sticky+transform quebrava C1-40). */
@@ -549,6 +599,8 @@ a.ghost:hover {
   min-height: 0;
   /* Impede o browser de “ancorar” o scroll quando typing/CTA mudam o layout. */
   overflow-anchor: none;
+  overscroll-behavior: contain;
+  scroll-padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* CTA + chip ficam irmãos do scroller em .chat-thread__body (C3-CTA-OVERLAP). */
@@ -743,6 +795,43 @@ a.ghost:hover {
   color: var(--accent);
   text-decoration: underline;
   word-break: break-all;
+  display: inline-block;
+  min-height: 44px;
+  padding: 0.55rem 0;
+  line-height: 1.35;
+}
+
+.chat-bubble__body em,
+.chat-bubble__text em {
+  font-style: italic;
+}
+
+.chat-bubble__body strong,
+.chat-bubble__text strong {
+  font-weight: 700;
+}
+
+.chat-bubble__embed {
+  margin: 0.45rem 0 0.75rem;
+  max-width: min(100%, 28rem);
+}
+
+.chat-bubble__embed-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #111;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
+}
+
+.chat-bubble__embed-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .chat-bubble--typing .chat-bubble__text {
@@ -923,7 +1012,8 @@ a.ghost:hover {
 .chat-composer {
   position: sticky;
   bottom: 0;
-  padding: 0.75rem 1rem 0.85rem;
+  /* Shell já encolhe com --vv-height; só safe-area aqui (sem double-count do KB). */
+  padding: 0.75rem 1rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(transparent, var(--main) 42%);
   z-index: 2;
   width: 100%;
@@ -983,6 +1073,20 @@ a.ghost:hover {
   transform: none;
   box-shadow: none;
   filter: none;
+}
+
+/* D#2: opção selecionada → Enviar vira o confirm real (não teatro). */
+.chat-composer--locked.chat-composer--ready-submit button:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  opacity: 1;
+  cursor: pointer;
+}
+
+.chat-composer--locked.chat-composer--ready-submit button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(25, 195, 125, 0.28);
+  filter: brightness(1.08);
 }
 
 .chat-composer__lock {

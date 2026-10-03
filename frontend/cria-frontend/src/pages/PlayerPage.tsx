@@ -2687,7 +2687,8 @@ export default function PlayerPage() {
         content.status === 'inactive_student')) ||
       (content == null && Boolean(error)))
 
-  const trailEmptyCopy =
+  // C2-R10 N03: lede distinto do título (evita eco “Trilha não encontrada” ×2).
+  const trailEmptyCopyRaw =
     content?.status === 'inactive_student'
       ? 'Sua conta está inativa nesta trilha.'
       : content?.status === 'inactive_trail'
@@ -2695,6 +2696,10 @@ export default function PlayerPage() {
         : (content && content.status !== 'ok' ? content.message : null) ||
           error ||
           'Essa trilha não está disponível na sua conta.'
+  const trailEmptyCopy =
+    /^trilha não encontrada\.?$/i.test(trailEmptyCopyRaw.trim())
+      ? 'Confira o link ou volte para Minhas trilhas.'
+      : trailEmptyCopyRaw
 
   const placeholder =
     content == null
@@ -3017,7 +3022,7 @@ export default function PlayerPage() {
         ) : null}
         {trailShellUnavailable ? (
           <div className="chat-thread__empty" role="status">
-            <p className="chat-thread__empty-title">Trilha não encontrada</p>
+            <p className="chat-thread__empty-title">Trilha indisponível</p>
             <p className="lede">{trailEmptyCopy}</p>
             <Link to="/" className="chat-home__cta">
               Minhas trilhas

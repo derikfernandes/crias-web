@@ -126,7 +126,7 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Código da instituição
+          Código da escola
           <input
             type="text"
             value={code}

@@ -6,6 +6,8 @@ export type ChatMessage = {
   text: string
   stageType?: 'ai' | 'fixed' | 'exercise'
   cellKey?: string
+  /** Question da trilha (para colapsar cross-q no tail default). */
+  questionNumber?: number
   /** Só mensagens novas (pós-historyReady) entram com motion. */
   animate?: boolean
   /** Resume pós-Voltar — highlight de borda 1 ciclo. */
@@ -127,6 +129,7 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
         role: 'assistant',
         text,
         cellKey: cell,
+        questionNumber: l.question_number,
       }
       if (prevIdx !== undefined) {
         // force_regenerate / BLOCO corrigido: substitui a bolha antiga da célula.
@@ -149,6 +152,10 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
       id: l.id,
       role: l.sender === 'student' ? 'user' : 'assistant',
       text,
+      questionNumber:
+        typeof l.question_number === 'number' && l.question_number >= 1
+          ? l.question_number
+          : undefined,
     })
   }
 

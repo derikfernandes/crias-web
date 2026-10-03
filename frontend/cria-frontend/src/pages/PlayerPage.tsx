@@ -34,10 +34,10 @@ import {
   trailMessageId,
 } from '../lib/trailMessages'
 
-/** Quantas bolhas recentes ficam visíveis antes do colapso de histórico. */
+/** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
 
-/** Página inicial do history API (position-aware no BE). */
+/** Página inicial do history API (position-aware + prefer q corrente). */
 const HISTORY_PAGE_LIMIT = 40
 
 /** Evita flash de typing em respostas rápidas (cache-hit). */
@@ -48,6 +48,36 @@ const STICKY_BOTTOM_PX = 120
 
 function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < px
+}
+
+/** Tail colapsado: só a question corrente (esconde q81 etc. no first paint). */
+function messagesForCollapsedTail(
+  messages: ChatMessage[],
+  currentQuestion: number | null,
+): ChatMessage[] {
+  if (currentQuestion == null || currentQuestion < 1) {
+    return messages.length <= HISTORY_VISIBLE_TAIL
+      ? messages
+      : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
+  }
+  const current = messages.filter(
+    (m) => m.questionNumber === currentQuestion,
+  )
+  // Mensagens sem q (resume local) ficam no fim se forem as mais recentes.
+  const trailingLocal: ChatMessage[] = []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.questionNumber == null && (m.kind === 'resume' || m.animate)) {
+      trailingLocal.unshift(m)
+      continue
+    }
+    break
+  }
+  const merged = [...current]
+  for (const m of trailingLocal) {
+    if (!merged.some((x) => x.id === m.id)) merged.push(m)
+  }
+  return merged.length > 0 ? merged : messages.slice(-Math.min(8, messages.length))
 }
 
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
@@ -240,6 +270,13 @@ export default function PlayerPage() {
   const pinHoldUntilRef = useRef(0)
   const busyReasonRef = useRef<BusyReason>(null)
   const skipSmoothScrollRef = useRef(true)
+  /**
+   * Mount/reload: ancora no passo corrente até o layout assentar.
+   * Enquanto true, scrollTop=0 NÃO vira pin (evita chip fantasma + regência).
+   */
+  const initialAnchorPendingRef = useRef(true)
+  /** Ignora onScroll gerado por scroll programático. */
+  const programmaticScrollRef = useRef(false)
   const reduceMotionRef = useRef(false)
   const historyBeforeRef = useRef<number | null>(null)
   const oldestLogMsRef = useRef<number | null>(null)
@@ -301,6 +338,9 @@ export default function PlayerPage() {
     historyBeforeRef.current = null
     oldestLogMsRef.current = null
     skipSmoothScrollRef.current = true
+    initialAnchorPendingRef.current = true
+    pinnedAwayRef.current = false
+    nearBottomRef.current = true
     try {
       // next-content primeiro — CTA não espera history.
       const contentPromise = fetchNextContent(session.student_id, trailId)
@@ -400,6 +440,7 @@ export default function PlayerPage() {
             text,
             stageType: data.stage_type,
             cellKey: key,
+            questionNumber: data.question_number,
           })
           isNew = result.isNew
           return result.messages
@@ -433,6 +474,7 @@ export default function PlayerPage() {
                 text,
                 stageType: 'ai',
                 cellKey: key,
+                questionNumber: data.question_number,
               }
               return next
             }
@@ -442,6 +484,7 @@ export default function PlayerPage() {
               text,
               stageType: 'ai',
               cellKey: key,
+              questionNumber: data.question_number,
             }).messages
           })
         }
@@ -522,6 +565,10 @@ export default function PlayerPage() {
   function capturePinFromScroll() {
     const el = threadRef.current
     if (!el) return false
+    // Durante âncora inicial, scrollTop=0 não é pin do usuário.
+    if (initialAnchorPendingRef.current || programmaticScrollRef.current) {
+      return false
+    }
     // Mede o DOM real — scrollTop programático pode não disparar onScroll.
     if (!isScrollNearBottom(el)) {
       pinnedAwayRef.current = true
@@ -569,6 +616,15 @@ export default function PlayerPage() {
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
+    // Scroll programático / âncora inicial: não promove pin.
+    if (programmaticScrollRef.current || initialAnchorPendingRef.current) {
+      if (isScrollNearBottom(el)) {
+        nearBottomRef.current = true
+        pinnedAwayRef.current = false
+        setNewMsgChip(false)
+      }
+      return
+    }
     // Durante/após Continuar com pin: trava scrollTop.
     if (isPinLocked()) {
       if (el.scrollTop !== pinnedScrollTopRef.current) {
@@ -583,9 +639,21 @@ export default function PlayerPage() {
       pinnedAwayRef.current = false
       setNewMsgChip(false)
     } else {
+      // Pin só após gesture real do usuário (onScroll).
       pinnedAwayRef.current = true
       pinnedScrollTopRef.current = el.scrollTop
     }
+  }
+
+  function runProgrammaticScroll(fn: () => void) {
+    programmaticScrollRef.current = true
+    fn()
+    // Libera após 2 frames — layout/images ainda podem disparar onScroll.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false
+      })
+    })
   }
 
   function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
@@ -596,13 +664,24 @@ export default function PlayerPage() {
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     setNewMsgChip(false)
-    el.scrollTo({
-      top: el.scrollHeight,
-      behavior: reduceMotionRef.current ? 'auto' : behavior,
+    const top = el.scrollHeight
+    runProgrammaticScroll(() => {
+      el.scrollTo({
+        top,
+        behavior: reduceMotionRef.current ? 'auto' : behavior,
+      })
+      // auto: garante top=max mesmo se scrollTo smooth for interrompido.
+      if (behavior === 'auto' || reduceMotionRef.current) {
+        el.scrollTop = top
+      }
     })
   }
 
-  /** C2-10: ancora no passo corrente (ou CTA) — não consulta pin. */
+  /**
+   * C3-10 / C2-10: ancora no passo corrente.
+   * Preferência: fim do thread (math + CTA) — block:nearest falhava no mount
+   * com scrollTop colado em 0 e conteúdo ainda crescendo.
+   */
   function scrollCurrentStepIntoView(behavior: ScrollBehavior = 'smooth') {
     const el = threadRef.current
     if (!el) return
@@ -615,16 +694,27 @@ export default function PlayerPage() {
     const bubble = el.querySelector(
       `[data-cell-key="${key}"]`,
     ) as HTMLElement | null
-    const cta = el.querySelector('.chat-cta-slot') as HTMLElement | null
-    const target = cta || bubble
-    if (target) {
-      target.scrollIntoView({
-        block: 'nearest',
-        behavior: reduceMotionRef.current ? 'auto' : behavior,
+    // No mount/âncora inicial: força near-bottom (aula atual + Continuar).
+    if (initialAnchorPendingRef.current || skipSmoothScrollRef.current) {
+      scrollToBottom(behavior === 'smooth' ? 'auto' : behavior)
+      return
+    }
+    if (bubble) {
+      runProgrammaticScroll(() => {
+        bubble.scrollIntoView({
+          block: 'end',
+          behavior: reduceMotionRef.current ? 'auto' : behavior,
+        })
+        // Garante que o fim do passo (e CTA abaixo) fiquem acessíveis.
+        if (!isScrollNearBottom(el, STICKY_BOTTOM_PX * 2)) {
+          el.scrollTop = el.scrollHeight
+        }
       })
       nearBottomRef.current = isScrollNearBottom(el)
-      pinnedAwayRef.current = !nearBottomRef.current
-      if (nearBottomRef.current) setNewMsgChip(false)
+      if (nearBottomRef.current) {
+        pinnedAwayRef.current = false
+        setNewMsgChip(false)
+      }
       return
     }
     scrollToBottom(behavior)
@@ -636,26 +726,41 @@ export default function PlayerPage() {
 
   useEffect(() => {
     if (!historyReady) return
-    if (skipSmoothScrollRef.current) {
-      skipSmoothScrollRef.current = false
-      // C2-10: no mount/resume, prefere a bolha/CTA do passo corrente ao sidechat.
-      requestAnimationFrame(() => scrollCurrentStepIntoView('auto'))
-      return
-    }
-    // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     const el = threadRef.current
+
+    // C3-10: enquanto a âncora inicial não assentou, re-ancora (não pin).
+    if (initialAnchorPendingRef.current || skipSmoothScrollRef.current) {
+      skipSmoothScrollRef.current = false
+      const settle = () => {
+        scrollCurrentStepIntoView('auto')
+        requestAnimationFrame(() => {
+          const scroller = threadRef.current
+          if (!scroller) return
+          if (
+            messages.length > 0 &&
+            contentRef.current?.status === 'ok' &&
+            isScrollNearBottom(scroller)
+          ) {
+            initialAnchorPendingRef.current = false
+            pinnedAwayRef.current = false
+            nearBottomRef.current = true
+            setNewMsgChip(false)
+          }
+        })
+      }
+      requestAnimationFrame(settle)
+      // Segundo passe: history/images podem crescer o scrollHeight.
+      const t = window.setTimeout(settle, 120)
+      return () => window.clearTimeout(t)
+    }
+
+    // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     if (isPinLocked() || pinnedAwayRef.current) {
       if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
       setNewMsgChip(true)
       return
     }
-    if (el && !isScrollNearBottom(el)) {
-      pinnedAwayRef.current = true
-      nearBottomRef.current = false
-      pinnedScrollTopRef.current = el.scrollTop
-      setNewMsgChip(true)
-      return
-    }
+    // Não inferir pin de scrollTop sem gesture — só chip se já pinado.
     if (!nearBottomRef.current) {
       setNewMsgChip(true)
       return
@@ -721,6 +826,7 @@ export default function PlayerPage() {
             text,
             stageType: 'exercise',
             cellKey: key,
+            questionNumber: data.question_number,
           })
           isNew = result.isNew
           return result.messages
@@ -747,6 +853,7 @@ export default function PlayerPage() {
               text,
               stageType: 'ai',
               cellKey: key,
+              questionNumber: data.question_number,
             }).messages,
           )
         }
@@ -762,6 +869,7 @@ export default function PlayerPage() {
           text,
           stageType: data.stage_type,
           cellKey: key,
+          questionNumber: data.question_number,
         })
         isNewFixed = result.isNew
         return result.messages
@@ -909,11 +1017,16 @@ export default function PlayerPage() {
       stripOptions: options.length > 0,
     })
     const text = `Continuando a trilha:\n\n${body}`
-    // C2-10: após Voltar, mostra o passo (não fica no sidechat acima).
-    skipSmoothScrollRef.current = false
-    requestAnimationFrame(() => {
-      if (!capturePinFromScroll()) scrollCurrentStepIntoView()
-    })
+    // C3-VOLTAR: se o usuário não pinou de propósito, ancora no passo/CTA.
+    const wasPinned = pinnedAwayRef.current && !initialAnchorPendingRef.current
+    if (!wasPinned) {
+      pinnedAwayRef.current = false
+      nearBottomRef.current = true
+      setNewMsgChip(false)
+      // Reusa o caminho de âncora (como mount) para o resume assentar no fim.
+      initialAnchorPendingRef.current = true
+      skipSmoothScrollRef.current = true
+    }
 
     setMessages((prev) => {
       const last = prev[prev.length - 1]
@@ -927,7 +1040,13 @@ export default function PlayerPage() {
       if (lastIsSameResume) {
         return [
           ...prev.slice(0, -1),
-          markAnimate({ ...last, id: resumeId, text, kind: 'resume' }),
+          markAnimate({
+            ...last,
+            id: resumeId,
+            text,
+            kind: 'resume',
+            questionNumber: current.question_number,
+          }),
         ]
       }
       return [
@@ -939,6 +1058,7 @@ export default function PlayerPage() {
           stageType: current.stage_type,
           cellKey: undefined,
           kind: 'resume',
+          questionNumber: current.question_number,
         }),
       ]
     })
@@ -1079,16 +1199,35 @@ export default function PlayerPage() {
       ? normalizeExerciseOptions(content.options)
       : []
 
-  const hiddenHistoryCount = Math.max(0, messages.length - HISTORY_VISIBLE_TAIL)
+  const currentQuestion =
+    content?.status === 'ok' ? content.question_number : null
+  const collapsedTail = messagesForCollapsedTail(messages, currentQuestion)
+  const hiddenHistoryCount = Math.max(
+    0,
+    messages.length - collapsedTail.length,
+  )
   const showHistoryCollapse =
     historyHasMore || hiddenHistoryCount > 0
   const visibleMessages =
-    historyExpanded || hiddenHistoryCount === 0
-      ? messages
-      : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
+    historyExpanded || hiddenHistoryCount === 0 ? messages : collapsedTail
 
   async function onExpandHistory() {
+    const el = threadRef.current
+    const prevHeight = el?.scrollHeight ?? 0
+    const prevTop = el?.scrollTop ?? 0
     setHistoryExpanded(true)
+    // Reveal de outras questions: mantém o viewport no mesmo conteúdo.
+    requestAnimationFrame(() => {
+      const scroller = threadRef.current
+      if (!scroller) return
+      const delta = scroller.scrollHeight - prevHeight
+      if (delta > 0) {
+        scroller.scrollTop = prevTop + delta
+        pinnedAwayRef.current = true
+        nearBottomRef.current = false
+        pinnedScrollTopRef.current = scroller.scrollTop
+      }
+    })
     if (historyHasMore) {
       await loadOlderHistory()
     }
@@ -1285,46 +1424,47 @@ export default function PlayerPage() {
           </div>
         ) : null}
 
-        {showCtaSlot ? (
-          <div
-            className={`chat-cta-slot${continuarLeaving || (busy && busyReason === 'trail') ? ' chat-cta-slot--busy' : ''}`}
-          >
-            {showVoltarTrilha ? (
-              <div className="chat-continue chat-continue--sidechat chat-continue--enter">
-                <button
-                  type="button"
-                  className="chat-continue__btn chat-continue__btn--secondary"
-                  disabled={busy}
-                  onClick={onVoltarParaTrilha}
-                >
-                  Voltar para trilha
-                </button>
-              </div>
-            ) : null}
-
-            {showContinuar || continuarLeaving ? (
-              <div
-                className={`chat-continue${continuarLeaving ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
-              >
-                <button
-                  type="button"
-                  className="chat-continue__btn"
-                  disabled={busy || continuarLeaving}
-                  onClick={() => void doAdvance()}
-                >
-                  Continuar
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
       </div>
+
+      {/* CTA fora do scroller: não cobre bolhas (C3-CTA-OVERLAP); pin C2-40 intacto. */}
+      {showCtaSlot ? (
+        <div
+          className={`chat-cta-slot${continuarLeaving || (busy && busyReason === 'trail') ? ' chat-cta-slot--busy' : ''}`}
+        >
+          {showVoltarTrilha ? (
+            <div className="chat-continue chat-continue--sidechat chat-continue--enter">
+              <button
+                type="button"
+                className="chat-continue__btn chat-continue__btn--secondary"
+                disabled={busy}
+                onClick={onVoltarParaTrilha}
+              >
+                Voltar para trilha
+              </button>
+            </div>
+          ) : null}
+
+          {showContinuar || continuarLeaving ? (
+            <div
+              className={`chat-continue${continuarLeaving ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
+            >
+              <button
+                type="button"
+                className="chat-continue__btn"
+                disabled={busy || continuarLeaving}
+                onClick={() => void doAdvance()}
+              >
+                Continuar
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {newMsgChip ? (
         <button
           type="button"
-          className="chat-new-msg-chip"
+          className={`chat-new-msg-chip${showCtaSlot ? ' chat-new-msg-chip--above-cta' : ''}`}
           onClick={() => scrollToBottom('smooth')}
         >
           Nova mensagem

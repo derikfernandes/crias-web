@@ -4,6 +4,7 @@ import {
   isAheadOfPosition,
   looksLikeLessonConclusion,
   pickCanonicalTrailAiLogs,
+  preferCurrentQuestionWindow,
   sanitizeContradictoryFeedback,
   sanitizeHistoryLogs,
   type HistoryLogRow,
@@ -90,6 +91,52 @@ describe('pickCanonicalTrailAiLogs', () => {
     const keep = pickCanonicalTrailAiLogs(logs, canonical)
     expect(keep.has('new')).toBe(true)
     expect(keep.has('old')).toBe(false)
+  })
+})
+
+describe('preferCurrentQuestionWindow', () => {
+  it('prioriza q corrente e no máximo a anterior (não puxa q81 cega)', () => {
+    const logs: HistoryLogRow[] = []
+    for (let i = 0; i < 20; i++) {
+      logs.push(
+        row({
+          id: `q81-${i}`,
+          stage_number: 1 + (i % 5),
+          question_number: 81,
+          message_text: 'Regência verbal',
+          created_at_ms: i,
+        }),
+      )
+    }
+    for (let i = 0; i < 5; i++) {
+      logs.push(
+        row({
+          id: `q85-${i}`,
+          stage_number: 1,
+          question_number: 85,
+          message_text: 'Aula 85',
+          created_at_ms: 100 + i,
+        }),
+      )
+    }
+    logs.push(
+      row({
+        id: 'q86-1',
+        stage_number: 1,
+        question_number: 86,
+        message_text: 'Iniciando a aula… Matemática',
+        created_at_ms: 200,
+      }),
+    )
+    const slice = preferCurrentQuestionWindow(logs, 10, {
+      stage: 1,
+      question: 86,
+    })
+    expect(slice.some((r) => r.question_number === 86)).toBe(true)
+    expect(slice.every((r) => r.question_number === 86 || r.question_number === 85)).toBe(
+      true,
+    )
+    expect(slice.some((r) => r.question_number === 81)).toBe(false)
   })
 })
 

@@ -351,10 +351,14 @@ export async function getTrailHistoryPage(
   }
 
   const totalMatching = sanitized.length
+  // Preferência de question só no hot path (primeira página). Paginação
+  // `before` continua temporal para expandir q81 etc.
   const slice =
     unlimited || sanitized.length <= limit
       ? sanitized
-      : sanitized.slice(sanitized.length - limit)
+      : before == null
+        ? preferCurrentQuestionWindow(sanitized, limit, position)
+        : sanitized.slice(sanitized.length - limit)
 
   const oldest = slice[0]
   const hasMore = !unlimited && sanitized.length > slice.length
@@ -373,6 +377,42 @@ export async function getTrailHistoryPage(
         }
       : null,
   }
+}
+
+/**
+ * Hot-path window: prioriza logs da question corrente (e no máximo a
+ * anterior) em vez de um slice temporal cego que puxa aula PT inteira.
+ * Ordem ASC preservada. Se a q atual sozinha exceder o limit, devolve o
+ * tail dela.
+ */
+export function preferCurrentQuestionWindow(
+  logs: HistoryLogRow[],
+  limit: number,
+  position: { stage: number; question: number } | null,
+): HistoryLogRow[] {
+  if (logs.length <= limit) return logs
+  if (!position) return logs.slice(logs.length - limit)
+
+  const currentQ = position.question
+  const prevQ = currentQ > 1 ? currentQ - 1 : null
+  const currentLogs = logs.filter((r) => r.question_number === currentQ)
+  if (currentLogs.length >= limit) {
+    return currentLogs.slice(currentLogs.length - limit)
+  }
+
+  if (prevQ == null) {
+    // Sem question anterior: completa com o que couber do restante (ASC).
+    const rest = logs.filter((r) => r.question_number !== currentQ)
+    const need = limit - currentLogs.length
+    const pad = rest.slice(Math.max(0, rest.length - need))
+    return [...pad, ...currentLogs]
+  }
+
+  const prevLogs = logs.filter((r) => r.question_number === prevQ)
+  const need = limit - currentLogs.length
+  const prevPad = prevLogs.slice(Math.max(0, prevLogs.length - need))
+  // Não completa com q≪atual (ex.: q81 PT) — expand/`before` recupera o resto.
+  return [...prevPad, ...currentLogs]
 }
 
 /** Doc id helper re-export para ops/scripts. */

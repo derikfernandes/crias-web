@@ -173,15 +173,17 @@ export default function ChatLayout() {
                       className={`trail-card${active ? ' is-active' : ''}`}
                       onClick={() => setSidebarOpen(false)}
                     >
-                      <span className="trail-card__head">
-                        <DocumentIcon />
-                        <span className="trail-card__id">{row.trail_id}</span>
-                      </span>
-                      <span
-                        className={`trail-card__status trail-card__status--${row.status}`}
-                      >
-                        <span className="trail-card__dot" aria-hidden />
-                        {STATUS_LABEL[row.status]}
+                      <span className="trail-card__top">
+                        <span className="trail-card__head">
+                          <DocumentIcon />
+                          <span className="trail-card__id">{row.trail_id}</span>
+                        </span>
+                        <span
+                          className={`trail-card__status trail-card__status--${row.status}`}
+                        >
+                          <span className="trail-card__dot" aria-hidden />
+                          {STATUS_LABEL[row.status]}
+                        </span>
                       </span>
                       <span className="trail-card__meta">
                         Etapa {row.current_stage_number} de {total}

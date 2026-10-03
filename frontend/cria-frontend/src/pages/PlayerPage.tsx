@@ -1400,7 +1400,6 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
-    !mariaSidechat &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
@@ -1646,16 +1645,16 @@ export default function PlayerPage() {
             <span className="lesson-card__icon" aria-hidden>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path
-                  d="M4.75 5.5A2.75 2.75 0 0 1 7.5 2.75h9.75v16.5H7.5A2.75 2.75 0 0 0 4.75 22"
+                  d="M4.5 5.25c1.6-.9 3.4-1.35 5.25-1.35.95 0 1.9.15 2.8.45v14.4a9.3 9.3 0 0 0-2.8-.45c-1.85 0-3.65.45-5.25 1.35V5.25z"
                   stroke="currentColor"
                   strokeWidth="1.7"
-                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
                 <path
-                  d="M4.75 5.5v16.5A2.75 2.75 0 0 1 7.5 19.25h12.75"
+                  d="M19.5 5.25c-1.6-.9-3.4-1.35-5.25-1.35-.95 0-1.9.15-2.8.45v14.4c.9-.3 1.85-.45 2.8-.45 1.85 0 3.65.45 5.25 1.35V5.25z"
                   stroke="currentColor"
                   strokeWidth="1.7"
-                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </span>
@@ -1676,8 +1675,7 @@ export default function PlayerPage() {
           <div className="maria-entrance" aria-live="polite">
             <div className="maria-entrance__divider">
               <span className="maria-entrance__pill">
-                <span aria-hidden>✦</span> + Parceiro de estudo chamado
-                <span aria-hidden>✦</span>
+                <span aria-hidden>✦</span> Parceiro de estudo chamado
               </span>
             </div>
             <div className="maria-entrance__row">

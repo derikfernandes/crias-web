@@ -2890,16 +2890,6 @@ export default function PlayerPage() {
             void onSend(e)
           }}
         >
-          <span className="chat-composer__attach" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M8.5 12.5l6.2-6.2a2.75 2.75 0 1 1 3.9 3.9l-7.4 7.4a4.25 4.25 0 0 1-6-6l7.05-7.05"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
           {exerciseLockedComposer ? (
             <span
               className="chat-composer__lock"

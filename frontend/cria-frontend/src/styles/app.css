@@ -335,6 +335,10 @@ a.ghost:hover {
   display: flex;
   flex-direction: column;
   padding: 0.75rem 0.65rem;
+  /* C2-R2-N02: notch — padding-top com safe-area (paridade tip6). */
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
   gap: 0.55rem;
   border-right: 1px solid rgba(255, 255, 255, 0.04);
 }
@@ -1371,19 +1375,6 @@ button[aria-disabled='true'] {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.chat-composer__attach {
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  align-self: center;
-  opacity: 0.85;
-  pointer-events: none;
-}
-
 /* B4: composer bloqueado precisa parecer bloqueado (não só disabled). */
 .chat-composer--locked .chat-composer__form {
   background: #2a2b35;
@@ -1774,7 +1765,8 @@ button[aria-disabled='true'] {
   padding: 0.55rem 0 0.65rem;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  /* C2-R2-N01: full-bleed como tip6 (não ~44% à direita). */
+  justify-content: flex-start;
   gap: 0.55rem;
   /* Soft edge scroller → CTA (em vez de corte flat). */
   border-top: 1px solid rgba(23, 234, 157, 0.12);
@@ -1787,9 +1779,9 @@ button[aria-disabled='true'] {
 }
 
 .chat-continue {
-  width: auto;
+  width: 100%;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .chat-continue--enter {
@@ -2360,8 +2352,8 @@ button[aria-disabled='true'] {
   }
 
   .chat-topbar__menu {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0.25rem 0.4rem;
   }
 
@@ -2370,13 +2362,13 @@ button[aria-disabled='true'] {
   }
 
   .chat-cta-slot {
-    min-height: 2.15rem;
+    min-height: 2.75rem;
     padding: 0.15rem 0 0.2rem;
   }
 
   .chat-continue__btn {
-    padding: 0.4rem 0.85rem;
-    min-height: 40px;
+    padding: 0.45rem 0.85rem;
+    min-height: 44px;
   }
 
   .chat-composer {
@@ -2395,8 +2387,8 @@ button[aria-disabled='true'] {
   }
 
   .chat-composer button {
-    min-height: 40px;
-    min-width: 40px;
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .chat-composer__hint {
@@ -2428,13 +2420,21 @@ button[aria-disabled='true'] {
 }
 
 /*
- * R24-LS05: teclado landscape / composer focado —
- * esconde Continuar + hint; só input+Enviar acima do KB.
+ * R24-LS05 / C2-R2-N03: landscape + composer focado —
+ * mantém Continuar compacto (não some sem affordance); só esconde hint.
  */
 @media (max-height: 500px) and (orientation: landscape) {
   .chat-shell:has(.chat-composer__form:focus-within) .chat-cta-slot,
   .chat-main:has(.chat-composer__form:focus-within) .chat-cta-slot {
-    display: none;
+    display: flex;
+    min-height: 2.75rem;
+    padding: 0.1rem 0 0.15rem;
+  }
+
+  .chat-shell:has(.chat-composer__form:focus-within) .chat-continue__btn,
+  .chat-main:has(.chat-composer__form:focus-within) .chat-continue__btn {
+    min-height: 44px;
+    padding: 0.4rem 0.75rem;
   }
 
   .chat-shell:has(.chat-composer__form:focus-within) .chat-composer,
@@ -2454,6 +2454,7 @@ button[aria-disabled='true'] {
   }
 }
 
+/* Portrait: teclado virtual — esconde Continuar para caber input+Enviar. */
 html[data-keyboard='open'] .chat-cta-slot {
   display: none;
 }
@@ -2469,6 +2470,20 @@ html[data-keyboard='open'] .chat-composer {
 
 html[data-keyboard='open'] .chat-composer__form {
   padding: 0.45rem 0.65rem;
+}
+
+/* Landscape: Continuar permanece alcançável mesmo com KB / data-keyboard. */
+@media (max-height: 500px) and (orientation: landscape) {
+  html[data-keyboard='open'] .chat-cta-slot {
+    display: flex;
+    min-height: 2.75rem;
+    padding: 0.1rem 0 0.15rem;
+  }
+
+  html[data-keyboard='open'] .chat-continue__btn {
+    min-height: 44px;
+    padding: 0.4rem 0.75rem;
+  }
 }
 
 @media (max-height: 420px), (orientation: landscape) and (max-height: 500px) {

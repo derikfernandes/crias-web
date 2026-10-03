@@ -2607,7 +2607,9 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
 
   .chat-cta-slot {
     min-height: 2.75rem;
-    padding: 0.15rem 0 0.2rem;
+    /* R19-N01 / P29: folga Continuar↔composer ≥8px também em landscape
+       (P28 só cobriu portrait; padB .2rem = 2.4px → gap ~2.39px). */
+    padding: 0.15rem 0 0.5rem;
   }
 
   .chat-continue__btn {
@@ -2677,7 +2679,8 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   .chat-main:has(.chat-composer__form:focus-within) .chat-cta-slot {
     display: flex;
     min-height: 2.75rem;
-    padding: 0.1rem 0 0.15rem;
+    /* R19-N01 / P29: manter padB ≥8px no focus landscape. */
+    padding: 0.1rem 0 0.5rem;
   }
 
   .chat-shell:has(.chat-composer__form:focus-within) .chat-continue__btn,
@@ -2731,7 +2734,8 @@ html[data-keyboard='open'] .chat-new-msg-chip:not(.chat-new-msg-chip--docked) {
   html[data-keyboard='open'] .chat-cta-slot {
     display: flex;
     min-height: 2.75rem;
-    padding: 0.1rem 0 0.15rem;
+    /* R19-N01 / P29: padB ≥8px com KB open em landscape. */
+    padding: 0.1rem 0 0.5rem;
   }
 
   html[data-keyboard='open'] .chat-continue__btn {

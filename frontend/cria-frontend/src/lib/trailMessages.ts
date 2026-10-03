@@ -96,18 +96,21 @@ function metaSource(
   return typeof source === 'string' ? source : ''
 }
 
-function isTrailDeliveryLog(l: ConversationLogRow): boolean {
+/** Entrega de célula da trilha (fixed/exercise/ai) — não sidechat/feedback. */
+export function isTrailDeliveryLog(l: ConversationLogRow): boolean {
   if (l.sender !== 'system') return false
   const source = metaSource(l.metadata)
   if (
     source === 'maria-tutor' ||
     source === 'exercise_feedback' ||
+    source === 'exercise_attempt' ||
     source === 'continuar'
   ) {
     return false
   }
   if (source === 'trail-ai' || source === 'next-content') return true
-  return l.message_type === 'instruction'
+  // Logs legados Chatis: exercise/instruction sem metadata.source
+  return l.message_type === 'instruction' || l.message_type === 'exercise'
 }
 
 const FOREIGN_LANG_RE =

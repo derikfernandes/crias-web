@@ -26,6 +26,7 @@ import {
   type ChatMessage,
   isBlocoRespostaContent,
   isContinuarText,
+  isTrailDeliveryLog,
   lightStripMarkdown,
   logsToMessages,
   looksLikeLessonConclusion,
@@ -89,6 +90,7 @@ type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
 function stripOptionLines(text: string): string {
+  // Alinhado ao server: A) / A. / A: / (A) texto
   const re = /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+.+\s*$/
   return text
     .split(/\r?\n/)
@@ -96,6 +98,12 @@ function stripOptionLines(text: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+/** Enunciado exibido no card do exercício (acima das opções). */
+function exercisePromptFromContent(content: NextContentOk): string {
+  const body = stripOptionLines((content.content ?? '').trim())
+  return lightStripMarkdown(body)
 }
 
 /**
@@ -523,16 +531,9 @@ export default function PlayerPage() {
 
       const already = logs.some(
         (l) =>
-          l.sender === 'system' &&
           l.stage_number === data.stage_number &&
           l.question_number === data.question_number &&
-          (l.message_type === 'instruction' ||
-            l.message_type === 'exercise' ||
-            (l.metadata &&
-              typeof l.metadata === 'object' &&
-              ['trail-ai', 'next-content'].includes(
-                String((l.metadata as { source?: string }).source ?? ''),
-              ))),
+          isTrailDeliveryLog(l),
       )
       // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
       if (
@@ -566,6 +567,41 @@ export default function PlayerPage() {
             metadata: { source: 'next-content', stage_type: data.stage_type },
           })
         }
+      } else if (
+        already &&
+        data.stage_type === 'exercise' &&
+        text.trim()
+      ) {
+        // History pode ter delivery fora da 1ª página ou texto incompleto —
+        // garante bolha da célula alinhada ao next-content (enunciado).
+        deliveredKeyRef.current = key
+        const msgId = trailMessageId(data.stage_number, data.question_number)
+        setMessages((prev) => {
+          const idx = prev.findIndex(
+            (m) => m.id === msgId || m.cellKey === key,
+          )
+          if (idx >= 0) {
+            const cur = prev[idx]
+            if (cur.text === text) return prev
+            const next = [...prev]
+            next[idx] = {
+              ...cur,
+              text,
+              stageType: 'exercise',
+              cellKey: key,
+              questionNumber: data.question_number,
+            }
+            return next
+          }
+          return appendTrailMessage(prev, {
+            id: msgId,
+            role: 'assistant',
+            text,
+            stageType: 'exercise',
+            cellKey: key,
+            questionNumber: data.question_number,
+          }).messages
+        })
       } else if (data.stage_type === 'ai') {
         deliveredKeyRef.current = key
         if (text) {
@@ -1404,6 +1440,10 @@ export default function PlayerPage() {
     content?.status === 'ok' && content.stage_type === 'exercise'
       ? normalizeExerciseOptions(content.options)
       : []
+  const exercisePrompt =
+    content?.status === 'ok' && content.stage_type === 'exercise'
+      ? exercisePromptFromContent(content)
+      : ''
 
   /**
    * B5: opções ficam visíveis com a escolha destacada durante o submit;
@@ -1636,9 +1676,37 @@ export default function PlayerPage() {
           <div
             className={`chat-exercise${pendingOptionKey ? ' chat-exercise--pending' : ''}`}
             role="group"
-            aria-label="Opções"
+            aria-label="Responda a questão"
           >
             <p className="chat-exercise__legend">Responda a questão</p>
+            {exercisePrompt ? (
+              <div className="chat-exercise__prompt">
+                {renderMessageLines(exercisePrompt).map((part) => {
+                  if (part.kind === 'image') {
+                    return (
+                      <p key={part.key} className="chat-bubble__media">
+                        <img src={part.value} alt="" loading="lazy" />
+                      </p>
+                    )
+                  }
+                  if (part.kind === 'link') {
+                    return (
+                      <p key={part.key}>
+                        <a
+                          href={part.value}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chat-bubble__link"
+                        >
+                          {part.label || part.value}
+                        </a>
+                      </p>
+                    )
+                  }
+                  return <p key={part.key}>{part.value || '\u00a0'}</p>
+                })}
+              </div>
+            ) : null}
             <div className="chat-exercise__options">
               {options.map((opt) => {
                 const selected = pendingOptionKey === opt.key

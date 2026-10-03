@@ -381,13 +381,7 @@ export default function ChatLayout() {
   const mainInert = drawerAsModal
 
   return (
-    <div className="chat-shell">
-      {offline ? (
-        <div className="chat-offline-banner" role="status" aria-live="polite">
-          Você está offline. Algumas ações podem falhar até a conexão voltar.
-        </div>
-      ) : null}
-
+    <div className={`chat-shell${offline ? ' chat-shell--offline' : ''}`}>
       <aside
         id="crias-sidebar"
         ref={sidebarRef}
@@ -525,6 +519,12 @@ export default function ChatLayout() {
       ) : null}
 
       <div className="chat-main">
+        {/* C2-R6 N01: faixa in-flow — empurra topbar; não tapa brand/☰. */}
+        {offline ? (
+          <div className="chat-offline-banner" role="status" aria-live="polite">
+            Você está offline. Algumas ações podem falhar até a conexão voltar.
+          </div>
+        ) : null}
         <header className="chat-topbar">
           <button
             ref={menuBtnRef}

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   advanceTrail,
   askMaria,
@@ -1073,17 +1073,24 @@ export default function PlayerPage() {
       setContent(data)
 
       if (data.status !== 'ok') {
-        const key = `status-${data.status}`
-        if (deliveredKeyRef.current !== key) {
-          deliveredKeyRef.current = key
-          setMessages((prev) => [
-            ...prev,
-            markAnimate({
-              id: `sys-${key}-${Date.now()}`,
-              role: 'system',
-              text: statusToSystemText(data),
-            }),
-          ])
+        // C2-R6 N04: not_found/inactive → empty-state no corpo (sem bolha micro).
+        const shellEmpty =
+          data.status === 'not_found' ||
+          data.status === 'inactive_trail' ||
+          data.status === 'inactive_student'
+        if (!shellEmpty) {
+          const key = `status-${data.status}`
+          if (deliveredKeyRef.current !== key) {
+            deliveredKeyRef.current = key
+            setMessages((prev) => [
+              ...prev,
+              markAnimate({
+                id: `sys-${key}-${Date.now()}`,
+                role: 'system',
+                text: statusToSystemText(data),
+              }),
+            ])
+          }
         }
         setHistoryReady(true)
         return
@@ -1279,60 +1286,22 @@ export default function PlayerPage() {
     }
   }, [content, exerciseDone, loadHistoryAndContent])
 
-  const loadOlderHistory = useCallback(async () => {
-    if (historyLoadingMore || !historyHasMore) return
-    const before = historyBeforeRef.current
-    if (before == null) {
-      setHistoryHasMore(false)
-      return
-    }
-    setHistoryLoadingMore(true)
-    const el = threadRef.current
-    const prevHeight = el?.scrollHeight ?? 0
-    const prevTop = el?.scrollTop ?? 0
-    try {
-      const page = await fetchTrailHistoryPage(session.student_id, trailId, {
-        limit: HISTORY_PAGE_LIMIT,
-        before,
-      })
-      setHistoryHasMore(page.has_more)
-      historyBeforeRef.current = page.next_before
-      if (page.logs.length === 0) return
-      const older = logsToMessages(page.logs)
-      // R19-H02: âncora no layout effect (após paint do prepend).
-      pendingScrollAnchorRef.current = {
-        kind: 'prepend',
-        prevHeight,
-        prevTop,
-      }
-      setMessages((prev) => {
-        const seen = new Set(prev.map((m) => m.id))
-        const merged = older.filter((m) => !seen.has(m.id))
-        return [...merged, ...prev]
-      })
-    } catch {
-      pendingScrollAnchorRef.current = null
-      /* ignore — botão permanece */
-    } finally {
-      setHistoryLoadingMore(false)
-    }
-  }, [
-    historyHasMore,
-    historyLoadingMore,
-    session.student_id,
-    trailId,
-  ])
-
-  /** R19-H01/H02: aplica âncora de scroll após expand/prepend no DOM. */
-  useLayoutEffect(() => {
-    const pending = pendingScrollAnchorRef.current
-    if (!pending) return
-    pendingScrollAnchorRef.current = null
-    const scroller = threadRef.current
-    if (!scroller) return
-
-    if (pending.kind === 'current-step') {
+  const scrollToCurrentStep = useCallback(
+    (scroller: HTMLElement) => {
       const current = contentRef.current
+      // C2-R6 N03: lesson-card é a âncora quando a bolha da célula some do DOM.
+      const lesson = scroller.querySelector(
+        '[data-current-step="true"], .lesson-card',
+      ) as HTMLElement | null
+      if (lesson) {
+        lesson.scrollIntoView({ block: 'start', behavior: 'auto' })
+        pinnedAwayRef.current = true
+        nearBottomRef.current = false
+        userScrollUpGestureRef.current = true
+        pinnedScrollTopRef.current = scroller.scrollTop
+        showJumpChip()
+        return true
+      }
       if (current?.status === 'ok') {
         const key = trailCellKey(current.stage_number, current.question_number)
         const bubble = scroller.querySelector(
@@ -1345,9 +1314,74 @@ export default function PlayerPage() {
           userScrollUpGestureRef.current = true
           pinnedScrollTopRef.current = scroller.scrollTop
           showJumpChip()
-          return
+          return true
         }
       }
+      return false
+    },
+    [showJumpChip],
+  )
+
+  const loadOlderHistory = useCallback(
+    async (opts?: { keepCurrentStep?: boolean }) => {
+      if (historyLoadingMore || !historyHasMore) return
+      const before = historyBeforeRef.current
+      if (before == null) {
+        setHistoryHasMore(false)
+        return
+      }
+      const keepCurrentStep = Boolean(opts?.keepCurrentStep)
+      setHistoryLoadingMore(true)
+      const el = threadRef.current
+      const prevHeight = el?.scrollHeight ?? 0
+      const prevTop = el?.scrollTop ?? 0
+      try {
+        const page = await fetchTrailHistoryPage(session.student_id, trailId, {
+          limit: HISTORY_PAGE_LIMIT,
+          before,
+        })
+        setHistoryHasMore(page.has_more)
+        historyBeforeRef.current = page.next_before
+        if (page.logs.length === 0) return
+        const older = logsToMessages(page.logs)
+        // C2-R6 N03: no expand, não sobrescrever âncora da etapa atual com prepend.
+        pendingScrollAnchorRef.current = keepCurrentStep
+          ? { kind: 'current-step' }
+          : {
+              kind: 'prepend',
+              prevHeight,
+              prevTop,
+            }
+        setMessages((prev) => {
+          const seen = new Set(prev.map((m) => m.id))
+          const merged = older.filter((m) => !seen.has(m.id))
+          return [...merged, ...prev]
+        })
+      } catch {
+        if (!keepCurrentStep) pendingScrollAnchorRef.current = null
+        /* ignore — botão permanece */
+      } finally {
+        setHistoryLoadingMore(false)
+      }
+    },
+    [
+      historyHasMore,
+      historyLoadingMore,
+      session.student_id,
+      trailId,
+    ],
+  )
+
+  /** R19-H01/H02: aplica âncora de scroll após expand/prepend no DOM. */
+  useLayoutEffect(() => {
+    const pending = pendingScrollAnchorRef.current
+    if (!pending) return
+    pendingScrollAnchorRef.current = null
+    const scroller = threadRef.current
+    if (!scroller) return
+
+    if (pending.kind === 'current-step') {
+      if (scrollToCurrentStep(scroller)) return
       scroller.scrollTop = scroller.scrollHeight
       return
     }
@@ -1365,7 +1399,7 @@ export default function PlayerPage() {
     userScrollUpGestureRef.current = true
     pinnedScrollTopRef.current = scroller.scrollTop
     showJumpChip()
-  }, [messages, historyExpanded, showJumpChip])
+  }, [messages, historyExpanded, showJumpChip, scrollToCurrentStep])
 
   useEffect(() => {
     deliveredKeyRef.current = null
@@ -2430,11 +2464,19 @@ export default function PlayerPage() {
     : rawVisibleMessages
 
   async function onExpandHistory() {
-    // R19-H01: ancorar na etapa atual após o expand pintar (layoutEffect).
+    // C2-R6 N03: expand local primeiro → âncora na etapa; older page sem roubar scroll.
     pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
     if (historyHasMore) {
-      await loadOlderHistory()
+      // Espera o paint do expand + current-step antes do prepend de página antiga.
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve())
+      })
+      await loadOlderHistory({ keepCurrentStep: true })
+      // Reafirma após merge (layoutEffect seguinte).
+      pendingScrollAnchorRef.current = { kind: 'current-step' }
+      const scroller = threadRef.current
+      if (scroller) scrollToCurrentStep(scroller)
     }
   }
 
@@ -2462,6 +2504,24 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     content.stage_type === 'exercise' &&
     !exerciseDone
+
+  /** C2-R6 N04: trilha bogus / inativa — empty-state + sem composer zumbi. */
+  const trailShellUnavailable =
+    historyReady &&
+    ((content != null &&
+      (content.status === 'not_found' ||
+        content.status === 'inactive_trail' ||
+        content.status === 'inactive_student')) ||
+      (content == null && Boolean(error)))
+
+  const trailEmptyCopy =
+    content?.status === 'inactive_student'
+      ? 'Sua conta está inativa nesta trilha.'
+      : content?.status === 'inactive_trail'
+        ? 'Esta trilha está inativa no momento.'
+        : (content && content.status !== 'ok' ? content.message : null) ||
+          error ||
+          'Essa trilha não está disponível na sua conta.'
 
   const placeholder =
     content == null
@@ -2604,7 +2664,7 @@ export default function PlayerPage() {
       <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {srAnnounce}
       </div>
-      {error ? (
+      {error && !trailShellUnavailable ? (
         <div className="error chat-thread__banner" role="alert">
           <p className="chat-thread__banner-text">{error}</p>
           {canRetry ? (
@@ -2634,7 +2694,7 @@ export default function PlayerPage() {
           aria-busy={historyLoadingMore || undefined}
         >
         {/* R04-L06: busy observável no expand/prepend do histórico. */}
-        {historyLoadingMore ? (
+        {historyLoadingMore && !trailShellUnavailable ? (
           <div
             className="chat-thread__skeleton chat-thread__skeleton--prepend"
             aria-hidden="true"
@@ -2647,7 +2707,7 @@ export default function PlayerPage() {
             </p>
           </div>
         ) : null}
-        {!historyExpanded && showHistoryCollapse ? (
+        {!trailShellUnavailable && !historyExpanded && showHistoryCollapse ? (
           <div className="chat-history-collapse">
             <button
               type="button"
@@ -2669,7 +2729,9 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {historyExpanded && (showHistoryCollapse || historyHasMore) ? (
+        {!trailShellUnavailable &&
+        historyExpanded &&
+        (showHistoryCollapse || historyHasMore) ? (
           <div className="chat-history-collapse">
             {historyHasMore ? (
               <button
@@ -2695,8 +2757,12 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {showLessonCard ? (
-          <section className="lesson-card" aria-label="Conteúdo da etapa">
+        {!trailShellUnavailable && showLessonCard ? (
+          <section
+            className="lesson-card"
+            aria-label="Conteúdo da etapa"
+            data-current-step="true"
+          >
             <span className="lesson-card__icon" aria-hidden>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path
@@ -2726,7 +2792,7 @@ export default function PlayerPage() {
           </section>
         ) : null}
 
-        {showMariaEntrance ? (
+        {!trailShellUnavailable && showMariaEntrance ? (
           <div className="maria-entrance" aria-live="polite">
             <div className="maria-entrance__divider">
               <span className="maria-entrance__pill">
@@ -2750,7 +2816,8 @@ export default function PlayerPage() {
           </div>
         ) : null}
 
-        {chatMessages.map((msg) => {
+        {!trailShellUnavailable &&
+          chatMessages.map((msg) => {
           const promptMovedToCard =
             Boolean(activeExerciseCellKey) &&
             msg.role === 'assistant' &&
@@ -2865,6 +2932,15 @@ export default function PlayerPage() {
         {historyReady && !content && !error ? (
           <p className="muted chat-thread__loading">Carregando…</p>
         ) : null}
+        {trailShellUnavailable ? (
+          <div className="chat-thread__empty" role="status">
+            <p className="chat-thread__empty-title">Trilha não encontrada</p>
+            <p className="lede">{trailEmptyCopy}</p>
+            <Link to="/" className="chat-home__cta">
+              Minhas trilhas
+            </Link>
+          </div>
+        ) : null}
         {exerciseOptionsMissing ? (
           <div className="chat-exercise chat-exercise--error" role="alert">
             <p className="chat-exercise__legend">Questão indisponível</p>
@@ -2946,10 +3022,20 @@ export default function PlayerPage() {
       </div>
 
       {/* CTA fora do scroller: não cobre bolhas (C3-CTA-OVERLAP); pin C2-40 intacto. */}
-      {showCtaSlot ? (
+      {showCtaSlot && !trailShellUnavailable ? (
         <div
           className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
         >
+          {/* C2-R6 N02: chip docked no CTA — sem overlap de bolha/card. */}
+          {jumpChip ? (
+            <button
+              type="button"
+              className="chat-new-msg-chip chat-new-msg-chip--docked"
+              onClick={() => scrollToBottom('smooth')}
+            >
+              {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+            </button>
+          ) : null}
           {showVoltarTrilha ? (
             <div className="chat-continue chat-continue--sidechat chat-continue--enter">
               <button
@@ -3000,10 +3086,10 @@ export default function PlayerPage() {
         </div>
       ) : null}
 
-      {jumpChip ? (
+      {jumpChip && !showCtaSlot && !trailShellUnavailable ? (
         <button
           type="button"
-          className={`chat-new-msg-chip${showCtaSlot ? ' chat-new-msg-chip--above-cta' : ''}`}
+          className="chat-new-msg-chip"
           onClick={() => scrollToBottom('smooth')}
         >
           {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
@@ -3011,6 +3097,7 @@ export default function PlayerPage() {
       ) : null}
       </div>
 
+      {!trailShellUnavailable ? (
       <footer
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
@@ -3125,6 +3212,7 @@ className={`chat-composer__send${sendAriaDisabled ? ' is-aria-disabled' : ''}`}
           </p>
         ) : null}
       </footer>
+      ) : null}
     </main>
   )
 }

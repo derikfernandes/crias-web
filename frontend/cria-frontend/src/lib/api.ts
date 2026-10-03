@@ -7,6 +7,8 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.repl
 
 /** Timeout de cliente p/ mutate/loads longos (R18-N01 / N04). */
 const CLIENT_TIMEOUT_MS = 15_000
+/** Maria (IA) — teto maior que o mutate; alinha a “Ainda pensando…” (C2-R12 N02). */
+const MARIA_TIMEOUT_MS = 45_000
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -475,11 +477,15 @@ export async function askMaria(input: {
   stage_number?: number
   question_number?: number
 }): Promise<MariaReply> {
-  const res = await fetchWithTimeout(`${API_BASE}/student_trails/maria`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
+  const res = await fetchWithTimeout(
+    `${API_BASE}/student_trails/maria`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    MARIA_TIMEOUT_MS,
+  )
   const body = await parseJson(res)
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível falar com Maria.')

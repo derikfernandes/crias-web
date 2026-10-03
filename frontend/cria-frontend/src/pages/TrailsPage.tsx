@@ -43,8 +43,13 @@ export default function TrailsPage() {
         ? 'Trilha'
         : null
 
+  const homeLoading = trailsLoading && !primary && !trailsError && !empty
+
   return (
-    <div className="chat-home">
+    <div
+      className="chat-home"
+      aria-busy={homeLoading || undefined}
+    >
       <h1>Crias</h1>
       {trailsError ? (
         <>
@@ -72,8 +77,15 @@ export default function TrailsPage() {
             Olá, {session.name.split(' ')[0] || 'aluno'}. Continue sua aula por
             aqui.
           </p>
-          {trailsLoading && !primary ? (
-            <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+          {homeLoading ? (
+            <div
+              className="chat-home__loading"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="chat-home__cta-skeleton" aria-hidden="true" />
+              <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+            </div>
           ) : primary ? (
             <>
               <Link

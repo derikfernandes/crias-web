@@ -2012,9 +2012,7 @@ export default function PlayerPage() {
       return data
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
-      reportError(err, 'Erro ao carregar a etapa.', () => {
-        void loadNextAfterAdvance()
-      })
+      // C2-R12 N01: tentar reconciliar antes do banner — evita erro+busy no mesmo frame.
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
         setContent(reconciled)
@@ -2022,6 +2020,9 @@ export default function PlayerPage() {
       } catch {
         /* ignore */
       }
+      reportError(err, 'Erro ao carregar a etapa.', () => {
+        void loadNextAfterAdvance()
+      })
       throw err
     }
   }
@@ -2121,19 +2122,29 @@ export default function PlayerPage() {
         setContent(result as NextContentStatus)
       }
     } catch (err) {
+      // C2-R12 N01: dropar busy/Salvando antes do banner — sem erro+Salvando no mesmo frame.
+      advanceInFlightRef.current = false
+      setBusy(false)
+      setBusyReason(null)
+      busyReasonRef.current = null
+      setTrailBusyLabel('Preparando etapa…')
+      setContinuarLeaving(false)
+      setShowTyping(false)
       reportError(err, 'Erro ao avançar a trilha.', () => {
         if (advanceCommittedRef.current) void resyncAfterAdvance()
         else void doAdvance()
       })
+      // Reconcile silencioso (sem chrome busy). Se ok → um path (Continuar); senão Tentar.
       if (!advanceCommittedRef.current) {
         try {
           const s = requireSession()
           if (s) {
             const reconciled = await fetchNextContent(s.student_id, trailId)
             setContent(reconciled)
+            clearError()
           }
         } catch {
-          /* ignore */
+          /* ignore — Tentar de novo permanece */
         }
       }
     } finally {
@@ -2523,12 +2534,17 @@ export default function PlayerPage() {
    */
   const hasMariaDraft = !mariaLockedOnExercise && !!draft.trim()
 
+  /**
+   * C2-R12 N01: com “Tentar de novo” (rede/sistema) vivo, não reabilitar Continuar —
+   * um único recovery (regra produto: Tentar só rede/sistema).
+   */
   const showContinuar =
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
     !mariaSidechat &&
     !advanceInFlightRef.current &&
+    !canRetry &&
     !exerciseOptionsMissing &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
@@ -2808,7 +2824,7 @@ export default function PlayerPage() {
   return (
     <main
       className="chat-thread"
-      aria-busy={busy || undefined}
+      aria-busy={busy || !historyReady || undefined}
       aria-labelledby="crias-player-heading"
     >
       <h1 id="crias-player-heading" className="visually-hidden">
@@ -2844,7 +2860,7 @@ export default function PlayerPage() {
           onScroll={updateNearBottom}
           role="log"
           aria-relevant="additions"
-          aria-busy={historyLoadingMore || undefined}
+          aria-busy={historyLoadingMore || !historyReady || undefined}
         >
         {/* R04-L06: busy observável no expand/prepend do histórico. */}
         {historyLoadingMore && !trailShellUnavailable ? (
@@ -3038,10 +3054,14 @@ export default function PlayerPage() {
         ) : null}
 
         {!historyReady ? (
-          <div className="chat-thread__skeleton" aria-hidden="true">
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" />
+          <div
+            className="chat-thread__skeleton"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" aria-hidden="true" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" aria-hidden="true" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" aria-hidden="true" />
             <p className="muted chat-thread__loading">Carregando a trilha…</p>
           </div>
         ) : null}
@@ -3239,7 +3259,8 @@ export default function PlayerPage() {
       ) : null}
       </div>
 
-      {!trailShellUnavailable ? (
+      {/* C2-R12 N05: sem composer/Enviar competindo com skeleton no mount. */}
+      {!trailShellUnavailable && historyReady ? (
       <footer
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''

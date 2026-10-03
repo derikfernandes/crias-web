@@ -2111,6 +2111,27 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   max-width: 40ch;
 }
 
+/* C2-R12 N03: skeleton do CTA enquanto listagem atrasa. */
+.chat-home__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 22rem);
+  margin-top: 1.25rem;
+}
+
+.chat-home__cta-skeleton {
+  width: 100%;
+  min-height: 48px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--main-alt) 70%, var(--ink) 8%);
+  opacity: 0.55;
+}
+
+.chat-home__loading .chat-home__hint {
+  margin-top: 0.85rem;
+}
+
 .chat-home__retry {
   margin-top: 1rem;
   align-self: center;

@@ -41,6 +41,7 @@ import {
   logsToMessages,
   looksLikeLessonConclusion,
   normalizeTitleKey,
+  parseInlineMarkdown,
   renderMessageLines,
   stripDecorTitle,
   stripHardcodedVerdict,
@@ -235,11 +236,15 @@ function writeMariaPersist(
 function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: string): ReactNode {
   if (!segments || segments.length === 0) return fallback || '\u00a0'
   return segments.map((seg) => {
-    if (seg.kind === 'strong') {
-      return <strong key={seg.key}>{seg.value}</strong>
-    }
-    if (seg.kind === 'em') {
-      return <em key={seg.key}>{seg.value}</em>
+    if (seg.kind === 'strong' || seg.kind === 'em') {
+      const Tag = seg.kind === 'strong' ? 'strong' : 'em'
+      // C2-R9 N04: `_… *continue* …_` — parse aninhado (senão *ficam* literais).
+      const inner = parseInlineMarkdown(seg.value)
+      const nested =
+        inner.length === 1 && inner[0]?.kind === 'text'
+          ? seg.value
+          : renderInlineSegments(inner, seg.value)
+      return <Tag key={seg.key}>{nested}</Tag>
     }
     return <span key={seg.key}>{seg.value}</span>
   })
@@ -2032,6 +2037,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
+    // C2-R9 N01: rascunho Maria compete com avanço — não avançar.
+    if (draft.trim()) return
     // OM04: offline — não dispara advance fadado.
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const liveSession = ensureSessionOrRedirect()
@@ -2492,6 +2499,11 @@ export default function PlayerPage() {
   const canSendFreeText =
     content?.status === 'ok' && !busy && !composerBlocked && !!draft.trim()
   const canSend = canSubmitExercise || canSendFreeText
+  /**
+   * C2-R9 N01: rascunho no composer + Continuar vivos = avanço acidental.
+   * Com draft, pausa Continuar e deixa Enviar (Maria) como próximo passo.
+   */
+  const hasMariaDraft = !mariaLockedOnExercise && !!draft.trim()
 
   const showContinuar =
     content?.status === 'ok' &&
@@ -2707,12 +2719,15 @@ export default function PlayerPage() {
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
+   * C2-R9 N02: pending também aplica disabled duro (UI busy).
    */
   const sendAriaDisabled =
     exerciseLockedComposer &&
     !selectedOptionKey &&
     exercisePhase !== 'submitting'
-  const sendDisabledHard = !exerciseLockedComposer && !canSend
+  const sendDisabledHard =
+    exercisePhase === 'submitting' ||
+    (!exerciseLockedComposer && !canSend)
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
     content?.status === 'ok' &&
@@ -3224,9 +3239,15 @@ export default function PlayerPage() {
                   busy ||
                   continuarLeaving ||
                   advanceInFlightRef.current ||
-                  offline
+                  offline ||
+                  hasMariaDraft
                 }
                 aria-busy={trailBusy || undefined}
+                title={
+                  hasMariaDraft
+                    ? 'Envie a dúvida à Maria antes de avançar'
+                    : undefined
+                }
                 onClick={() => void doAdvance()}
               >
                 {trailBusy ? trailBusyLabel : continuarLabel}
@@ -3263,7 +3284,9 @@ export default function PlayerPage() {
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
         }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
-          showContinuar ? ' chat-composer--with-continue' : ''
+          showContinuar && !hasMariaDraft
+            ? ' chat-composer--with-continue'
+            : ''
         }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
       >
 <form
@@ -3331,7 +3354,9 @@ export default function PlayerPage() {
           />
           <button
             type="submit"
-            className={`chat-composer__send${sendAriaDisabled ? ' is-aria-disabled' : ''}`}
+            className={`chat-composer__send${
+              sendAriaDisabled ? ' is-aria-disabled' : ''
+            }`}
             disabled={sendDisabledHard}
             aria-disabled={sendAriaDisabled || undefined}
             aria-label={
@@ -3364,15 +3389,19 @@ export default function PlayerPage() {
                 trailBusyLabel.startsWith('Salvando')
                 ? 'Aguarde — salvando progresso'
                 : 'Aguarde — carregando a próxima etapa'
-              : content.stage_type === 'exercise'
-                ? showContinuar
-                  ? 'Pergunte à Maria · Continuar trilha avança'
-                  : 'Pergunte à Maria; o botão verde avança a trilha'
-                : mariaSidechat
-                  ? 'Voltar à trilha reexibe o passo atual'
-                  : showContinuar
-                    ? 'Enviar fala com Maria · Continuar trilha avança'
-                    : 'Enviar fala com Maria · o botão verde avança a trilha'}
+              : hasMariaDraft && showContinuar
+                ? // C2-R9 N01: draft pausa Continuar
+                  'Enviar a dúvida à Maria — Continuar pausado'
+                : content.stage_type === 'exercise'
+                  ? showContinuar
+                    ? 'Pergunte à Maria · Continuar trilha avança'
+                    : 'Pergunte à Maria; o botão verde avança a trilha'
+                  : mariaSidechat
+                    ? 'Voltar à trilha reexibe o passo atual'
+                    : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                      showContinuar
+                      ? 'Enviar fala com Maria · Continuar trilha avança'
+                      : 'Enviar fala com Maria · o botão verde avança a trilha'}
           </p>
         ) : null}
       </footer>

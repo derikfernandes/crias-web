@@ -94,6 +94,8 @@ export type InlineSeg = {
 /**
  * Parse inline markdown comum da escola/IA: **bold**, __bold__, *em*, _em_.
  * Não reescreve conteúdo — só marca segmentos para o renderer.
+ * C2-R9 N04: valores em/strong podem ainda conter `*continue*` — o renderer
+ * re-parseia aninhado (ver renderInlineSegments).
  */
 export function parseInlineMarkdown(raw: string): InlineSeg[] {
   const src = String(raw ?? '')

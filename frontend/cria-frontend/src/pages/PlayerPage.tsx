@@ -1741,6 +1741,9 @@ export default function PlayerPage() {
                   strokeWidth="1.75"
                 />
               </svg>
+              <span className="chat-composer__lock-label">
+                Responda a questão primeiro
+              </span>
             </span>
           ) : null}
           <textarea
@@ -1749,7 +1752,7 @@ export default function PlayerPage() {
             rows={1}
             value={draft}
             disabled={composerBlocked}
-            placeholder={placeholder}
+            placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
               exerciseLockedComposer
                 ? 'Responda a questão primeiro'
@@ -1766,12 +1769,10 @@ export default function PlayerPage() {
             Enviar
           </button>
         </form>
-        {content?.status === 'ok' ? (
+        {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
-              ? exerciseDone
-                ? 'Pergunte à Maria ou use Continuar para avançar'
-                : 'Responda a questão primeiro'
+              ? 'Pergunte à Maria ou use Continuar para avançar'
               : mariaSidechat
                 ? 'Voltar à trilha reexibe o passo atual'
                 : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}

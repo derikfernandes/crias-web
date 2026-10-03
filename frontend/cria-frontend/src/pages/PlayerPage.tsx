@@ -1329,6 +1329,19 @@ export default function PlayerPage() {
       ? normalizeExerciseOptions(content.options)
       : []
 
+  /**
+   * C5-COMPOSER-STALE-EXERCISE: opções somem no mesmo tick do click
+   * (pendingOptionKey); placeholder/hint não podem ficar em “Responda…”
+   * até o feedback terminar (~1.5–2s).
+   */
+  const optionsVisible =
+    content?.status === 'ok' &&
+    content.stage_type === 'exercise' &&
+    !exerciseDone &&
+    options.length > 0 &&
+    !(busy && busyReason === 'exercise' && pendingOptionKey)
+  const exerciseComposerOpen = optionsVisible
+
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
   const collapsedTail = messagesForCollapsedTail(messages, currentQuestion)
@@ -1388,9 +1401,9 @@ export default function PlayerPage() {
       : content.status !== 'ok'
         ? 'Trilha indisponível no momento'
         : content.stage_type === 'exercise'
-          ? exerciseDone
-            ? 'Pergunte à Maria ou use Continuar…'
-            : 'Responda a questão'
+          ? exerciseComposerOpen
+            ? 'Responda a questão'
+            : 'Pergunte à Maria ou use Continuar…'
           : mariaSidechat
             ? 'Pergunte mais à Maria ou volte para a trilha…'
             : 'Pergunte à Maria ou digite continuar…'
@@ -1399,9 +1412,11 @@ export default function PlayerPage() {
     content?.status !== 'ok'
       ? 'off'
       : content.stage_type === 'exercise'
-        ? exerciseDone
-          ? 'ex-done'
-          : 'ex-open'
+        ? exerciseComposerOpen
+          ? 'ex-open'
+          : exerciseDone
+            ? 'ex-done'
+            : 'ex-pending'
         : mariaSidechat
           ? 'maria'
           : 'trail'
@@ -1538,11 +1553,7 @@ export default function PlayerPage() {
           <p className="muted chat-thread__loading">Carregando…</p>
         ) : null}
 
-        {content?.status === 'ok' &&
-        content.stage_type === 'exercise' &&
-        !exerciseDone &&
-        options.length > 0 &&
-        !(busy && busyReason === 'exercise' && pendingOptionKey) ? (
+        {optionsVisible ? (
           <div className="chat-exercise" role="group" aria-label="Opções">
             <p className="chat-exercise__legend">Responda a questão</p>
             <div className="chat-exercise__options">
@@ -1643,9 +1654,11 @@ export default function PlayerPage() {
         {content?.status === 'ok' ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
-              ? exerciseDone
-                ? 'Use Continuar para avançar a trilha'
-                : 'Responda a questão pelas opções acima'
+              ? exerciseComposerOpen
+                ? 'Responda a questão pelas opções acima'
+                : exerciseDone
+                  ? 'Use Continuar para avançar a trilha'
+                  : 'Aguarde o feedback…'
               : mariaSidechat
                 ? 'Voltar para trilha reexibe o passo atual'
                 : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}

@@ -10,12 +10,18 @@ const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   blocked: 'Bloqueada',
 }
 
+/** ≤768px: drawer overlay — default closed so Continuar não fica sob a lista (C5-MOBILE-SIDEBAR-CTA). */
+function initialSidebarOpen() {
+  if (typeof window === 'undefined') return true
+  return !window.matchMedia('(max-width: 768px)').matches
+}
+
 export default function ChatLayout() {
   const session = getSession()!
   const navigate = useNavigate()
   const location = useLocation()
   const [rows, setRows] = useState<StudentTrailRow[] | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
 
   useEffect(() => {
     let cancelled = false
@@ -37,6 +43,13 @@ export default function ChatLayout() {
       window.removeEventListener('crias:trail-progress', onProgress)
     }
   }, [session.student_id, location.pathname])
+
+  // Player / rotas estreitas: nunca reabrir drawer só por navegar; desktop ignora --open no CSS.
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      setSidebarOpen(false)
+    }
+  }, [location.pathname])
 
   function logout() {
     clearSession()

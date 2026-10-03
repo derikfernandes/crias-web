@@ -869,7 +869,8 @@ a.ghost:hover {
     border-color 0.15s ease,
     background 0.15s ease,
     opacity 0.15s ease,
-    transform 0.12s ease;
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
 }
 
 .chat-exercise__option:hover:not(:disabled) {

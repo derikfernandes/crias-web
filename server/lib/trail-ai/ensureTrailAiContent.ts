@@ -15,6 +15,7 @@ import {
 import {
   listRecentContextLogs,
   resolveDeliveredAiContent,
+  upsertTrailAiDeliveryCache,
 } from './resolveDeliveredAiContent'
 
 export type EnsureTrailAiResult = {
@@ -87,6 +88,17 @@ export async function ensureTrailAiContent(
     question_number: questionNumber,
   })
   if (existing) {
+    // Garante cache O(1) mesmo quando veio do fallback de logs.
+    void upsertTrailAiDeliveryCache(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      stage_number: stageNumber,
+      question_number: questionNumber,
+      message_text: existing.message_text,
+      log_id: existing.log_id,
+    }).catch(() => {
+      /* best-effort */
+    })
     return {
       content: existing.message_text,
       ai_status: 'ready',
@@ -193,7 +205,7 @@ export async function ensureTrailAiContent(
     throw new Error('Resposta da IA vazia após formatação.')
   }
 
-  await createConversationLog(db, logsCollection, {
+  const created = await createConversationLog(db, logsCollection, {
     student_id: studentId,
     trail_id: trailId,
     stage_number: stageNumber,
@@ -208,6 +220,15 @@ export async function ensureTrailAiContent(
       model,
       channel: 'app',
     },
+  })
+
+  await upsertTrailAiDeliveryCache(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    stage_number: stageNumber,
+    question_number: questionNumber,
+    message_text: formatted,
+    log_id: typeof created?.id === 'string' ? created.id : null,
   })
 
   return {

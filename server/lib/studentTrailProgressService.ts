@@ -30,7 +30,7 @@ export type ProgressErrorCode =
   | 'internal_error'
 
 export type ProgressResult<T> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; background?: Promise<void> }
   | { ok: false; code: ProgressErrorCode; message: string; httpStatus: number }
 
 export type NextContentOk = {
@@ -546,8 +546,8 @@ export async function getNextContent(
     content = stripLetteredChoicesFromContent(content) ?? content
   }
 
-  // Prefetch da próxima célula AI (fire-and-forget) — esquenta cache p/ Continuar.
-  schedulePrefetchNextAiStage(db, {
+  // Prefetch da próxima célula AI — caller deve waitUntil(background) no Vercel.
+  const background = schedulePrefetchNextAiStage(db, {
     student_id: studentId,
     trail_id: trailId,
     current_stage_number: pos.current_stage_number,
@@ -571,6 +571,7 @@ export async function getNextContent(
       is_released: true,
       next_action: 'deliver_content',
     },
+    background,
   }
 }
 
@@ -749,8 +750,12 @@ export async function getAdvanceGate(
   }
 }
 
-/** Prefetch best-effort: gera a próxima célula AI se ainda não houver delivery. */
-function schedulePrefetchNextAiStage(
+/**
+ * Prefetch best-effort: gera a próxima célula AI se ainda não houver delivery.
+ * Retorna a Promise para o caller agendar com waitUntil (Vercel serverless
+ * mata fire-and-forget após o response).
+ */
+export function schedulePrefetchNextAiStage(
   db: Firestore,
   input: {
     student_id: string
@@ -758,8 +763,8 @@ function schedulePrefetchNextAiStage(
     current_stage_number: number
     current_question_number: number
   },
-): void {
-  void (async () => {
+): Promise<void> {
+  return (async () => {
     try {
       const { totalStages, maxQuestion } = await loadTrailCounts(
         db,
@@ -1014,6 +1019,50 @@ export async function advanceStudentTrailProgress(
 
   await db.collection(studentTrailsCollection).doc(id).update(patch)
 
+  // Se o destino é AI, aquece/garante o conteúdo ANTES de responder o Continuar.
+  // Com cache hit (prefetch ou delivery prévia) fica ~O(1); senão gera uma vez aqui
+  // e o next-content seguinte não chama Gemini de novo.
+  const destStageData = (destStage.data() ?? {}) as Record<string, unknown>
+  const destQuestionData = (destQuestion.data() ?? {}) as Record<string, unknown>
+  let background: Promise<void> | undefined
+  if (
+    asStageType(destStageData.stage_type) === 'ai' &&
+    evaluateContentAvailability({
+      is_released: asBool(destQuestionData.is_released, false),
+      active_stage: asBool(destStageData.active, true),
+      active_question: asBool(destQuestionData.active, true),
+    }) === 'ok'
+  ) {
+    try {
+      const { ensureTrailAiContent } = await import(
+        './trail-ai/ensureTrailAiContent.js'
+      )
+      await ensureTrailAiContent(db, {
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: next.next_stage_number,
+        question_number: next.next_question_number,
+      })
+    } catch {
+      // Não bloqueia o avanço se a geração falhar — next-content tenta de novo.
+    }
+    // Já no destino AI: prefetch da célula *seguinte* enquanto o aluno lê.
+    background = schedulePrefetchNextAiStage(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      current_stage_number: next.next_stage_number,
+      current_question_number: next.next_question_number,
+    })
+  } else {
+    // Prefetch da célula seguinte (após o destino) em background best-effort.
+    background = schedulePrefetchNextAiStage(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      current_stage_number: next.next_stage_number,
+      current_question_number: next.next_question_number,
+    })
+  }
+
   return {
     ok: true,
     data: {
@@ -1022,6 +1071,7 @@ export async function advanceStudentTrailProgress(
       next_question_number: next.next_question_number,
       completed: false,
     },
+    background,
   }
 }
 

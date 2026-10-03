@@ -25,4 +25,6 @@ export {
   listRecentContextLogs,
   listTrailConversationLogsSafe,
   resolveDeliveredAiContent,
+  trailAiDeliveryDocId,
+  upsertTrailAiDeliveryCache,
 } from './resolveDeliveredAiContent'

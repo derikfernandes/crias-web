@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { waitUntil } from '@vercel/functions'
 
 import {
   createStudentTrail,
@@ -293,6 +294,10 @@ async function handleRequest(request: Request): Promise<Response> {
             error: result.message,
           })
         }
+        // Mantém a function viva p/ prefetch da próxima AI (senão o serverless mata).
+        if (result.background) {
+          waitUntil(result.background)
+        }
         return jsonResponse(result.data as Json, {
           status: 200,
           headers: corsHeaders(),
@@ -449,6 +454,9 @@ async function handleRequest(request: Request): Promise<Response> {
             message: result.message,
             error: result.message,
           })
+        }
+        if (result.background) {
+          waitUntil(result.background)
         }
         return jsonResponse(result.data as Json, {
           status: 200,

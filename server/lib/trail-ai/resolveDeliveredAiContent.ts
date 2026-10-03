@@ -6,9 +6,68 @@ function conversationLogsCollection(): string {
   return process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 }
 
+function trailAiDeliveriesCollection(): string {
+  return process.env.TRAIL_AI_DELIVERIES_COLLECTION ?? 'trail_ai_deliveries'
+}
+
+/** Doc id estável por célula — lookup O(1) sem varrer conversation_logs. */
+export function trailAiDeliveryDocId(
+  studentId: string,
+  trailId: string,
+  stageNumber: number,
+  questionNumber: number,
+): string {
+  return `${studentId}_${trailId}_${stageNumber}_${questionNumber}`
+}
+
 export type DeliveredAiContent = {
   message_text: string
   log_id: string
+}
+
+/**
+ * Persiste (ou atualiza) o cache O(1) da entrega trail-ai da célula.
+ * Idempotente — seguro chamar após generate ou após backfill do log scan.
+ */
+export async function upsertTrailAiDeliveryCache(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+    message_text: string
+    log_id?: string | null
+  },
+): Promise<void> {
+  const studentId = input.student_id.trim()
+  const trailId = input.trail_id.trim()
+  const text = input.message_text.trim()
+  if (!studentId || !trailId || !text) return
+  if (input.stage_number < 1 || input.question_number < 1) return
+
+  const id = trailAiDeliveryDocId(
+    studentId,
+    trailId,
+    input.stage_number,
+    input.question_number,
+  )
+  await db
+    .collection(trailAiDeliveriesCollection())
+    .doc(id)
+    .set(
+      {
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: input.stage_number,
+        question_number: input.question_number,
+        message_text: text,
+        log_id: input.log_id ?? null,
+        source: 'trail-ai',
+        updated_at_ms: Date.now(),
+      },
+      { merge: true },
+    )
 }
 
 function asPositiveInt(v: unknown): number | null {
@@ -42,14 +101,13 @@ function isTrailAiDelivery(data: Record<string, unknown>): boolean {
 }
 
 /**
- * Texto já entregue para a célula (stage, question) pela geração da trilha:
- * conversation_logs com metadata.source=trail-ai (ou instruction legado).
+ * Texto já entregue para a célula (stage, question) pela geração da trilha.
  *
- * Ignora respostas da Maria e feedback de exercício na mesma célula —
- * senão o cache “furava” e/ou re-gerava Gemini a cada Continuar.
+ * 1) Cache O(1) em `trail_ai_deliveries` (evita varrer 700+ logs a cada Continuar).
+ * 2) Fallback: conversation_logs com metadata.source=trail-ai (ou instruction legado),
+ *    com backfill do cache.
  *
- * Query: student_id + trail_id; filtra e ordena em memória
- * (evita índice composto novo).
+ * Ignora respostas da Maria e feedback de exercício na mesma célula.
  */
 export async function resolveDeliveredAiContent(
   db: Firestore,
@@ -64,6 +122,28 @@ export async function resolveDeliveredAiContent(
   const trailId = input.trail_id.trim()
   if (!studentId || !trailId) return null
   if (input.stage_number < 1 || input.question_number < 1) return null
+
+  const cacheId = trailAiDeliveryDocId(
+    studentId,
+    trailId,
+    input.stage_number,
+    input.question_number,
+  )
+  const cacheSnap = await db
+    .collection(trailAiDeliveriesCollection())
+    .doc(cacheId)
+    .get()
+  if (cacheSnap.exists) {
+    const data = (cacheSnap.data() ?? {}) as Record<string, unknown>
+    const text =
+      typeof data.message_text === 'string' ? data.message_text.trim() : ''
+    if (text) {
+      return {
+        message_text: text,
+        log_id: typeof data.log_id === 'string' ? data.log_id : cacheId,
+      }
+    }
+  }
 
   const snap = await db
     .collection(conversationLogsCollection())
@@ -89,9 +169,21 @@ export async function resolveDeliveredAiContent(
       best = { rank, message_text: text, log_id: doc.id }
     }
   }
-  return best
-    ? { message_text: best.message_text, log_id: best.log_id }
-    : null
+  if (!best) return null
+
+  // Backfill cache para próximos Continuar nesta célula.
+  void upsertTrailAiDeliveryCache(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    stage_number: input.stage_number,
+    question_number: input.question_number,
+    message_text: best.message_text,
+    log_id: best.log_id,
+  }).catch(() => {
+    /* cache best-effort */
+  })
+
+  return { message_text: best.message_text, log_id: best.log_id }
 }
 
 /**

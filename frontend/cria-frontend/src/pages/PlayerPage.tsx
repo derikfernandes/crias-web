@@ -308,6 +308,98 @@ export default function PlayerPage() {
     }
   }, [content])
 
+  /**
+   * Após Continuar: só busca next-content (não recarrega 700+ logs do histórico).
+   * O advance já aquece IA do destino quando necessário.
+   */
+  async function loadNextAfterAdvance() {
+    setExerciseDone(false)
+    setMariaSidechat(false)
+    const data = await fetchNextContent(session.student_id, trailId)
+    setContent(data)
+    if (data.status !== 'ok') {
+      const key = `status-${data.status}`
+      if (deliveredKeyRef.current !== key) {
+        deliveredKeyRef.current = key
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `sys-${key}-${Date.now()}`,
+            role: 'system',
+            text: statusToSystemText(data),
+          },
+        ])
+      }
+      return
+    }
+
+    const key = `${data.stage_number}-${data.question_number}`
+    const options =
+      data.stage_type === 'exercise'
+        ? normalizeExerciseOptions(data.options)
+        : []
+    const text = contentToAssistantText(data, {
+      stripOptions: options.length > 0,
+    })
+    deliveredKeyRef.current = key
+
+    if (data.stage_type === 'exercise') {
+      setExerciseDone(false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${key}-${Date.now()}`,
+          role: 'assistant',
+          text,
+          stageType: 'exercise',
+        },
+      ])
+      void persistLog({
+        sender: 'system',
+        message_text: text,
+        stage_number: data.stage_number,
+        question_number: data.question_number,
+        message_type: 'exercise',
+        metadata: { source: 'next-content', stage_type: 'exercise' },
+      })
+      return
+    }
+
+    if (data.stage_type === 'ai') {
+      if (text) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${key}-${Date.now()}`,
+            role: 'assistant',
+            text,
+            stageType: 'ai',
+          },
+        ])
+      }
+      return
+    }
+
+    // fixed
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `a-${key}-${Date.now()}`,
+        role: 'assistant',
+        text,
+        stageType: data.stage_type,
+      },
+    ])
+    void persistLog({
+      sender: 'system',
+      message_text: text,
+      stage_number: data.stage_number,
+      question_number: data.question_number,
+      message_type: 'instruction',
+      metadata: { source: 'next-content', stage_type: data.stage_type },
+    })
+  }
+
   async function doAdvance(userLine: string) {
     if (content?.status !== 'ok') return
     setBusy(true)
@@ -345,7 +437,7 @@ export default function PlayerPage() {
         ])
       } else if (result.status === 'ok') {
         deliveredKeyRef.current = null
-        await loadHistoryAndContent()
+        await loadNextAfterAdvance()
       } else {
         setContent(result as NextContentStatus)
       }

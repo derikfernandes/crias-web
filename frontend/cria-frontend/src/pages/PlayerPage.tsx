@@ -479,10 +479,16 @@ export default function PlayerPage() {
         return [...merged, ...prev]
       })
       // Mantém o viewport no mesmo conteúdo após prepend.
+      // Se há pin ativo (Continuar / leitura), não sobrescrever o pin.
       requestAnimationFrame(() => {
         const scroller = threadRef.current
         if (!scroller) return
         const delta = scroller.scrollHeight - prevHeight
+        if (isPinLocked()) {
+          scroller.scrollTop = pinnedScrollTopRef.current
+          nearBottomRef.current = false
+          return
+        }
         scroller.scrollTop = prevTop + delta
         pinnedAwayRef.current = true
         nearBottomRef.current = false

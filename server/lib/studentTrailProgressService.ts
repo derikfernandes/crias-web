@@ -10,6 +10,7 @@ import {
 } from './studentTrailService'
 import type { StudentTrailStatus } from './studentTrailValidation'
 import { trailStageQuestionDocId } from './trailStageQuestionService'
+import { resolveExerciseOptions } from './exerciseOptions'
 
 export type StageType = 'ai' | 'fixed' | 'exercise'
 
@@ -497,9 +498,6 @@ export async function getNextContent(
       : null
   let content =
     typeof questionData.content === 'string' ? questionData.content : null
-  const options = Array.isArray(questionData.options)
-    ? (questionData.options as unknown[])
-    : null
   const explanation =
     typeof questionData.explanation === 'string'
       ? questionData.explanation
@@ -529,6 +527,14 @@ export async function getNextContent(
       }
     }
   }
+
+  // Exercise: options do doc, ou parse A/B/C do content quando Firestore vem null.
+  const options =
+    stageType === 'exercise'
+      ? resolveExerciseOptions(questionData.options, content)
+      : Array.isArray(questionData.options)
+        ? (questionData.options as unknown[])
+        : null
 
   return {
     ok: true,

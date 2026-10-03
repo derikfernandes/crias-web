@@ -29,6 +29,11 @@ export type StudentTrailRow = {
   status: 'not_started' | 'in_progress' | 'completed' | 'blocked'
 }
 
+export type ExerciseOption = {
+  key: string
+  text: string
+}
+
 export type NextContentOk = {
   status: 'ok'
   student_id: string
@@ -39,10 +44,34 @@ export type NextContentOk = {
   stage_title?: string | null
   prompt: string | null
   content: string | null
-  options: unknown[] | null
+  options: Array<ExerciseOption | string> | null
   explanation: string | null
   is_released: boolean
   next_action: string
+}
+
+/** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */
+export function normalizeExerciseOptions(
+  raw: NextContentOk['options'],
+): ExerciseOption[] {
+  if (!Array.isArray(raw) || raw.length === 0) return []
+  const out: ExerciseOption[] = []
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      const s = item.trim()
+      if (!s) continue
+      const letter = s.match(/^([A-Za-z])\s*[\)\.\:]/)
+      out.push({ key: letter ? letter[1].toUpperCase() : s, text: s })
+      continue
+    }
+    if (item && typeof item === 'object') {
+      const key = String((item as ExerciseOption).key ?? '').trim()
+      const text = String((item as ExerciseOption).text ?? key).trim()
+      if (!key) continue
+      out.push({ key, text: text || key })
+    }
+  }
+  return out
 }
 
 export type NextContentStatus = {

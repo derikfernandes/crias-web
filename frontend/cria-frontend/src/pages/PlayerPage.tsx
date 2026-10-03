@@ -13,8 +13,10 @@ import {
   createConversationLog,
   fetchNextContent,
   fetchTrailHistory,
+  normalizeExerciseOptions,
   submitExerciseAttempt,
   type ConversationLogRow,
+  type ExerciseOption,
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
@@ -291,7 +293,7 @@ export default function PlayerPage() {
     }
   }
 
-  async function onOptionClick(option: string) {
+  async function onOptionClick(option: ExerciseOption) {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
@@ -299,7 +301,7 @@ export default function PlayerPage() {
     setError(null)
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text: option },
+      { id: `u-${Date.now()}`, role: 'user', text: option.text },
     ])
     try {
       const attempt = await submitExerciseAttempt({
@@ -308,11 +310,17 @@ export default function PlayerPage() {
         trail_id: trailId,
         stage_number: content.stage_number,
         question_number: content.question_number,
-        student_answer: option,
+        student_answer: option.key,
         feedback: content.explanation,
       })
+      const resultLabel =
+        attempt.score === null
+          ? 'Resposta registrada.'
+          : attempt.is_correct
+            ? 'Resposta correta!'
+            : 'Resposta incorreta.'
       const feedbackParts = [
-        attempt.is_correct ? 'Resposta correta!' : 'Resposta incorreta.',
+        resultLabel,
         content.explanation?.trim() || null,
       ].filter(Boolean)
       const feedbackText = feedbackParts.join('\n\n')
@@ -327,12 +335,13 @@ export default function PlayerPage() {
       ])
       await persistLog({
         sender: 'student',
-        message_text: option,
+        message_text: option.text,
         stage_number: content.stage_number,
         question_number: content.question_number,
         message_type: 'exercise',
         metadata: {
           source: 'exercise_attempt',
+          option_key: option.key,
           is_correct: attempt.is_correct,
           attempt_number: attempt.attempt_number,
         },
@@ -387,10 +396,8 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   const options =
-    content?.status === 'ok' &&
-    content.stage_type === 'exercise' &&
-    Array.isArray(content.options)
-      ? content.options.map((o) => String(o))
+    content?.status === 'ok' && content.stage_type === 'exercise'
+      ? normalizeExerciseOptions(content.options)
       : []
 
   const placeholder =
@@ -441,15 +448,15 @@ export default function PlayerPage() {
           <div className="chat-exercise" role="group" aria-label="Opções">
             <p className="chat-exercise__legend">Escolha uma opção</p>
             <div className="chat-exercise__options">
-              {options.map((opt, i) => (
+              {options.map((opt) => (
                 <button
-                  key={`${i}-${opt}`}
+                  key={opt.key}
                   type="button"
                   className="chat-exercise__option"
                   disabled={busy}
                   onClick={() => void onOptionClick(opt)}
                 >
-                  {opt}
+                  {opt.text}
                 </button>
               ))}
             </div>

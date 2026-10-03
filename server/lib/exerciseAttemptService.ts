@@ -6,6 +6,7 @@ import type {
 import { FieldValue } from 'firebase-admin/firestore'
 
 import type { ExerciseAttemptCreatePayload } from './exerciseAttemptValidation'
+import { answersMatch } from './exerciseOptions'
 
 export type ExerciseAttemptRuntime = {
   id: string
@@ -185,12 +186,6 @@ export async function createExerciseAttemptWithQuestionLookup(
       )
     }
 
-    if (!q.correct_option) {
-      throw new Error(
-        'Questão de exercício sem "correct_option" definida. Não é possível registrar tentativa.',
-      )
-    }
-
     const attemptsQuery = await tx.get(
       attemptsRef
         .where('student_id', '==', data.student_id)
@@ -209,10 +204,14 @@ export async function createExerciseAttemptWithQuestionLookup(
     }
 
     const attempt_number = maxAttempt + 1
-    const correct_option = q.correct_option
     const studentAnswer = data.student_answer.trim()
-    const is_correct = studentAnswer === correct_option
-    const score = is_correct ? 1 : 0
+    // Sem gabarito: registra tentativa unscored (não 500).
+    const correct_option = q.correct_option ?? ''
+    const hasGabarito = Boolean(q.correct_option)
+    const is_correct = hasGabarito
+      ? answersMatch(studentAnswer, q.correct_option as string)
+      : false
+    const score = hasGabarito ? (is_correct ? 1 : 0) : null
 
     const doc: Record<string, unknown> = {
       student_id: data.student_id,

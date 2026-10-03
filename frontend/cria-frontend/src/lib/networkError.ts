@@ -49,13 +49,26 @@ export function toUserFacingError(err: unknown, fallback: string): string {
   return raw || fallback
 }
 
+function httpStatusOf(err: unknown): number | null {
+  if (!err || typeof err !== 'object') return null
+  const status = (err as { status?: unknown }).status
+  return typeof status === 'number' ? status : null
+}
+
+function isAuthFailedFlag(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === 'object' &&
+      (err as { authFailed?: unknown }).authFailed === true,
+  )
+}
+
 export function isRetryableSystemError(err: unknown): boolean {
   if (err instanceof TypeError) return true
-  if (err instanceof ApiRequestError) {
-    if (err.authFailed || err.status === 401 || err.status === 403) return false
-    if (err.status >= 500 || err.status === 408 || err.status === 429) {
-      return true
-    }
+  const status = httpStatusOf(err)
+  if (isAuthFailedFlag(err) || status === 401 || status === 403) return false
+  if (status != null && (status >= 500 || status === 408 || status === 429)) {
+    return true
   }
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   if (!raw) return true

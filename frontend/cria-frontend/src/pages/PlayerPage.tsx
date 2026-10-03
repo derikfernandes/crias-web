@@ -429,8 +429,12 @@ export default function PlayerPage() {
   /** true só quando conteúdo novo chegou abaixo enquanto pinado (R19-H04). */
   const [unseenBelow, setUnseenBelow] = useState(false)
   const [continuarLeaving, setContinuarLeaving] = useState(false)
+  /** R23-L01/L02/L07: anúncios SR de etapa / feedback / Continuar. */
+  const [srAnnounce, setSrAnnounce] = useState('')
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const messagesRef = useRef<ChatMessage[]>([])
+  const voltarBtnRef = useRef<HTMLButtonElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
   const contentRef = useRef(content)
   const nearBottomRef = useRef(true)
@@ -489,8 +493,20 @@ export default function PlayerPage() {
     if (opts?.unseen) setUnseenBelow(true)
     setJumpChip(true)
   }, [])
+
+  const focusMessageById = useCallback((id: string | null | undefined) => {
+    if (!id) return false
+    const el = document.querySelector(
+      `[data-msg-id="${CSS.escape(id)}"]`,
+    ) as HTMLElement | null
+    if (!el) return false
+    el.focus({ preventScroll: true })
+    return true
+  }, [])
+
   contentRef.current = content
   busyReasonRef.current = busyReason
+  messagesRef.current = messages
 
   const goLoginAuth = useCallback(
     (message?: string) => {
@@ -1651,12 +1667,21 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // F08: âncora de foco pós-advance no CTA ou composer.
+      // R23-L01: anunciar etapa + focar bolha nova (não roubar para composer).
       window.requestAnimationFrame(() => {
+        const lastAssistant = [...messagesRef.current]
+          .reverse()
+          .find((m) => m.role === 'assistant' || m.role === 'system')
+        setSrAnnounce(
+          lastAssistant
+            ? 'Nova etapa da trilha disponível'
+            : 'Etapa atualizada',
+        )
+        if (focusMessageById(lastAssistant?.id)) return
         if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
           continuarBtnRef.current.focus()
         } else {
-          inputRef.current?.focus()
+          inputRef.current?.focus({ preventScroll: true })
         }
       })
     }
@@ -1724,9 +1749,17 @@ export default function PlayerPage() {
     } finally {
       setBusy(false)
       setBusyReason(null)
-      // F08: pós-Enviar Maria → composer, não BODY.
+      // R23-L04: pós-Enviar Maria → Voltar / bolha / composer (nunca BODY).
       window.requestAnimationFrame(() => {
-        inputRef.current?.focus()
+        if (voltarBtnRef.current) {
+          voltarBtnRef.current.focus()
+          return
+        }
+        const lastMaria = [...messagesRef.current]
+          .reverse()
+          .find((m) => m.role === 'assistant' && m.kind === 'sidechat')
+        if (focusMessageById(lastMaria?.id)) return
+        inputRef.current?.focus({ preventScroll: true })
       })
     }
   }
@@ -1816,6 +1849,13 @@ export default function PlayerPage() {
     setExercisePhase('selected')
     setPendingOptionKey(null)
     clearError()
+    // R23-L04: seleção mantém foco no radio (não deixa cair no body).
+    window.requestAnimationFrame(() => {
+      const selected = document.querySelector(
+        `.chat-exercise__option.is-selected`,
+      ) as HTMLElement | null
+      selected?.focus({ preventScroll: true })
+    })
   }
 
   async function submitSelectedOption() {
@@ -1922,6 +1962,12 @@ export default function PlayerPage() {
       setExercisePhase('done')
       setSelectedOptionKey(null)
       setPendingOptionKey(null)
+      // R23-L02 / L07: anunciar feedback + focar Continuar (chrome, sem CTA novo).
+      setSrAnnounce(
+        feedbackText
+          ? 'Feedback da questão disponível. Pode continuar.'
+          : 'Resposta enviada. Pode continuar.',
+      )
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
       // R18-N06: falha → error; mantém card + seleção + retry.
@@ -1933,6 +1979,22 @@ export default function PlayerPage() {
     } finally {
       setBusy(false)
       setBusyReason(null)
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+            continuarBtnRef.current.focus()
+            return
+          }
+          const feedback = [...messagesRef.current]
+            .reverse()
+            .find((m) => m.kind === 'feedback')
+          if (focusMessageById(feedback?.id)) return
+          const selected = document.querySelector(
+            `.chat-exercise__option.is-selected`,
+          ) as HTMLElement | null
+          selected?.focus({ preventScroll: true })
+        }, 80)
+      })
     }
   }
 
@@ -2224,6 +2286,9 @@ export default function PlayerPage() {
       <h1 id="crias-player-heading" className="visually-hidden">
         Player da trilha {trailId}
       </h1>
+      <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {srAnnounce}
+      </div>
       {error ? (
         <div className="error chat-thread__banner" role="alert">
           <p className="chat-thread__banner-text">{error}</p>
@@ -2372,15 +2437,30 @@ export default function PlayerPage() {
             msg.role === 'assistant' &&
             msg.stageType === 'exercise' &&
             msg.cellKey === activeExerciseCellKey
+          const speaker =
+            msg.role === 'assistant'
+              ? 'MARIA'
+              : msg.role === 'user'
+                ? 'Você'
+                : 'Sistema'
+          const labelId = `bubble-label-${msg.id}`
+          const isFeedback = msg.kind === 'feedback'
           return (
             <article
               key={msg.id}
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
               }`}
+              data-msg-id={msg.id}
               data-stage-type={msg.stageType}
               data-cell-key={msg.cellKey || undefined}
               data-animate={msg.animate ? 'true' : undefined}
+              aria-labelledby={msg.role !== 'user' ? labelId : undefined}
+              aria-label={msg.role === 'user' ? 'Você' : undefined}
+              tabIndex={-1}
+              {...(isFeedback
+                ? { role: 'status', 'aria-live': 'polite' as const }
+                : {})}
             >
               <div className="chat-bubble__row">
                 <span className="chat-bubble__avatar" aria-hidden>
@@ -2388,8 +2468,8 @@ export default function PlayerPage() {
                 </span>
                 <div className="chat-bubble__stack">
                   {msg.role !== 'user' ? (
-                    <p className="chat-bubble__label">
-                      {msg.role === 'assistant' ? 'MARIA' : 'Sistema'}
+                    <p className="chat-bubble__label" id={labelId}>
+                      {speaker}
                     </p>
                   ) : null}
                   <div className="chat-bubble__text">
@@ -2545,6 +2625,7 @@ export default function PlayerPage() {
           {showVoltarTrilha ? (
             <div className="chat-continue chat-continue--sidechat chat-continue--enter">
               <button
+                ref={voltarBtnRef}
                 type="button"
                 className="chat-continue__btn chat-continue__btn--secondary"
                 onClick={onVoltarParaTrilha}

@@ -610,7 +610,12 @@ a.ghost:hover {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--main);
+  /* R05-V04: atmosfera de marca (UI Maria — tons do mockup). */
+  background:
+    radial-gradient(ellipse 75% 48% at 10% -6%, rgba(23, 234, 157, 0.12), transparent 55%),
+    radial-gradient(ellipse 65% 40% at 95% 110%, rgba(30, 41, 59, 0.7), transparent 50%),
+    linear-gradient(180deg, #1b2333 0%, var(--main) 45%, #121722 100%);
+  position: relative;
 }
 
 .chat-main__content {
@@ -619,6 +624,8 @@ a.ghost:hover {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  position: relative;
+  z-index: 0;
 }
 
 /* R26-F03: anel de foco de marca (teclado). */
@@ -639,9 +646,13 @@ button[aria-disabled='true'] {
   gap: 0.75rem;
   padding: 0.85rem 1.35rem 0.55rem;
   padding-top: max(0.85rem, env(safe-area-inset-top, 0px));
-  border-bottom: 1px solid transparent;
-  background: transparent;
+  /* R05-V11: topbar com presença (não transparente fraca). */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--sidebar) 78%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   flex-shrink: 0;
+  z-index: 2;
 }
 
 .chat-topbar__titles {
@@ -649,6 +660,15 @@ button[aria-disabled='true'] {
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
+}
+
+.chat-topbar__brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.15;
 }
 
 .chat-topbar__menu {
@@ -684,10 +704,13 @@ button[aria-disabled='true'] {
 }
 
 .chat-topbar__title {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--muted);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-topbar__maria {
@@ -2167,33 +2190,65 @@ button[aria-disabled='true'] {
   }
 }
 
-/* R24-LS02/LS04: landscape curto — chrome compacto para liberar fio. */
+/* R24-LS02/LS04 + R06-E09: landscape curto — chrome mínimo, fio ≥ ~55%. */
 @media (max-height: 500px) and (orientation: landscape) {
   .chat-topbar {
-    padding: 0.35rem 0.75rem;
-    padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
+    padding: 0.2rem 0.65rem;
+    padding-top: max(0.2rem, env(safe-area-inset-top, 0px));
+    gap: 0.45rem;
+  }
+
+  .chat-topbar__brand {
+    font-size: 0.95rem;
   }
 
   .chat-topbar__title {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
+  }
+
+  .chat-topbar__maria {
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+  }
+
+  .chat-topbar__menu {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0.25rem 0.4rem;
   }
 
   .chat-thread__scroll {
-    padding: 0.55rem 0 0.65rem;
+    padding: 0.35rem 0 0.4rem;
   }
 
   .chat-cta-slot {
-    min-height: 2.5rem;
-    padding: 0.3rem 0 0.35rem;
+    min-height: 2.15rem;
+    padding: 0.15rem 0 0.2rem;
   }
 
   .chat-continue__btn {
-    padding: 0.55rem 1rem;
+    padding: 0.4rem 0.85rem;
+    min-height: 40px;
   }
 
   .chat-composer {
-    padding-top: 0.4rem;
-    padding-bottom: max(0.4rem, env(safe-area-inset-bottom, 0px));
+    padding-top: 0.25rem;
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-composer__form {
+    padding: 0.35rem 0.55rem;
+    gap: 0.4rem;
+  }
+
+  .chat-composer__input {
+    max-height: 3.2rem;
+    min-height: 2.2rem;
+  }
+
+  .chat-composer button {
+    min-height: 40px;
+    min-width: 40px;
   }
 
   .chat-composer__hint {
@@ -2201,7 +2256,11 @@ button[aria-disabled='true'] {
   }
 
   .chat-bubble {
-    padding: 0.4rem 0;
+    padding: 0.2rem 0;
+  }
+
+  .chat-bubble__text {
+    padding: 0.45rem 0.7rem;
   }
 
   /* R24-LS06: embed/mídia cabem no VH curto sem engolir o fio. */

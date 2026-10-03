@@ -190,12 +190,16 @@ export default function ChatLayout() {
     const sync = () => {
       const compact = mq.matches
       setIsNarrow(compact)
-      // R24-LS01: ao girar para landscape compacto, fecha sidebar permanente.
+      // R24-LS01 / R06-E09: landscape/compacto — drawer fecha (não gruda aberta).
       if (compact) setSidebarOpen(false)
     }
     sync()
     mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
+    window.addEventListener('orientationchange', sync)
+    return () => {
+      mq.removeEventListener('change', sync)
+      window.removeEventListener('orientationchange', sync)
+    }
   }, [])
 
   const closeDrawer = useCallback((restoreFocus = true) => {
@@ -475,11 +479,11 @@ className={`trail-card${active ? ' is-active' : ''}`}
           >
             ☰
           </button>
-<div className="chat-topbar__titles">
+          <div className="chat-topbar__titles">
+            <span className="chat-topbar__brand">Crias</span>
             <span className="chat-topbar__title">
               {activeTrailId
                 ? [
-                    'Crias',
                     playerChrome.stageTitle || activeTrailId,
                     playerChrome.stageNumber != null
                       ? `etapa ${playerChrome.stageNumber}`
@@ -487,7 +491,7 @@ className={`trail-card${active ? ' is-active' : ''}`}
                   ]
                     .filter(Boolean)
                     .join(' · ')
-                : 'Crias · Suas trilhas'}
+                : 'Suas trilhas'}
             </span>
             {activeTrailId ? (
               <span className="chat-topbar__maria">MARIA</span>

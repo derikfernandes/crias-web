@@ -140,12 +140,17 @@ export default function ChatLayout() {
     const sync = () => {
       const compact = mq.matches
       setIsNarrow(compact)
-      // R24-LS01: ao girar para landscape compacto, fecha sidebar permanente.
+      // R24-LS01 / R06-E09: landscape/compacto — drawer fecha (não gruda aberta).
       if (compact) setSidebarOpen(false)
     }
     sync()
     mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
+    // orientationchange cobre WebKit que às vezes atrasa o matchMedia.
+    window.addEventListener('orientationchange', sync)
+    return () => {
+      mq.removeEventListener('change', sync)
+      window.removeEventListener('orientationchange', sync)
+    }
   }, [])
 
   const closeDrawer = useCallback((restoreFocus = true) => {
@@ -278,9 +283,8 @@ export default function ChatLayout() {
 
   if (!session) return null
 
-  const titleText = activeTrailId
+  const trailLabel = activeTrailId
     ? [
-        'Crias',
         playerChrome.stageTitle || activeTrailId,
         playerChrome.stageNumber != null
           ? `etapa ${playerChrome.stageNumber}`
@@ -290,7 +294,7 @@ export default function ChatLayout() {
       ]
         .filter(Boolean)
         .join(' · ')
-    : 'Crias · Suas trilhas'
+    : 'Suas trilhas'
 
   // R03-A01 / F05: sidebar fechada no mobile não entra no Tab; main inerte com drawer aberto.
   const sidebarInert = isNarrow && !sidebarOpen
@@ -347,6 +351,7 @@ export default function ChatLayout() {
                     <Link
                       to={href}
                       className={active ? 'is-active' : undefined}
+                      aria-current={active ? 'page' : undefined}
                       onClick={() => closeDrawer(false)}
                     >
                       <span className="trail-icon" aria-hidden>
@@ -412,7 +417,10 @@ export default function ChatLayout() {
           >
             ☰
           </button>
-          <span className="chat-topbar__title">{titleText}</span>
+          <div className="chat-topbar__titles">
+            <span className="chat-topbar__brand">Crias</span>
+            <span className="chat-topbar__title">{trailLabel}</span>
+          </div>
         </header>
         <div className="chat-main__content" inert={mainInert || undefined}>
           <Outlet

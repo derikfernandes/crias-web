@@ -672,6 +672,63 @@ export default function PlayerPage() {
     return true
   }, [])
 
+  /**
+   * C2-R7 N01 / R23-L04: pós-Enviar Maria o soft-KB fecha e o browser
+   * joga activeElement → BODY em <16 ms. Reafirma Voltar (ou bolha/
+   * composer) enquanto o vv assenta; nunca deixar BODY.
+   */
+  const focusAfterMariaAck = useCallback(() => {
+    const tryFocus = (allowComposerFallback: boolean) => {
+      if (mariaCancelledRef.current) return true
+      const voltar = voltarBtnRef.current
+      // CTA display:none sob KB → offsetParent null; espera settle.
+      if (voltar && voltar.offsetParent !== null) {
+        voltar.focus({ preventScroll: true })
+        if (document.activeElement === voltar) return true
+      }
+      if (
+        !allowComposerFallback &&
+        document.documentElement.dataset.keyboard === 'open'
+      ) {
+        return false
+      }
+      const lastMaria = [...messagesRef.current]
+        .reverse()
+        .find((m) => m.role === 'assistant' && m.kind === 'sidechat')
+      if (focusMessageById(lastMaria?.id)) return true
+      const input = inputRef.current
+      if (input && !input.readOnly && !input.disabled) {
+        input.focus({ preventScroll: true })
+        return document.activeElement === input
+      }
+      return false
+    }
+
+    const settleMs = [16, 50, 120, 300] as const
+    window.requestAnimationFrame(() => {
+      tryFocus(false)
+      for (const ms of settleMs) {
+        window.setTimeout(() => {
+          if (mariaCancelledRef.current) return
+          const active = document.activeElement
+          // Aluno já está em Voltar / composer / bolha — não roubar.
+          if (
+            active &&
+            active !== document.body &&
+            active !== document.documentElement &&
+            (active === voltarBtnRef.current ||
+              active === inputRef.current ||
+              (active as HTMLElement).closest?.('[data-msg-id]'))
+          ) {
+            return
+          }
+          // BODY ou alvo inútil → reafirma (composer só após vv assentar).
+          tryFocus(ms >= 120)
+        }, ms)
+      }
+    })
+  }, [focusMessageById])
+
   contentRef.current = content
   busyReasonRef.current = busyReason
   messagesRef.current = messages
@@ -2054,18 +2111,8 @@ export default function PlayerPage() {
     } finally {
       setBusy(false)
       setBusyReason(null)
-      // R23-L04: pós-Enviar Maria → Voltar / bolha / composer (nunca BODY).
-      window.requestAnimationFrame(() => {
-        if (voltarBtnRef.current) {
-          voltarBtnRef.current.focus()
-          return
-        }
-        const lastMaria = [...messagesRef.current]
-          .reverse()
-          .find((m) => m.role === 'assistant' && m.kind === 'sidechat')
-        if (focusMessageById(lastMaria?.id)) return
-        inputRef.current?.focus({ preventScroll: true })
-      })
+      // C2-R7 N01 / R23-L04: Voltar/composer estável — reafirma pós-fecho do KB.
+      focusAfterMariaAck()
     }
   }
 
@@ -3090,6 +3137,17 @@ export default function PlayerPage() {
         <button
           type="button"
           className="chat-new-msg-chip"
+          onClick={() => scrollToBottom('smooth')}
+        >
+          {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+        </button>
+      ) : null}
+      {/* C2-R7 N02: CTA some sob KB (display:none) — chip docked some junto;
+          fallback absoluto só visível com data-keyboard=open. */}
+      {jumpChip && showCtaSlot && !trailShellUnavailable ? (
+        <button
+          type="button"
+          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback"
           onClick={() => scrollToBottom('smooth')}
         >
           {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}

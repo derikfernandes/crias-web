@@ -2042,6 +2042,17 @@ button[aria-disabled='true'] {
   transform: translateY(-1px);
 }
 
+/* C2-R7 N02: fallback quando portrait KB esconde .chat-cta-slot (chip docked). */
+.chat-new-msg-chip--kb-fallback {
+  display: none;
+}
+
+html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
+  display: block;
+  /* KB cobre home indicator — sem safe-area-bottom (alinha N03). */
+  bottom: 0.85rem;
+}
+
 /* —— Conteúdo (matéria) + entrada Maria (Clippy) —— */
 .lesson-card {
   max-width: 48rem;
@@ -2574,11 +2585,16 @@ html[data-keyboard='open'] .chat-composer__hint {
 
 html[data-keyboard='open'] .chat-composer {
   padding-top: 0.3rem;
-  padding-bottom: max(0.3rem, env(safe-area-inset-bottom, 0px));
+  /* C2-R7 N03: sob KB não reservar home/gesture (KB já cobre a banda). */
+  padding-bottom: 0.3rem;
 }
 
 html[data-keyboard='open'] .chat-composer__form {
   padding: 0.45rem 0.65rem;
+}
+
+html[data-keyboard='open'] .chat-new-msg-chip:not(.chat-new-msg-chip--docked) {
+  bottom: 0.85rem;
 }
 
 /* Landscape: Continuar permanece alcançável mesmo com KB / data-keyboard. */
@@ -2592,6 +2608,17 @@ html[data-keyboard='open'] .chat-composer__form {
   html[data-keyboard='open'] .chat-continue__btn {
     min-height: 44px;
     padding: 0.4rem 0.75rem;
+  }
+
+  /* N03: vence o padding safe-area do focus-within landscape. */
+  html[data-keyboard='open'] .chat-shell .chat-composer,
+  html[data-keyboard='open'] .chat-main .chat-composer {
+    padding-bottom: 0.25rem;
+  }
+
+  /* Landscape mantém CTA — fallback absoluto não compete com docked. */
+  html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
+    display: none;
   }
 }
 

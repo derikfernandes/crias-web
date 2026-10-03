@@ -60,7 +60,8 @@ export function normalizeExerciseOptions(
     if (typeof item === 'string') {
       const s = item.trim()
       if (!s) continue
-      const letter = s.match(/^([A-Za-z])\s*[\)\.\:]/)
+      // A) / A. / A: / (A) …
+      const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
       out.push({ key: letter ? letter[1].toUpperCase() : s, text: s })
       continue
     }

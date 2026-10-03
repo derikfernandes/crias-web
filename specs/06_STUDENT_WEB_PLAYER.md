@@ -102,7 +102,7 @@ Resposta `ok`:
 }
 ```
 
-Para `stage_type=ai`, a API chama `ensureTrailAiContent` (Gemini Vertex) e devolve o texto gerado em `content` (idempotente via `conversation_logs`).
+Para `stage_type=ai`, a API chama `ensureTrailAiContent` (Gemini Vertex) e devolve o texto gerado em `content` (idempotente via `conversation_logs` com `metadata.source=trail-ai`). `POST advance` **não** regenera IA — usa gate leve de liberação. Após entregar a célula atual, a API pode pré-aquecer (prefetch) a próxima célula `ai` em background.
 
 Status possíveis:
 
@@ -154,15 +154,26 @@ POST /student_trails/ensure-ai
 
 Exibir enunciado (`content`) e **um botão clicável por item** de `options[]` (quantidade = `options.length`).
 
+Se `options` vier `null` no Firestore, a API parseia alternativas do `content` nos formatos `A)`, `A.`, `A:`, `(A)` e devolve em `options`; o enunciado devolvido omite essas linhas (só botões).
+
+Durante a etapa de exercício (antes e depois do feedback, até o Continuar):
+
+- composer desabilitado; placeholder **"Escolha uma das opções"**
+- free-text / Maria bloqueados
+
 Ao clicar:
 
 1. `POST /exercise_attempts` (registra attempt + `is_correct`)
 2. Mostra feedback (`explanation` / resultado)
-3. Exibe botão **Continuar** → advance
+3. **Sempre** exibe botão **Continuar** → advance
+
+### Título da etapa
+
+`stage_title` e a primeira linha do `content` (ex.: `*Explicação*`) não devem aparecer duplicados na UI — o player normaliza markdown e deduplica.
 
 ## 8. Free-text → Maria (sem avançar)
 
-Se o aluno envia texto no composer e **não** é Continuar (botão) nem a palavra `"continuar"` (case-insensitive):
+Se o aluno envia texto no composer e **não** é Continuar (botão) nem a palavra `"continuar"` (case-insensitive), e a etapa **não** é exercício:
 
 ```text
 POST /student_trails/maria
@@ -179,6 +190,8 @@ Body:
 ```
 
 Usa o prompt tutora (`specs/prompts/prompt_maria_tutora_crias.md`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
+
+Após a resposta da Maria, a UI entra em modo sidechat: botão **Voltar para trilha** (restaura Continuar da etapa) e Continuar fica oculto/desenfocado até o aluno voltar.
 
 ## 9. Avanço
 

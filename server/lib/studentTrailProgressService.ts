@@ -10,7 +10,10 @@ import {
 } from './studentTrailService'
 import type { StudentTrailStatus } from './studentTrailValidation'
 import { trailStageQuestionDocId } from './trailStageQuestionService'
-import { resolveExerciseOptions } from './exerciseOptions'
+import {
+  resolveExerciseOptions,
+  stripLetteredChoicesFromContent,
+} from './exerciseOptions'
 
 export type StageType = 'ai' | 'fixed' | 'exercise'
 
@@ -514,6 +517,8 @@ export async function getNextContent(
       const ensured = await ensureTrailAiContent(db, {
         student_id: studentId,
         trail_id: trailId,
+        stage_number: pos.current_stage_number,
+        question_number: pos.current_question_number,
       })
       content = ensured.content
     } catch (e) {
@@ -528,13 +533,26 @@ export async function getNextContent(
     }
   }
 
-  // Exercise: options do doc, ou parse A/B/C do content quando Firestore vem null.
+  // Exercise: options do doc, ou parse A/B/C/(A) do content quando Firestore vem null.
   const options =
     stageType === 'exercise'
       ? resolveExerciseOptions(questionData.options, content)
       : Array.isArray(questionData.options)
         ? (questionData.options as unknown[])
         : null
+
+  // Com botões clicáveis, não deixar as opções só como texto estático no content.
+  if (stageType === 'exercise' && options && options.length > 0) {
+    content = stripLetteredChoicesFromContent(content) ?? content
+  }
+
+  // Prefetch da próxima célula AI (fire-and-forget) — esquenta cache p/ Continuar.
+  schedulePrefetchNextAiStage(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    current_stage_number: pos.current_stage_number,
+    current_question_number: pos.current_question_number,
+  })
 
   return {
     ok: true,
@@ -554,6 +572,255 @@ export async function getNextContent(
       next_action: 'deliver_content',
     },
   }
+}
+
+/**
+ * Gate de avanço: checa liberação/ativo da célula atual SEM chamar ensure-ai/Gemini.
+ * (Antes advance → getNextContent regenerava IA a cada Continuar.)
+ */
+export async function getAdvanceGate(
+  db: Firestore,
+  studentId: string,
+  trailId: string,
+): Promise<ProgressResult<NextContentOk | NextContentStatusBody>> {
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
+  const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+  const studentTrailsCollection =
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails'
+
+  const [studentSnap, trailSnap, pos] = await Promise.all([
+    db.collection(studentsCollection).doc(studentId).get(),
+    db.collection(trailsCollection).doc(trailId).get(),
+    getStudentTrailPosition(db, studentTrailsCollection, studentId, trailId),
+  ])
+
+  if (!studentSnap.exists) {
+    return {
+      ok: false,
+      code: 'not_found',
+      message: 'Aluno não encontrado.',
+      httpStatus: 404,
+    }
+  }
+  const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
+  if (asBool(studentData.active, true) === false) {
+    return {
+      ok: true,
+      data: {
+        status: 'inactive_student',
+        student_id: studentId,
+        trail_id: trailId,
+        message: 'Aluno inativo.',
+      },
+    }
+  }
+
+  if (!trailSnap.exists) {
+    return {
+      ok: false,
+      code: 'not_found',
+      message: 'Trilha não encontrada.',
+      httpStatus: 404,
+    }
+  }
+  const trailData = (trailSnap.data() ?? {}) as Record<string, unknown>
+  if (asBool(trailData.active, true) === false) {
+    return {
+      ok: true,
+      data: {
+        status: 'inactive_trail',
+        student_id: studentId,
+        trail_id: trailId,
+        message: 'Trilha inativa.',
+      },
+    }
+  }
+
+  if (!pos) {
+    return {
+      ok: false,
+      code: 'not_found',
+      message: 'Vínculo aluno/trilha não encontrado.',
+      httpStatus: 404,
+    }
+  }
+
+  if (pos.status === 'completed') {
+    return {
+      ok: true,
+      data: {
+        status: 'completed',
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: pos.current_stage_number,
+        question_number: pos.current_question_number,
+        message: 'Trilha concluída.',
+      },
+    }
+  }
+
+  if (pos.status === 'blocked') {
+    return {
+      ok: true,
+      data: {
+        status: 'blocked',
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: pos.current_stage_number,
+        question_number: pos.current_question_number,
+        message: 'Progresso bloqueado.',
+      },
+    }
+  }
+
+  const stageId = stageDocId(trailId, pos.current_stage_number)
+  const questionId = trailStageQuestionDocId(
+    trailId,
+    pos.current_stage_number,
+    pos.current_question_number,
+  )
+
+  const [stageSnap, questionSnap] = await Promise.all([
+    db.collection(stagesCollection).doc(stageId).get(),
+    db.collection(questionsCollection).doc(questionId).get(),
+  ])
+
+  if (!stageSnap.exists || !questionSnap.exists) {
+    return {
+      ok: true,
+      data: {
+        status: 'completed',
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: pos.current_stage_number,
+        question_number: pos.current_question_number,
+        message: 'Não há próximo conteúdo.',
+      },
+    }
+  }
+
+  const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+  const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
+  const questionReleased = asBool(questionData.is_released, false)
+  const stageActive = asBool(stageData.active, true)
+  const questionActive = asBool(questionData.active, true)
+
+  const availability = evaluateContentAvailability({
+    is_released: questionReleased,
+    active_stage: stageActive,
+    active_question: questionActive,
+  })
+
+  if (availability === 'blocked') {
+    return {
+      ok: true,
+      data: {
+        status: 'blocked',
+        student_id: studentId,
+        trail_id: trailId,
+        stage_number: pos.current_stage_number,
+        question_number: pos.current_question_number,
+        message: 'Conteúdo ainda não liberado.',
+      },
+    }
+  }
+
+  // Payload mínimo — advance só precisa do status ok (sem Gemini).
+  return {
+    ok: true,
+    data: {
+      status: 'ok',
+      student_id: studentId,
+      trail_id: trailId,
+      stage_number: pos.current_stage_number,
+      question_number: pos.current_question_number,
+      stage_type: asStageType(stageData.stage_type),
+      stage_title: null,
+      prompt: null,
+      content: null,
+      options: null,
+      explanation: null,
+      is_released: true,
+      next_action: 'deliver_content',
+    },
+  }
+}
+
+/** Prefetch best-effort: gera a próxima célula AI se ainda não houver delivery. */
+function schedulePrefetchNextAiStage(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    current_stage_number: number
+    current_question_number: number
+  },
+): void {
+  void (async () => {
+    try {
+      const { totalStages, maxQuestion } = await loadTrailCounts(
+        db,
+        input.trail_id,
+      )
+      if (totalStages < 1 || maxQuestion < 1) return
+      const next = computeNextPosition({
+        current_stage_number: input.current_stage_number,
+        current_question_number: input.current_question_number,
+        total_stages: totalStages,
+        total_questions: maxQuestion,
+      })
+      if (next.completed) return
+
+      const stagesCollection =
+        process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+      const questionsCollection =
+        process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+      const [stageSnap, questionSnap] = await Promise.all([
+        db
+          .collection(stagesCollection)
+          .doc(stageDocId(input.trail_id, next.next_stage_number))
+          .get(),
+        db
+          .collection(questionsCollection)
+          .doc(
+            trailStageQuestionDocId(
+              input.trail_id,
+              next.next_stage_number,
+              next.next_question_number,
+            ),
+          )
+          .get(),
+      ])
+      if (!stageSnap.exists || !questionSnap.exists) return
+      const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+      const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
+      if (asStageType(stageData.stage_type) !== 'ai') return
+      if (
+        evaluateContentAvailability({
+          is_released: asBool(questionData.is_released, false),
+          active_stage: asBool(stageData.active, true),
+          active_question: asBool(questionData.active, true),
+        }) === 'blocked'
+      ) {
+        return
+      }
+
+      const { ensureTrailAiContent } = await import(
+        './trail-ai/ensureTrailAiContent.js'
+      )
+      await ensureTrailAiContent(db, {
+        student_id: input.student_id,
+        trail_id: input.trail_id,
+        stage_number: next.next_stage_number,
+        question_number: next.next_question_number,
+      })
+    } catch {
+      // Prefetch nunca deve falhar o next-content.
+    }
+  })()
 }
 
 export async function advanceStudentTrailProgress(
@@ -637,7 +904,8 @@ export async function advanceStudentTrailProgress(
   }
 
   // Current cell must be released before advancing past it.
-  const gate = await getNextContent(db, studentId, trailId)
+  // Usa gate leve (sem ensure-ai) — evita Gemini a cada Continuar.
+  const gate = await getAdvanceGate(db, studentId, trailId)
   if (gate.ok && gate.data.status === 'blocked') {
     return { ok: true, data: gate.data }
   }

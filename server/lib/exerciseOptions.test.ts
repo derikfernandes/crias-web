@@ -6,6 +6,7 @@ import {
   normalizeAnswerForCompare,
   parseLetteredChoicesFromContent,
   resolveExerciseOptions,
+  stripLetteredChoicesFromContent,
 } from './exerciseOptions'
 
 const SAMPLE = `*Qual das opções representa um exemplo de circunferência, mas não de círculo?*
@@ -34,12 +35,29 @@ describe('parseLetteredChoicesFromContent', () => {
     expect(opts?.map((o) => o.key)).toEqual(['A', 'B', 'C'])
   })
 
+  it('aceita (A) (B) (C)', () => {
+    const opts = parseLetteredChoicesFromContent(
+      'Quanto vale?\n\n(A) 25,12\n(B) 25,21\n(C) 52,12',
+    )
+    expect(opts?.map((o) => o.key)).toEqual(['A', 'B', 'C'])
+    expect(opts?.[0].text).toBe('A) 25,12')
+  })
+
   it('retorna null sem sequência válida', () => {
     expect(parseLetteredChoicesFromContent('Só texto sem opções')).toBeNull()
     expect(parseLetteredChoicesFromContent('A) só uma')).toBeNull()
     expect(
       parseLetteredChoicesFromContent('B) começa em B\nC) e C'),
     ).toBeNull()
+  })
+})
+
+describe('stripLetteredChoicesFromContent', () => {
+  it('remove linhas (A)/(B) e mantém enunciado', () => {
+    const out = stripLetteredChoicesFromContent(
+      'Enunciado aqui.\n\n(A) 25,12\n(B) 25,21\n(C) 52,12\n',
+    )
+    expect(out).toBe('Enunciado aqui.')
   })
 })
 
@@ -74,6 +92,7 @@ describe('normalizeAnswerForCompare / answersMatch', () => {
   it('mapeia letras para índice 1-based (gabarito numérico)', () => {
     expect(normalizeAnswerForCompare('A')).toBe('1')
     expect(normalizeAnswerForCompare('B)')).toBe('2')
+    expect(normalizeAnswerForCompare('(A)')).toBe('1')
     expect(normalizeAnswerForCompare('C) texto')).toBe('3')
     expect(normalizeAnswerForCompare('2')).toBe('2')
   })

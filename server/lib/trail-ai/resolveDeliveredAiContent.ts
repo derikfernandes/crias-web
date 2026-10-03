@@ -11,9 +11,42 @@ export type DeliveredAiContent = {
   log_id: string
 }
 
+function asPositiveInt(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 1) {
+    return Math.trunc(v)
+  }
+  if (typeof v === 'string' && /^\d+$/.test(v.trim())) {
+    const n = Number.parseInt(v.trim(), 10)
+    return n >= 1 ? n : null
+  }
+  return null
+}
+
+function isTrailAiDelivery(data: Record<string, unknown>): boolean {
+  const meta = data.metadata
+  if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+    const source = (meta as Record<string, unknown>).source
+    if (source === 'trail-ai') return true
+    // Maria / feedback / next-content do cliente não contam como delivery da trilha.
+    if (
+      source === 'maria-tutor' ||
+      source === 'exercise_feedback' ||
+      source === 'next-content' ||
+      source === 'continuar'
+    ) {
+      return false
+    }
+  }
+  // Fallback legado: instruction sem metadata Maria.
+  return data.message_type === 'instruction' && data.sender === 'system'
+}
+
 /**
- * Texto já entregue para a célula (stage, question):
- * último conversation_logs sender=system nessa posição.
+ * Texto já entregue para a célula (stage, question) pela geração da trilha:
+ * conversation_logs com metadata.source=trail-ai (ou instruction legado).
+ *
+ * Ignora respostas da Maria e feedback de exercício na mesma célula —
+ * senão o cache “furava” e/ou re-gerava Gemini a cada Continuar.
  *
  * Query: student_id + trail_id; filtra e ordena em memória
  * (evita índice composto novo).
@@ -42,13 +75,17 @@ export async function resolveDeliveredAiContent(
   for (const doc of snap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>
     if (data.sender !== 'system') continue
-    if (data.stage_number !== input.stage_number) continue
-    if (data.question_number !== input.question_number) continue
+    if (!isTrailAiDelivery(data)) continue
+    const stage = asPositiveInt(data.stage_number)
+    const question = asPositiveInt(data.question_number)
+    if (stage !== input.stage_number) continue
+    if (question !== input.question_number) continue
     const text =
       typeof data.message_text === 'string' ? data.message_text.trim() : ''
     if (!text) continue
     const rank = conversationLogCreatedAtMillis(data)
-    if (!best || rank >= best.rank) {
+    // Prefere a entrega mais antiga (primeiro generate da célula).
+    if (!best || rank < best.rank) {
       best = { rank, message_text: text, log_id: doc.id }
     }
   }
@@ -91,11 +128,9 @@ export async function listRecentContextLogs(
         message_text:
           typeof data.message_text === 'string' ? data.message_text : '',
         stage_number:
-          typeof data.stage_number === 'number' ? data.stage_number : undefined,
+          asPositiveInt(data.stage_number) ?? undefined,
         question_number:
-          typeof data.question_number === 'number'
-            ? data.question_number
-            : undefined,
+          asPositiveInt(data.question_number) ?? undefined,
       }
     })
     .sort((a, b) => b.rank - a.rank)
@@ -149,10 +184,8 @@ export async function listTrailConversationLogsSafe(
         id: doc.id,
         student_id: typeof data.student_id === 'string' ? data.student_id : sid,
         trail_id: typeof data.trail_id === 'string' ? data.trail_id : tid,
-        stage_number:
-          typeof data.stage_number === 'number' ? data.stage_number : 0,
-        question_number:
-          typeof data.question_number === 'number' ? data.question_number : 0,
+        stage_number: asPositiveInt(data.stage_number) ?? 0,
+        question_number: asPositiveInt(data.question_number) ?? 0,
         sender: typeof data.sender === 'string' ? data.sender : 'system',
         message_text:
           typeof data.message_text === 'string' ? data.message_text : '',

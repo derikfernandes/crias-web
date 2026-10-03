@@ -1,10 +1,15 @@
 /**
  * Opções de exercício para o player e scoring.
- * Firestore costuma ter `options: null` e as alternativas só no `content` (A)/B)/C)).
+ * Firestore costuma ter `options: null` e as alternativas só no `content`
+ * (`A)`, `A.`, `(A)`, etc.).
  * `correct_option` no gabarito desta base costuma ser "1"|"2"|"3" (índice 1-based).
  */
 
 export type ExerciseOption = { key: string; text: string }
+
+/** Linha de opção: A) / A. / A: / (A) / (A) texto */
+const LETTERED_OPTION_LINE =
+  /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+(.+?)\s*$/
 
 function sanitizeOptionText(v: unknown): string | null {
   if (typeof v !== 'string') return null
@@ -20,7 +25,7 @@ export function coerceStructuredOptions(raw: unknown): ExerciseOption[] | null {
     if (typeof item === 'string') {
       const s = item.trim()
       if (!s) return null
-      const letter = s.match(/^([A-Za-z])\s*[\)\.\:]/)
+      const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
       out.push({
         key: letter ? letter[1].toUpperCase() : s,
         text: s,
@@ -39,7 +44,7 @@ export function coerceStructuredOptions(raw: unknown): ExerciseOption[] | null {
 
 /**
  * Extrai alternativas lettered do texto da questão.
- * Ex.: "A) foo" / "B. bar" / "C: baz" → [{key:"A", text:"A) foo"}, ...]
+ * Aceita: "A) foo", "A. bar", "A: baz", "(A) qux".
  */
 export function parseLetteredChoicesFromContent(
   content: string | null | undefined,
@@ -48,10 +53,9 @@ export function parseLetteredChoicesFromContent(
 
   const found: ExerciseOption[] = []
   const seen = new Set<string>()
-  const re = /^\s*([A-Za-z])\s*[\)\.\:]\s+(.+?)\s*$/
 
   for (const line of content.split(/\r?\n/)) {
-    const m = line.match(re)
+    const m = line.match(LETTERED_OPTION_LINE)
     if (!m) continue
     const key = m[1].toUpperCase()
     const body = m[2].trim()
@@ -71,6 +75,23 @@ export function parseLetteredChoicesFromContent(
   return found
 }
 
+/**
+ * Remove linhas de opções lettered do enunciado quando há botões clicáveis.
+ * Evita duplicar "(A) …" como texto estático + botão.
+ */
+export function stripLetteredChoicesFromContent(
+  content: string | null | undefined,
+): string | null {
+  if (typeof content !== 'string') return null
+  const kept: string[] = []
+  for (const line of content.split(/\r?\n/)) {
+    if (LETTERED_OPTION_LINE.test(line)) continue
+    kept.push(line)
+  }
+  const out = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  return out.length ? out : null
+}
+
 /** Prefere options do doc; se vazias, parseia A/B/C do content. */
 export function resolveExerciseOptions(
   optionsRaw: unknown,
@@ -83,13 +104,13 @@ export function resolveExerciseOptions(
 
 /**
  * Normaliza resposta/gabarito para comparação.
- * "A", "A)", "A) texto" → "1"; "B" → "2"; "3" → "3".
+ * "A", "A)", "(A)", "A) texto" → "1"; "B" → "2"; "3" → "3".
  */
 export function normalizeAnswerForCompare(answer: string): string {
   const t = answer.trim()
   if (!t) return t
 
-  const letterPrefixed = t.match(/^([A-Za-z])(?:\s*[\)\.\:]|$)/)
+  const letterPrefixed = t.match(/^\(?([A-Za-z])\)?(?:\s*[\)\.\:]|$)/)
   if (letterPrefixed) {
     const idx = letterPrefixed[1].toUpperCase().charCodeAt(0) - 64
     if (idx >= 1 && idx <= 26) return String(idx)

@@ -29,13 +29,65 @@ type ChatMessage = {
   stageType?: NextContentOk['stage_type']
 }
 
-function contentToAssistantText(content: NextContentOk): string {
-  const parts: string[] = []
-  if (content.stage_title) parts.push(content.stage_title)
-  if (content.content) parts.push(content.content)
-  if (!content.content && content.stage_type === 'ai' && content.prompt) {
-    parts.push('Gerando conteúdo da tutoria…')
+/** Remove *markdown* / # headings soltos usados como título. */
+function stripDecorTitle(raw: string): string {
+  let s = raw.trim()
+  s = s.replace(/^#{1,6}\s+/, '')
+  // *Explicação* ou **Explicação**
+  const starred = s.match(/^\*{1,3}([^*]+)\*{1,3}$/)
+  if (starred) return starred[1].trim()
+  return s
+}
+
+function normalizeTitleKey(raw: string): string {
+  return stripDecorTitle(raw)
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
+function stripOptionLines(text: string): string {
+  const re = /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+.+\s*$/
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !re.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * Monta texto da bolha sem duplicar título (stage_title + "*Explicação*" no content).
+ */
+function contentToAssistantText(
+  content: NextContentOk,
+  opts?: { stripOptions?: boolean },
+): string {
+  const title = content.stage_title
+    ? stripDecorTitle(content.stage_title)
+    : ''
+  let body = (content.content ?? '').trim()
+
+  if (!body && content.stage_type === 'ai' && content.prompt) {
+    body = 'Gerando conteúdo da tutoria…'
   }
+
+  if (opts?.stripOptions) {
+    body = stripOptionLines(body)
+  }
+
+  if (title && body) {
+    const lines = body.split(/\n/)
+    const firstKey = normalizeTitleKey(lines[0] ?? '')
+    if (firstKey && firstKey === normalizeTitleKey(title)) {
+      body = lines.slice(1).join('\n').replace(/^\n+/, '').trim()
+    }
+  }
+
+  const parts: string[] = []
+  if (title) parts.push(title)
+  if (body) parts.push(body)
   return parts.join('\n\n') || 'Conteúdo da etapa.'
 }
 
@@ -66,6 +118,23 @@ function isContinuarText(text: string): boolean {
   return text.trim().toLowerCase() === 'continuar'
 }
 
+function cellHasExerciseFeedback(
+  logs: ConversationLogRow[],
+  stageNumber: number,
+  questionNumber: number,
+): boolean {
+  return logs.some(
+    (l) =>
+      l.sender === 'system' &&
+      l.stage_number === stageNumber &&
+      l.question_number === questionNumber &&
+      (l.message_type === 'feedback' ||
+        (l.metadata &&
+          typeof l.metadata === 'object' &&
+          (l.metadata as { source?: string }).source === 'exercise_feedback')),
+  )
+}
+
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const session = getSession()!
@@ -77,6 +146,8 @@ export default function PlayerPage() {
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [exerciseDone, setExerciseDone] = useState(false)
+  /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
+  const [mariaSidechat, setMariaSidechat] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -108,6 +179,7 @@ export default function PlayerPage() {
   const loadHistoryAndContent = useCallback(async () => {
     setError(null)
     setExerciseDone(false)
+    setMariaSidechat(false)
     setHistoryReady(false)
     try {
       const [logs, data] = await Promise.all([
@@ -120,13 +192,30 @@ export default function PlayerPage() {
 
       if (data.status === 'ok') {
         const key = `${data.stage_number}-${data.question_number}`
+        const options =
+          data.stage_type === 'exercise'
+            ? normalizeExerciseOptions(data.options)
+            : []
+        const text = contentToAssistantText(data, {
+          stripOptions: options.length > 0,
+        })
+
+        if (data.stage_type === 'exercise') {
+          setExerciseDone(
+            cellHasExerciseFeedback(
+              logs,
+              data.stage_number,
+              data.question_number,
+            ),
+          )
+        }
+
         const already = logs.some(
           (l) =>
             l.sender === 'system' &&
             l.stage_number === data.stage_number &&
             l.question_number === data.question_number &&
-            String(l.message_text ?? '').trim() ===
-              contentToAssistantText(data).trim(),
+            String(l.message_text ?? '').trim() === text.trim(),
         )
         // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
         if (
@@ -135,7 +224,6 @@ export default function PlayerPage() {
           deliveredKeyRef.current !== key
         ) {
           deliveredKeyRef.current = key
-          const text = contentToAssistantText(data)
           setMessages((prev) => [
             ...prev,
             {
@@ -156,12 +244,15 @@ export default function PlayerPage() {
           })
         } else if (data.stage_type === 'ai') {
           deliveredKeyRef.current = key
-          const text = contentToAssistantText(data)
           const hasAi = logs.some(
             (l) =>
               l.sender === 'system' &&
               l.stage_number === data.stage_number &&
-              l.question_number === data.question_number,
+              l.question_number === data.question_number &&
+              (l.message_type === 'instruction' ||
+                (l.metadata &&
+                  typeof l.metadata === 'object' &&
+                  (l.metadata as { source?: string }).source === 'trail-ai')),
           )
           if (!hasAi && text) {
             setMessages((prev) => [
@@ -200,6 +291,7 @@ export default function PlayerPage() {
     deliveredKeyRef.current = null
     setMessages([])
     setDraft('')
+    setMariaSidechat(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
 
@@ -208,16 +300,19 @@ export default function PlayerPage() {
       top: threadRef.current.scrollHeight,
       behavior: 'smooth',
     })
-  }, [messages, content, exerciseDone])
+  }, [messages, content, exerciseDone, mariaSidechat])
 
   useEffect(() => {
-    if (content?.status === 'ok') inputRef.current?.focus()
+    if (content?.status === 'ok' && content.stage_type !== 'exercise') {
+      inputRef.current?.focus()
+    }
   }, [content])
 
   async function doAdvance(userLine: string) {
     if (content?.status !== 'ok') return
     setBusy(true)
     setError(null)
+    setMariaSidechat(false)
     setMessages((prev) => [
       ...prev,
       { id: `u-${Date.now()}`, role: 'user', text: userLine },
@@ -263,6 +358,8 @@ export default function PlayerPage() {
 
   async function doMaria(userLine: string) {
     if (content?.status !== 'ok') return
+    // Exercício: Maria bloqueada até Continuar após o feedback.
+    if (content.stage_type === 'exercise') return
     setBusy(true)
     setError(null)
     setMessages((prev) => [
@@ -286,6 +383,7 @@ export default function PlayerPage() {
           text: result.reply,
         },
       ])
+      setMariaSidechat(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao falar com Maria.')
     } finally {
@@ -293,12 +391,19 @@ export default function PlayerPage() {
     }
   }
 
+  function onVoltarParaTrilha() {
+    setMariaSidechat(false)
+    setError(null)
+  }
+
   async function onOptionClick(option: ExerciseOption) {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
+    if (exerciseDone) return
     setBusy(true)
     setError(null)
+    setMariaSidechat(false)
     setMessages((prev) => [
       ...prev,
       { id: `u-${Date.now()}`, role: 'user', text: option.text },
@@ -365,14 +470,12 @@ export default function PlayerPage() {
   async function onSend(event?: FormEvent) {
     event?.preventDefault()
     if (busy || content?.status !== 'ok') return
+    // Exercício: sem free-text / Maria até sair da etapa via Continuar.
+    if (content.stage_type === 'exercise') return
     const trimmed = draft.trim()
     if (!trimmed) return
 
     if (isContinuarText(trimmed)) {
-      if (content.stage_type === 'exercise' && !exerciseDone) {
-        setError('Escolha uma opção do exercício antes de continuar.')
-        return
-      }
       await doAdvance('Continuar')
       return
     }
@@ -387,13 +490,25 @@ export default function PlayerPage() {
     }
   }
 
-  const canSend = content?.status === 'ok' && !busy
+  const onExerciseStep =
+    content?.status === 'ok' && content.stage_type === 'exercise'
+  const composerBlocked = onExerciseStep || busy || content?.status !== 'ok'
+  const canSend =
+    content?.status === 'ok' &&
+    !busy &&
+    content.stage_type !== 'exercise' &&
+    !composerBlocked
+
   const showContinuar =
     content?.status === 'ok' &&
     !busy &&
+    !mariaSidechat &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
+
+  const showVoltarTrilha =
+    content?.status === 'ok' && !busy && mariaSidechat
 
   const options =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -403,9 +518,11 @@ export default function PlayerPage() {
   const placeholder =
     content?.status !== 'ok'
       ? 'Trilha indisponível no momento'
-      : content.stage_type === 'exercise' && !exerciseDone
-        ? 'Tire uma dúvida com Maria ou escolha uma opção…'
-        : 'Pergunte à Maria ou digite continuar…'
+      : content.stage_type === 'exercise'
+        ? 'Escolha uma das opções'
+        : mariaSidechat
+          ? 'Pergunte mais à Maria ou volte para a trilha…'
+          : 'Pergunte à Maria ou digite continuar…'
 
   return (
     <div className="chat-thread">
@@ -463,6 +580,19 @@ export default function PlayerPage() {
           </div>
         ) : null}
 
+        {showVoltarTrilha ? (
+          <div className="chat-continue chat-continue--sidechat">
+            <button
+              type="button"
+              className="chat-continue__btn chat-continue__btn--secondary"
+              disabled={busy}
+              onClick={onVoltarParaTrilha}
+            >
+              Voltar para trilha
+            </button>
+          </div>
+        ) : null}
+
         {showContinuar ? (
           <div className="chat-continue">
             <button
@@ -484,7 +614,7 @@ export default function PlayerPage() {
             className="chat-composer__input"
             rows={1}
             value={draft}
-            disabled={!canSend}
+            disabled={composerBlocked}
             placeholder={placeholder}
             aria-label="Mensagem"
             onChange={(e) => setDraft(e.target.value)}
@@ -500,8 +630,13 @@ export default function PlayerPage() {
         </form>
         {content?.status === 'ok' ? (
           <p className="muted chat-composer__hint">
-            Enter envia · Shift+Enter quebra linha · texto livre fala com Maria ·
-            Continuar avança a trilha
+            {content.stage_type === 'exercise'
+              ? exerciseDone
+                ? 'Use Continuar para avançar a trilha'
+                : 'Escolha uma das opções acima para responder'
+              : mariaSidechat
+                ? 'Voltar para trilha restaura o Continuar da etapa'
+                : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}
           </p>
         ) : null}
       </footer>

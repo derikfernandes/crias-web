@@ -608,6 +608,21 @@ a.ghost:hover {
   cursor: not-allowed;
 }
 
+.chat-continue--sidechat {
+  gap: 0.5rem;
+}
+
+.chat-continue__btn--secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+.chat-continue__btn--secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.1);
+}
+
 .chat-home {
   flex: 1;
   display: flex;

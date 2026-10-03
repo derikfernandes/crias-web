@@ -46,6 +46,9 @@ export async function ensureTrailAiContent(
   input: {
     student_id: string
     trail_id: string
+    /** Prefetch / célula explícita; default = posição atual do aluno. */
+    stage_number?: number
+    question_number?: number
   },
   env: NodeJS.ProcessEnv = process.env,
   generateImpl: typeof generateContentWithGemini = generateContentWithGemini,
@@ -68,8 +71,14 @@ export async function ensureTrailAiContent(
     throw new Error('Vínculo aluno/trilha não encontrado.')
   }
 
-  const stageNumber = progress.current_stage_number
-  const questionNumber = progress.current_question_number
+  const stageNumber =
+    typeof input.stage_number === 'number' && input.stage_number >= 1
+      ? Math.trunc(input.stage_number)
+      : progress.current_stage_number
+  const questionNumber =
+    typeof input.question_number === 'number' && input.question_number >= 1
+      ? Math.trunc(input.question_number)
+      : progress.current_question_number
 
   const existing = await resolveDeliveredAiContent(db, {
     student_id: studentId,

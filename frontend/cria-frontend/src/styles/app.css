@@ -1113,6 +1113,21 @@ a.ghost:hover {
   color: var(--ink);
 }
 
+.chat-exercise__prompt {
+  margin: 0 0 0.85rem;
+  color: var(--ink);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.chat-exercise__prompt p {
+  margin: 0 0 0.4rem;
+}
+
+.chat-exercise__prompt p:last-child {
+  margin-bottom: 0;
+}
+
 .chat-exercise__options {
   display: flex;
   flex-direction: column;

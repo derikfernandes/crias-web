@@ -10,6 +10,9 @@ const SERVER_RE =
 
 const AUTH_EN_RE = /^(unauthorized|forbidden)$/i
 
+const SYSTEM_LOAD_RE =
+  /não foi possível (conectar|carregar|avançar|falar|registrar|gravar)|serviço está temporariamente|conexão demorou|opções desta questão/i
+
 const HTMLISH_RE = /^\s*</
 
 export function toUserFacingError(err: unknown, fallback: string): string {
@@ -48,8 +51,19 @@ export function toUserFacingError(err: unknown, fallback: string): string {
 
 export function isRetryableSystemError(err: unknown): boolean {
   if (err instanceof TypeError) return true
+  if (err instanceof ApiRequestError) {
+    if (err.authFailed || err.status === 401 || err.status === 403) return false
+    if (err.status >= 500 || err.status === 408 || err.status === 429) {
+      return true
+    }
+  }
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   if (!raw) return true
   if (AUTH_EN_RE.test(raw.trim())) return false
-  return NETWORK_RE.test(raw) || TIMEOUT_RE.test(raw) || SERVER_RE.test(raw)
+  if (NETWORK_RE.test(raw) || TIMEOUT_RE.test(raw) || SERVER_RE.test(raw)) {
+    return true
+  }
+  // Fallbacks PT já normalizados (body vazio / 5xx) ainda são retryáveis.
+  if (SYSTEM_LOAD_RE.test(raw)) return true
+  return false
 }

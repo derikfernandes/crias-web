@@ -62,9 +62,27 @@ function isTrailDeliveryLog(l: ConversationLogRow): boolean {
   return l.message_type === 'instruction'
 }
 
+const FOREIGN_LANG_RE =
+  /\b(reg[eê]ncia(\s+verbal)?|preposi[cç][aã]o|verbo\s+gostar|gosta\s+de\s+nadar)\b/i
+
+/** Alinha feedback antigo que mistura incorreta + celebração. */
+export function sanitizeFeedbackText(text: string): string {
+  const raw = String(text ?? '').trim()
+  if (!raw) return raw
+  const incorrect = /resposta\s+incorreta/i.test(raw)
+  if (incorrect) return alignBlocoWithAttempt(raw, false) || raw
+  if (
+    /resposta\s+correta/i.test(raw) &&
+    /voc[eê]\s+errou|n[aã]o\s+acert/i.test(raw)
+  ) {
+    return alignBlocoWithAttempt(raw, true) || raw
+  }
+  return raw
+}
+
 /**
  * History → bolhas: 1 delivery por célula trail-ai/next-content;
- * filtra Continuar; strip markdown leve.
+ * filtra Continuar; strip markdown leve; higiene de feedback contraditório.
  */
 export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
   /** Índice da bolha trail por célula — preferimos a entrega mais recente. */
@@ -72,12 +90,32 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
   const out: ChatMessage[] = []
 
   for (const l of logs) {
-    const raw = String(l.message_text ?? '').trim()
+    let raw = String(l.message_text ?? '').trim()
     if (!raw) continue
 
     const source = metaSource(l.metadata)
     if (source === 'continuar') continue
     if (l.sender === 'student' && isContinuarText(raw)) continue
+
+    const isFeedback =
+      l.message_type === 'feedback' || source === 'exercise_feedback'
+    if (isFeedback) {
+      raw = sanitizeFeedbackText(raw)
+      if (!raw) continue
+    }
+
+    // Defesa: delivery trail com matéria estrangeira cede à mais recente limpa.
+    if (isTrailDeliveryLog(l) && FOREIGN_LANG_RE.test(raw)) {
+      const cell = `${l.stage_number}-${l.question_number}`
+      const prevIdx = trailCellIndex.get(cell)
+      if (prevIdx !== undefined) {
+        const prev = out[prevIdx]
+        if (prev && !FOREIGN_LANG_RE.test(prev.text)) {
+          // Mantém a limpa já na lista; ignora stale foreign.
+          continue
+        }
+      }
+    }
 
     const text = lightStripMarkdown(raw)
 
@@ -92,6 +130,13 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
       }
       if (prevIdx !== undefined) {
         // force_regenerate / BLOCO corrigido: substitui a bolha antiga da célula.
+        // Não trocar texto limpo por foreign mais recente (log podre).
+        if (
+          FOREIGN_LANG_RE.test(text) &&
+          !FOREIGN_LANG_RE.test(out[prevIdx].text)
+        ) {
+          continue
+        }
         out[prevIdx] = msg
       } else {
         trailCellIndex.set(cell, out.length)

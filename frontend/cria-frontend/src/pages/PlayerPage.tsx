@@ -12,7 +12,7 @@ import {
   askMaria,
   createConversationLog,
   fetchNextContent,
-  fetchTrailHistory,
+  fetchTrailHistoryPage,
   normalizeExerciseOptions,
   submitExerciseAttempt,
   type ConversationLogRow,
@@ -37,11 +37,18 @@ import {
 /** Quantas bolhas recentes ficam visíveis antes do colapso de histórico. */
 const HISTORY_VISIBLE_TAIL = 28
 
+/** Página inicial do history API (position-aware no BE). */
+const HISTORY_PAGE_LIMIT = 40
+
 /** Evita flash de typing em respostas rápidas (cache-hit). */
 const TYPING_MIN_DELAY_MS = 280
 
 /** Distância do fim para considerar “sticky bottom”. */
 const STICKY_BOTTOM_PX = 120
+
+function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < px
+}
 
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
@@ -214,8 +221,10 @@ export default function PlayerPage() {
   /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
-  /** WS-D: colapsa bolhas antigas; expandir revela o histórico completo. */
+  /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   const [newMsgChip, setNewMsgChip] = useState(false)
   const [continuarLeaving, setContinuarLeaving] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -226,9 +235,12 @@ export default function PlayerPage() {
   /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
   const pinnedAwayRef = useRef(false)
   const pinnedScrollTopRef = useRef(0)
+  const pinLockRafRef = useRef<number | null>(null)
   const busyReasonRef = useRef<BusyReason>(null)
   const skipSmoothScrollRef = useRef(true)
   const reduceMotionRef = useRef(false)
+  const historyBeforeRef = useRef<number | null>(null)
+  const oldestLogMsRef = useRef<number | null>(null)
   contentRef.current = content
   busyReasonRef.current = busyReason
 
@@ -281,12 +293,20 @@ export default function PlayerPage() {
     setPendingOptionKey(null)
     setMariaSidechat(false)
     setHistoryReady(false)
+    setHistoryExpanded(false)
+    setHistoryHasMore(false)
     setNewMsgChip(false)
+    historyBeforeRef.current = null
+    oldestLogMsRef.current = null
     skipSmoothScrollRef.current = true
     try {
-      // WS-4: next-content primeiro — CTA não espera o payload enorme do history.
+      // next-content primeiro — CTA não espera history.
       const contentPromise = fetchNextContent(session.student_id, trailId)
-      const historyPromise = fetchTrailHistory(session.student_id, trailId)
+      const historyPromise = fetchTrailHistoryPage(
+        session.student_id,
+        trailId,
+        { limit: HISTORY_PAGE_LIMIT },
+      )
 
       const data = await contentPromise
       setContent(data)
@@ -321,11 +341,20 @@ export default function PlayerPage() {
       // Libera composer/CTA assim que o passo atual existe.
       setHistoryReady(true)
 
-      let logs: Awaited<ReturnType<typeof fetchTrailHistory>> = []
+      let logs: ConversationLogRow[] = []
       try {
-        logs = await historyPromise
+        const page = await historyPromise
+        logs = page.logs
+        setHistoryHasMore(page.has_more)
+        historyBeforeRef.current = page.next_before
+        const oldest = logs[0]
+        oldestLogMsRef.current =
+          typeof oldest?.created_at_ms === 'number'
+            ? oldest.created_at_ms
+            : page.next_before
       } catch {
         logs = []
+        setHistoryHasMore(false)
       }
       // History: sem animate — evita cascata no mount/relogin.
       setMessages(logsToMessages(logs))
@@ -422,6 +451,53 @@ export default function PlayerPage() {
     }
   }, [persistLog, session.student_id, trailId])
 
+  const loadOlderHistory = useCallback(async () => {
+    if (historyLoadingMore || !historyHasMore) return
+    const before = historyBeforeRef.current
+    if (before == null) {
+      setHistoryHasMore(false)
+      return
+    }
+    setHistoryLoadingMore(true)
+    const el = threadRef.current
+    const prevHeight = el?.scrollHeight ?? 0
+    const prevTop = el?.scrollTop ?? 0
+    try {
+      const page = await fetchTrailHistoryPage(session.student_id, trailId, {
+        limit: HISTORY_PAGE_LIMIT,
+        before,
+      })
+      setHistoryHasMore(page.has_more)
+      historyBeforeRef.current = page.next_before
+      if (page.logs.length === 0) return
+      const older = logsToMessages(page.logs)
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id))
+        const merged = older.filter((m) => !seen.has(m.id))
+        return [...merged, ...prev]
+      })
+      // Mantém o viewport no mesmo conteúdo após prepend.
+      requestAnimationFrame(() => {
+        const scroller = threadRef.current
+        if (!scroller) return
+        const delta = scroller.scrollHeight - prevHeight
+        scroller.scrollTop = prevTop + delta
+        pinnedAwayRef.current = true
+        nearBottomRef.current = false
+        pinnedScrollTopRef.current = scroller.scrollTop
+      })
+    } catch {
+      /* ignore — botão permanece */
+    } finally {
+      setHistoryLoadingMore(false)
+    }
+  }, [
+    historyHasMore,
+    historyLoadingMore,
+    session.student_id,
+    trailId,
+  ])
+
   useEffect(() => {
     deliveredKeyRef.current = null
     setMessages([])
@@ -435,6 +511,48 @@ export default function PlayerPage() {
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
 
+  function capturePinFromScroll() {
+    const el = threadRef.current
+    if (!el) return false
+    // Mede o DOM real — scrollTop programático pode não disparar onScroll.
+    if (!isScrollNearBottom(el)) {
+      pinnedAwayRef.current = true
+      nearBottomRef.current = false
+      pinnedScrollTopRef.current = el.scrollTop
+      return true
+    }
+    pinnedAwayRef.current = false
+    nearBottomRef.current = true
+    return false
+  }
+
+  function startPinLock() {
+    if (pinLockRafRef.current != null) return
+    const tick = () => {
+      const el = threadRef.current
+      if (
+        el &&
+        pinnedAwayRef.current &&
+        busyReasonRef.current === 'trail'
+      ) {
+        if (el.scrollTop !== pinnedScrollTopRef.current) {
+          el.scrollTop = pinnedScrollTopRef.current
+        }
+        pinLockRafRef.current = requestAnimationFrame(tick)
+        return
+      }
+      pinLockRafRef.current = null
+    }
+    pinLockRafRef.current = requestAnimationFrame(tick)
+  }
+
+  function stopPinLock() {
+    if (pinLockRafRef.current != null) {
+      cancelAnimationFrame(pinLockRafRef.current)
+      pinLockRafRef.current = null
+    }
+  }
+
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
@@ -446,8 +564,7 @@ export default function PlayerPage() {
       nearBottomRef.current = false
       return
     }
-    const near =
-      el.scrollHeight - el.scrollTop - el.clientHeight < STICKY_BOTTOM_PX
+    const near = isScrollNearBottom(el)
     nearBottomRef.current = near
     if (near) {
       pinnedAwayRef.current = false
@@ -461,6 +578,7 @@ export default function PlayerPage() {
   function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
     const el = threadRef.current
     if (!el) return
+    stopPinLock()
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     setNewMsgChip(false)
@@ -470,14 +588,55 @@ export default function PlayerPage() {
     })
   }
 
+  /** C2-10: ancora no passo corrente (ou CTA) — não consulta pin. */
+  function scrollCurrentStepIntoView(behavior: ScrollBehavior = 'smooth') {
+    const el = threadRef.current
+    if (!el) return
+    const current = contentRef.current
+    if (current?.status !== 'ok') {
+      scrollToBottom(behavior)
+      return
+    }
+    const key = trailCellKey(current.stage_number, current.question_number)
+    const bubble = el.querySelector(
+      `[data-cell-key="${key}"]`,
+    ) as HTMLElement | null
+    const cta = el.querySelector('.chat-cta-slot') as HTMLElement | null
+    const target = cta || bubble
+    if (target) {
+      target.scrollIntoView({
+        block: 'nearest',
+        behavior: reduceMotionRef.current ? 'auto' : behavior,
+      })
+      nearBottomRef.current = isScrollNearBottom(el)
+      pinnedAwayRef.current = !nearBottomRef.current
+      if (nearBottomRef.current) setNewMsgChip(false)
+      return
+    }
+    scrollToBottom(behavior)
+  }
+
+  useEffect(() => {
+    return () => stopPinLock()
+  }, [])
+
   useEffect(() => {
     if (!historyReady) return
     if (skipSmoothScrollRef.current) {
       skipSmoothScrollRef.current = false
-      scrollToBottom('auto')
+      // C2-10: no mount/resume, prefere a bolha/CTA do passo corrente ao sidechat.
+      requestAnimationFrame(() => scrollCurrentStepIntoView('auto'))
       return
     }
-    // Preserva leitura do histórico: chip em vez de puxar a thread.
+    // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
+    const el = threadRef.current
+    if (el && !isScrollNearBottom(el)) {
+      pinnedAwayRef.current = true
+      nearBottomRef.current = false
+      pinnedScrollTopRef.current = el.scrollTop
+      setNewMsgChip(true)
+      return
+    }
     if (pinnedAwayRef.current || !nearBottomRef.current) {
       setNewMsgChip(true)
       return
@@ -612,14 +771,14 @@ export default function PlayerPage() {
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
     if (content?.status !== 'ok') return
-    // Evita scrollIntoView do botão focado puxar a thread ao fundo (C1-40).
+    // Evita scrollIntoView do botão focado puxar a thread ao fundo (C2-40).
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
     }
-    if (pinnedAwayRef.current || !nearBottomRef.current) {
-      pinnedAwayRef.current = true
-      pinnedScrollTopRef.current = threadRef.current?.scrollTop ?? 0
+    const pinned = capturePinFromScroll()
+    if (pinned) {
       setNewMsgChip(true)
+      startPinLock()
     }
     setContinuarLeaving(true)
     setBusy(true)
@@ -665,11 +824,19 @@ export default function PlayerPage() {
       setBusyReason(null)
       busyReasonRef.current = null
       setContinuarLeaving(false)
+      stopPinLock()
       // Restaura pin após advance (layout/focus podem ter movido o scroll).
       if (pinnedAwayRef.current && threadRef.current) {
         threadRef.current.scrollTop = pinnedScrollTopRef.current
         nearBottomRef.current = false
         setNewMsgChip(true)
+        // Re-aplica após paint (typing/CTA saindo).
+        requestAnimationFrame(() => {
+          if (pinnedAwayRef.current && threadRef.current) {
+            threadRef.current.scrollTop = pinnedScrollTopRef.current
+            setNewMsgChip(true)
+          }
+        })
       }
     }
   }
@@ -727,6 +894,11 @@ export default function PlayerPage() {
       stripOptions: options.length > 0,
     })
     const text = `Continuando a trilha:\n\n${body}`
+    // C2-10: após Voltar, mostra o passo (não fica no sidechat acima).
+    skipSmoothScrollRef.current = false
+    requestAnimationFrame(() => {
+      if (!capturePinFromScroll()) scrollCurrentStepIntoView()
+    })
 
     setMessages((prev) => {
       const last = prev[prev.length - 1]
@@ -826,7 +998,11 @@ export default function PlayerPage() {
         stage_number: content.stage_number,
         question_number: content.question_number,
         message_type: 'feedback',
-        metadata: { source: 'exercise_feedback' },
+        metadata: {
+          source: 'exercise_feedback',
+          is_correct: attempt.is_correct,
+          score: attempt.score,
+        },
       })
       setExerciseDone(true)
     } catch (err) {
@@ -889,10 +1065,19 @@ export default function PlayerPage() {
       : []
 
   const hiddenHistoryCount = Math.max(0, messages.length - HISTORY_VISIBLE_TAIL)
+  const showHistoryCollapse =
+    historyHasMore || hiddenHistoryCount > 0
   const visibleMessages =
     historyExpanded || hiddenHistoryCount === 0
       ? messages
       : messages.slice(messages.length - HISTORY_VISIBLE_TAIL)
+
+  async function onExpandHistory() {
+    setHistoryExpanded(true)
+    if (historyHasMore) {
+      await loadOlderHistory()
+    }
+  }
 
   const placeholder =
     content == null
@@ -942,19 +1127,40 @@ export default function PlayerPage() {
           ref={threadRef}
           onScroll={updateNearBottom}
         >
-        {!historyExpanded && hiddenHistoryCount > 0 ? (
+        {!historyExpanded && showHistoryCollapse ? (
           <div className="chat-history-collapse">
             <button
               type="button"
               className="chat-history-collapse__btn"
-              onClick={() => setHistoryExpanded(true)}
+              disabled={historyLoadingMore}
+              onClick={() => void onExpandHistory()}
             >
-              Mostrar etapas anteriores ({hiddenHistoryCount})
+              {historyLoadingMore
+                ? 'Carregando etapas…'
+                : `Mostrar etapas anteriores${
+                    hiddenHistoryCount > 0
+                      ? ` (${hiddenHistoryCount}${historyHasMore ? '+' : ''})`
+                      : historyHasMore
+                        ? ''
+                        : ''
+                  }`}
             </button>
           </div>
         ) : null}
-        {historyExpanded && hiddenHistoryCount > 0 ? (
+        {historyExpanded && (showHistoryCollapse || historyHasMore) ? (
           <div className="chat-history-collapse">
+            {historyHasMore ? (
+              <button
+                type="button"
+                className="chat-history-collapse__btn"
+                disabled={historyLoadingMore}
+                onClick={() => void loadOlderHistory()}
+              >
+                {historyLoadingMore
+                  ? 'Carregando…'
+                  : 'Carregar etapas mais antigas'}
+              </button>
+            ) : null}
             <button
               type="button"
               className="chat-history-collapse__btn"

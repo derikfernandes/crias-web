@@ -26,7 +26,7 @@ import {
   type StudentTrailStatus,
 } from '../server/lib/studentTrailValidation'
 import { ensureTrailAiContent } from '../server/lib/trail-ai/ensureTrailAiContent'
-import { listTrailConversationLogsSafe } from '../server/lib/trail-ai/resolveDeliveredAiContent'
+import { getTrailHistoryPage } from '../server/lib/trail-engine/getHistory'
 import { askMariaTutor } from '../server/lib/maria/askMariaTutor'
 
 type Json = Record<string, unknown>
@@ -312,26 +312,52 @@ async function handleRequest(request: Request): Promise<Response> {
             error: 'Informe student_id e trail_id.',
           })
         }
-        const logs = await listTrailConversationLogsSafe(
-          db,
-          qStudentId,
-          qTrailId,
-        )
+        const limitParam = parseIntLoose(url.searchParams.get('limit'))
+        const beforeParam = parseIntLoose(url.searchParams.get('before'))
+        const includeAhead =
+          url.searchParams.get('include_ahead') === '1' ||
+          url.searchParams.get('include_ahead') === 'true'
+        // Legacy: full=1 devolve dump completo (sem paginação) — ainda higienizado.
+        const fullDump =
+          url.searchParams.get('full') === '1' ||
+          url.searchParams.get('full') === 'true'
+
+        const page = await getTrailHistoryPage(db, {
+          student_id: qStudentId,
+          trail_id: qTrailId,
+          limit: fullDump
+            ? 0
+            : limitParam && limitParam > 0
+              ? limitParam
+              : 40,
+          before: beforeParam,
+          include_ahead: includeAhead,
+        })
+
+        const mapped = page.logs.map((row) => ({
+          id: row.id,
+          student_id: row.student_id,
+          trail_id: row.trail_id,
+          stage_number: row.stage_number,
+          question_number: row.question_number,
+          sender: row.sender,
+          message_text: row.message_text,
+          institution_id: row.institution_id,
+          message_type: row.message_type,
+          metadata: row.metadata,
+          created_at: null,
+          created_at_brasilia: row.created_at_brasilia,
+          created_at_ms: row.created_at_ms,
+        }))
+
         return jsonResponse(
-          logs.map((row) => ({
-            id: row.id,
-            student_id: row.student_id,
-            trail_id: row.trail_id,
-            stage_number: row.stage_number,
-            question_number: row.question_number,
-            sender: row.sender,
-            message_text: row.message_text,
-            institution_id: row.institution_id,
-            message_type: row.message_type,
-            metadata: row.metadata,
-            created_at: null,
-            created_at_brasilia: row.created_at_brasilia,
-          })) as Json[],
+          {
+            logs: mapped,
+            has_more: page.has_more,
+            next_before: page.next_before,
+            total_matching: page.total_matching,
+            position: page.position,
+          } as unknown as Json,
           { status: 200, headers: corsHeaders() },
         )
       }

@@ -105,6 +105,18 @@ export type ConversationLogRow = {
   metadata?: Record<string, unknown> | null
   created_at?: string | null
   created_at_brasilia?: string | null
+  created_at_ms?: number | null
+}
+
+export type TrailHistoryPage = {
+  logs: ConversationLogRow[]
+  has_more: boolean
+  next_before: number | null
+  total_matching?: number
+  position?: {
+    current_stage_number: number
+    current_question_number: number
+  } | null
 }
 
 export type ExerciseAttemptResult = {
@@ -194,23 +206,65 @@ export async function fetchNextContent(
   return body as NextContentOk | NextContentStatus
 }
 
-export async function fetchTrailHistory(
+export async function fetchTrailHistoryPage(
   studentId: string,
   trailId: string,
-): Promise<ConversationLogRow[]> {
+  opts?: {
+    limit?: number
+    before?: number | null
+    includeAhead?: boolean
+  },
+): Promise<TrailHistoryPage> {
   const url = new URL(
     `${API_BASE}/student_trails/history`,
     window.location.origin,
   )
   url.searchParams.set('student_id', studentId)
   url.searchParams.set('trail_id', trailId)
+  url.searchParams.set('limit', String(opts?.limit ?? 40))
+  if (opts?.before != null && Number.isFinite(opts.before)) {
+    url.searchParams.set('before', String(opts.before))
+  }
+  if (opts?.includeAhead) {
+    url.searchParams.set('include_ahead', '1')
+  }
   const res = await fetch(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
     const err = body as ApiError
     throw new Error(err.message || err.error || 'Falha ao carregar histórico.')
   }
-  return Array.isArray(body) ? (body as ConversationLogRow[]) : []
+  // Backcompat: array puro (deploy antigo).
+  if (Array.isArray(body)) {
+    return {
+      logs: body as ConversationLogRow[],
+      has_more: false,
+      next_before: null,
+    }
+  }
+  if (body && typeof body === 'object') {
+    const obj = body as Partial<TrailHistoryPage> & { logs?: unknown }
+    const logs = Array.isArray(obj.logs) ? (obj.logs as ConversationLogRow[]) : []
+    return {
+      logs,
+      has_more: Boolean(obj.has_more),
+      next_before:
+        typeof obj.next_before === 'number' ? obj.next_before : null,
+      total_matching:
+        typeof obj.total_matching === 'number' ? obj.total_matching : undefined,
+      position: obj.position ?? null,
+    }
+  }
+  return { logs: [], has_more: false, next_before: null }
+}
+
+/** @deprecated Prefer fetchTrailHistoryPage — mantido p/ callers simples. */
+export async function fetchTrailHistory(
+  studentId: string,
+  trailId: string,
+): Promise<ConversationLogRow[]> {
+  const page = await fetchTrailHistoryPage(studentId, trailId, { limit: 40 })
+  return page.logs
 }
 
 export async function createConversationLog(input: {

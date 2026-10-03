@@ -325,6 +325,22 @@ async function handleRequest(request: Request): Promise<Response> {
         validated.data,
       )
 
+      // Feedback rico: gera/recupera BLOCO RESPOSTA do próximo stage AI (se houver).
+      let pedagogical_feedback: string | null = null
+      try {
+        const { ensureNextBlocoRespostaFeedback } = await import(
+          '../server/lib/studentTrailProgressService.js'
+        )
+        pedagogical_feedback = await ensureNextBlocoRespostaFeedback(db, {
+          student_id: validated.data.student_id,
+          trail_id: validated.data.trail_id,
+          stage_number: validated.data.stage_number,
+          question_number: validated.data.question_number,
+        })
+      } catch {
+        pedagogical_feedback = null
+      }
+
       return jsonResponse(
         {
           id: result.id,
@@ -337,6 +353,8 @@ async function handleRequest(request: Request): Promise<Response> {
           is_correct: result.is_correct,
           score: result.score,
           attempt_number: result.attempt_number,
+          feedback: validated.data.feedback ?? null,
+          pedagogical_feedback,
         },
         { status: 201, headers: corsHeaders() },
       )

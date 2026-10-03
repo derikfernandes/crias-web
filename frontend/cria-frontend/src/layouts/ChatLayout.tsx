@@ -19,16 +19,22 @@ export default function ChatLayout() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    async function reload() {
       try {
         const data = await listStudentTrails(session.student_id)
         if (!cancelled) setRows(data)
       } catch {
         if (!cancelled) setRows([])
       }
-    })()
+    }
+    void reload()
+    const onProgress = () => {
+      void reload()
+    }
+    window.addEventListener('crias:trail-progress', onProgress)
     return () => {
       cancelled = true
+      window.removeEventListener('crias:trail-progress', onProgress)
     }
   }, [session.student_id, location.pathname])
 
@@ -81,6 +87,9 @@ export default function ChatLayout() {
                         <span className="trail-meta">
                           {STATUS_LABEL[row.status]} · etapa{' '}
                           {row.current_stage_number}
+                          {row.current_question_number
+                            ? ` · q${row.current_question_number}`
+                            : ''}
                         </span>
                       </span>
                     </Link>

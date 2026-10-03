@@ -418,6 +418,7 @@ a.ghost:hover {
 .chat-bubble {
   width: 100%;
   padding: 1.15rem 0;
+  animation: bubble-in 0.28s ease-out both;
 }
 
 .chat-bubble--user {
@@ -468,6 +469,76 @@ a.ghost:hover {
 
 .chat-bubble__body p {
   margin: 0 0 0.55rem;
+}
+
+.chat-bubble__media img {
+  max-width: min(100%, 28rem);
+  height: auto;
+  border-radius: var(--radius);
+  display: block;
+  margin: 0.35rem 0;
+}
+
+.chat-bubble__link {
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.chat-bubble--typing .chat-bubble__body {
+  min-height: 1.5rem;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.15rem;
+}
+
+.typing-dots span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.35;
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-composer {
@@ -601,6 +672,11 @@ a.ghost:hover {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.chat-continue__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .chat-continue__btn:disabled {

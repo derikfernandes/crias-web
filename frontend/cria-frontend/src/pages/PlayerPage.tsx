@@ -21,30 +21,17 @@ import {
   type NextContentStatus,
 } from '../lib/api'
 import { getSession } from '../lib/session'
-
-type ChatMessage = {
-  id: string
-  role: 'assistant' | 'user' | 'system'
-  text: string
-  stageType?: NextContentOk['stage_type']
-}
-
-/** Remove *markdown* / # headings soltos usados como título. */
-function stripDecorTitle(raw: string): string {
-  let s = raw.trim()
-  s = s.replace(/^#{1,6}\s+/, '')
-  // *Explicação* ou **Explicação**
-  const starred = s.match(/^\*{1,3}([^*]+)\*{1,3}$/)
-  if (starred) return starred[1].trim()
-  return s
-}
-
-function normalizeTitleKey(raw: string): string {
-  return stripDecorTitle(raw)
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+import {
+  type ChatMessage,
+  isContinuarText,
+  lightStripMarkdown,
+  logsToMessages,
+  normalizeTitleKey,
+  renderMessageLines,
+  stripDecorTitle,
+  trailCellKey,
+  trailMessageId,
+} from '../lib/trailMessages'
 
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
 function stripOptionLines(text: string): string {
@@ -88,7 +75,7 @@ function contentToAssistantText(
   const parts: string[] = []
   if (title) parts.push(title)
   if (body) parts.push(body)
-  return parts.join('\n\n') || 'Conteúdo da etapa.'
+  return lightStripMarkdown(parts.join('\n\n') || 'Conteúdo da etapa.')
 }
 
 function statusToSystemText(content: NextContentStatus): string {
@@ -102,20 +89,6 @@ function statusToSystemText(content: NextContentStatus): string {
     return content.message || 'Trilha concluída.'
   }
   return content.message || `Indisponível (${content.status}).`
-}
-
-function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
-  return logs
-    .filter((l) => String(l.message_text ?? '').trim())
-    .map((l) => ({
-      id: l.id,
-      role: l.sender === 'student' ? ('user' as const) : ('assistant' as const),
-      text: l.message_text,
-    }))
-}
-
-function isContinuarText(text: string): boolean {
-  return text.trim().toLowerCase() === 'continuar'
 }
 
 function cellHasExerciseFeedback(
@@ -135,6 +108,17 @@ function cellHasExerciseFeedback(
   )
 }
 
+function appendTrailMessage(
+  prev: ChatMessage[],
+  msg: ChatMessage,
+): ChatMessage[] {
+  if (msg.cellKey && prev.some((m) => m.cellKey === msg.cellKey || m.id === msg.id)) {
+    return prev
+  }
+  if (prev.some((m) => m.id === msg.id)) return prev
+  return [...prev, msg]
+}
+
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const session = getSession()!
@@ -152,6 +136,8 @@ export default function PlayerPage() {
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
+  const contentRef = useRef(content)
+  contentRef.current = content
 
   const persistLog = useCallback(
     async (input: {
@@ -191,7 +177,7 @@ export default function PlayerPage() {
       setHistoryReady(true)
 
       if (data.status === 'ok') {
-        const key = `${data.stage_number}-${data.question_number}`
+        const key = trailCellKey(data.stage_number, data.question_number)
         const options =
           data.stage_type === 'exercise'
             ? normalizeExerciseOptions(data.options)
@@ -215,7 +201,13 @@ export default function PlayerPage() {
             l.sender === 'system' &&
             l.stage_number === data.stage_number &&
             l.question_number === data.question_number &&
-            String(l.message_text ?? '').trim() === text.trim(),
+            (l.message_type === 'instruction' ||
+              l.message_type === 'exercise' ||
+              (l.metadata &&
+                typeof l.metadata === 'object' &&
+                ['trail-ai', 'next-content'].includes(
+                  String((l.metadata as { source?: string }).source ?? ''),
+                ))),
         )
         // AI já persiste no ensure-ai; fixed/exercise gravam na primeira entrega.
         if (
@@ -224,15 +216,16 @@ export default function PlayerPage() {
           deliveredKeyRef.current !== key
         ) {
           deliveredKeyRef.current = key
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `a-${key}-${Date.now()}`,
+          const msgId = trailMessageId(data.stage_number, data.question_number)
+          setMessages((prev) =>
+            appendTrailMessage(prev, {
+              id: msgId,
               role: 'assistant',
               text,
               stageType: data.stage_type,
-            },
-          ])
+              cellKey: key,
+            }),
+          )
           void persistLog({
             sender: 'system',
             message_text: text,
@@ -255,15 +248,16 @@ export default function PlayerPage() {
                   (l.metadata as { source?: string }).source === 'trail-ai')),
           )
           if (!hasAi && text) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `a-${key}-${Date.now()}`,
+            const msgId = trailMessageId(data.stage_number, data.question_number)
+            setMessages((prev) =>
+              appendTrailMessage(prev, {
+                id: msgId,
                 role: 'assistant',
                 text,
                 stageType: 'ai',
-              },
-            ])
+                cellKey: key,
+              }),
+            )
           }
         }
       } else {
@@ -300,7 +294,7 @@ export default function PlayerPage() {
       top: threadRef.current.scrollHeight,
       behavior: 'smooth',
     })
-  }, [messages, content, exerciseDone, mariaSidechat])
+  }, [messages, content, exerciseDone, mariaSidechat, busy])
 
   useEffect(() => {
     if (content?.status === 'ok' && content.stage_type !== 'exercise') {
@@ -309,115 +303,117 @@ export default function PlayerPage() {
   }, [content])
 
   /**
-   * Após Continuar: só busca next-content (não recarrega 700+ logs do histórico).
-   * O advance já aquece IA do destino quando necessário.
+   * Após Continuar: só busca next-content (não recarrega 700+ logs).
+   * Dedupe por célula; em erro reconcilia content.
    */
   async function loadNextAfterAdvance() {
     setExerciseDone(false)
     setMariaSidechat(false)
-    const data = await fetchNextContent(session.student_id, trailId)
-    setContent(data)
-    if (data.status !== 'ok') {
-      const key = `status-${data.status}`
-      if (deliveredKeyRef.current !== key) {
-        deliveredKeyRef.current = key
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `sys-${key}-${Date.now()}`,
-            role: 'system',
-            text: statusToSystemText(data),
-          },
-        ])
+    try {
+      const data = await fetchNextContent(session.student_id, trailId)
+      // Atualiza content ANTES de liberar composer (evita exercício fantasma).
+      setContent(data)
+      if (data.status !== 'ok') {
+        const key = `status-${data.status}`
+        if (deliveredKeyRef.current !== key) {
+          deliveredKeyRef.current = key
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `sys-${key}-${Date.now()}`,
+              role: 'system',
+              text: statusToSystemText(data),
+            },
+          ])
+        }
+        return
       }
-      return
-    }
 
-    const key = `${data.stage_number}-${data.question_number}`
-    const options =
-      data.stage_type === 'exercise'
-        ? normalizeExerciseOptions(data.options)
-        : []
-    const text = contentToAssistantText(data, {
-      stripOptions: options.length > 0,
-    })
-    deliveredKeyRef.current = key
+      const key = trailCellKey(data.stage_number, data.question_number)
+      const options =
+        data.stage_type === 'exercise'
+          ? normalizeExerciseOptions(data.options)
+          : []
+      const text = contentToAssistantText(data, {
+        stripOptions: options.length > 0,
+      })
+      deliveredKeyRef.current = key
+      const msgId = trailMessageId(data.stage_number, data.question_number)
 
-    if (data.stage_type === 'exercise') {
-      setExerciseDone(false)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${key}-${Date.now()}`,
+      if (data.stage_type === 'exercise') {
+        setExerciseDone(false)
+        setMessages((prev) =>
+          appendTrailMessage(prev, {
+            id: msgId,
+            role: 'assistant',
+            text,
+            stageType: 'exercise',
+            cellKey: key,
+          }),
+        )
+        void persistLog({
+          sender: 'system',
+          message_text: text,
+          stage_number: data.stage_number,
+          question_number: data.question_number,
+          message_type: 'exercise',
+          metadata: { source: 'next-content', stage_type: 'exercise' },
+        })
+        return
+      }
+
+      if (data.stage_type === 'ai') {
+        if (text) {
+          setMessages((prev) =>
+            appendTrailMessage(prev, {
+              id: msgId,
+              role: 'assistant',
+              text,
+              stageType: 'ai',
+              cellKey: key,
+            }),
+          )
+        }
+        return
+      }
+
+      // fixed
+      setMessages((prev) =>
+        appendTrailMessage(prev, {
+          id: msgId,
           role: 'assistant',
           text,
-          stageType: 'exercise',
-        },
-      ])
+          stageType: data.stage_type,
+          cellKey: key,
+        }),
+      )
       void persistLog({
         sender: 'system',
         message_text: text,
         stage_number: data.stage_number,
         question_number: data.question_number,
-        message_type: 'exercise',
-        metadata: { source: 'next-content', stage_type: 'exercise' },
+        message_type: 'instruction',
+        metadata: { source: 'next-content', stage_type: data.stage_type },
       })
-      return
-    }
-
-    if (data.stage_type === 'ai') {
-      if (text) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a-${key}-${Date.now()}`,
-            role: 'assistant',
-            text,
-            stageType: 'ai',
-          },
-        ])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar etapa.')
+      try {
+        const reconciled = await fetchNextContent(session.student_id, trailId)
+        setContent(reconciled)
+      } catch {
+        /* ignore */
       }
-      return
+      throw err
     }
-
-    // fixed
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `a-${key}-${Date.now()}`,
-        role: 'assistant',
-        text,
-        stageType: data.stage_type,
-      },
-    ])
-    void persistLog({
-      sender: 'system',
-      message_text: text,
-      stage_number: data.stage_number,
-      question_number: data.question_number,
-      message_type: 'instruction',
-      metadata: { source: 'next-content', stage_type: data.stage_type },
-    })
   }
 
-  async function doAdvance(userLine: string) {
+  /** Avança sem bolha "VOCÊ: Continuar". */
+  async function doAdvance() {
     if (content?.status !== 'ok') return
     setBusy(true)
     setError(null)
     setMariaSidechat(false)
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text: userLine },
-    ])
     setDraft('')
-    await persistLog({
-      sender: 'student',
-      message_text: userLine,
-      stage_number: content.stage_number,
-      question_number: content.question_number,
-      message_type: 'text',
-      metadata: { source: 'continuar' },
-    })
     try {
       const result = await advanceTrail(session.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
@@ -438,11 +434,18 @@ export default function PlayerPage() {
       } else if (result.status === 'ok') {
         deliveredKeyRef.current = null
         await loadNextAfterAdvance()
+        window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       } else {
         setContent(result as NextContentStatus)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao avançar.')
+      try {
+        const reconciled = await fetchNextContent(session.student_id, trailId)
+        setContent(reconciled)
+      } catch {
+        /* ignore */
+      }
     } finally {
       setBusy(false)
     }
@@ -472,7 +475,7 @@ export default function PlayerPage() {
         {
           id: `m-${Date.now()}`,
           role: 'assistant',
-          text: result.reply,
+          text: lightStripMarkdown(result.reply),
         },
       ])
       setMariaSidechat(true)
@@ -486,6 +489,33 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     setMariaSidechat(false)
     setError(null)
+    const current = contentRef.current
+    if (current?.status !== 'ok') return
+
+    const key = trailCellKey(current.stage_number, current.question_number)
+    const resumeId = `trail-resume-${key}`
+    const options =
+      current.stage_type === 'exercise'
+        ? normalizeExerciseOptions(current.options)
+        : []
+    const body = contentToAssistantText(current, {
+      stripOptions: options.length > 0,
+    })
+    const text = `Continuando a trilha:\n\n${body}`
+
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === resumeId)) return prev
+      return [
+        ...prev,
+        {
+          id: resumeId,
+          role: 'assistant',
+          text,
+          stageType: current.stage_type,
+          cellKey: undefined,
+        },
+      ]
+    })
   }
 
   async function onOptionClick(option: ExerciseOption) {
@@ -516,17 +546,18 @@ export default function PlayerPage() {
           : attempt.is_correct
             ? 'Resposta correta!'
             : 'Resposta incorreta.'
-      const feedbackParts = [
-        resultLabel,
-        content.explanation?.trim() || null,
-      ].filter(Boolean)
+      const rich =
+        content.explanation?.trim() ||
+        attempt.pedagogical_feedback?.trim() ||
+        null
+      const feedbackParts = [resultLabel, rich].filter(Boolean)
       const feedbackText = feedbackParts.join('\n\n')
       setMessages((prev) => [
         ...prev,
         {
           id: `f-${Date.now()}`,
           role: 'assistant',
-          text: feedbackText,
+          text: lightStripMarkdown(feedbackText),
           stageType: 'exercise',
         },
       ])
@@ -568,7 +599,8 @@ export default function PlayerPage() {
     if (!trimmed) return
 
     if (isContinuarText(trimmed)) {
-      await doAdvance('Continuar')
+      // Mesmo path silencioso do botão — sem bolha "Continuar".
+      await doAdvance()
       return
     }
 
@@ -611,7 +643,7 @@ export default function PlayerPage() {
     content?.status !== 'ok'
       ? 'Trilha indisponível no momento'
       : content.stage_type === 'exercise'
-        ? 'Escolha uma das opções'
+        ? 'Responda a questão'
         : mariaSidechat
           ? 'Pergunte mais à Maria ou volte para a trilha…'
           : 'Pergunte à Maria ou digite continuar…'
@@ -639,12 +671,50 @@ export default function PlayerPage() {
                   : 'Sistema'}
             </p>
             <div className="chat-bubble__body">
-              {msg.text.split('\n').map((line, i) => (
-                <p key={i}>{stripDecorTitle(line) || '\u00a0'}</p>
-              ))}
+              {renderMessageLines(msg.text).map((part) => {
+                if (part.kind === 'image') {
+                  return (
+                    <p key={part.key} className="chat-bubble__media">
+                      <img src={part.value} alt="" loading="lazy" />
+                    </p>
+                  )
+                }
+                if (part.kind === 'link') {
+                  return (
+                    <p key={part.key}>
+                      <a
+                        href={part.value}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="chat-bubble__link"
+                      >
+                        {part.label || part.value}
+                      </a>
+                    </p>
+                  )
+                }
+                return <p key={part.key}>{part.value || '\u00a0'}</p>
+              })}
             </div>
           </article>
         ))}
+
+        {busy ? (
+          <article
+            className="chat-bubble chat-bubble--assistant chat-bubble--typing"
+            aria-live="polite"
+            aria-label="Maria está digitando"
+          >
+            <p className="chat-bubble__label">Maria</p>
+            <div className="chat-bubble__body">
+              <span className="typing-dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </div>
+          </article>
+        ) : null}
 
         {!historyReady || !content ? (
           <p className="muted chat-thread__loading">Carregando…</p>
@@ -655,7 +725,7 @@ export default function PlayerPage() {
         !exerciseDone &&
         options.length > 0 ? (
           <div className="chat-exercise" role="group" aria-label="Opções">
-            <p className="chat-exercise__legend">Escolha uma opção</p>
+            <p className="chat-exercise__legend">Responda a questão</p>
             <div className="chat-exercise__options">
               {options.map((opt) => (
                 <button
@@ -691,7 +761,7 @@ export default function PlayerPage() {
               type="button"
               className="chat-continue__btn"
               disabled={busy}
-              onClick={() => void doAdvance('Continuar')}
+              onClick={() => void doAdvance()}
             >
               Continuar
             </button>
@@ -717,7 +787,7 @@ export default function PlayerPage() {
             disabled={!canSend || !draft.trim()}
             aria-label="Enviar"
           >
-            {busy ? '…' : 'Enviar'}
+            Enviar
           </button>
         </form>
         {content?.status === 'ok' ? (
@@ -725,9 +795,9 @@ export default function PlayerPage() {
             {content.stage_type === 'exercise'
               ? exerciseDone
                 ? 'Use Continuar para avançar a trilha'
-                : 'Escolha uma das opções acima para responder'
+                : 'Responda a questão pelas opções acima'
               : mariaSidechat
-                ? 'Voltar para trilha restaura o Continuar da etapa'
+                ? 'Voltar para trilha reexibe o passo atual'
                 : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}
           </p>
         ) : null}

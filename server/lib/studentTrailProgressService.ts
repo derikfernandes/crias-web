@@ -74,6 +74,131 @@ export type IdentifyOk = {
   phone_number: string
 }
 
+/** Detecta stage AI pedagógico de feedback (BLOCO RESPOSTA). */
+export function isBlocoRespostaStage(
+  prompt: string | null | undefined,
+  title?: string | null,
+): boolean {
+  const p = (prompt ?? '').toUpperCase()
+  const t = (title ?? '').toUpperCase()
+  return (
+    p.includes('BLOCO RESPOSTA') ||
+    p.includes('OBJETIVO - BLOCO RESPOSTA') ||
+    (t.includes('RESPOSTA') && !t.includes('PERGUNTA'))
+  )
+}
+
+/**
+ * Garante/recupera o texto do próximo stage se for BLOCO RESPOSTA (AI).
+ * Usado no feedback pós-exercício — não avança o progresso do aluno.
+ */
+export async function ensureNextBlocoRespostaFeedback(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<string | null> {
+  try {
+    const { totalStages, maxQuestion } = await loadTrailCounts(
+      db,
+      input.trail_id,
+    )
+    if (totalStages < 1 || maxQuestion < 1) return null
+    const next = computeNextPosition({
+      current_stage_number: input.stage_number,
+      current_question_number: input.question_number,
+      total_stages: totalStages,
+      total_questions: maxQuestion,
+    })
+    if (next.completed) return null
+
+    const stagesCollection =
+      process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+    const stageSnap = await db
+      .collection(stagesCollection)
+      .doc(stageDocId(input.trail_id, next.next_stage_number))
+      .get()
+    if (!stageSnap.exists) return null
+    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+    if (asStageType(stageData.stage_type) !== 'ai') return null
+    const prompt =
+      typeof stageData.prompt === 'string' ? stageData.prompt : null
+    const title =
+      typeof stageData.title === 'string' ? stageData.title : null
+    if (!isBlocoRespostaStage(prompt, title)) return null
+
+    const { ensureTrailAiContent } = await import(
+      './trail-ai/ensureTrailAiContent.js'
+    )
+    const ensured = await ensureTrailAiContent(db, {
+      student_id: input.student_id,
+      trail_id: input.trail_id,
+      stage_number: next.next_stage_number,
+      question_number: next.next_question_number,
+    })
+    return ensured.content?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+/** Peek cache-only do próximo BLOCO RESPOSTA (sem Gemini). */
+export async function peekNextBlocoRespostaCached(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<string | null> {
+  try {
+    const { totalStages, maxQuestion } = await loadTrailCounts(
+      db,
+      input.trail_id,
+    )
+    if (totalStages < 1 || maxQuestion < 1) return null
+    const next = computeNextPosition({
+      current_stage_number: input.stage_number,
+      current_question_number: input.question_number,
+      total_stages: totalStages,
+      total_questions: maxQuestion,
+    })
+    if (next.completed) return null
+
+    const stagesCollection =
+      process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+    const stageSnap = await db
+      .collection(stagesCollection)
+      .doc(stageDocId(input.trail_id, next.next_stage_number))
+      .get()
+    if (!stageSnap.exists) return null
+    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+    if (asStageType(stageData.stage_type) !== 'ai') return null
+    const prompt =
+      typeof stageData.prompt === 'string' ? stageData.prompt : null
+    const title =
+      typeof stageData.title === 'string' ? stageData.title : null
+    if (!isBlocoRespostaStage(prompt, title)) return null
+
+    const { resolveDeliveredAiContent } = await import(
+      './trail-ai/resolveDeliveredAiContent.js'
+    )
+    const hit = await resolveDeliveredAiContent(db, {
+      student_id: input.student_id,
+      trail_id: input.trail_id,
+      stage_number: next.next_stage_number,
+      question_number: next.next_question_number,
+    })
+    return hit?.message_text?.trim() || null
+  } catch {
+    return null
+  }
+}
+
 /** Pure grade logic — aligned with specs/tests.yaml trail_progression. */
 export function computeNextPosition(input: {
   current_stage_number: number
@@ -501,7 +626,7 @@ export async function getNextContent(
       : null
   let content =
     typeof questionData.content === 'string' ? questionData.content : null
-  const explanation =
+  let explanation =
     typeof questionData.explanation === 'string'
       ? questionData.explanation
       : null
@@ -544,6 +669,17 @@ export async function getNextContent(
   // Com botões clicáveis, não deixar as opções só como texto estático no content.
   if (stageType === 'exercise' && options && options.length > 0) {
     content = stripLetteredChoicesFromContent(content) ?? content
+  }
+
+  // Se explanation null e o próximo stage (cache) é BLOCO RESPOSTA, superficie na UI.
+  if (stageType === 'exercise' && !explanation?.trim()) {
+    const cachedBloco = await peekNextBlocoRespostaCached(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      stage_number: pos.current_stage_number,
+      question_number: pos.current_question_number,
+    })
+    if (cachedBloco) explanation = cachedBloco
   }
 
   // Prefetch da próxima célula AI — caller deve waitUntil(background) no Vercel.

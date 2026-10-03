@@ -25,6 +25,12 @@ export type DeliveredAiContent = {
   log_id: string
 }
 
+const PENDING_STALE_MS = 45_000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 /**
  * Persiste (ou atualiza) o cache O(1) da entrega trail-ai da célula.
  * Idempotente — seguro chamar após generate ou após backfill do log scan.
@@ -63,11 +69,171 @@ export async function upsertTrailAiDeliveryCache(
         question_number: input.question_number,
         message_text: text,
         log_id: input.log_id ?? null,
+        status: 'ready',
         source: 'trail-ai',
         updated_at_ms: Date.now(),
       },
       { merge: true },
     )
+}
+
+export type TrailAiClaimResult =
+  | { kind: 'ready'; content: DeliveredAiContent }
+  | { kind: 'claimed' }
+  | { kind: 'pending' }
+
+/**
+ * Gate atômico create-if-absent em `trail_ai_deliveries/{cell}`:
+ * - ready → devolve texto
+ * - claimed → este caller pode gerar Gemini
+ * - pending → outro caller está gerando
+ */
+export async function claimTrailAiGeneration(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<TrailAiClaimResult> {
+  const studentId = input.student_id.trim()
+  const trailId = input.trail_id.trim()
+  if (!studentId || !trailId) return { kind: 'pending' }
+  if (input.stage_number < 1 || input.question_number < 1) {
+    return { kind: 'pending' }
+  }
+
+  const ready = await resolveDeliveredAiContent(db, input)
+  if (ready) return { kind: 'ready', content: ready }
+
+  const id = trailAiDeliveryDocId(
+    studentId,
+    trailId,
+    input.stage_number,
+    input.question_number,
+  )
+  const ref = db.collection(trailAiDeliveriesCollection()).doc(id)
+  const now = Date.now()
+
+  try {
+    await ref.create({
+      student_id: studentId,
+      trail_id: trailId,
+      stage_number: input.stage_number,
+      question_number: input.question_number,
+      status: 'pending',
+      source: 'trail-ai',
+      claimed_at_ms: now,
+      updated_at_ms: now,
+      message_text: null,
+      log_id: null,
+    })
+    return { kind: 'claimed' }
+  } catch {
+    // Doc já existe — ready, pending ou legado.
+  }
+
+  const again = await resolveDeliveredAiContent(db, input)
+  if (again) return { kind: 'ready', content: again }
+
+  const snap = await ref.get()
+  if (!snap.exists) return { kind: 'claimed' }
+  const data = (snap.data() ?? {}) as Record<string, unknown>
+  const status = typeof data.status === 'string' ? data.status : ''
+  const claimedAt =
+    typeof data.claimed_at_ms === 'number' ? data.claimed_at_ms : 0
+  const text =
+    typeof data.message_text === 'string' ? data.message_text.trim() : ''
+
+  if (text && (status === 'ready' || !status)) {
+    return {
+      kind: 'ready',
+      content: {
+        message_text: text,
+        log_id: typeof data.log_id === 'string' ? data.log_id : id,
+      },
+    }
+  }
+
+  if (status === 'failed' || (status === 'pending' && now - claimedAt > PENDING_STALE_MS)) {
+    await ref.set(
+      {
+        status: 'pending',
+        claimed_at_ms: now,
+        updated_at_ms: now,
+        message_text: null,
+        log_id: null,
+      },
+      { merge: true },
+    )
+    return { kind: 'claimed' }
+  }
+
+  return { kind: 'pending' }
+}
+
+/** Espera o doc pending virar ready (ou some). */
+export async function waitForTrailAiDelivery(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<DeliveredAiContent | null> {
+  const timeoutMs = opts?.timeoutMs ?? 12_000
+  const intervalMs = opts?.intervalMs ?? 200
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const hit = await resolveDeliveredAiContent(db, input)
+    if (hit) return hit
+    const id = trailAiDeliveryDocId(
+      input.student_id.trim(),
+      input.trail_id.trim(),
+      input.stage_number,
+      input.question_number,
+    )
+    const snap = await db.collection(trailAiDeliveriesCollection()).doc(id).get()
+    if (!snap.exists) return null
+    const data = (snap.data() ?? {}) as Record<string, unknown>
+    const status = typeof data.status === 'string' ? data.status : ''
+    if (status === 'failed') return null
+    await sleep(intervalMs)
+  }
+  return resolveDeliveredAiContent(db, input)
+}
+
+/** Libera claim pending em falha de geração (permite retry). */
+export async function releaseTrailAiClaim(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<void> {
+  const id = trailAiDeliveryDocId(
+    input.student_id.trim(),
+    input.trail_id.trim(),
+    input.stage_number,
+    input.question_number,
+  )
+  const ref = db.collection(trailAiDeliveriesCollection()).doc(id)
+  try {
+    const snap = await ref.get()
+    if (!snap.exists) return
+    const data = (snap.data() ?? {}) as Record<string, unknown>
+    const text =
+      typeof data.message_text === 'string' ? data.message_text.trim() : ''
+    if (text || data.status === 'ready') return
+    await ref.delete()
+  } catch {
+    /* best-effort */
+  }
 }
 
 function asPositiveInt(v: unknown): number | null {
@@ -135,9 +301,11 @@ export async function resolveDeliveredAiContent(
     .get()
   if (cacheSnap.exists) {
     const data = (cacheSnap.data() ?? {}) as Record<string, unknown>
+    const status = typeof data.status === 'string' ? data.status : ''
     const text =
       typeof data.message_text === 'string' ? data.message_text.trim() : ''
-    if (text) {
+    // pending/failed sem texto ≠ hit (evita double-generate e falso positivo).
+    if (text && (status === 'ready' || status === '' || !status)) {
       return {
         message_text: text,
         log_id: typeof data.log_id === 'string' ? data.log_id : cacheId,

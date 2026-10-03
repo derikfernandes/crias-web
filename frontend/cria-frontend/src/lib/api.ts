@@ -119,6 +119,8 @@ export type ExerciseAttemptResult = {
   is_correct: boolean
   score: number | null
   feedback?: string | null
+  /** Texto do BLOCO RESPOSTA (stage AI seguinte), quando disponível. */
+  pedagogical_feedback?: string | null
   attempt_number: number
 }
 

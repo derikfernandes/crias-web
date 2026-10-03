@@ -40,6 +40,7 @@ import {
   isTrailDeliveryLog,
   logsToMessages,
   looksLikeLessonConclusion,
+  mediaHintForText,
   normalizeTitleKey,
   parseInlineMarkdown,
   renderMessageLines,
@@ -250,9 +251,20 @@ function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: strin
   })
 }
 
-/** R08-M11: aviso de destino externo no chrome do link (sem hardcodar host). */
+/** C2-R11 N03: label visível curto — sem “(abre em nova aba)” no chip. */
 function externalLinkLabel(label: string | undefined, href: string): string {
-  const base = (label || href).trim()
+  return (label || href)
+    .trim()
+    .replace(/\s*\(abre em nova aba\)\s*/gi, '')
+    .trim()
+}
+
+/** R08-M11 / C2-R11 N03: cue de nova aba só no aria-label. */
+function externalLinkAriaLabel(
+  label: string | undefined,
+  href: string,
+): string {
+  const base = externalLinkLabel(label, href)
   if (/abre em nova aba/i.test(base)) return base
   return `${base} (abre em nova aba)`
 }
@@ -328,6 +340,7 @@ function renderMessagePart(
   }
   if (part.kind === 'embed' && part.embedUrl) {
     const openLabel = externalLinkLabel(part.label, part.value)
+    const openAria = externalLinkAriaLabel(part.label, part.value)
     return (
       <div
         key={part.key}
@@ -343,7 +356,7 @@ function renderMessagePart(
           target="_blank"
           rel="noopener noreferrer"
           className="chat-bubble__link chat-bubble__link--chip"
-          aria-label={openLabel}
+          aria-label={openAria}
           onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
           {openLabel}
@@ -353,6 +366,7 @@ function renderMessagePart(
   }
   if (part.kind === 'link') {
     const openLabel = externalLinkLabel(part.label, part.value)
+    const openAria = externalLinkAriaLabel(part.label, part.value)
     return (
       <p key={part.key}>
         <a
@@ -360,7 +374,7 @@ function renderMessagePart(
           target="_blank"
           rel="noopener noreferrer"
           className="chat-bubble__link chat-bubble__link--chip"
-          aria-label={openLabel}
+          aria-label={openAria}
           onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
           {openLabel}
@@ -996,8 +1010,8 @@ export default function PlayerPage() {
   }, [exercisePhase])
 
   /**
-   * R24-LS06: em landscape curto, ancora mídia/link da etapa atual
-   * (fecho da aula + CTA YT) sem scroll cego.
+   * R24-LS06 / C2-R11 N02: em landscape curto, ancora o frame da etapa
+   * atual na faixa útil (lesson-card primeiro — não embed antigo do hist).
    */
   useEffect(() => {
     if (content?.status !== 'ok') return
@@ -1006,38 +1020,47 @@ export default function PlayerPage() {
       '(orientation: landscape) and (max-height: 500px)',
     )
     if (!landShort.matches) return
-    if (pinnedAwayRef.current) return
 
     const run = () => {
+      // Usuário pinou de propósito (scroll up) — não brigar.
+      if (userScrollUpGestureRef.current) return
       const scroller = threadRef.current
       if (!scroller) return
       const key = trailCellKey(content.stage_number, content.question_number)
       const cell = scroller.querySelector(
         `[data-cell-key="${key}"]`,
       ) as HTMLElement | null
+      const currentStep = scroller.querySelector(
+        '[data-current-step="true"]',
+      ) as HTMLElement | null
+      const scope = currentStep || cell || scroller
+      const frame = scope.querySelector(
+        '.chat-bubble__embed-frame',
+      ) as HTMLElement | null
       const media =
-        (cell?.querySelector(
-          '.chat-bubble__embed, .chat-bubble__media, .chat-bubble__link',
-        ) as HTMLElement | null) ||
-        (scroller.querySelector(
+        frame ||
+        (scope.querySelector(
           '.chat-bubble__embed, .chat-bubble__media',
         ) as HTMLElement | null)
       if (media) {
-        media.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+        media.scrollIntoView({ block: 'center', inline: 'nearest' })
+        pinnedAwayRef.current = false
+        nearBottomRef.current = isScrollNearBottom(scroller)
         return
       }
       cell?.scrollIntoView({ block: 'end', inline: 'nearest' })
     }
 
-    const t = window.setTimeout(() => {
-      requestAnimationFrame(run)
-    }, 80)
+    // Após âncora near-bottom (~280ms) e paint do skeleton do embed.
+    const t1 = window.setTimeout(() => requestAnimationFrame(run), 120)
+    const t2 = window.setTimeout(() => requestAnimationFrame(run), 380)
     const onOrient = () => {
       if (landShort.matches) requestAnimationFrame(run)
     }
     window.addEventListener('orientationchange', onOrient)
     return () => {
-      window.clearTimeout(t)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
       window.removeEventListener('orientationchange', onOrient)
     }
   }, [content])
@@ -2532,9 +2555,14 @@ export default function PlayerPage() {
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
    * (outline) para não competir com a mídia como CTA verde primário.
    */
+  const currentStageAssistantText =
+    content?.status === 'ok' ? contentToAssistantText(content) : ''
   const currentStageHasEmbed =
-    content?.status === 'ok' &&
-    textHasEmbed(contentToAssistantText(content))
+    content?.status === 'ok' && textHasEmbed(currentStageAssistantText)
+  /** C2-R11 N01: hint por kind (Vídeo / Material / Mídia). */
+  const currentStageMediaHint = currentStageHasEmbed
+    ? mediaHintForText(currentStageAssistantText)
+    : null
 
   const markExternalMediaOpen = useCallback((msgId: string, href: string) => {
     externalMediaOpenRef.current = { msgId, href, at: Date.now() }
@@ -3227,9 +3255,9 @@ export default function PlayerPage() {
                   : ''
               }`}
             >
-              {currentStageHasEmbed && !trailBusy ? (
+              {currentStageMediaHint && !trailBusy ? (
                 <p className="chat-cta-slot__media-hint">
-                  Vídeo na etapa — Continuar trilha quando quiser
+                  {currentStageMediaHint}
                 </p>
               ) : null}
               <button

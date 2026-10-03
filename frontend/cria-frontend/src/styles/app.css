@@ -1108,7 +1108,10 @@ a.ghost:hover {
     animation: backdrop-in 0.24s ease-out both;
   }
 
+  /* Acima da sidebar (30) e do backdrop (25) — senão “Fechar menu” cai em “+ Minhas trilhas”. */
   .chat-topbar__menu {
     display: inline-flex;
+    position: relative;
+    z-index: 40;
   }
 }

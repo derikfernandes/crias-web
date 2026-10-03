@@ -37,6 +37,14 @@ import {
 /** Quantas bolhas recentes ficam visíveis antes do colapso de histórico. */
 const HISTORY_VISIBLE_TAIL = 28
 
+/** Evita flash de typing em respostas &lt; ~150ms. */
+const TYPING_MIN_DELAY_MS = 200
+
+/** Distância do fim para considerar “sticky bottom”. */
+const STICKY_BOTTOM_PX = 120
+
+type BusyReason = 'maria' | 'trail' | 'exercise' | null
+
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
 function stripOptionLines(text: string): string {
   const re = /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+.+\s*$/
@@ -112,6 +120,10 @@ function cellHasExerciseFeedback(
   )
 }
 
+function markAnimate(msg: ChatMessage, extra?: Partial<ChatMessage>): ChatMessage {
+  return { ...msg, animate: true, ...extra }
+}
+
 /**
  * Entrega visual do passo: se a célula já existe, reancora no fim
  * (replay) em vez de no-op — corrige Continuar pós-Voltar (R01).
@@ -121,6 +133,7 @@ function appendTrailMessage(
   prev: ChatMessage[],
   msg: ChatMessage,
 ): { messages: ChatMessage[]; isNew: boolean } {
+  const animated = markAnimate(msg)
   if (msg.cellKey) {
     const had = prev.some(
       (m) => m.cellKey === msg.cellKey || m.id === msg.id,
@@ -133,7 +146,7 @@ function appendTrailMessage(
         messages: [
           ...without,
           {
-            ...msg,
+            ...animated,
             id: `trail-replay-${msg.cellKey}-${Date.now()}`,
           },
         ],
@@ -144,7 +157,44 @@ function appendTrailMessage(
   if (prev.some((m) => m.id === msg.id)) {
     return { messages: prev, isNew: false }
   }
-  return { messages: [...prev, msg], isNew: true }
+  return { messages: [...prev, animated], isNew: true }
+}
+
+function bubbleClassName(msg: ChatMessage): string {
+  const parts = [`chat-bubble`, `chat-bubble--${msg.role}`]
+  if (msg.animate) {
+    parts.push('chat-bubble--enter')
+    if (msg.role === 'user') parts.push('chat-bubble--enter-user')
+    else if (msg.role === 'assistant') parts.push('chat-bubble--enter-assistant')
+    if (msg.kind === 'resume') parts.push('chat-bubble--resume-flash')
+  }
+  return parts.join(' ')
+}
+
+function typingCopy(reason: BusyReason): {
+  label: string
+  aria: string
+  reduced: string
+} {
+  if (reason === 'maria') {
+    return {
+      label: 'Maria',
+      aria: 'Maria está digitando',
+      reduced: 'Maria está digitando…',
+    }
+  }
+  if (reason === 'exercise') {
+    return {
+      label: 'Crias',
+      aria: 'Preparando feedback da questão',
+      reduced: 'Preparando feedback…',
+    }
+  }
+  return {
+    label: 'Preparando etapa…',
+    aria: 'Preparando próxima etapa da trilha',
+    reduced: 'Preparando etapa…',
+  }
 }
 
 export default function PlayerPage() {
@@ -156,18 +206,46 @@ export default function PlayerPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [busyReason, setBusyReason] = useState<BusyReason>(null)
+  const [showTyping, setShowTyping] = useState(false)
   const [draft, setDraft] = useState('')
   const [exerciseDone, setExerciseDone] = useState(false)
+  const [pendingOptionKey, setPendingOptionKey] = useState<string | null>(null)
   /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela o histórico completo. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [newMsgChip, setNewMsgChip] = useState(false)
+  const [continuarLeaving, setContinuarLeaving] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
   const contentRef = useRef(content)
+  const nearBottomRef = useRef(true)
+  const skipSmoothScrollRef = useRef(true)
+  const reduceMotionRef = useRef(false)
   contentRef.current = content
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reduceMotionRef.current = mq.matches
+    const onChange = () => {
+      reduceMotionRef.current = mq.matches
+    }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  /** Typing só após delay mínimo — evita flash em cache hit. */
+  useEffect(() => {
+    if (!busy) {
+      setShowTyping(false)
+      return
+    }
+    const t = window.setTimeout(() => setShowTyping(true), TYPING_MIN_DELAY_MS)
+    return () => window.clearTimeout(t)
+  }, [busy])
 
   const persistLog = useCallback(
     async (input: {
@@ -195,13 +273,17 @@ export default function PlayerPage() {
   const loadHistoryAndContent = useCallback(async () => {
     setError(null)
     setExerciseDone(false)
+    setPendingOptionKey(null)
     setMariaSidechat(false)
     setHistoryReady(false)
+    setNewMsgChip(false)
+    skipSmoothScrollRef.current = true
     try {
       const [logs, data] = await Promise.all([
         fetchTrailHistory(session.student_id, trailId),
         fetchNextContent(session.student_id, trailId),
       ])
+      // History: sem animate — evita cascata no mount/relogin.
       setMessages(logsToMessages(logs))
       setContent(data)
       setHistoryReady(true)
@@ -301,11 +383,11 @@ export default function PlayerPage() {
           deliveredKeyRef.current = key
           setMessages((prev) => [
             ...prev,
-            {
+            markAnimate({
               id: `sys-${key}-${Date.now()}`,
               role: 'system',
               text: statusToSystemText(data),
-            },
+            }),
           ])
         }
       }
@@ -322,15 +404,46 @@ export default function PlayerPage() {
     setDraft('')
     setMariaSidechat(false)
     setHistoryExpanded(false)
+    setPendingOptionKey(null)
+    setBusy(false)
+    setBusyReason(null)
+    setContinuarLeaving(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
 
-  useEffect(() => {
-    threadRef.current?.scrollTo({
-      top: threadRef.current.scrollHeight,
-      behavior: 'smooth',
+  function updateNearBottom() {
+    const el = threadRef.current
+    if (!el) return
+    nearBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < STICKY_BOTTOM_PX
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
+    const el = threadRef.current
+    if (!el) return
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: reduceMotionRef.current ? 'auto' : behavior,
     })
-  }, [messages, content, exerciseDone, mariaSidechat, busy])
+    setNewMsgChip(false)
+    nearBottomRef.current = true
+  }
+
+  useEffect(() => {
+    if (!historyReady) return
+    if (skipSmoothScrollRef.current) {
+      skipSmoothScrollRef.current = false
+      scrollToBottom('auto')
+      return
+    }
+    if (nearBottomRef.current) {
+      scrollToBottom('smooth')
+    } else {
+      setNewMsgChip(true)
+    }
+    // messages/busy/content drive presence; intentional deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
 
   useEffect(() => {
     if (content?.status === 'ok' && content.stage_type !== 'exercise') {
@@ -344,6 +457,7 @@ export default function PlayerPage() {
    */
   async function loadNextAfterAdvance() {
     setExerciseDone(false)
+    setPendingOptionKey(null)
     setMariaSidechat(false)
     try {
       const data = await fetchNextContent(session.student_id, trailId)
@@ -355,11 +469,11 @@ export default function PlayerPage() {
           deliveredKeyRef.current = key
           setMessages((prev) => [
             ...prev,
-            {
+            markAnimate({
               id: `sys-${key}-${Date.now()}`,
               role: 'system',
               text: statusToSystemText(data),
-            },
+            }),
           ])
         }
         return
@@ -456,7 +570,9 @@ export default function PlayerPage() {
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
     if (content?.status !== 'ok') return
+    setContinuarLeaving(true)
     setBusy(true)
+    setBusyReason('trail')
     setError(null)
     setMariaSidechat(false)
     setDraft('')
@@ -471,11 +587,11 @@ export default function PlayerPage() {
         })
         setMessages((prev) => [
           ...prev,
-          {
+          markAnimate({
             id: `sys-${Date.now()}`,
             role: 'system',
             text: 'Parabéns! Você concluiu esta trilha.',
-          },
+          }),
         ])
       } else if (result.status === 'ok') {
         deliveredKeyRef.current = null
@@ -494,6 +610,8 @@ export default function PlayerPage() {
       }
     } finally {
       setBusy(false)
+      setBusyReason(null)
+      setContinuarLeaving(false)
     }
   }
 
@@ -502,10 +620,11 @@ export default function PlayerPage() {
     // Exercício: Maria bloqueada até Continuar após o feedback.
     if (content.stage_type === 'exercise') return
     setBusy(true)
+    setBusyReason('maria')
     setError(null)
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text: userLine },
+      markAnimate({ id: `u-${Date.now()}`, role: 'user', text: userLine }),
     ])
     setDraft('')
     try {
@@ -518,17 +637,18 @@ export default function PlayerPage() {
       })
       setMessages((prev) => [
         ...prev,
-        {
+        markAnimate({
           id: `m-${Date.now()}`,
           role: 'assistant',
           text: lightStripMarkdown(result.reply),
-        },
+        }),
       ])
       setMariaSidechat(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao falar com Maria.')
     } finally {
       setBusy(false)
+      setBusyReason(null)
     }
   }
 
@@ -559,17 +679,21 @@ export default function PlayerPage() {
         last.id.startsWith(`trail-resume-${key}-`) &&
         last.text === text
       if (lastIsSameResume) {
-        return [...prev.slice(0, -1), { ...last, id: resumeId, text }]
+        return [
+          ...prev.slice(0, -1),
+          markAnimate({ ...last, id: resumeId, text, kind: 'resume' }),
+        ]
       }
       return [
         ...prev,
-        {
+        markAnimate({
           id: resumeId,
           role: 'assistant',
           text,
           stageType: current.stage_type,
           cellKey: undefined,
-        },
+          kind: 'resume',
+        }),
       ]
     })
   }
@@ -580,11 +704,13 @@ export default function PlayerPage() {
     }
     if (exerciseDone) return
     setBusy(true)
+    setBusyReason('exercise')
+    setPendingOptionKey(option.key)
     setError(null)
     setMariaSidechat(false)
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, role: 'user', text: option.text },
+      markAnimate({ id: `u-${Date.now()}`, role: 'user', text: option.text }),
     ])
     try {
       const attempt = await submitExerciseAttempt({
@@ -614,12 +740,13 @@ export default function PlayerPage() {
       const feedbackText = feedbackParts.join('\n\n')
       setMessages((prev) => [
         ...prev,
-        {
+        markAnimate({
           id: `f-${Date.now()}`,
           role: 'assistant',
           text: lightStripMarkdown(feedbackText),
           stageType: 'exercise',
-        },
+          kind: 'feedback',
+        }),
       ])
       await persistLog({
         sender: 'student',
@@ -645,8 +772,10 @@ export default function PlayerPage() {
       setExerciseDone(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro no exercício.')
+      setPendingOptionKey(null)
     } finally {
       setBusy(false)
+      setBusyReason(null)
     }
   }
 
@@ -686,6 +815,7 @@ export default function PlayerPage() {
   const showContinuar =
     content?.status === 'ok' &&
     !busy &&
+    !continuarLeaving &&
     !mariaSidechat &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
@@ -714,6 +844,25 @@ export default function PlayerPage() {
           ? 'Pergunte mais à Maria ou volte para a trilha…'
           : 'Pergunte à Maria ou digite continuar…'
 
+  const hintKey =
+    content?.status !== 'ok'
+      ? 'off'
+      : content.stage_type === 'exercise'
+        ? exerciseDone
+          ? 'ex-done'
+          : 'ex-open'
+        : mariaSidechat
+          ? 'maria'
+          : 'trail'
+
+  const typing = typingCopy(busyReason)
+  const showCtaSlot =
+    content?.status === 'ok' &&
+    (showContinuar ||
+      showVoltarTrilha ||
+      continuarLeaving ||
+      (busy && busyReason === 'trail'))
+
   return (
     <div className="chat-thread">
       {error ? (
@@ -722,7 +871,11 @@ export default function PlayerPage() {
         </p>
       ) : null}
 
-      <div className="chat-thread__scroll" ref={threadRef}>
+      <div
+        className="chat-thread__scroll"
+        ref={threadRef}
+        onScroll={updateNearBottom}
+      >
         {!historyExpanded && hiddenHistoryCount > 0 ? (
           <div className="chat-history-collapse">
             <button
@@ -748,9 +901,10 @@ export default function PlayerPage() {
         {visibleMessages.map((msg) => (
           <article
             key={msg.id}
-            className={`chat-bubble chat-bubble--${msg.role}`}
+            className={bubbleClassName(msg)}
             data-stage-type={msg.stageType}
             data-cell-key={msg.cellKey || undefined}
+            data-animate={msg.animate ? 'true' : undefined}
           >
             <p className="chat-bubble__label">
               {msg.role === 'assistant'
@@ -788,19 +942,21 @@ export default function PlayerPage() {
           </article>
         ))}
 
-        {busy ? (
+        {busy && showTyping ? (
           <article
-            className="chat-bubble chat-bubble--assistant chat-bubble--typing"
+            className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}`}
             aria-live="polite"
-            aria-label="Maria está digitando"
+            aria-label={typing.aria}
+            data-busy-reason={busyReason || undefined}
           >
-            <p className="chat-bubble__label">Maria</p>
+            <p className="chat-bubble__label">{typing.label}</p>
             <div className="chat-bubble__body">
               <span className="typing-dots" aria-hidden="true">
                 <span />
                 <span />
                 <span />
               </span>
+              <span className="typing-dots__reduced">{typing.reduced}</span>
             </div>
           </article>
         ) : null}
@@ -816,45 +972,73 @@ export default function PlayerPage() {
           <div className="chat-exercise" role="group" aria-label="Opções">
             <p className="chat-exercise__legend">Responda a questão</p>
             <div className="chat-exercise__options">
-              {options.map((opt) => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  className="chat-exercise__option"
-                  disabled={busy}
-                  onClick={() => void onOptionClick(opt)}
-                >
-                  {opt.text}
-                </button>
-              ))}
+              {options.map((opt) => {
+                const selected = pendingOptionKey === opt.key
+                const dimmed = !!pendingOptionKey && !selected
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    className={[
+                      'chat-exercise__option',
+                      selected ? 'is-selected' : '',
+                      dimmed ? 'is-dimmed' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    disabled={busy || !!pendingOptionKey}
+                    onClick={() => void onOptionClick(opt)}
+                  >
+                    {opt.text}
+                  </button>
+                )
+              })}
             </div>
           </div>
         ) : null}
 
-        {showVoltarTrilha ? (
-          <div className="chat-continue chat-continue--sidechat">
-            <button
-              type="button"
-              className="chat-continue__btn chat-continue__btn--secondary"
-              disabled={busy}
-              onClick={onVoltarParaTrilha}
-            >
-              Voltar para trilha
-            </button>
+        {showCtaSlot ? (
+          <div
+            className={`chat-cta-slot${continuarLeaving || (busy && busyReason === 'trail') ? ' chat-cta-slot--busy' : ''}`}
+          >
+            {showVoltarTrilha ? (
+              <div className="chat-continue chat-continue--sidechat chat-continue--enter">
+                <button
+                  type="button"
+                  className="chat-continue__btn chat-continue__btn--secondary"
+                  disabled={busy}
+                  onClick={onVoltarParaTrilha}
+                >
+                  Voltar para trilha
+                </button>
+              </div>
+            ) : null}
+
+            {showContinuar || continuarLeaving ? (
+              <div
+                className={`chat-continue${continuarLeaving ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
+              >
+                <button
+                  type="button"
+                  className="chat-continue__btn"
+                  disabled={busy || continuarLeaving}
+                  onClick={() => void doAdvance()}
+                >
+                  Continuar
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {showContinuar ? (
-          <div className="chat-continue">
-            <button
-              type="button"
-              className="chat-continue__btn"
-              disabled={busy}
-              onClick={() => void doAdvance()}
-            >
-              Continuar
-            </button>
-          </div>
+        {newMsgChip ? (
+          <button
+            type="button"
+            className="chat-new-msg-chip"
+            onClick={() => scrollToBottom('smooth')}
+          >
+            Nova mensagem
+          </button>
         ) : null}
       </div>
 
@@ -880,7 +1064,7 @@ export default function PlayerPage() {
           </button>
         </form>
         {content?.status === 'ok' ? (
-          <p className="muted chat-composer__hint">
+          <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {content.stage_type === 'exercise'
               ? exerciseDone
                 ? 'Use Continuar para avançar a trilha'

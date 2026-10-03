@@ -6,6 +6,10 @@ export type ChatMessage = {
   text: string
   stageType?: 'ai' | 'fixed' | 'exercise'
   cellKey?: string
+  /** Só mensagens novas (pós-historyReady) entram com motion. */
+  animate?: boolean
+  /** Resume pós-Voltar — highlight de borda 1 ciclo. */
+  kind?: 'resume' | 'feedback'
 }
 
 /** Remove *markdown* / # headings soltos usados como título. */

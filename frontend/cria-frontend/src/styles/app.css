@@ -441,7 +441,22 @@ a.ghost:hover {
 .chat-bubble {
   width: 100%;
   padding: 1.15rem 0;
+}
+
+/* Só mensagens novas (flag animate) entram com motion — history no mount fica quieto. */
+.chat-bubble--enter-assistant,
+.chat-bubble--enter:not(.chat-bubble--enter-user) {
   animation: bubble-in 0.28s ease-out both;
+}
+
+.chat-bubble--enter-user {
+  animation: bubble-in-user 0.28s ease-out both;
+}
+
+.chat-bubble--resume-flash {
+  animation:
+    bubble-in 0.28s ease-out both,
+    resume-border 0.9s ease-out;
 }
 
 .chat-bubble--user {
@@ -510,22 +525,24 @@ a.ghost:hover {
 
 .chat-bubble--typing .chat-bubble__body {
   min-height: 1.5rem;
+  display: flex;
+  align-items: center;
 }
 
 .typing-dots {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.38rem;
   padding: 0.35rem 0.15rem;
 }
 
 .typing-dots span {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.48rem;
+  height: 0.48rem;
   border-radius: 50%;
   background: var(--muted);
-  opacity: 0.35;
-  animation: typing-bounce 1.2s ease-in-out infinite;
+  opacity: 0.4;
+  animation: typing-bounce 1.28s ease-in-out infinite;
 }
 
 .typing-dots span:nth-child(1) {
@@ -533,11 +550,17 @@ a.ghost:hover {
 }
 
 .typing-dots span:nth-child(2) {
-  animation-delay: 0.18s;
+  animation-delay: 0.16s;
 }
 
 .typing-dots span:nth-child(3) {
-  animation-delay: 0.36s;
+  animation-delay: 0.32s;
+}
+
+.typing-dots__reduced {
+  display: none;
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
 @keyframes typing-bounce {
@@ -545,22 +568,84 @@ a.ghost:hover {
   60%,
   100% {
     transform: translateY(0);
-    opacity: 0.35;
+    opacity: 0.4;
   }
   30% {
-    transform: translateY(-4px);
-    opacity: 1;
+    transform: translateY(-5px);
+    opacity: 0.95;
   }
 }
 
 @keyframes bubble-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes bubble-in-user {
+  from {
+    opacity: 0;
+    transform: translateX(10px) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+@keyframes resume-border {
+  0% {
+    box-shadow: inset 3px 0 0 0 var(--accent);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 0 transparent;
+  }
+}
+
+@keyframes cta-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cta-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes hint-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -626,6 +711,10 @@ a.ghost:hover {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.chat-composer__hint--fade {
+  animation: hint-fade 0.28s ease-out both;
+}
+
 .chat-exercise {
   max-width: 48rem;
   width: calc(100% - 2.5rem);
@@ -666,9 +755,26 @@ a.ghost:hover {
   background: rgba(25, 195, 125, 0.12);
 }
 
+.chat-exercise__option:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.chat-exercise__option.is-selected {
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.18);
+  opacity: 1;
+}
+
+.chat-exercise__option.is-dimmed {
+  opacity: 0.4;
+}
+
 .chat-exercise__option:disabled {
-  opacity: 0.55;
   cursor: not-allowed;
+}
+
+.chat-exercise__option:disabled:not(.is-selected) {
+  opacity: 0.55;
 }
 
 .chat-exercise__hint {
@@ -678,12 +784,33 @@ a.ghost:hover {
   color: var(--muted);
 }
 
-.chat-continue {
+.chat-cta-slot {
   max-width: 48rem;
   width: calc(100% - 2.5rem);
+  min-height: 3.5rem;
   margin: 0.25rem auto 1.25rem;
   display: flex;
+  align-items: center;
   justify-content: flex-start;
+}
+
+.chat-cta-slot--busy {
+  opacity: 0.85;
+}
+
+.chat-continue {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chat-continue--enter {
+  animation: cta-in 0.22s ease-out both;
+}
+
+.chat-continue--leaving {
+  animation: cta-out 0.18s ease-out both;
+  pointer-events: none;
 }
 
 .chat-continue__btn {
@@ -695,11 +822,15 @@ a.ghost:hover {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease;
+  transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s ease;
 }
 
 .chat-continue__btn:hover:not(:disabled) {
   transform: translateY(-1px);
+}
+
+.chat-continue__btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .chat-continue__btn:disabled {
@@ -720,6 +851,61 @@ a.ghost:hover {
 .chat-continue__btn--secondary:hover:not(:disabled) {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.1);
+}
+
+.chat-new-msg-chip {
+  position: sticky;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--composer);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  animation: chip-in 0.22s ease-out both;
+  width: max-content;
+  margin: 0 auto;
+  display: block;
+}
+
+.chat-new-msg-chip:hover {
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-atmosphere,
+  .chat-bubble--enter,
+  .chat-bubble--enter-assistant,
+  .chat-bubble--enter-user,
+  .chat-bubble--resume-flash,
+  .chat-continue--enter,
+  .chat-continue--leaving,
+  .chat-composer__hint--fade,
+  .chat-new-msg-chip {
+    animation: none !important;
+  }
+
+  .chat-continue__btn,
+  .chat-exercise__option {
+    transition: none;
+  }
+
+  .typing-dots span {
+    display: none;
+    animation: none;
+  }
+
+  .typing-dots__reduced {
+    display: inline;
+  }
 }
 
 .chat-home {

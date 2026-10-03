@@ -444,6 +444,10 @@ a.ghost:hover {
   padding: 0.45rem 0.9rem;
   border-radius: var(--radius, 8px);
   cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .chat-history-collapse__btn:hover {
@@ -469,7 +473,7 @@ a.ghost:hover {
 .chat-bubble--resume-flash {
   animation:
     bubble-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both,
-    resume-border 1.05s ease-out;
+    resume-border 1.12s ease-out;
 }
 
 .chat-bubble--user {
@@ -559,7 +563,7 @@ a.ghost:hover {
   border-radius: 50%;
   background: var(--muted);
   opacity: 0.65;
-  animation: typing-bounce 1.28s ease-in-out infinite;
+  animation: typing-bounce 1.36s ease-in-out infinite;
 }
 
 .typing-dots > span:not(.typing-dots__reduced):nth-child(1) {
@@ -605,7 +609,7 @@ a.ghost:hover {
 @keyframes bubble-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -636,7 +640,7 @@ a.ghost:hover {
 @keyframes cta-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -667,7 +671,7 @@ a.ghost:hover {
 @keyframes chip-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(6px);
+    transform: translateX(-50%) translateY(5px);
   }
   to {
     opacity: 1;
@@ -739,6 +743,20 @@ a.ghost:hover {
   border-radius: var(--radius);
   background: var(--accent);
   color: var(--accent-ink);
+  transition:
+    transform 0.15s ease,
+    background 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.15s ease;
+}
+
+.chat-composer button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(25, 195, 125, 0.28);
+}
+
+.chat-composer button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .chat-composer__hint {
@@ -749,7 +767,7 @@ a.ghost:hover {
 }
 
 .chat-composer__hint--fade {
-  animation: hint-fade 0.32s ease-out both;
+  animation: hint-fade 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-exercise {
@@ -836,12 +854,14 @@ a.ghost:hover {
   width: calc(100% - 2.5rem);
   min-height: 3.25rem;
   margin: 0 auto;
-  padding: 0.35rem 0 0.65rem;
+  padding: 0.55rem 0 0.65rem;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  background: var(--main, #fff);
-  border-top: 1px solid var(--border, #d0d4dc);
+  /* Soft edge scroller → CTA (em vez de corte flat). */
+  border-top: 1px solid color-mix(in srgb, var(--border, #d0d4dc) 55%, transparent);
+  background: linear-gradient(to bottom, transparent 0%, var(--main, #fff) 28%);
+  transition: opacity 0.2s ease;
 }
 
 .chat-cta-slot--busy {
@@ -855,7 +875,7 @@ a.ghost:hover {
 }
 
 .chat-continue--enter {
-  animation: cta-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cta-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .chat-continue--leaving {
@@ -872,15 +892,21 @@ a.ghost:hover {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.15s ease;
 }
 
 .chat-continue__btn:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(25, 195, 125, 0.32);
 }
 
 .chat-continue__btn:active:not(:disabled) {
   transform: scale(0.98);
+  box-shadow: none;
 }
 
 .chat-continue__btn:disabled {
@@ -924,11 +950,12 @@ a.ghost:hover {
   padding: 0.5rem 1.05rem;
   border-radius: var(--radius);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-  animation: chip-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.22);
+  animation: chip-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition:
     border-color 0.15s ease,
-    background 0.15s ease;
+    background 0.15s ease,
+    box-shadow 0.15s ease;
   width: max-content;
   margin: 0;
   display: block;
@@ -936,12 +963,13 @@ a.ghost:hover {
 
 .chat-new-msg-chip--above-cta {
   /* Acima da faixa do CTA (não empilha sobre Continuar). */
-  bottom: 4.1rem;
+  bottom: 4.35rem;
 }
 
 .chat-new-msg-chip:hover {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.12);
+  box-shadow: 0 4px 18px rgba(25, 195, 125, 0.22);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -960,7 +988,10 @@ a.ghost:hover {
   }
 
   .chat-continue__btn,
-  .chat-exercise__option {
+  .chat-composer button,
+  .chat-exercise__option,
+  .chat-history-collapse__btn,
+  .chat-new-msg-chip {
     transition: none;
   }
 

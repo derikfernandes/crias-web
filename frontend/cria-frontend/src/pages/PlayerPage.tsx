@@ -535,10 +535,11 @@ function typingCopy(
       reduced: 'Preparando a resposta…',
     }
   }
-  // C2-R4 N01: typing alinhado ao CTA (Salvando… → Carregando etapa…).
+  // C2-R4 N01: status alinhado ao CTA (Salvando… → Carregando etapa…).
+  // C2-R13 N03: falante estável (`Aula`); frase de busy só no corpo/aria.
   const trailLabel = opts?.trailLabel?.trim() || 'Carregando etapa…'
   return {
-    label: trailLabel,
+    label: 'Aula',
     aria: trailLabel.replace(/…$/, ''),
     reduced: trailLabel.endsWith('…') ? trailLabel : `${trailLabel}…`,
   }
@@ -2439,7 +2440,7 @@ export default function PlayerPage() {
       // R23-L02 / L07: anunciar feedback + focar Continuar (chrome, sem CTA novo).
       setSrAnnounce(
         feedbackText
-          ? 'Feedback da questão disponível. Pode continuar.'
+          ? 'Resposta pronta. Pode continuar.'
           : 'Resposta enviada. Pode continuar.',
       )
     } catch (err) {
@@ -2828,7 +2829,7 @@ export default function PlayerPage() {
       aria-labelledby="crias-player-heading"
     >
       <h1 id="crias-player-heading" className="visually-hidden">
-        Player da trilha {trailHeading}
+        {trailHeading}
       </h1>
       <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {srAnnounce}
@@ -3323,7 +3324,7 @@ export default function PlayerPage() {
             readOnly={exerciseLockedComposer}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
-              exerciseLockedComposer ? exerciseLockLabel : 'Mensagem'
+              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria'
             }
             enterKeyHint={canSubmitExercise ? 'send' : 'send'}
             inputMode="text"

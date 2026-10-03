@@ -286,7 +286,7 @@ export async function identifyStudent(input: {
       )
     ) {
       throw new ApiRequestError(
-        'Telefone, instituição ou senha incorretos.',
+        'Telefone, escola ou senha incorretos.',
         res.status || 401,
         { code: code || undefined, authFailed: false },
       )

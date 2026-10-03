@@ -63,12 +63,12 @@ export default function TrailsPage() {
       ) : empty ? (
         <>
           <p className="lede">
-            Olá, {session.name.split(' ')[0] || 'aluno'}. Nenhuma trilha vinculada
-            à sua conta.
+            Olá, {session.name.split(' ')[0] || 'aluno'}. Nenhuma trilha liberada
+            para você.
           </p>
           <p className="muted chat-home__hint">
             Fale com a escola para liberar uma trilha. O menu também mostra quando
-            não há vínculos.
+            a escola ainda não liberou.
           </p>
         </>
       ) : (

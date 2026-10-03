@@ -446,7 +446,7 @@ export default function ChatLayout() {
               </button>
             </div>
           ) : rows && rows.length === 0 ? (
-            <p className="muted chat-sidebar__empty">Nenhuma trilha vinculada.</p>
+            <p className="muted chat-sidebar__empty">Nenhuma trilha liberada.</p>
           ) : rows ? (
             <ul className="chat-sidebar__list">
               {rows.map((row) => {

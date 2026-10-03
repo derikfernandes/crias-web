@@ -400,6 +400,15 @@ a.ghost:hover {
   margin: 0.5rem 1rem 0;
 }
 
+/* Scroll + chip overlay (chip fora do fluxo — sticky+transform quebrava C1-40). */
+.chat-thread__body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .chat-thread__scroll {
   flex: 1;
   overflow-y: auto;
@@ -446,16 +455,16 @@ a.ghost:hover {
 /* Só mensagens novas (flag animate) entram com motion — history no mount fica quieto. */
 .chat-bubble--enter-assistant,
 .chat-bubble--enter:not(.chat-bubble--enter-user) {
-  animation: bubble-in 0.28s ease-out both;
+  animation: bubble-in 0.32s ease-out both;
 }
 
 .chat-bubble--enter-user {
-  animation: bubble-in-user 0.28s ease-out both;
+  animation: bubble-in-user 0.32s ease-out both;
 }
 
 .chat-bubble--resume-flash {
   animation:
-    bubble-in 0.28s ease-out both,
+    bubble-in 0.32s ease-out both,
     resume-border 0.9s ease-out;
 }
 
@@ -541,7 +550,7 @@ a.ghost:hover {
   height: 0.48rem;
   border-radius: 50%;
   background: var(--muted);
-  opacity: 0.4;
+  opacity: 0.55;
   animation: typing-bounce 1.28s ease-in-out infinite;
 }
 
@@ -568,11 +577,11 @@ a.ghost:hover {
   60%,
   100% {
     transform: translateY(0);
-    opacity: 0.4;
+    opacity: 0.55;
   }
   30% {
     transform: translateY(-5px);
-    opacity: 0.95;
+    opacity: 1;
   }
 }
 
@@ -854,11 +863,11 @@ a.ghost:hover {
 }
 
 .chat-new-msg-chip {
-  position: sticky;
-  bottom: 0.75rem;
+  position: absolute;
+  bottom: 0.85rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 3;
+  z-index: 5;
   appearance: none;
   border: 1px solid var(--border);
   background: var(--composer);
@@ -866,18 +875,19 @@ a.ghost:hover {
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
-  padding: 0.45rem 0.95rem;
+  padding: 0.5rem 1.05rem;
   border-radius: var(--radius);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   animation: chip-in 0.22s ease-out both;
   width: max-content;
-  margin: 0 auto;
+  margin: 0;
   display: block;
 }
 
 .chat-new-msg-chip:hover {
   border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.12);
 }
 
 @media (prefers-reduced-motion: reduce) {

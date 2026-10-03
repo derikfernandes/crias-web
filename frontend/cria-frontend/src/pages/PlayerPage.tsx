@@ -37,8 +37,8 @@ import {
 /** Quantas bolhas recentes ficam visíveis antes do colapso de histórico. */
 const HISTORY_VISIBLE_TAIL = 28
 
-/** Evita flash de typing em respostas &lt; ~150ms. */
-const TYPING_MIN_DELAY_MS = 200
+/** Evita flash de typing em respostas rápidas (cache-hit). */
+const TYPING_MIN_DELAY_MS = 280
 
 /** Distância do fim para considerar “sticky bottom”. */
 const STICKY_BOTTOM_PX = 120
@@ -433,8 +433,11 @@ export default function PlayerPage() {
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
-    nearBottomRef.current =
+    const near =
       el.scrollHeight - el.scrollTop - el.clientHeight < STICKY_BOTTOM_PX
+    nearBottomRef.current = near
+    // Scroll manual de volta ao fim: esconde o chip sem exigir clique.
+    if (near) setNewMsgChip(false)
   }
 
   function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
@@ -896,11 +899,12 @@ export default function PlayerPage() {
         </p>
       ) : null}
 
-      <div
-        className="chat-thread__scroll"
-        ref={threadRef}
-        onScroll={updateNearBottom}
-      >
+      <div className="chat-thread__body">
+        <div
+          className="chat-thread__scroll"
+          ref={threadRef}
+          onScroll={updateNearBottom}
+        >
         {!historyExpanded && hiddenHistoryCount > 0 ? (
           <div className="chat-history-collapse">
             <button
@@ -1057,15 +1061,17 @@ export default function PlayerPage() {
           </div>
         ) : null}
 
-        {newMsgChip ? (
-          <button
-            type="button"
-            className="chat-new-msg-chip"
-            onClick={() => scrollToBottom('smooth')}
-          >
-            Nova mensagem
-          </button>
-        ) : null}
+      </div>
+
+      {newMsgChip ? (
+        <button
+          type="button"
+          className="chat-new-msg-chip"
+          onClick={() => scrollToBottom('smooth')}
+        >
+          Nova mensagem
+        </button>
+      ) : null}
       </div>
 
       <footer className="chat-composer">

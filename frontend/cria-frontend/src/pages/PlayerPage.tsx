@@ -2176,6 +2176,13 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
+    // C2-R14 N01: offline — não dispara envio fadado (parity Continuar/Entrar).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      reportError(new TypeError('Failed to fetch'), 'Erro ao falar com Maria.', () => {
+        void doMaria(userLine)
+      })
+      return
+    }
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     mariaCancelledRef.current = false
@@ -2186,10 +2193,11 @@ export default function PlayerPage() {
     clearError()
     const q = content.question_number
     const askLine = userLine
+    const userMsgId = `u-${Date.now()}`
     setMessages((prev) => [
       ...prev,
       markAnimate({
-        id: `u-${Date.now()}`,
+        id: userMsgId,
         role: 'user',
         text: askLine,
         questionNumber: q,
@@ -2199,6 +2207,7 @@ export default function PlayerPage() {
     ])
     // R12-O05 / R18-N04: só limpa draft no ack; falha restaura.
     setDraft('')
+    let mariaAcked = false
     try {
       const result = await askMaria({
         student_id: liveSession.student_id,
@@ -2223,19 +2232,28 @@ export default function PlayerPage() {
         setMariaSidechat(true)
         setMariaEntrance(true)
       }
+      mariaAcked = true
     } catch (err) {
+      // C2-R14 N02: falha rede/sistema — sem sidechat, sem bolha “enviada”.
+      setMessages((prev) => prev.filter((m) => m.id !== userMsgId))
       setDraft(askLine)
+      if (!mariaCancelledRef.current) {
+        setMariaSidechat(false)
+      }
       reportError(err, 'Erro ao falar com Maria.', () => {
         void doMaria(askLine)
       })
-      if (!mariaCancelledRef.current) {
-        setMariaSidechat(true)
-      }
     } finally {
       setBusy(false)
       setBusyReason(null)
-      // C2-R7 N01 / R23-L04: Voltar/composer estável — reafirma pós-fecho do KB.
-      focusAfterMariaAck()
+      // C2-R7 N01 / R23-L04: Voltar/composer estável — só no ack.
+      if (mariaAcked) {
+        focusAfterMariaAck()
+      } else if (!mariaCancelledRef.current) {
+        window.requestAnimationFrame(() => {
+          inputRef.current?.focus({ preventScroll: true })
+        })
+      }
     }
   }
 
@@ -2529,10 +2547,17 @@ export default function PlayerPage() {
     mariaLockedOnExercise &&
     !!selectedOptionKey &&
     !busy &&
+    !offline &&
     exercisePhase !== 'submitting' &&
     (exercisePhase === 'selected' || exercisePhase === 'error')
+  /** C2-R14 N01: offline/canRetry — Enviar Maria off (parity Continuar; recovery = Tentar). */
   const canSendFreeText =
-    content?.status === 'ok' && !busy && !composerBlocked && !!draft.trim()
+    content?.status === 'ok' &&
+    !busy &&
+    !composerBlocked &&
+    !!draft.trim() &&
+    !offline &&
+    !canRetry
   const canSend = canSubmitExercise || canSendFreeText
   /**
    * C2-R9 N01: rascunho no composer + Continuar vivos = avanço acidental.

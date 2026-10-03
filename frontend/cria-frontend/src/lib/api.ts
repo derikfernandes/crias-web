@@ -187,6 +187,23 @@ export async function listStudentTrails(
   return Array.isArray(body) ? (body as StudentTrailRow[]) : []
 }
 
+/** Contagem de etapas por trail_id (para card “Etapa N de T” / progresso). */
+export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
+  const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
+  url.searchParams.set('simple', '1')
+  const res = await fetch(url.pathname + url.search)
+  const body = await parseJson(res)
+  if (!res.ok || !Array.isArray(body)) return {}
+  const map: Record<string, number> = {}
+  for (const row of body as Array<{ trail_id?: string; stage_number?: number }>) {
+    const tid = row.trail_id
+    if (!tid) continue
+    const n = typeof row.stage_number === 'number' ? row.stage_number : 0
+    map[tid] = Math.max(map[tid] ?? 0, n)
+  }
+  return map
+}
+
 export async function fetchNextContent(
   studentId: string,
   trailId: string,

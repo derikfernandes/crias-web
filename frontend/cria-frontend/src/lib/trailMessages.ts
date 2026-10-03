@@ -12,6 +12,38 @@ export type ChatMessage = {
   animate?: boolean
   /** Resume pós-Voltar — highlight de borda 1 ciclo. */
   kind?: 'resume' | 'feedback' | 'sidechat' | 'exercise-answer'
+  /** Timestamp HH:MM exibido sob a bolha (mockup Maria). */
+  timeLabel?: string
+}
+
+/** Formata HH:MM a partir de ms / ISO / agora. */
+export function formatBubbleTime(
+  input?: string | number | null,
+  fallbackNow = false,
+): string | undefined {
+  let ms: number | null = null
+  if (typeof input === 'number' && Number.isFinite(input)) ms = input
+  else if (typeof input === 'string' && input.trim()) {
+    const parsed = Date.parse(input)
+    if (Number.isFinite(parsed)) ms = parsed
+  }
+  if (ms == null) {
+    if (!fallbackNow) return undefined
+    ms = Date.now()
+  }
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    }).format(new Date(ms))
+  } catch {
+    const d = new Date(ms)
+    const h = String(d.getHours()).padStart(2, '0')
+    const m = String(d.getMinutes()).padStart(2, '0')
+    return `${h}:${m}`
+  }
 }
 
 /** Detecta stage AI de feedback pedagógico (BLOCO RESPOSTA / FINAL). */
@@ -176,6 +208,9 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
         text,
         cellKey: cell,
         questionNumber: l.question_number,
+        timeLabel: formatBubbleTime(
+          l.created_at_ms ?? l.created_at ?? l.created_at_brasilia,
+        ),
       }
       if (prevIdx !== undefined) {
         // force_regenerate / BLOCO corrigido: substitui a bolha antiga da célula.
@@ -212,6 +247,9 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
           ? 'feedback'
           : undefined,
       stageType: isExerciseAnswer || isFeedback ? 'exercise' : undefined,
+      timeLabel: formatBubbleTime(
+        l.created_at_ms ?? l.created_at ?? l.created_at_brasilia,
+      ),
     })
   }
 

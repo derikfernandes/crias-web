@@ -20,10 +20,12 @@ import {
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
+import MariaMascot from '../components/MariaMascot'
 import { getSession } from '../lib/session'
 import {
   alignBlocoWithAttempt,
   type ChatMessage,
+  formatBubbleTime,
   isBlocoRespostaContent,
   isContinuarText,
   lightStripMarkdown,
@@ -258,6 +260,8 @@ export default function PlayerPage() {
   const [pendingOptionKey, setPendingOptionKey] = useState<string | null>(null)
   /** Após resposta da Maria (sidechat): esconde Continuar e mostra Voltar. */
   const [mariaSidechat, setMariaSidechat] = useState(false)
+  /** Entrada Clippy da Maria — persiste após a 1ª chamada na sessão do player. */
+  const [mariaEntrance, setMariaEntrance] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
@@ -440,6 +444,7 @@ export default function PlayerPage() {
     setExerciseDone(false)
     setPendingOptionKey(null)
     setMariaSidechat(false)
+    setMariaEntrance(false)
     setHistoryReady(false)
     setHistoryExpanded(false)
     setHistoryHasMore(false)
@@ -1167,6 +1172,7 @@ export default function PlayerPage() {
         text: userLine,
         questionNumber: q,
         kind: 'sidechat',
+        timeLabel: formatBubbleTime(null, true),
       }),
     ])
     setDraft('')
@@ -1186,9 +1192,11 @@ export default function PlayerPage() {
           text: lightStripMarkdown(result.reply),
           questionNumber: q,
           kind: 'sidechat',
+          timeLabel: formatBubbleTime(null, true),
         }),
       ])
       setMariaSidechat(true)
+      setMariaEntrance(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao falar com Maria.')
     } finally {
@@ -1481,11 +1489,7 @@ export default function PlayerPage() {
         ? 'Trilha indisponível no momento'
         : exerciseLockedComposer
           ? 'Responda a questão primeiro'
-          : content.stage_type === 'exercise' && exerciseDone
-            ? 'Pergunte à Maria ou use Continuar…'
-            : mariaSidechat
-              ? 'Pergunte mais à Maria ou volte para a trilha…'
-              : 'Pergunte à Maria ou digite continuar…'
+          : 'Pergunte à Maria...'
 
   const hintKey =
     content?.status !== 'ok'
@@ -1507,6 +1511,77 @@ export default function PlayerPage() {
       showVoltarTrilha ||
       continuarLeaving ||
       (busy && busyReason === 'trail'))
+
+  const currentCell =
+    content?.status === 'ok'
+      ? trailCellKey(content.stage_number, content.question_number)
+      : null
+
+  const lessonTitle =
+    content?.status === 'ok' && content.stage_title
+      ? stripDecorTitle(content.stage_title)
+      : ''
+  const lessonBody =
+    content?.status === 'ok'
+      ? lightStripMarkdown(
+          stripOptionLines(
+            (content.content ?? '').trim() ||
+              (content.stage_type === 'ai' && content.prompt
+                ? 'Gerando conteúdo da tutoria…'
+                : ''),
+          ),
+        )
+      : ''
+
+  const showLessonCard =
+    content?.status === 'ok' && Boolean(lessonTitle || lessonBody)
+
+  const showMariaEntrance =
+    mariaEntrance ||
+    mariaSidechat ||
+    visibleMessages.some((m) => m.kind === 'sidechat')
+
+  const chatMessages = visibleMessages.filter((msg) => {
+    if (
+      showLessonCard &&
+      currentCell &&
+      msg.cellKey === currentCell &&
+      msg.role === 'assistant' &&
+      msg.kind !== 'feedback' &&
+      msg.kind !== 'sidechat' &&
+      msg.kind !== 'resume'
+    ) {
+      return false
+    }
+    return true
+  })
+
+  function renderBubbleParts(text: string) {
+    return renderMessageLines(text).map((part) => {
+      if (part.kind === 'image') {
+        return (
+          <p key={part.key} className="chat-bubble__media">
+            <img src={part.value} alt="" loading="lazy" />
+          </p>
+        )
+      }
+      if (part.kind === 'link') {
+        return (
+          <p key={part.key}>
+            <a
+              href={part.value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="chat-bubble__link"
+            >
+              {part.label || part.value}
+            </a>
+          </p>
+        )
+      }
+      return <p key={part.key}>{part.value || '\u00a0'}</p>
+    })
+  }
 
   return (
     <div className="chat-thread">
@@ -1565,7 +1640,60 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {visibleMessages.map((msg) => (
+
+        {showLessonCard ? (
+          <section className="lesson-card" aria-label="Conteúdo da etapa">
+            <span className="lesson-card__icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4.75 5.5A2.75 2.75 0 0 1 7.5 2.75h9.75v16.5H7.5A2.75 2.75 0 0 0 4.75 22"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M4.75 5.5v16.5A2.75 2.75 0 0 1 7.5 19.25h12.75"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <div className="lesson-card__copy">
+              {lessonTitle ? (
+                <h2 className="lesson-card__title">{lessonTitle}</h2>
+              ) : null}
+              {lessonBody ? (
+                <div className="lesson-card__body">
+                  {renderBubbleParts(lessonBody)}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {showMariaEntrance ? (
+          <div className="maria-entrance" aria-live="polite">
+            <div className="maria-entrance__divider">
+              <span className="maria-entrance__pill">
+                <span aria-hidden>✦</span> + Parceiro de estudo chamado
+                <span aria-hidden>✦</span>
+              </span>
+            </div>
+            <div className="maria-entrance__row">
+              <MariaMascot className="maria-mascot" />
+              <div className="maria-entrance__intro">
+                <p className="maria-entrance__intro-label">MARIA</p>
+                <p className="maria-entrance__intro-text">
+                  Oi, eu sou a Maria.
+                  <span>Vim te ajudar.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {chatMessages.map((msg) => (
           <article
             key={msg.id}
             className={bubbleClassName(msg)}
@@ -1573,38 +1701,30 @@ export default function PlayerPage() {
             data-cell-key={msg.cellKey || undefined}
             data-animate={msg.animate ? 'true' : undefined}
           >
-            <p className="chat-bubble__label">
-              {msg.role === 'assistant'
-                ? 'Maria'
-                : msg.role === 'user'
-                  ? 'Você'
-                  : 'Sistema'}
-            </p>
-            <div className="chat-bubble__body">
-              {renderMessageLines(msg.text).map((part) => {
-                if (part.kind === 'image') {
-                  return (
-                    <p key={part.key} className="chat-bubble__media">
-                      <img src={part.value} alt="" loading="lazy" />
-                    </p>
-                  )
-                }
-                if (part.kind === 'link') {
-                  return (
-                    <p key={part.key}>
-                      <a
-                        href={part.value}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="chat-bubble__link"
-                      >
-                        {part.label || part.value}
-                      </a>
-                    </p>
-                  )
-                }
-                return <p key={part.key}>{part.value || '\u00a0'}</p>
-              })}
+            <div className="chat-bubble__row">
+              <span className="chat-bubble__avatar" aria-hidden>
+                {msg.role === 'user' ? 'V' : msg.role === 'assistant' ? 'M' : 'S'}
+              </span>
+              <div className="chat-bubble__stack">
+                {msg.role !== 'user' ? (
+                  <p className="chat-bubble__label">
+                    {msg.role === 'assistant' ? 'MARIA' : 'Sistema'}
+                  </p>
+                ) : null}
+                <div className="chat-bubble__text">
+                  {renderBubbleParts(msg.text)}
+                </div>
+                <div className="chat-bubble__meta">
+                  <span>
+                    {msg.timeLabel || formatBubbleTime(null, true) || ''}
+                  </span>
+                  {msg.role === 'user' ? (
+                    <span className="chat-bubble__checks" aria-label="Enviada">
+                      ✓✓
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </article>
         ))}
@@ -1616,14 +1736,21 @@ export default function PlayerPage() {
             aria-label={typing.aria}
             data-busy-reason={busyReason || undefined}
           >
-            <p className="chat-bubble__label">{typing.label}</p>
-            <div className="chat-bubble__body">
-              <span className="typing-dots" aria-hidden="true">
-                <span />
-                <span />
-                <span />
+            <div className="chat-bubble__row">
+              <span className="chat-bubble__avatar" aria-hidden>
+                M
               </span>
-              <span className="typing-dots__reduced">{typing.reduced}</span>
+              <div className="chat-bubble__stack">
+                <p className="chat-bubble__label">{typing.label}</p>
+                <div className="chat-bubble__text">
+                  <span className="typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="typing-dots__reduced">{typing.reduced}</span>
+                </div>
+              </div>
             </div>
           </article>
         ) : null}
@@ -1695,7 +1822,7 @@ export default function PlayerPage() {
                 disabled={busy || continuarLeaving}
                 onClick={() => void doAdvance()}
               >
-                Continuar
+                Continuar trilha →
               </button>
             </div>
           ) : null}
@@ -1717,6 +1844,16 @@ export default function PlayerPage() {
         className={`chat-composer${exerciseLockedComposer ? ' chat-composer--locked' : ''}`}
       >
         <form className="chat-composer__form" onSubmit={(e) => void onSend(e)}>
+          <span className="chat-composer__attach" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M8.5 12.5l6.2-6.2a2.75 2.75 0 1 1 3.9 3.9l-7.4 7.4a4.25 4.25 0 0 1-6-6l7.05-7.05"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
           {exerciseLockedComposer ? (
             <span
               className="chat-composer__lock"
@@ -1761,26 +1898,31 @@ export default function PlayerPage() {
             aria-label={
               exerciseLockedComposer
                 ? 'Responda a questão primeiro'
-                : 'Mensagem'
+                : 'Pergunte à Maria'
             }
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
           <button
             type="submit"
+            className="chat-composer__send"
             disabled={!canSend || !draft.trim()}
             aria-label="Enviar"
           >
-            Enviar
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
-            {content.stage_type === 'exercise'
-              ? 'Pergunte à Maria ou use Continuar para avançar'
-              : mariaSidechat
-                ? 'Voltar à trilha reexibe o passo atual'
-                : 'Enter envia · Shift+Enter quebra linha · texto livre fala com Maria · Continuar avança a trilha'}
+            Enter para enviar · Shift+Enter para nova linha
           </p>
         ) : null}
       </footer>

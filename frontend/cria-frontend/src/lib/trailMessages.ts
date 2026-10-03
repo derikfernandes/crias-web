@@ -339,6 +339,18 @@ export function linkLabelForUrl(url: string): string {
 
 export type EmbedKind = 'youtube' | 'drive'
 
+/** True se o texto da bolha/etapa contém YT/Drive embutível (R08-M02). */
+export function textHasEmbed(text: string): boolean {
+  if (!text) return false
+  const urlRe = /https?:\/\/[^\s<]+/gi
+  let m: RegExpExecArray | null
+  while ((m = urlRe.exec(text))) {
+    const clean = m[0].replace(/[),.;]+$/, '')
+    if (embedInfoForUrl(clean)) return true
+  }
+  return false
+}
+
 /** URL de embed in-app para YT/Drive; null se não suportado. */
 export function embedInfoForUrl(
   url: string,

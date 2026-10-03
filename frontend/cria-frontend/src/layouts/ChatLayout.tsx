@@ -428,7 +428,11 @@ className={`trail-card${active ? ' is-active' : ''}`}
                             style={{ width: `${pct}%` }}
                           />
                         </span>
-                        <span className="trail-card__pct">{pct}%</span>
+                        {/* R28-I02: espaço fino pt-BR antes do % */}
+                        <span className="trail-card__pct">
+                          {pct}
+                          {'\u00a0'}%
+                        </span>
                       </span>
                     </Link>
                   </li>

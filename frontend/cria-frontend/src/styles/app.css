@@ -7,14 +7,16 @@
   --ink: #f3f5f7;
   --muted: #b8c0d0;
   --muted-dim: #9aa3b5;
-  --placeholder: #a8b0c0;
+  /* R21-W01 / R01-F24: placeholder ≥ AA; ainda distinto de --ink. */
+  --placeholder: #c4ccd8;
   --accent: #17ea9d;
   --accent-ink: #04140f;
   --cta-continue: #17ea9d;
   --cta-send: #12c986;
   --error: #f2a4a4;
-  --border: rgba(23, 234, 157, 0.42);
-  --border-subtle: rgba(255, 255, 255, 0.14);
+  /* R21-W03: non-text um pouco mais legível outdoor. */
+  --border: rgba(23, 234, 157, 0.52);
+  --border-subtle: rgba(255, 255, 255, 0.18);
   --radius: 12px;
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -32,7 +34,8 @@
   --bg: var(--main);
   --surface: var(--composer);
   --text: var(--ink);
-  --label: #e8edf5;
+  /* R05-V18 / R03-A06 / R01-F24: labels Maria/Você mais legíveis outdoor. */
+  --label: #f3f5f7;
 }
 
 *,
@@ -217,10 +220,13 @@ textarea::placeholder {
   color: var(--placeholder, var(--muted-dim));
 }
 
-/* R01-F18: placeholder de login não parece valor preenchido. */
+/*
+ * R01-F18 + R21-W01: placeholder de login distinto do valor (ink),
+ * sem crush < AA — token --placeholder.
+ */
 .login-panel input::placeholder {
-  color: color-mix(in srgb, var(--muted-dim) 62%, transparent);
-  opacity: 1;
+  color: var(--placeholder, var(--muted-dim));
+  opacity: 0.92;
 }
 
 .login-password-row {
@@ -535,8 +541,11 @@ a.ghost:hover {
 .trail-card__pct {
   font-size: 0.68rem;
   color: var(--muted);
-  min-width: 2.2rem;
+  /* R28-I02: cabe “8 %” com NBSP */
+  min-width: 2.6rem;
   text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-sidebar__foot {
@@ -861,10 +870,18 @@ button[aria-disabled='true'] {
   animation: bubble-in-user 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.chat-bubble--resume-flash {
+.chat-bubble--resume-flash,
+.chat-bubble--media-resume {
   animation:
     bubble-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both,
     resume-border 1.3s ease-out;
+}
+
+/* R08-M05: reforço visual ao voltar de mídia externa. */
+.chat-bubble--media-resume .chat-bubble__embed-frame {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 2px 12px rgba(0, 0, 0, 0.22);
 }
 
 .chat-bubble--user,
@@ -1015,6 +1032,44 @@ button[aria-disabled='true'] {
   line-height: 1.35;
 }
 
+/* R08-M03 residual: link externo vira chip ≥44, sem CTA neon primário. */
+.chat-bubble__link--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  margin: 0.2rem 0;
+  border-radius: var(--radius-sm, var(--radius));
+  border: 1px solid var(--border-subtle, var(--border));
+  background: color-mix(in srgb, var(--surface, var(--composer)) 88%, #000 12%);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.3;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.chat-bubble__link--chip:hover {
+  border-color: var(--accent);
+  background: rgba(23, 234, 157, 0.12);
+}
+
+.chat-bubble__link--chip:active {
+  transform: scale(0.98);
+}
+
+.chat-bubble__embed .chat-bubble__link--chip {
+  margin-top: 0.5rem;
+}
+
 .chat-bubble__body em,
 .chat-bubble__text em {
   font-style: italic;
@@ -1040,6 +1095,9 @@ button[aria-disabled='true'] {
   content-visibility: auto;
   contain-intrinsic-size: 320px 180px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
+  /* R08-M02: mídia é o plano visual dominante da etapa. */
+  outline: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 0;
 }
 
 .chat-bubble__embed-frame iframe {
@@ -1048,6 +1106,37 @@ button[aria-disabled='true'] {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* R19-H05: placeholder leve até o iframe entrar no viewport. */
+.chat-bubble__embed-skeleton {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      110deg,
+      #121820 0%,
+      #1c2430 45%,
+      #121820 90%
+    );
+  background-size: 200% 100%;
+  animation: embed-skel 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble__embed-skeleton {
+    animation: none;
+    background: #121820;
+  }
+}
+
+@keyframes embed-skel {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .chat-bubble--typing .chat-bubble__text {
@@ -1735,6 +1824,24 @@ button[aria-disabled='true'] {
   width: 100%;
 }
 
+/* R08-M02: hint de hierarquia — mídia opcional × Continuar secundário. */
+.chat-continue--with-media {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.chat-cta-slot__media-hint {
+  margin: 0;
+  padding: 0 0.1rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .chat-continue__btn--secondary {
   background: transparent;
   color: var(--ink);
@@ -2006,10 +2113,11 @@ button[aria-disabled='true'] {
 
 @media (prefers-contrast: more) {
   :root {
-    --border: rgba(255, 255, 255, 0.62);
-    --muted: #ececf1;
-    --muted-dim: #d0d0dc;
-    --placeholder: #d0d0dc;
+    --border: rgba(23, 234, 157, 0.72);
+    --muted: #f4f4f8;
+    --muted-dim: #e0e0ea;
+    --placeholder: #e0e0ea;
+    --label: #ffffff;
   }
 
   .chat-exercise__option,

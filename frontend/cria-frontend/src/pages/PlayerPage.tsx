@@ -7,13 +7,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   advanceTrail,
   askMaria,
   createConversationLog,
   fetchNextContent,
   fetchTrailHistoryPage,
+  isAuthError,
   normalizeExerciseOptions,
   submitExerciseAttempt,
   type ConversationLogRow,
@@ -25,7 +26,7 @@ import {
   isRetryableSystemError,
   toUserFacingError,
 } from '../lib/networkError'
-import { getSession } from '../lib/session'
+import { clearSession, getSession, requireSession } from '../lib/session'
 import {
   alignBlocoWithAttempt,
   type ChatMessage,
@@ -324,6 +325,7 @@ function typingCopy(reason: BusyReason): {
 
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
+  const navigate = useNavigate()
   const session = getSession()!
   const [content, setContent] = useState<NextContentOk | NextContentStatus | null>(
     null,
@@ -394,14 +396,33 @@ export default function PlayerPage() {
   contentRef.current = content
   busyReasonRef.current = busyReason
 
+  const goLoginAuth = useCallback(
+    (message?: string) => {
+      clearSession('auth')
+      navigate('/login', {
+        replace: true,
+        state: { reason: 'auth', message },
+      })
+    },
+    [navigate],
+  )
+
   const reportError = useCallback(
     (err: unknown, fallback: string, retry?: () => void) => {
+      if (isAuthError(err)) {
+        goLoginAuth(
+          err instanceof Error
+            ? err.message
+            : 'Sua sessão expirou. Entre de novo para continuar.',
+        )
+        return
+      }
       setError(toUserFacingError(err, fallback))
       const retryable = isRetryableSystemError(err) && typeof retry === 'function'
       retryFnRef.current = retryable ? retry! : null
       setCanRetry(retryable)
     },
-    [],
+    [goLoginAuth],
   )
 
   const clearError = useCallback(() => {
@@ -409,6 +430,39 @@ export default function PlayerPage() {
     setCanRetry(false)
     retryFnRef.current = null
   }, [])
+
+  /** ER05: sem sessão válida não muta. */
+  function ensureSessionOrRedirect(): NonNullable<ReturnType<typeof requireSession>> | null {
+    const s = requireSession()
+    if (!s) {
+      clearSession('missing')
+      navigate('/login', {
+        replace: true,
+        state: {
+          reason: 'missing',
+          message: 'Entre de novo para continuar.',
+        },
+      })
+      return null
+    }
+    return s
+  }
+
+  // Header chrome: pin stage_title / progresso vivo (D#8 / R08-M06).
+  useEffect(() => {
+    if (content?.status !== 'ok') return
+    const title = content.stage_title?.trim() || null
+    window.dispatchEvent(
+      new CustomEvent('crias:player-chrome', {
+        detail: {
+          trailId,
+          stageNumber: content.stage_number,
+          questionNumber: content.question_number,
+          stageTitle: title,
+        },
+      }),
+    )
+  }, [content, trailId])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -747,6 +801,19 @@ export default function PlayerPage() {
       setHistoryReady(true)
     }
   }, [clearError, persistLog, reportError, session.student_id, trailId])
+
+  // ER06: exercício sem opções → erro de sistema + retry (não lock eterno).
+  useEffect(() => {
+    if (content?.status !== 'ok') return
+    if (content.stage_type !== 'exercise' || exerciseDone) return
+    const opts = normalizeExerciseOptions(content.options)
+    if (opts.length > 0) return
+    setError('Não foi possível carregar as opções desta questão.')
+    setCanRetry(true)
+    retryFnRef.current = () => {
+      void loadHistoryAndContent()
+    }
+  }, [content, exerciseDone, loadHistoryAndContent])
 
   const loadOlderHistory = useCallback(async () => {
     if (historyLoadingMore || !historyHasMore) return
@@ -1234,6 +1301,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
+    const liveSession = ensureSessionOrRedirect()
+    if (!liveSession) return
     advanceInFlightRef.current = true
     // Evita scrollIntoView do botão focado puxar a thread ao fundo (C2-40).
     if (document.activeElement instanceof HTMLElement) {
@@ -1253,11 +1322,11 @@ export default function PlayerPage() {
     mariaCancelledRef.current = false
     setDraft('')
     try {
-      const result = await advanceTrail(session.student_id, trailId)
+      const result = await advanceTrail(liveSession.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
         setContent({
           status: 'completed',
-          student_id: session.student_id,
+          student_id: liveSession.student_id,
           trail_id: trailId,
           message: 'Trilha concluída.',
         })
@@ -1281,8 +1350,11 @@ export default function PlayerPage() {
         void doAdvance()
       })
       try {
-        const reconciled = await fetchNextContent(session.student_id, trailId)
-        setContent(reconciled)
+        const s = requireSession()
+        if (s) {
+          const reconciled = await fetchNextContent(s.student_id, trailId)
+          setContent(reconciled)
+        }
       } catch {
         /* ignore */
       }
@@ -1308,6 +1380,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
+    const liveSession = ensureSessionOrRedirect()
+    if (!liveSession) return
     mariaCancelledRef.current = false
     // Entra no sidechat já no envio — evita limbo sem Continuar/Voltar (R07-P02).
     setMariaSidechat(true)
@@ -1329,7 +1403,7 @@ export default function PlayerPage() {
     setDraft('')
     try {
       const result = await askMaria({
-        student_id: session.student_id,
+        student_id: liveSession.student_id,
         trail_id: trailId,
         message: askLine,
         stage_number: content.stage_number,
@@ -1442,6 +1516,8 @@ export default function PlayerPage() {
       return
     }
     if (exerciseDone) return
+    const liveSession = ensureSessionOrRedirect()
+    if (!liveSession) return
     const option = normalizeExerciseOptions(content.options).find(
       (o) => o.key === selectedOptionKey,
     )
@@ -1455,8 +1531,8 @@ export default function PlayerPage() {
     const q = content.question_number
     try {
       const attempt = await submitExerciseAttempt({
-        student_id: session.student_id,
-        institution_id: session.institution_id,
+        student_id: liveSession.student_id,
+        institution_id: liveSession.institution_id,
         trail_id: trailId,
         stage_number: content.stage_number,
         question_number: content.question_number,
@@ -1581,8 +1657,16 @@ export default function PlayerPage() {
 
   const onExerciseStep =
     content?.status === 'ok' && content.stage_type === 'exercise'
+  const options =
+    content?.status === 'ok' && content.stage_type === 'exercise'
+      ? normalizeExerciseOptions(content.options)
+      : []
+  /** ER06: exercício sem opções = falha de carga, não lock eterno. */
+  const exerciseOptionsMissing =
+    onExerciseStep && !exerciseDone && options.length === 0
   /** Maria/free-text bloqueados no exercício até feedback (D#6). */
-  const mariaLockedOnExercise = onExerciseStep && !exerciseDone
+  const mariaLockedOnExercise =
+    onExerciseStep && !exerciseDone && !exerciseOptionsMissing
   const composerBlocked =
     mariaLockedOnExercise || busy || content?.status !== 'ok'
   /** Enviar confirma opção selecionada no exercício (D#2). */
@@ -1598,6 +1682,7 @@ export default function PlayerPage() {
     !continuarLeaving &&
     !mariaSidechat &&
     !advanceInFlightRef.current &&
+    !exerciseOptionsMissing &&
     (content.stage_type === 'fixed' ||
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
@@ -1608,10 +1693,6 @@ export default function PlayerPage() {
     mariaSidechat &&
     (!busy || busyReason === 'maria')
 
-  const options =
-    content?.status === 'ok' && content.stage_type === 'exercise'
-      ? normalizeExerciseOptions(content.options)
-      : []
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
       ? exercisePromptFromContent(content)
@@ -1832,8 +1913,20 @@ export default function PlayerPage() {
           </article>
         ) : null}
 
-        {!historyReady || !content ? (
+        {!historyReady ? (
           <p className="muted chat-thread__loading">Carregando…</p>
+        ) : null}
+        {historyReady && !content && !error ? (
+          <p className="muted chat-thread__loading">Carregando…</p>
+        ) : null}
+        {exerciseOptionsMissing ? (
+          <div className="chat-exercise chat-exercise--error" role="alert">
+            <p className="chat-exercise__legend">Questão indisponível</p>
+            <p>
+              Não foi possível carregar as opções. Toque em “Tentar de novo” no
+              aviso acima.
+            </p>
+          </div>
         ) : null}
 
         {optionsVisible ? (

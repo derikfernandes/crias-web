@@ -8,6 +8,10 @@ const TIMEOUT_RE = /timeout|timed?\s*out|request timeout|aborted|aborterror/i
 const SERVER_RE =
   /internal server error|bad gateway|service unavailable|gateway time-?out|\b50[0234]\b/i
 
+const AUTH_EN_RE = /^(unauthorized|forbidden)$/i
+
+const HTMLISH_RE = /^\s*</
+
 export function toUserFacingError(err: unknown, fallback: string): string {
   const raw =
     err instanceof Error
@@ -19,6 +23,12 @@ export function toUserFacingError(err: unknown, fallback: string): string {
   if (!raw || NETWORK_RE.test(raw) || err instanceof TypeError) {
     return 'Não foi possível conectar. Verifique sua internet e tente de novo.'
   }
+  if (HTMLISH_RE.test(raw) || /<\/?(html|body)\b/i.test(raw)) {
+    return fallback
+  }
+  if (AUTH_EN_RE.test(raw.trim())) {
+    return 'Sua sessão expirou. Entre de novo para continuar.'
+  }
   if (TIMEOUT_RE.test(raw)) {
     return 'A conexão demorou demais. Tente de novo.'
   }
@@ -26,7 +36,7 @@ export function toUserFacingError(err: unknown, fallback: string): string {
     return 'O serviço está temporariamente indisponível. Tente de novo.'
   }
   // Já em PT / mensagem da API — passa adiante.
-  if (/[áàâãéêíóôõúç]|não|trilha|senha|aluno/i.test(raw)) {
+  if (/[áàâãéêíóôõúç]|não|trilha|senha|aluno|sessão|permissão/i.test(raw)) {
     return raw
   }
   // Inglês cru residual → fallback amigável.
@@ -40,5 +50,6 @@ export function isRetryableSystemError(err: unknown): boolean {
   if (err instanceof TypeError) return true
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   if (!raw) return true
+  if (AUTH_EN_RE.test(raw.trim())) return false
   return NETWORK_RE.test(raw) || TIMEOUT_RE.test(raw) || SERVER_RE.test(raw)
 }

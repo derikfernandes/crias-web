@@ -237,11 +237,14 @@ a.ghost:hover {
   font-size: 0.9rem;
   font-weight: 600;
   flex-shrink: 0;
-  transition: background 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .chat-sidebar__new:hover {
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.1);
 }
 
 .chat-sidebar__empty {
@@ -274,6 +277,10 @@ a.ghost:hover {
 .chat-sidebar__list a:hover,
 .chat-sidebar__list a.is-active {
   background: #343541;
+}
+
+.chat-sidebar__list a.is-active {
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .chat-sidebar__list .trail-icon {
@@ -384,6 +391,7 @@ a.ghost:hover {
 .chat-topbar__menu:hover {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.1);
+  transform: translateY(-1px);
 }
 
 .chat-topbar__menu:active {
@@ -469,9 +477,10 @@ a.ghost:hover {
 
 .chat-history-collapse__btn:hover {
   color: var(--ink, #111);
-  border-color: var(--muted, #5c6578);
+  border-color: var(--accent);
+  background: rgba(25, 195, 125, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.16);
 }
 
 .chat-bubble {
@@ -551,6 +560,7 @@ a.ghost:hover {
   border-radius: var(--radius);
   display: block;
   margin: 0.35rem 0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
   animation: media-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -652,10 +662,10 @@ a.ghost:hover {
 
 @keyframes resume-border {
   0% {
-    box-shadow: inset 3px 0 0 0 var(--accent);
+    box-shadow: inset 2px 0 0 0 var(--accent);
   }
   100% {
-    box-shadow: inset 3px 0 0 0 transparent;
+    box-shadow: inset 2px 0 0 0 transparent;
   }
 }
 
@@ -684,9 +694,11 @@ a.ghost:hover {
 @keyframes hint-fade {
   from {
     opacity: 0;
+    transform: translateY(2px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -751,7 +763,7 @@ a.ghost:hover {
   border: none;
   border-radius: var(--radius);
   background: var(--composer);
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.2s ease;
 }
 
@@ -864,6 +876,7 @@ a.ghost:hover {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.12);
   transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.14);
 }
 
 .chat-exercise__option:active:not(:disabled) {
@@ -873,6 +886,7 @@ a.ghost:hover {
 .chat-exercise__option.is-selected {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.18);
+  box-shadow: 0 0 0 1px rgba(25, 195, 125, 0.35);
   opacity: 1;
 }
 

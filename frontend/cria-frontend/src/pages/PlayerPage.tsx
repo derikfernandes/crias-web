@@ -97,6 +97,18 @@ function messagesForCollapsedTail(
     : messages.slice(-Math.min(8, messages.length))
 }
 
+/**
+ * C2-R1 N02: no tail colapsado (fora do sidechat Maria), só passo da trilha —
+ * entrega/feedback/opção/resume. Histórico livre da Maria fica no expand.
+ */
+function isTrailStepMessage(m: ChatMessage): boolean {
+  if (m.kind === 'feedback' || m.kind === 'exercise-answer' || m.kind === 'resume') {
+    return true
+  }
+  if (m.kind === 'sidechat') return false
+  return Boolean(m.cellKey)
+}
+
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
 /** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
@@ -2259,14 +2271,21 @@ export default function PlayerPage() {
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
   const collapsedTail = messagesForCollapsedTail(messages, currentQuestion)
+  /** Fora do sidechat: tail focado na aula (N02) — Maria hist só no expand. */
+  const focusedCollapsedTail =
+    mariaSidechat || historyExpanded
+      ? collapsedTail
+      : collapsedTail.filter(isTrailStepMessage)
   const hiddenHistoryCount = Math.max(
     0,
-    messages.length - collapsedTail.length,
+    messages.length - focusedCollapsedTail.length,
   )
   const showHistoryCollapse =
     historyHasMore || hiddenHistoryCount > 0
   const rawVisibleMessages =
-    historyExpanded || hiddenHistoryCount === 0 ? messages : collapsedTail
+    historyExpanded || hiddenHistoryCount === 0
+      ? messages
+      : focusedCollapsedTail
   /**
    * C4-STALE-CONCLUDE-DOM: mid-aula (status ok) não mostra “Parabéns por
    * concluir a aula…” — strip do texto / drop bolha só-conclude.
@@ -2284,6 +2303,46 @@ export default function PlayerPage() {
         })
         .filter((m): m is ChatMessage => m != null)
     : rawVisibleMessages
+
+  const currentCell =
+    content?.status === 'ok'
+      ? trailCellKey(content.stage_number, content.question_number)
+      : null
+  const lessonTitle =
+    content?.status === 'ok' && content.stage_title
+      ? stripDecorTitle(content.stage_title)
+      : ''
+  const lessonBody =
+    content?.status === 'ok'
+      ? stripOptionLines(
+          (content.content ?? '').trim() ||
+            (content.stage_type === 'ai' && !content.content
+              ? 'Carregando o conteúdo da aula…'
+              : ''),
+        )
+      : ''
+  /** C2-R1 N02/N05: card do passo atual — visível sem esperar history/Maria. */
+  const showLessonCard =
+    content?.status === 'ok' &&
+    content.stage_type !== 'exercise' &&
+    Boolean(lessonTitle || lessonBody)
+  const chatMessages = visibleMessages.filter((msg) => {
+    if (!String(msg.text ?? '').trim()) return false
+    // Exercício: enunciado fica no card de opções (cue na bolha).
+    // Aula AI/fixed: corpo no lesson-card — evita duplicata + hist por cima.
+    if (
+      showLessonCard &&
+      currentCell &&
+      msg.cellKey === currentCell &&
+      msg.role === 'assistant' &&
+      msg.kind !== 'feedback' &&
+      msg.kind !== 'sidechat' &&
+      msg.kind !== 'resume'
+    ) {
+      return false
+    }
+    return true
+  })
 
   async function onExpandHistory() {
     // R19-H01: ancorar na etapa atual após o expand pintar (layoutEffect).
@@ -2328,28 +2387,33 @@ export default function PlayerPage() {
         ? 'Trilha indisponível no momento'
         : 'Pergunte à Maria…'
 
+  const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   const hintKey =
     content?.status !== 'ok'
       ? 'off'
-      : content.stage_type === 'exercise'
-        ? exerciseDone
-          ? 'ex-done'
-          : exerciseComposerOpen
-            ? 'ex-locked'
-            : 'ex-pending'
-        : mariaSidechat
-          ? 'maria'
-          : 'trail'
+      : trailBusy
+        ? 'busy'
+        : content.stage_type === 'exercise'
+          ? exerciseDone
+            ? 'ex-done'
+            : exerciseComposerOpen
+              ? 'ex-locked'
+              : 'ex-pending'
+          : mariaSidechat
+            ? 'maria'
+            : 'trail'
 
   const typing = typingCopy(busyReason)
   /**
-   * R04-L03 / R01-F25 / R01-F05 / R09-X09:
-   * typing só Maria/feedback — e nunca junto do card “Enviando…”.
+   * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
+   * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
    */
   const showTypingBubble =
     busy &&
     showTyping &&
-    (busyReason === 'maria' || busyReason === 'exercise') &&
+    (busyReason === 'maria' ||
+      busyReason === 'exercise' ||
+      busyReason === 'trail') &&
     exercisePhase !== 'submitting'
   const showCtaSlot =
     content?.status === 'ok' &&
@@ -2358,7 +2422,6 @@ export default function PlayerPage() {
       continuarLeaving ||
       (busy && busyReason === 'trail') ||
       (busy && busyReason === 'maria' && mariaSidechat))
-  const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /** F02/F07: Enviar permanece no Tab com aria-disabled no exercício sem seleção. */
   const sendAriaDisabled = exerciseLockedComposer && !canSubmitExercise
   const sendDisabledHard = !exerciseLockedComposer && !canSend
@@ -2479,7 +2542,39 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {visibleMessages.map((msg) => {
+        {showLessonCard ? (
+          <section className="lesson-card" aria-label="Conteúdo da etapa">
+            <span className="lesson-card__icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4.5 5.25c1.6-.9 3.4-1.35 5.25-1.35.95 0 1.9.15 2.8.45v14.4a9.3 9.3 0 0 0-2.8-.45c-1.85 0-3.65.45-5.25 1.35V5.25z"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M19.5 5.25c-1.6-.9-3.4-1.35-5.25-1.35-.95 0-1.9.15-2.8.45v14.4c.9-.3 1.85-.45 2.8-.45 1.85 0 3.65.45 5.25 1.35V5.25z"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div className="lesson-card__copy">
+              {lessonTitle ? (
+                <h2 className="lesson-card__title">{lessonTitle}</h2>
+              ) : null}
+              {lessonBody ? (
+                <div className="lesson-card__body">
+                  {renderMessageLines(lessonBody).map((part) =>
+                    renderMessagePart(part),
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+        {chatMessages.map((msg) => {
           const promptMovedToCard =
             Boolean(activeExerciseCellKey) &&
             msg.role === 'assistant' &&
@@ -2796,16 +2891,18 @@ export default function PlayerPage() {
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
-            {content.stage_type === 'exercise'
-              ? showContinuar
-                ? 'Pergunte à Maria · Continuar trilha avança'
-                : 'Pergunte à Maria; o botão verde avança a trilha'
-              : mariaSidechat
-                ? 'Voltar à trilha reexibe o passo atual'
-                : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
-                  showContinuar
-                  ? 'Enviar fala com Maria · Continuar trilha avança'
-                  : 'Enviar fala com Maria · o botão verde avança a trilha'}
+            {trailBusy
+              ? 'Aguarde — salvando e carregando a próxima etapa'
+              : content.stage_type === 'exercise'
+                ? showContinuar
+                  ? 'Pergunte à Maria · Continuar trilha avança'
+                  : 'Pergunte à Maria; o botão verde avança a trilha'
+                : mariaSidechat
+                  ? 'Voltar à trilha reexibe o passo atual'
+                  : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                    showContinuar
+                    ? 'Enviar fala com Maria · Continuar trilha avança'
+                    : 'Enviar fala com Maria · o botão verde avança a trilha'}
           </p>
         ) : null}
       </footer>

@@ -7,6 +7,7 @@ type LayoutOutlet = {
   trailsError: string | null
   trailsLoading: boolean
   retryTrails: () => void
+  trailNames?: Record<string, string>
 }
 
 function pickHomeTrail(
@@ -29,12 +30,18 @@ function homeCtaLabel(row: StudentTrailRow): string {
 
 export default function TrailsPage() {
   const session = getSession()!
-  const { trailRows, trailsError, trailsLoading, retryTrails } =
+  const { trailRows, trailsError, trailsLoading, retryTrails, trailNames } =
     useOutletContext<LayoutOutlet>()
 
   const empty =
     !trailsLoading && !trailsError && Array.isArray(trailRows) && trailRows.length === 0
   const primary = pickHomeTrail(trailRows)
+  const primaryLabel =
+    primary && trailNames?.[primary.trail_id]
+      ? trailNames[primary.trail_id]
+      : primary
+        ? 'Trilha'
+        : null
 
   return (
     <div className="chat-home">
@@ -76,7 +83,7 @@ export default function TrailsPage() {
                 {homeCtaLabel(primary)}
               </Link>
               <p className="muted chat-home__hint">
-                {primary.trail_id}
+                {primaryLabel}
                 {primary.status === 'in_progress'
                   ? ` · Etapa ${primary.current_stage_number}`
                   : ''}

@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  fetchTrailNames,
   fetchTrailStageTotals,
   isAuthError,
   listStudentTrails,
@@ -55,6 +56,8 @@ export default function ChatLayout() {
   const [trailsLoading, setTrailsLoading] = useState(true)
   /** R28-I01: totais p/ “Etapa X de Y” (sem prefixo EN `q`). */
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
+  /** C2-R1 N04: nome humano da trilha (nunca ID cru na UI). */
+  const [trailNames, setTrailNames] = useState<Record<string, string>>({})
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
@@ -236,6 +239,13 @@ export default function ChatLayout() {
       .catch(() => {
         if (!cancelled) setStageTotals({})
       })
+    void fetchTrailNames()
+      .then((map) => {
+        if (!cancelled) setTrailNames(map)
+      })
+      .catch(() => {
+        if (!cancelled) setTrailNames({})
+      })
     return () => {
       cancelled = true
     }
@@ -322,17 +332,29 @@ export default function ChatLayout() {
 
   if (!session) return null
 
-  const activeStageTotal =
+  /**
+   * C2-R1 N01: nunca usar current_stage como total (virava “N de N” / “5 de 4”
+   * quando o chrome do player ia na frente do row / totals).
+   * Sem total conhecido → só “Etapa N”; com total → max(total, atual).
+   */
+  const activeStageTotalRaw =
     activeTrailId && stageTotals[activeTrailId] > 0
       ? stageTotals[activeTrailId]
-      : activeRow
-        ? Math.max(activeRow.current_stage_number, 1)
-        : null
+      : null
   const activeStageNumber =
     playerChrome.stageNumber ?? activeRow?.current_stage_number ?? null
+  const activeStageTotal =
+    activeStageTotalRaw != null && activeStageNumber != null
+      ? Math.max(activeStageTotalRaw, activeStageNumber)
+      : activeStageTotalRaw
+  /** Player: stage_title vivo; senão nome humano da trilha (nunca `t47`). */
+  const activeTrailLabel =
+    playerChrome.stageTitle ||
+    (activeTrailId ? trailNames[activeTrailId] : null) ||
+    null
   const trailLabel = activeTrailId
     ? [
-        playerChrome.stageTitle || activeTrailId,
+        activeTrailLabel || 'Trilha',
         activeStageNumber != null && activeStageTotal != null
           ? `Etapa ${activeStageNumber} de ${activeStageTotal}`
           : activeStageNumber != null
@@ -403,10 +425,19 @@ export default function ChatLayout() {
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
-                const total =
+                const totalRaw =
                   stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
                     ? stageTotals[row.trail_id]
-                    : Math.max(row.current_stage_number, 1)
+                    : null
+                const total =
+                  totalRaw != null
+                    ? Math.max(totalRaw, row.current_stage_number)
+                    : null
+                const label = trailNames[row.trail_id] || 'Trilha'
+                const etapaMeta =
+                  total != null
+                    ? `Etapa ${row.current_stage_number} de ${total}`
+                    : `Etapa ${row.current_stage_number}`
                 return (
                   <li key={row.id}>
                     <Link
@@ -419,10 +450,9 @@ export default function ChatLayout() {
                         ▤
                       </span>
                       <span className="trail-copy">
-                        <span className="trail-id">{row.trail_id}</span>
+                        <span className="trail-id">{label}</span>
                         <span className="trail-meta">
-                          {STATUS_LABEL[row.status]} · Etapa{' '}
-                          {row.current_stage_number} de {total}
+                          {STATUS_LABEL[row.status]} · {etapaMeta}
                         </span>
                       </span>
                     </Link>
@@ -488,6 +518,7 @@ export default function ChatLayout() {
               trailsLoading,
               retryTrails: () => void reloadTrails(),
               activeTrailRow: activeRow,
+              trailNames,
             }}
           />
         </div>

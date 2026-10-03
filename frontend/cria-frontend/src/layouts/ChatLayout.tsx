@@ -25,6 +25,14 @@ function initialSidebarOpen() {
   return !window.matchMedia('(max-width: 768px)').matches
 }
 
+function focusableIn(root: HTMLElement): HTMLElement[] {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
+}
+
 export default function ChatLayout() {
   const session = getSession()
   const navigate = useNavigate()
@@ -42,6 +50,9 @@ export default function ChatLayout() {
       window.matchMedia('(max-width: 768px)').matches,
   )
   const drawerAsModal = isNarrow && sidebarOpen
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const sidebarRef = useRef<HTMLElement>(null)
+  const restoreFocusRef = useRef(false)
 
   // ER05: sessão sumiu mid-app → login.
   useEffect(() => {
@@ -124,15 +135,65 @@ export default function ChatLayout() {
     return () => mq.removeEventListener('change', sync)
   }, [])
 
-  // R03-A02 / A07: Escape fecha o drawer no mobile.
+  const closeDrawer = useCallback((restoreFocus = true) => {
+    restoreFocusRef.current = restoreFocus
+    setSidebarOpen(false)
+  }, [])
+
+  // R03-A02 / A07 / F05: Escape + trap de foco + retorno ao ☰.
   useEffect(() => {
-    if (!drawerAsModal) return
+    if (!drawerAsModal) {
+      if (restoreFocusRef.current) {
+        restoreFocusRef.current = false
+        window.requestAnimationFrame(() => {
+          menuBtnRef.current?.focus()
+        })
+      }
+      return
+    }
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+
+    const focusables = focusableIn(sidebar)
+    const first = focusables[0]
+    first?.focus()
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSidebarOpen(false)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeDrawer(true)
+        return
+      }
+      if (e.key !== 'Tab') return
+      const list = focusableIn(sidebar)
+      if (list.length === 0) return
+      const head = list[0]
+      const tail = list[list.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey) {
+        if (!active || active === head || !sidebar.contains(active)) {
+          e.preventDefault()
+          tail.focus()
+        }
+      } else if (!active || active === tail || !sidebar.contains(active)) {
+        e.preventDefault()
+        head.focus()
+      }
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as Node | null
+      if (target && !sidebar.contains(target)) {
+        const list = focusableIn(sidebar)
+        list[0]?.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [drawerAsModal])
+    document.addEventListener('focusin', onFocusIn)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('focusin', onFocusIn)
+    }
+  }, [drawerAsModal, closeDrawer])
 
   useEffect(() => {
     void reloadTrails()
@@ -148,6 +209,7 @@ export default function ChatLayout() {
   // Player / rotas estreitas: nunca reabrir drawer só por navegar; desktop ignora --open no CSS.
   useEffect(() => {
     if (window.matchMedia('(max-width: 768px)').matches) {
+      restoreFocusRef.current = false
       setSidebarOpen(false)
     }
   }, [location.pathname])
@@ -203,6 +265,24 @@ export default function ChatLayout() {
 
   if (!session) return null
 
+  const titleText = activeTrailId
+    ? [
+        'Crias',
+        playerChrome.stageTitle || activeTrailId,
+        playerChrome.stageNumber != null
+          ? `etapa ${playerChrome.stageNumber}`
+          : activeRow
+            ? `etapa ${activeRow.current_stage_number}`
+            : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'Crias · Suas trilhas'
+
+  // R03-A01 / F05: sidebar fechada no mobile não entra no Tab; main inerte com drawer aberto.
+  const sidebarInert = isNarrow && !sidebarOpen
+  const mainInert = drawerAsModal
+
   return (
     <div className="chat-shell">
       {offline ? (
@@ -213,16 +293,18 @@ export default function ChatLayout() {
 
       <aside
         id="crias-sidebar"
+        ref={sidebarRef}
         className={`chat-sidebar ${sidebarOpen ? 'chat-sidebar--open' : ''}`}
         aria-label="Trilhas"
         aria-modal={drawerAsModal ? true : undefined}
         role={drawerAsModal ? 'dialog' : 'navigation'}
+        inert={sidebarInert || undefined}
       >
-        <nav className="chat-sidebar__nav">
+        <nav className="chat-sidebar__nav" aria-label="Lista de trilhas">
           <Link
             to="/"
             className="chat-sidebar__new"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => closeDrawer(false)}
           >
             <span aria-hidden>+</span> Minhas trilhas
           </Link>
@@ -252,7 +334,7 @@ export default function ChatLayout() {
                     <Link
                       to={href}
                       className={active ? 'is-active' : undefined}
-                      onClick={() => setSidebarOpen(false)}
+                      onClick={() => closeDrawer(false)}
                     >
                       <span className="trail-icon" aria-hidden>
                         ▤
@@ -289,51 +371,44 @@ export default function ChatLayout() {
       </aside>
 
       {drawerAsModal ? (
-        <button
-          type="button"
+        <div
           className="chat-sidebar__backdrop"
-          aria-label="Fechar menu"
-          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+          onClick={() => closeDrawer(true)}
         />
       ) : null}
 
       <div className="chat-main">
         <header className="chat-topbar">
           <button
+            ref={menuBtnRef}
             type="button"
             className="chat-topbar__menu"
             aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
             aria-expanded={sidebarOpen}
             aria-controls="crias-sidebar"
-            onClick={() => setSidebarOpen((v) => !v)}
+            aria-haspopup="dialog"
+            tabIndex={drawerAsModal ? -1 : undefined}
+            onClick={() => {
+              if (sidebarOpen) closeDrawer(true)
+              else setSidebarOpen(true)
+            }}
           >
             ☰
           </button>
-          <span className="chat-topbar__title">
-            {activeTrailId
-              ? [
-                  'Crias',
-                  playerChrome.stageTitle || activeTrailId,
-                  playerChrome.stageNumber != null
-                    ? `etapa ${playerChrome.stageNumber}`
-                    : activeRow
-                      ? `etapa ${activeRow.current_stage_number}`
-                      : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              : 'Crias · Suas trilhas'}
-          </span>
+          <span className="chat-topbar__title">{titleText}</span>
         </header>
-        <Outlet
-          context={{
-            trailRows: rows,
-            trailsError,
-            trailsLoading,
-            retryTrails: () => void reloadTrails(),
-            activeTrailRow: activeRow,
-          }}
-        />
+        <div className="chat-main__content" inert={mainInert || undefined}>
+          <Outlet
+            context={{
+              trailRows: rows,
+              trailsError,
+              trailsLoading,
+              retryTrails: () => void reloadTrails(),
+              activeTrailRow: activeRow,
+            }}
+          />
+        </div>
       </div>
     </div>
   )

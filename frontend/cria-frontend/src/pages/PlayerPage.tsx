@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
@@ -142,6 +143,7 @@ function renderMessagePart(part: MessagePart): ReactNode {
           <iframe
             src={part.embedUrl}
             title={part.label || 'Mídia da aula'}
+            tabIndex={-1}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             loading="lazy"
@@ -350,7 +352,10 @@ export default function PlayerPage() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [historyHasMore, setHistoryHasMore] = useState(false)
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
-  const [newMsgChip, setNewMsgChip] = useState(false)
+  /** Chip de jump: visível quando longe do fim (R19-H03). */
+  const [jumpChip, setJumpChip] = useState(false)
+  /** true só quando conteúdo novo chegou abaixo enquanto pinado (R19-H04). */
+  const [unseenBelow, setUnseenBelow] = useState(false)
   const [continuarLeaving, setContinuarLeaving] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -389,10 +394,29 @@ export default function PlayerPage() {
   const skipNextBlocoDeliveryRef = useRef(false)
   /** Race guard síncrono — double-tap Continuar (R04-L01 / R06-E02). */
   const advanceInFlightRef = useRef(false)
+  /** advance OK mas next-content falhou — retry só resync (R18-N02). */
+  const advanceCommittedRef = useRef(false)
   /** Usuário saiu da Maria enquanto a resposta ainda vinha. */
   const mariaCancelledRef = useRef(false)
   /** Última ação retryável (rede/sistema). */
   const retryFnRef = useRef<(() => void) | null>(null)
+  /** Âncora pós-expand / prepend (R19-H01 / H02) — aplica em useLayoutEffect. */
+  const pendingScrollAnchorRef = useRef<
+    | { kind: 'expand' | 'prepend'; prevHeight: number; prevTop: number }
+    | { kind: 'current-step' }
+    | null
+  >(null)
+  const continuarBtnRef = useRef<HTMLButtonElement>(null)
+
+  const clearJumpChip = useCallback(() => {
+    setJumpChip(false)
+    setUnseenBelow(false)
+  }, [])
+
+  const showJumpChip = useCallback((opts?: { unseen?: boolean }) => {
+    if (opts?.unseen) setUnseenBelow(true)
+    setJumpChip(true)
+  }, [])
   contentRef.current = content
   busyReasonRef.current = busyReason
 
@@ -479,10 +503,26 @@ export default function PlayerPage() {
     const onOnline = () => {
       setBusy(false)
       setBusyReason(null)
+      busyReasonRef.current = null
+      setContinuarLeaving(false)
+      advanceInFlightRef.current = false
+      setPendingOptionKey(null)
     }
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
   }, [])
+
+  /** R04-L07: limpa flag animate após a entrada — evita re-trigger no scroll. */
+  useEffect(() => {
+    if (!messages.some((m) => m.animate)) return
+    const t = window.setTimeout(() => {
+      setMessages((prev) => {
+        if (!prev.some((m) => m.animate)) return prev
+        return prev.map((m) => (m.animate ? { ...m, animate: false } : m))
+      })
+    }, 420)
+    return () => window.clearTimeout(t)
+  }, [messages])
 
   useEffect(() => bindVisualViewport(), [])
 
@@ -553,7 +593,7 @@ export default function PlayerPage() {
         el.scrollTop = top
       })
       nearBottomRef.current = true
-      setNewMsgChip(false)
+      clearJumpChip()
     }
 
     const ro = new ResizeObserver(() => {
@@ -619,7 +659,7 @@ export default function PlayerPage() {
     setHistoryReady(false)
     setHistoryExpanded(false)
     setHistoryHasMore(false)
-    setNewMsgChip(false)
+    clearJumpChip()
     historyBeforeRef.current = null
     oldestLogMsRef.current = null
     skipSmoothScrollRef.current = true
@@ -845,28 +885,19 @@ export default function PlayerPage() {
       historyBeforeRef.current = page.next_before
       if (page.logs.length === 0) return
       const older = logsToMessages(page.logs)
+      // R19-H02: âncora no layout effect (após paint do prepend).
+      pendingScrollAnchorRef.current = {
+        kind: 'prepend',
+        prevHeight,
+        prevTop,
+      }
       setMessages((prev) => {
         const seen = new Set(prev.map((m) => m.id))
         const merged = older.filter((m) => !seen.has(m.id))
         return [...merged, ...prev]
       })
-      // Mantém o viewport no mesmo conteúdo após prepend.
-      // Se há pin ativo (Continuar / leitura), não sobrescrever o pin.
-      requestAnimationFrame(() => {
-        const scroller = threadRef.current
-        if (!scroller) return
-        const delta = scroller.scrollHeight - prevHeight
-        if (isPinLocked()) {
-          scroller.scrollTop = pinnedScrollTopRef.current
-          nearBottomRef.current = false
-          return
-        }
-        scroller.scrollTop = prevTop + delta
-        pinnedAwayRef.current = true
-        nearBottomRef.current = false
-        pinnedScrollTopRef.current = scroller.scrollTop
-      })
     } catch {
+      pendingScrollAnchorRef.current = null
       /* ignore — botão permanece */
     } finally {
       setHistoryLoadingMore(false)
@@ -877,6 +908,50 @@ export default function PlayerPage() {
     session.student_id,
     trailId,
   ])
+
+  /** R19-H01/H02: aplica âncora de scroll após expand/prepend no DOM. */
+  useLayoutEffect(() => {
+    const pending = pendingScrollAnchorRef.current
+    if (!pending) return
+    pendingScrollAnchorRef.current = null
+    const scroller = threadRef.current
+    if (!scroller) return
+
+    if (pending.kind === 'current-step') {
+      const current = contentRef.current
+      if (current?.status === 'ok') {
+        const key = trailCellKey(current.stage_number, current.question_number)
+        const bubble = scroller.querySelector(
+          `[data-cell-key="${key}"]`,
+        ) as HTMLElement | null
+        if (bubble) {
+          bubble.scrollIntoView({ block: 'center', behavior: 'auto' })
+          pinnedAwayRef.current = true
+          nearBottomRef.current = false
+          userScrollUpGestureRef.current = true
+          pinnedScrollTopRef.current = scroller.scrollTop
+          showJumpChip()
+          return
+        }
+      }
+      scroller.scrollTop = scroller.scrollHeight
+      return
+    }
+
+    const delta = scroller.scrollHeight - pending.prevHeight
+    if (isPinLocked()) {
+      scroller.scrollTop = pinnedScrollTopRef.current
+      nearBottomRef.current = false
+      showJumpChip()
+      return
+    }
+    scroller.scrollTop = pending.prevTop + Math.max(0, delta)
+    pinnedAwayRef.current = true
+    nearBottomRef.current = false
+    userScrollUpGestureRef.current = true
+    pinnedScrollTopRef.current = scroller.scrollTop
+    showJumpChip()
+  }, [messages, historyExpanded, showJumpChip])
 
   useEffect(() => {
     deliveredKeyRef.current = null
@@ -966,7 +1041,7 @@ export default function PlayerPage() {
         nearBottomRef.current = true
         pinnedAwayRef.current = false
         userScrollUpGestureRef.current = false
-        setNewMsgChip(false)
+        clearJumpChip()
       }
       return
     }
@@ -983,13 +1058,15 @@ export default function PlayerPage() {
     if (near) {
       pinnedAwayRef.current = false
       userScrollUpGestureRef.current = false
-      setNewMsgChip(false)
+      clearJumpChip()
       return
     }
     // Longe do fundo: pin só se houve gesto de scroll-up (C4-MARIA-FALSE-PIN).
     if (userScrollUpGestureRef.current || pinnedAwayRef.current) {
       pinnedAwayRef.current = true
       pinnedScrollTopRef.current = el.scrollTop
+      // R19-H03: atalho “Ir para o fim” sempre que !nearBottom.
+      showJumpChip()
     }
   }
 
@@ -1015,7 +1092,7 @@ export default function PlayerPage() {
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     userScrollUpGestureRef.current = false
-    setNewMsgChip(false)
+    clearJumpChip()
     const top = el.scrollHeight
     const preferAuto = behavior === 'auto' || reduceMotionRef.current
     runProgrammaticScroll(() => {
@@ -1069,7 +1146,7 @@ export default function PlayerPage() {
       nearBottomRef.current = isScrollNearBottom(el)
       if (nearBottomRef.current) {
         pinnedAwayRef.current = false
-        setNewMsgChip(false)
+        clearJumpChip()
       }
       return
     }
@@ -1106,7 +1183,7 @@ export default function PlayerPage() {
             initialAnchorPendingRef.current = false
             pinnedAwayRef.current = false
             nearBottomRef.current = true
-            setNewMsgChip(false)
+            clearJumpChip()
           }
         })
       }
@@ -1119,7 +1196,7 @@ export default function PlayerPage() {
     // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     if (isPinLocked() || pinnedAwayRef.current) {
       if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
-      setNewMsgChip(true)
+      showJumpChip({ unseen: true })
       return
     }
     // Sem pin do usuário: sempre stick-to-bottom (auto) — gap de append ≠ chip.
@@ -1306,6 +1383,32 @@ export default function PlayerPage() {
     }
   }
 
+  /** Só resync após advance já commitado (R18-N02). */
+  async function resyncAfterAdvance() {
+    const liveSession = ensureSessionOrRedirect()
+    if (!liveSession) return
+    setBusy(true)
+    setBusyReason('trail')
+    busyReasonRef.current = 'trail'
+    clearError()
+    try {
+      deliveredKeyRef.current = null
+      await loadNextAfterAdvance()
+      advanceCommittedRef.current = false
+      window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+    } catch (err) {
+      reportError(err, 'Etapa salva. Recarregando…', () => {
+        void resyncAfterAdvance()
+      })
+    } finally {
+      setBusy(false)
+      setBusyReason(null)
+      busyReasonRef.current = null
+      setContinuarLeaving(false)
+      advanceInFlightRef.current = false
+    }
+  }
+
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
     if (content?.status !== 'ok') return
@@ -1313,14 +1416,17 @@ export default function PlayerPage() {
     if (advanceInFlightRef.current || busy) return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
-    advanceInFlightRef.current = true
-    // Evita scrollIntoView do botão focado puxar a thread ao fundo (C2-40).
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
+    // R18-N02: se advance já commitou, só resync — não avança de novo.
+    if (advanceCommittedRef.current) {
+      advanceInFlightRef.current = true
+      await resyncAfterAdvance()
+      return
     }
+    advanceInFlightRef.current = true
+    // R17-M01 / F04: não blur → BODY; mantém foco no CTA busy.
     const pinned = capturePinFromScroll()
     if (pinned) {
-      setNewMsgChip(true)
+      showJumpChip({ unseen: true })
       startPinLock()
     }
     setContinuarLeaving(true)
@@ -1330,10 +1436,11 @@ export default function PlayerPage() {
     clearError()
     setMariaSidechat(false)
     mariaCancelledRef.current = false
-    setDraft('')
+    // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       const result = await advanceTrail(liveSession.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
+        advanceCommittedRef.current = false
         setContent({
           status: 'completed',
           student_id: liveSession.student_id,
@@ -1349,24 +1456,29 @@ export default function PlayerPage() {
           }),
         ])
       } else if (result.status === 'ok') {
+        advanceCommittedRef.current = true
         deliveredKeyRef.current = null
         await loadNextAfterAdvance()
+        advanceCommittedRef.current = false
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       } else {
         setContent(result as NextContentStatus)
       }
     } catch (err) {
       reportError(err, 'Erro ao avançar a trilha.', () => {
-        void doAdvance()
+        if (advanceCommittedRef.current) void resyncAfterAdvance()
+        else void doAdvance()
       })
-      try {
-        const s = requireSession()
-        if (s) {
-          const reconciled = await fetchNextContent(s.student_id, trailId)
-          setContent(reconciled)
+      if (!advanceCommittedRef.current) {
+        try {
+          const s = requireSession()
+          if (s) {
+            const reconciled = await fetchNextContent(s.student_id, trailId)
+            setContent(reconciled)
+          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
       }
     } finally {
       advanceInFlightRef.current = false
@@ -1378,11 +1490,19 @@ export default function PlayerPage() {
       if (pinnedAwayRef.current && threadRef.current) {
         threadRef.current.scrollTop = pinnedScrollTopRef.current
         nearBottomRef.current = false
-        setNewMsgChip(true)
+        showJumpChip({ unseen: true })
         startPinLock(2500)
       } else {
         stopPinLock()
       }
+      // F08: âncora de foco pós-advance no CTA ou composer.
+      window.requestAnimationFrame(() => {
+        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+          continuarBtnRef.current.focus()
+        } else {
+          inputRef.current?.focus()
+        }
+      })
     }
   }
 
@@ -1410,6 +1530,7 @@ export default function PlayerPage() {
         kind: 'sidechat',
       }),
     ])
+    // R12-O05 / R18-N04: só limpa draft no ack; falha restaura.
     setDraft('')
     try {
       const result = await askMaria({
@@ -1434,6 +1555,7 @@ export default function PlayerPage() {
         setMariaSidechat(true)
       }
     } catch (err) {
+      setDraft(askLine)
       reportError(err, 'Erro ao falar com Maria.', () => {
         void doMaria(askLine)
       })
@@ -1443,6 +1565,10 @@ export default function PlayerPage() {
     } finally {
       setBusy(false)
       setBusyReason(null)
+      // F08: pós-Enviar Maria → composer, não BODY.
+      window.requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
     }
   }
 
@@ -1469,7 +1595,7 @@ export default function PlayerPage() {
       pinnedAwayRef.current = false
       nearBottomRef.current = true
       userScrollUpGestureRef.current = false
-      setNewMsgChip(false)
+      clearJumpChip()
       // Reusa o caminho de âncora (como mount) para o resume assentar no fim.
       initialAnchorPendingRef.current = true
       skipSmoothScrollRef.current = true
@@ -1508,6 +1634,16 @@ export default function PlayerPage() {
           questionNumber: current.question_number,
         }),
       ]
+    })
+    // F08: pós-Voltar → foco no Continuar (ou composer).
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
+          continuarBtnRef.current.focus()
+        } else {
+          inputRef.current?.focus()
+        }
+      }, 80)
     })
   }
 
@@ -1750,25 +1886,32 @@ export default function PlayerPage() {
     : rawVisibleMessages
 
   async function onExpandHistory() {
-    const el = threadRef.current
-    const prevHeight = el?.scrollHeight ?? 0
-    const prevTop = el?.scrollTop ?? 0
+    // R19-H01: ancorar na etapa atual após o expand pintar (layoutEffect).
+    pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
-    // Reveal de outras questions: mantém o viewport no mesmo conteúdo.
-    requestAnimationFrame(() => {
-      const scroller = threadRef.current
-      if (!scroller) return
-      const delta = scroller.scrollHeight - prevHeight
-      if (delta > 0) {
-        scroller.scrollTop = prevTop + delta
-        pinnedAwayRef.current = true
-        nearBottomRef.current = false
-        pinnedScrollTopRef.current = scroller.scrollTop
-      }
-    })
     if (historyHasMore) {
       await loadOlderHistory()
     }
+  }
+
+  /** F06: setas movem entre opções; nunca vazam foco para iframe. */
+  function onOptionKeyDown(
+    e: KeyboardEvent<HTMLButtonElement>,
+    optIndex: number,
+    opts: ExerciseOption[],
+  ) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft') {
+      return
+    }
+    e.preventDefault()
+    e.stopPropagation()
+    const delta =
+      e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1
+    const next = (optIndex + delta + opts.length) % opts.length
+    const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+      '.chat-exercise__option',
+    )
+    buttons?.[next]?.focus()
   }
 
   const exerciseLockedComposer =
@@ -1805,6 +1948,11 @@ export default function PlayerPage() {
           : 'trail'
 
   const typing = typingCopy(busyReason)
+  /** R04-L03 / R01-F25: typing só enquanto espera Maria/feedback — não sobre UI pronta do trail. */
+  const showTypingBubble =
+    busy &&
+    showTyping &&
+    (busyReason === 'maria' || busyReason === 'exercise')
   const showCtaSlot =
     content?.status === 'ok' &&
     (showContinuar ||
@@ -1812,9 +1960,20 @@ export default function PlayerPage() {
       continuarLeaving ||
       (busy && busyReason === 'trail') ||
       (busy && busyReason === 'maria' && mariaSidechat))
+  const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
+  /** F02/F07: Enviar permanece no Tab com aria-disabled no exercício sem seleção. */
+  const sendAriaDisabled = exerciseLockedComposer && !canSubmitExercise
+  const sendDisabledHard = !exerciseLockedComposer && !canSend
 
   return (
-    <div className="chat-thread">
+    <main
+      className="chat-thread"
+      aria-busy={busy || undefined}
+      aria-labelledby="crias-player-heading"
+    >
+      <h1 id="crias-player-heading" className="visually-hidden">
+        Player da trilha {trailId}
+      </h1>
       {error ? (
         <div className="error chat-thread__banner" role="alert">
           <p className="chat-thread__banner-text">{error}</p>
@@ -1836,9 +1995,13 @@ export default function PlayerPage() {
 
       <div className="chat-thread__body">
         <div
+          id="crias-thread-log"
           className="chat-thread__scroll"
           ref={threadRef}
           onScroll={updateNearBottom}
+          role="log"
+          aria-relevant="additions"
+          aria-busy={historyLoadingMore || undefined}
         >
         {!historyExpanded && showHistoryCollapse ? (
           <div className="chat-history-collapse">
@@ -1846,6 +2009,8 @@ export default function PlayerPage() {
               type="button"
               className="chat-history-collapse__btn"
               disabled={historyLoadingMore}
+              aria-expanded={false}
+              aria-controls="crias-thread-log"
               onClick={() => void onExpandHistory()}
             >
               {historyLoadingMore
@@ -1867,16 +2032,19 @@ export default function PlayerPage() {
                 type="button"
                 className="chat-history-collapse__btn"
                 disabled={historyLoadingMore}
+                aria-busy={historyLoadingMore || undefined}
                 onClick={() => void loadOlderHistory()}
               >
                 {historyLoadingMore
-                  ? 'Carregando…'
+                  ? 'Carregando etapas…'
                   : 'Carregar etapas mais antigas'}
               </button>
             ) : null}
             <button
               type="button"
               className="chat-history-collapse__btn"
+              aria-expanded={true}
+              aria-controls="crias-thread-log"
               onClick={() => setHistoryExpanded(false)}
             >
               Recolher etapas anteriores
@@ -1904,7 +2072,7 @@ export default function PlayerPage() {
           </article>
         ))}
 
-        {busy && showTyping ? (
+        {showTypingBubble ? (
           <article
             className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}`}
             aria-live="polite"
@@ -1924,7 +2092,12 @@ export default function PlayerPage() {
         ) : null}
 
         {!historyReady ? (
-          <p className="muted chat-thread__loading">Carregando…</p>
+          <div className="chat-thread__skeleton" aria-hidden="true">
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" />
+            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" />
+            <p className="muted chat-thread__loading">Carregando a trilha…</p>
+          </div>
         ) : null}
         {historyReady && !content && !error ? (
           <p className="muted chat-thread__loading">Carregando…</p>
@@ -1958,7 +2131,7 @@ export default function PlayerPage() {
               role="radiogroup"
               aria-label="Opções da questão"
             >
-              {options.map((opt) => {
+              {options.map((opt, optIndex) => {
                 const selected = highlightOptionKey === opt.key
                 const dimmed = !!pendingOptionKey && !selected
                 return (
@@ -1976,6 +2149,7 @@ export default function PlayerPage() {
                       .join(' ')}
                     disabled={busy || !!pendingOptionKey}
                     onClick={() => onOptionSelect(opt)}
+                    onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
                   >
                     {opt.text}
                   </button>
@@ -1990,7 +2164,7 @@ export default function PlayerPage() {
       {/* CTA fora do scroller: não cobre bolhas (C3-CTA-OVERLAP); pin C2-40 intacto. */}
       {showCtaSlot ? (
         <div
-          className={`chat-cta-slot${continuarLeaving || (busy && busyReason === 'trail') ? ' chat-cta-slot--busy' : ''}`}
+          className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
         >
           {showVoltarTrilha ? (
             <div className="chat-continue chat-continue--sidechat chat-continue--enter">
@@ -2004,30 +2178,32 @@ export default function PlayerPage() {
             </div>
           ) : null}
 
-          {showContinuar || continuarLeaving ? (
+          {showContinuar || trailBusy ? (
             <div
-              className={`chat-continue${continuarLeaving ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
+              className={`chat-continue${trailBusy ? ' chat-continue--leaving' : ' chat-continue--enter'}`}
             >
               <button
+                ref={continuarBtnRef}
                 type="button"
                 className="chat-continue__btn"
                 disabled={busy || continuarLeaving || advanceInFlightRef.current}
+                aria-busy={trailBusy || undefined}
                 onClick={() => void doAdvance()}
               >
-                Continuar
+                {trailBusy ? 'Preparando etapa…' : 'Continuar'}
               </button>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {newMsgChip ? (
+      {jumpChip ? (
         <button
           type="button"
           className={`chat-new-msg-chip${showCtaSlot ? ' chat-new-msg-chip--above-cta' : ''}`}
           onClick={() => scrollToBottom('smooth')}
         >
-          Nova mensagem
+          {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
         </button>
       ) : null}
       </div>
@@ -2037,7 +2213,16 @@ export default function PlayerPage() {
           exerciseLockedComposer ? ' chat-composer--locked' : ''
         }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}`}
       >
-        <form className="chat-composer__form" onSubmit={(e) => void onSend(e)}>
+        <form
+          className="chat-composer__form"
+          onSubmit={(e) => {
+            if (sendAriaDisabled) {
+              e.preventDefault()
+              return
+            }
+            void onSend(e)
+          }}
+        >
           {exerciseLockedComposer ? (
             <span
               className="chat-composer__lock"
@@ -2083,7 +2268,8 @@ export default function PlayerPage() {
             className="chat-composer__input"
             rows={1}
             value={draft}
-            disabled={composerBlocked}
+            disabled={composerBlocked && !exerciseLockedComposer}
+            readOnly={exerciseLockedComposer}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
               exerciseLockedComposer
@@ -2102,8 +2288,16 @@ export default function PlayerPage() {
           />
           <button
             type="submit"
-            disabled={!canSend}
-            aria-label={canSubmitExercise ? 'Enviar resposta' : 'Enviar'}
+            disabled={sendDisabledHard}
+            aria-disabled={sendAriaDisabled || undefined}
+            className={sendAriaDisabled ? 'is-aria-disabled' : undefined}
+            aria-label={
+              canSubmitExercise
+                ? 'Enviar resposta'
+                : sendAriaDisabled
+                  ? 'Enviar — escolha uma opção primeiro'
+                  : 'Enviar'
+            }
           >
             Enviar
           </button>
@@ -2118,6 +2312,6 @@ export default function PlayerPage() {
           </p>
         ) : null}
       </footer>
-    </div>
+    </main>
   )
 }

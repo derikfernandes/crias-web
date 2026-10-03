@@ -5,6 +5,35 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.repl
   '',
 ) ?? ''
 
+/** Timeout de cliente p/ mutate/loads longos (R18-N01 / N04). */
+const CLIENT_TIMEOUT_MS = 15_000
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = CLIENT_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController()
+  const external = init?.signal
+  if (external?.aborted) {
+    throw new ApiRequestError('A conexão demorou demais. Tente de novo.', 408)
+  }
+  const onAbort = () => controller.abort()
+  external?.addEventListener('abort', onAbort)
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new ApiRequestError('A conexão demorou demais. Tente de novo.', 408)
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timer)
+    external?.removeEventListener('abort', onAbort)
+  }
+}
+
 export type ApiError = {
   status?: string
   code?: string
@@ -235,7 +264,7 @@ export async function identifyStudent(input: {
   institution_code: string
   password: string
 }): Promise<IdentifyResponse> {
-  const res = await fetch(`${API_BASE}/student/identify`, {
+  const res = await fetchWithTimeout(`${API_BASE}/student/identify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -274,7 +303,7 @@ export async function listStudentTrails(
 ): Promise<StudentTrailRow[]> {
   const url = new URL(`${API_BASE}/student_trails`, window.location.origin)
   url.searchParams.set('student_id', studentId)
-  const res = await fetch(url.pathname + url.search)
+  const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível carregar suas trilhas.')
@@ -292,7 +321,7 @@ export async function fetchNextContent(
   )
   url.searchParams.set('student_id', studentId)
   url.searchParams.set('trail_id', trailId)
-  const res = await fetch(url.pathname + url.search)
+  const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível carregar a aula.')
@@ -322,7 +351,7 @@ export async function fetchTrailHistoryPage(
   if (opts?.includeAhead) {
     url.searchParams.set('include_ahead', '1')
   }
-  const res = await fetch(url.pathname + url.search)
+  const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível carregar o histórico.')
@@ -371,7 +400,7 @@ export async function createConversationLog(input: {
   message_type?: 'text' | 'instruction' | 'exercise' | 'feedback' | null
   metadata?: Record<string, unknown> | null
 }): Promise<ConversationLogRow> {
-  const res = await fetch(`${API_BASE}/conversation_logs`, {
+  const res = await fetchWithTimeout(`${API_BASE}/conversation_logs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -387,7 +416,7 @@ export async function advanceTrail(
   studentId: string,
   trailId: string,
 ): Promise<AdvanceResponse> {
-  const res = await fetch(`${API_BASE}/student_trails/advance`, {
+  const res = await fetchWithTimeout(`${API_BASE}/student_trails/advance`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ student_id: studentId, trail_id: trailId }),
@@ -406,7 +435,7 @@ export async function askMaria(input: {
   stage_number?: number
   question_number?: number
 }): Promise<MariaReply> {
-  const res = await fetch(`${API_BASE}/student_trails/maria`, {
+  const res = await fetchWithTimeout(`${API_BASE}/student_trails/maria`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -434,7 +463,7 @@ export async function submitExerciseAttempt(input: {
   student_answer: string
   feedback?: string | null
 }): Promise<ExerciseAttemptResult> {
-  const res = await fetch(`${API_BASE}/exercise_attempts`, {
+  const res = await fetchWithTimeout(`${API_BASE}/exercise_attempts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

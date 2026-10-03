@@ -2,6 +2,9 @@
 
 let bound = false
 
+/** Altura de teclado a partir da qual o chrome entra em modo composer-focado (R24-LS05). */
+const KEYBOARD_OPEN_PX = 100
+
 function syncVisualViewportVars() {
   const root = document.documentElement
   const vv = window.visualViewport
@@ -9,6 +12,7 @@ function syncVisualViewportVars() {
     root.style.setProperty('--vv-height', `${window.innerHeight}px`)
     root.style.setProperty('--vv-offset-top', '0px')
     root.style.setProperty('--keyboard-inset', '0px')
+    root.dataset.keyboard = 'closed'
     return
   }
   root.style.setProperty('--vv-height', `${Math.round(vv.height)}px`)
@@ -18,6 +22,8 @@ function syncVisualViewportVars() {
     Math.round(window.innerHeight - vv.height - vv.offsetTop),
   )
   root.style.setProperty('--keyboard-inset', `${keyboard}px`)
+  // R24-LS05: data-attr para CSS compactar composer / esconder Continuar sob KB.
+  root.dataset.keyboard = keyboard >= KEYBOARD_OPEN_PX ? 'open' : 'closed'
 }
 
 /** Idempotente — chamar no boot do app. */

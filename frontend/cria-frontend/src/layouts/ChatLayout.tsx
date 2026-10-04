@@ -22,11 +22,13 @@ const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
 }
 
 /**
- * Shell compacto (= drawer): portrait estreito OU landscape de telefone.
+ * Shell compacto (= drawer): portrait estreito OU landscape curto.
  * R24-LS01: só max-width:768 falhava em 844×390 (sidebar desktop sem ☰).
+ * R20-N02 / P30: max-height 500→600 — evita cliff 800×501 sidebar ↔ 800×500
+ * drawer (e 769/768×501) quando a barra do browser come 1px de vh.
  */
 const COMPACT_MQ =
-  '(max-width: 768px), (max-height: 500px) and (orientation: landscape)'
+  '(max-width: 768px), (max-height: 600px) and (orientation: landscape)'
 
 function isCompactViewport() {
   if (typeof window === 'undefined') return false

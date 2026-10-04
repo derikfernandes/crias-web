@@ -532,11 +532,35 @@ export async function submitExerciseAttempt(input: {
   question_number: number
   student_answer: string
   feedback?: string | null
+  /** Optimistic lock (C2-R23 N01/N02); legado/omitido → 0. */
+  expected_version?: number
+  idempotencyKey?: string
 }): Promise<ExerciseAttemptResult> {
+  const idempotencyKey =
+    (input.idempotencyKey && input.idempotencyKey.trim()) ||
+    `ex-${input.student_id}-${input.trail_id}-${input.stage_number}-${input.question_number}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const expectedVersion =
+    typeof input.expected_version === 'number' &&
+    Number.isFinite(input.expected_version)
+      ? Math.trunc(input.expected_version)
+      : 0
   const res = await fetchWithTimeout(`${API_BASE}/exercise_attempts`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify({
+      student_id: input.student_id,
+      institution_id: input.institution_id,
+      trail_id: input.trail_id,
+      stage_number: input.stage_number,
+      question_number: input.question_number,
+      student_answer: input.student_answer,
+      feedback: input.feedback,
+      expected_version: expectedVersion,
+      idempotency_key: idempotencyKey,
+    }),
   })
   const body = await parseJson(res)
   if (!res.ok) {

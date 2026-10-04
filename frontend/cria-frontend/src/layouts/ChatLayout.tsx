@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -47,6 +48,52 @@ function initialSidebarOpen() {
   return !isCompactViewport()
 }
 
+function DocumentIcon() {
+  return (
+    <svg
+      className="trail-card__doc"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M7 3.75h7.5L19 8.25V20.25a.75.75 0 0 1-.75.75H7.75A.75.75 0 0 1 7 20.25V3.75z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path d="M14.5 3.75V8.5H19" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M9.5 12h5M9.5 15.5h5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 4.75H6.75A2 2 0 0 0 4.75 6.75v10.5a2 2 0 0 0 2 2H10"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 8l4 4-4 4M18 12H9.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function focusableIn(root: HTMLElement): HTMLElement[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>(
@@ -62,7 +109,6 @@ export default function ChatLayout() {
   const [rows, setRows] = useState<StudentTrailRow[] | null>(null)
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
-  /** R28-I01: totais p/ “Etapa X de Y” (sem prefixo EN `q`). */
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
   /** C2-R1 N04: nome humano da trilha (nunca ID cru na UI). */
   const [trailNames, setTrailNames] = useState<Record<string, string>>({})
@@ -71,6 +117,12 @@ export default function ChatLayout() {
     () => typeof navigator !== 'undefined' && !navigator.onLine,
   )
   const [isNarrow, setIsNarrow] = useState(() => isCompactViewport())
+  const [playerChrome, setPlayerChrome] = useState<{
+    trailId: string | null
+    stageTitle: string | null
+    stageNumber: number | null
+    mariaActive: boolean
+  }>({ trailId: null, stageTitle: null, stageNumber: null, mariaActive: false })
   const drawerAsModal = isNarrow && sidebarOpen
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -142,7 +194,6 @@ export default function ChatLayout() {
         })
         return
       }
-      // ER01: não fingir lista vazia no catch.
       setTrailsError(
         toUserFacingError(err, 'Não foi possível carregar suas trilhas.'),
       )
@@ -180,7 +231,6 @@ export default function ChatLayout() {
     }
     sync()
     mq.addEventListener('change', sync)
-    // orientationchange cobre WebKit que às vezes atrasa o matchMedia.
     window.addEventListener('orientationchange', sync)
     return () => {
       mq.removeEventListener('change', sync)
@@ -320,19 +370,6 @@ export default function ChatLayout() {
   const showContinueAula =
     Boolean(continueAulaHref) &&
     location.pathname !== continueAulaHref
-  const [playerChrome, setPlayerChrome] = useState<{
-    trailId: string | null
-    stageTitle: string | null
-    stageNumber: number | null
-    questionNumber: number | null
-    mariaActive: boolean
-  }>({
-    trailId: null,
-    stageTitle: null,
-    stageNumber: null,
-    questionNumber: null,
-    mariaActive: false,
-  })
 
   // Layout effect: listener ativo antes do layout effect do player que despacha.
   useLayoutEffect(() => {
@@ -341,7 +378,6 @@ export default function ChatLayout() {
         trailId?: string
         stageTitle?: string | null
         stageNumber?: number
-        questionNumber?: number
         mariaActive?: boolean
       }
       if (detail?.trailId && detail.trailId !== activeTrailId) return
@@ -350,10 +386,6 @@ export default function ChatLayout() {
         stageTitle: detail.stageTitle ?? null,
         stageNumber:
           typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
-        questionNumber:
-          typeof detail.questionNumber === 'number'
-            ? detail.questionNumber
-            : null,
         mariaActive: Boolean(detail.mariaActive),
       })
     }
@@ -367,27 +399,15 @@ export default function ChatLayout() {
         trailId: null,
         stageTitle: null,
         stageNumber: null,
-        questionNumber: null,
         mariaActive: false,
       })
     }
   }, [activeTrailId])
 
-  if (!session) return null
-
-  /**
-   * C2-R1 N01: nunca usar current_stage como total (virava “N de N” / “5 de 4”
-   * quando o chrome do player ia na frente do row / totals).
-   * Sem total conhecido → só “Etapa N”; com total → max(total, atual).
-   */
-  const activeStageTotalRaw =
-    activeTrailId && stageTotals[activeTrailId] > 0
-      ? stageTotals[activeTrailId]
-      : null
   /**
    * Etapa exibida pelo player (mesma fonte do header). O GET /student_trails
    * do sidebar volta depois do next-content — sem isto o card da trilha ativa
-   * ficava 1 etapa atrás da tela (ex.: “Etapa 3 de 12” com a etapa 4 aberta).
+   * ficava 1 etapa atrás (ex.: “Etapa 3 de 12 · 25%” com a etapa 4 na tela).
    */
   const playerStageNumber =
     activeTrailId &&
@@ -395,30 +415,13 @@ export default function ChatLayout() {
     typeof playerChrome.stageNumber === 'number'
       ? playerChrome.stageNumber
       : null
-  const activeStageNumber =
-    playerStageNumber ?? activeRow?.current_stage_number ?? null
-  const activeStageTotal =
-    activeStageTotalRaw != null && activeStageNumber != null
-      ? Math.max(activeStageTotalRaw, activeStageNumber)
-      : activeStageTotalRaw
-  /**
-   * C2-R5 N05: topbar = nome da trilha · Etapa N (não ecoa stage_title do card).
-   * Nome humano da trilha — nunca `t47`.
-   */
-  const activeTrailLabel =
-    (activeTrailId ? trailNames[activeTrailId] : null) || null
-  const trailLabel = activeTrailId
-    ? [
-        activeTrailLabel || 'Trilha',
-        activeStageNumber != null && activeStageTotal != null
-          ? `Etapa ${activeStageNumber} de ${activeStageTotal}`
-          : activeStageNumber != null
-            ? `Etapa ${activeStageNumber}`
-            : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : 'Suas trilhas'
+
+  const firstName = useMemo(
+    () => session?.name.split(' ')[0] || 'Aluno',
+    [session?.name],
+  )
+
+  if (!session) return null
 
   // R03-A01 / F05: sidebar fechada no mobile não entra no Tab; main inerte com drawer aberto.
   const sidebarInert = isNarrow && !sidebarOpen
@@ -456,7 +459,10 @@ export default function ChatLayout() {
             className="chat-sidebar__new"
             onClick={() => closeDrawer(false)}
           >
-            <span aria-hidden>+</span> Minhas trilhas
+            <span className="chat-sidebar__new-plus" aria-hidden>
+              +
+            </span>{' '}
+            Minhas trilhas
           </Link>
 
           {showContinueAula && continueAulaHref ? (
@@ -510,6 +516,13 @@ export default function ChatLayout() {
                   totalRaw != null
                     ? Math.max(totalRaw, stageNumber)
                     : null
+                const pct =
+                  total != null
+                    ? Math.min(
+                        100,
+                        Math.round((stageNumber / total) * 100),
+                      )
+                    : 0
                 const label = trailNames[row.trail_id] || 'Trilha'
                 const etapaMeta =
                   total != null
@@ -519,17 +532,34 @@ export default function ChatLayout() {
                   <li key={row.id}>
                     <Link
                       to={href}
-                      className={active ? 'is-active' : undefined}
+                      className={`trail-card${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       onClick={() => closeDrawer(false)}
                     >
-                      <span className="trail-icon" aria-hidden>
-                        ▤
+                      <span className="trail-card__top">
+                        <span className="trail-card__head">
+                          <DocumentIcon />
+                          <span className="trail-card__id">{label}</span>
+                        </span>
+                        <span
+                          className={`trail-card__status trail-card__status--${row.status}`}
+                        >
+                          <span className="trail-card__dot" aria-hidden />
+                          {STATUS_LABEL[row.status]}
+                        </span>
                       </span>
-                      <span className="trail-copy">
-                        <span className="trail-id">{label}</span>
-                        <span className="trail-meta">
-                          {STATUS_LABEL[row.status]} · {etapaMeta}
+                      <span className="trail-card__meta">{etapaMeta}</span>
+                      <span className="trail-card__progress" aria-hidden>
+                        <span className="trail-card__progress-track">
+                          <span
+                            className="trail-card__progress-fill"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </span>
+                        {/* R28-I02: espaço fino pt-BR antes do % */}
+                        <span className="trail-card__pct">
+                          {pct}
+                          {'\u00a0'}%
                         </span>
                       </span>
                     </Link>
@@ -543,11 +573,10 @@ export default function ChatLayout() {
         <div className="chat-sidebar__foot">
           <div className="chat-sidebar__brand-row">
             <span className="chat-sidebar__brand">Crias</span>
-            <span className="chat-sidebar__user">
-              {session.name.split(' ')[0] || 'Aluno'}
-            </span>
+            <span className="chat-sidebar__user">{firstName}</span>
           </div>
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
+            <LogoutIcon />
             Sair
             <span className="chat-sidebar__logout-hint">
               Seu progresso fica salvo
@@ -590,7 +619,31 @@ export default function ChatLayout() {
           </button>
           <div className="chat-topbar__titles">
             <span className="chat-topbar__brand">Crias</span>
-            <span className="chat-topbar__title">{trailLabel}</span>
+            <span className="chat-topbar__title">
+              {activeTrailId
+                ? [
+                    /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
+                    trailNames[activeTrailId] || 'Trilha',
+                    (() => {
+                      const n = playerStageNumber
+                      if (n == null) return null
+                      const totalRaw =
+                        stageTotals[activeTrailId] > 0
+                          ? stageTotals[activeTrailId]
+                          : null
+                      // C2-R1 N01: sem fallback current→total (“N de N” / “5 de 4”).
+                      if (totalRaw == null) return `Etapa ${n}`
+                      return `Etapa ${n} de ${Math.max(totalRaw, n)}`
+                    })(),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : 'Suas trilhas'}
+            </span>
+            {/* C2-R5 N02: chip MARIA só na sessão sidechat — não no chrome da aula. */}
+            {activeTrailId && playerChrome.mariaActive ? (
+              <span className="chat-topbar__maria">MARIA</span>
+            ) : null}
           </div>
         </header>
         <div className="chat-main__content" inert={mainInert || undefined}>

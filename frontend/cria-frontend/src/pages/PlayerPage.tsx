@@ -25,6 +25,7 @@ import {
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
+import MariaMascot from '../components/MariaMascot'
 import {
   isRetryableSystemError,
   toUserFacingError,
@@ -33,6 +34,7 @@ import { clearSession, getSession, requireSession } from '../lib/session'
 import {
   alignBlocoWithAttempt,
   type ChatMessage,
+  formatBubbleTime,
   type InlineSeg,
   type MessagePart,
   isBlocoRespostaContent,
@@ -804,6 +806,8 @@ export default function PlayerPage() {
   const [mariaSidechat, setMariaSidechat] = useState(
     () => readMariaPersist(trailId).mariaSidechat,
   )
+  /** Entrada Clippy da Maria — persiste após a 1ª chamada na sessão do player. */
+  const [mariaEntrance, setMariaEntrance] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
@@ -1172,8 +1176,9 @@ export default function PlayerPage() {
     retryFnRef.current = null
   }, [])
 
-  /** ER05: sem sessão válida não muta. */
-  function ensureSessionOrRedirect(): NonNullable<ReturnType<typeof requireSession>> | null {
+  function ensureSessionOrRedirect(): NonNullable<
+    ReturnType<typeof requireSession>
+  > | null {
     const s = requireSession()
     if (!s) {
       clearSession('missing')
@@ -1189,9 +1194,9 @@ export default function PlayerPage() {
     return s
   }
 
-  // Header chrome: progresso vivo + sessão Maria (D#8 / R08-M06 / C2-R5 N02).
+  // Header chrome: progresso + sessão Maria (C2-R5 N02).
   // Layout effect: header + sidebar (ChatLayout) re-renderizam antes do paint
-  // do conteúdo novo — sem 1 frame com a etapa anterior.
+  // do conteúdo novo — sem 1 frame com etapa/percentual da etapa anterior.
   useLayoutEffect(() => {
     if (content?.status !== 'ok') return
     const title = content.stage_title?.trim() || null
@@ -1386,7 +1391,6 @@ export default function PlayerPage() {
         nearBottomRef.current = isScrollNearBottom(scroller)
         return
       }
-      // Sem mídia: traz o fim da bolha atual (fecho) para a faixa útil.
       cell?.scrollIntoView({ block: 'end', inline: 'nearest' })
     }
 
@@ -1641,6 +1645,7 @@ export default function PlayerPage() {
     setExercisePhase('idle')
     setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
+    setMariaEntrance(false)
     mariaCancelledRef.current = false
     mariaDropLateReplyRef.current = false
     advanceInFlightRef.current = false
@@ -1827,11 +1832,7 @@ export default function PlayerPage() {
             }
 
             // AI já persiste no ensure-ai; fixed/exercise só se history não tem.
-            if (
-              !already &&
-              data.stage_type !== 'ai' &&
-              text.trim()
-            ) {
+            if (!already && data.stage_type !== 'ai' && text.trim()) {
               void persistLog({
                 sender: 'system',
                 message_text: text,
@@ -2040,15 +2041,16 @@ export default function PlayerPage() {
    * não rodar; pagehide limpa `crias:maria-draft` (parity Voltar/SPA leave)
    * para reenter sem sidechat/parceiro.
    * C2-R28 N01: bfcache/Back congela o React state — também sair do sidechat
-   * (`setMariaSidechat(false)`, parity Voltar) para Continuar voltar e não
-   * ficar Maria fantasma (Voltar sem Continuar).
+   * (`setMariaSidechat(false)` + `setMariaEntrance(false)`, parity Voltar)
+   * para Continuar voltar e não ficar Maria fantasma (Voltar sem Continuar).
    * C2-R29 N02: parity completa com Voltar — resume “Continuando a trilha”
-   * (não só limpar sidechat/persist).
+   * (não só limpar sidechat/persist/entrance).
    */
   useEffect(() => {
     const clearMidMariaPersist = () => {
       if (!mariaInFlightRef.current) return
       writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
+      // onVoltarParaTrilha: sidechat + entrance + resume Continuando + Aguarde
       exitMariaToTrailRef.current()
     }
     window.addEventListener('pagehide', clearMidMariaPersist)
@@ -2547,6 +2549,7 @@ export default function PlayerPage() {
        * C2-R30 N01/N02: resync stale sob Maria — entrega a etapa nova como
        * parity Voltar (bolha “Continuando a trilha”), sem draft órfão.
        * Evita flood: não cria bolha trail + resume duplicados.
+       * #7: exitMariaToTrailRef também zera mariaEntrance (chip/parceiro).
        */
       if (fromMariaEject) {
         skipNextBlocoDeliveryRef.current = false
@@ -3030,6 +3033,7 @@ export default function PlayerPage() {
         text: askLine,
         questionNumber: q,
         kind: 'sidechat',
+        timeLabel: formatBubbleTime(null, true),
       }),
     ])
     // R12-O05 / R18-N04: só limpa draft no ack; falha restaura.
@@ -3053,6 +3057,7 @@ export default function PlayerPage() {
             text: result.reply,
             questionNumber: q,
             kind: 'sidechat',
+            timeLabel: formatBubbleTime(null, true),
           }),
         ])
         mariaAcked = true
@@ -3060,6 +3065,7 @@ export default function PlayerPage() {
       // Se o aluno já voltou, não reabre o limbo do sidechat.
       if (!mariaCancelledRef.current) {
         setMariaSidechat(true)
+        setMariaEntrance(true)
       }
     } catch (err) {
       // C2-R14 N02: falha rede/sistema — sem sidechat, sem bolha “enviada”.
@@ -3106,6 +3112,7 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
+    setMariaEntrance(false)
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
     // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
     // até o finally do doMaria (Voltar só sai do sidechat).
@@ -3492,16 +3499,17 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   /**
-   * Voltar: única saída da Maria — permanece no limbo pós-envio / typing
-   * e também durante resync de etapa (C2-R29 N01: não esconder sob trail busy).
+   * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
+   * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
+   * C2-R29 N01: permanece também durante resync de etapa (trail busy).
    */
   const showVoltarTrilha =
     content?.status === 'ok' &&
     mariaSidechat &&
     (!busy || busyReason === 'maria' || busyReason === 'trail')
 
-  /** D#10 / R14-L14: rótulo canônico do CTA de avanço. */
-  const continuarLabel = 'Continuar trilha'
+  /** D#10 / R14-L14 — UI Maria mantém seta. */
+  const continuarLabel = 'Continuar trilha →'
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -3583,45 +3591,6 @@ export default function PlayerPage() {
         .filter((m): m is ChatMessage => m != null)
     : rawVisibleMessages
 
-  const currentCell =
-    content?.status === 'ok'
-      ? trailCellKey(content.stage_number, content.question_number)
-      : null
-  const lessonTitle =
-    content?.status === 'ok' && content.stage_title
-      ? stripDecorTitle(content.stage_title)
-      : ''
-  const lessonBody =
-    content?.status === 'ok'
-      ? stripOptionLines(
-          (content.content ?? '').trim() ||
-            (content.stage_type === 'ai' && !content.content
-              ? 'Carregando o conteúdo da aula…'
-              : ''),
-        )
-      : ''
-  /** C2-R1 N02/N05: card do passo atual — visível sem esperar history/Maria. */
-  const showLessonCard =
-    content?.status === 'ok' &&
-    content.stage_type !== 'exercise' &&
-    Boolean(lessonTitle || lessonBody)
-  const chatMessages = visibleMessages.filter((msg) => {
-    if (!String(msg.text ?? '').trim()) return false
-    // Exercício: enunciado fica no card de opções (cue na bolha).
-    // Aula AI/fixed: corpo no lesson-card — evita duplicata + hist por cima.
-    if (
-      showLessonCard &&
-      currentCell &&
-      msg.cellKey === currentCell &&
-      msg.role === 'assistant' &&
-      msg.kind !== 'feedback' &&
-      msg.kind !== 'sidechat'
-    ) {
-      return false
-    }
-    return true
-  })
-
   async function onExpandHistory() {
     // C2-R6 N03: expand local primeiro → âncora na etapa; older page sem roubar scroll.
     pendingScrollAnchorRef.current = { kind: 'current-step' }
@@ -3695,7 +3664,7 @@ export default function PlayerPage() {
         : 'Carregando a trilha…'
       : content.status !== 'ok'
         ? 'Trilha indisponível no momento'
-        : 'Pergunte à Maria…'
+        : 'Pergunte à Maria...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -3731,6 +3700,8 @@ export default function PlayerPage() {
     trailLabel: trailBusyLabel,
     mariaLongWait,
   })
+  /** C2-R4 N04: bob infinito só fora da espera da resposta. */
+  const mariaBusyWaiting = Boolean(busy && busyReason === 'maria')
   /**
    * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
    * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
@@ -3783,12 +3754,61 @@ export default function PlayerPage() {
           ? 'Não foi possível enviar'
           : 'Responda a questão'
 
+  const currentCell =
+    content?.status === 'ok'
+      ? trailCellKey(content.stage_number, content.question_number)
+      : null
+
+  const lessonTitle =
+    content?.status === 'ok' && content.stage_title
+      ? stripDecorTitle(content.stage_title)
+      : ''
+  const lessonBody =
+    content?.status === 'ok'
+      ? stripOptionLines(
+          (content.content ?? '').trim() ||
+            (content.stage_type === 'ai' && content.prompt
+              ? 'Gerando conteúdo da tutoria…'
+              : ''),
+        )
+      : ''
+
+  const showLessonCard =
+    content?.status === 'ok' && Boolean(lessonTitle || lessonBody)
+
+  const showMariaEntrance =
+    mariaEntrance ||
+    mariaSidechat ||
+    visibleMessages.some((m) => m.kind === 'sidechat')
+
+  const chatMessages = visibleMessages.filter((msg) => {
+    if (!String(msg.text ?? '').trim()) return false
+    const promptMovedToCard =
+      Boolean(activeExerciseCellKey) &&
+      msg.role === 'assistant' &&
+      msg.stageType === 'exercise' &&
+      msg.cellKey === activeExerciseCellKey
+    // Mantém a bolha do enunciado ativo para o cue "Questão abaixo…".
+    if (promptMovedToCard) return true
+    if (
+      showLessonCard &&
+      currentCell &&
+      msg.cellKey === currentCell &&
+      msg.role === 'assistant' &&
+      msg.kind !== 'feedback' &&
+      msg.kind !== 'sidechat'
+    ) {
+      return false
+    }
+    return true
+  })
+
   /**
    * Ordem do chat: histórico em cima, novidade sempre no FIM.
    * O lesson-card (passo corrente) ocupa o lugar da bolha da célula atual na
    * lista — antes ficava fixo no topo do scroller, acima de todo o histórico,
-   * e cada etapa nova “aparecia em cima”. Sem bolha da célula no tail
-   * (ainda gerando / fora do recorte), vai para o fim.
+   * e cada etapa nova (aula/exercício) “aparecia em cima”. Sem bolha da
+   * célula no tail (ainda gerando / fora do recorte), vai para o fim.
    */
   const currentCellVisibleIdx = currentCell
     ? visibleMessages.findIndex(
@@ -3807,6 +3827,29 @@ export default function PlayerPage() {
     const idx = chatMessages.findIndex((m) => !before.has(m.id))
     return idx < 0 ? chatMessages.length : idx
   })()
+  /**
+   * Entrada da Maria: logo antes da 1ª bolha sidechat do passo corrente; se a
+   * Maria acabou de ser chamada (sem bolhas ainda), no fim — nunca no topo.
+   */
+  const mariaEntranceSlot = (() => {
+    const afterCard = chatMessages.findIndex(
+      (m, idx) => idx >= lessonCardSlot && m.kind === 'sidechat',
+    )
+    if (afterCard >= 0) return afterCard
+    if (mariaSidechat || mariaEntrance) return chatMessages.length
+    const anySidechat = chatMessages.findIndex((m) => m.kind === 'sidechat')
+    return anySidechat >= 0 ? anySidechat : chatMessages.length
+  })()
+
+  function renderBubbleParts(text: string, msgId?: string) {
+    return renderMessageLines(text).map((part) =>
+      renderMessagePart(part, {
+        onOpenExternalMedia: msgId
+          ? (href) => markExternalMediaOpen(msgId, href)
+          : undefined,
+      }),
+    )
+  }
 
   const lessonCardNode =
     !trailShellUnavailable && showLessonCard ? (
@@ -3843,13 +3886,36 @@ export default function PlayerPage() {
           ) : null}
           {lessonBody ? (
             <div className="lesson-card__body">
-              {renderMessageLines(lessonBody).map((part) =>
-                renderMessagePart(part),
-              )}
+              {renderBubbleParts(lessonBody)}
             </div>
           ) : null}
         </div>
       </section>
+    ) : null
+
+  const mariaEntranceNode =
+    !trailShellUnavailable && showMariaEntrance ? (
+      <div className="maria-entrance" aria-live="polite">
+        <div className="maria-entrance__divider">
+          <span className="maria-entrance__pill">
+            <span aria-hidden>✦</span> Parceiro de estudo chamado
+          </span>
+        </div>
+        <div className="maria-entrance__row">
+          <MariaMascot
+            className={`maria-mascot${
+              mariaBusyWaiting ? ' maria-mascot--static' : ''
+            }`}
+          />
+          <div className="maria-entrance__intro">
+            <p className="maria-entrance__intro-label">MARIA</p>
+            <p className="maria-entrance__intro-text">
+              Oi, eu sou a Maria.
+              <span>Vim te ajudar.</span>
+            </p>
+          </div>
+        </div>
+      </div>
     ) : null
 
   return (
@@ -3970,7 +4036,7 @@ export default function PlayerPage() {
             msg.cellKey === activeExerciseCellKey
           const speaker =
             msg.role === 'assistant'
-              ? 'Maria'
+              ? 'MARIA'
               : msg.role === 'user'
                 ? 'Você'
                 : 'Sistema'
@@ -3980,6 +4046,7 @@ export default function PlayerPage() {
           return (
             <Fragment key={msg.id}>
             {msgIdx === lessonCardSlot ? lessonCardNode : null}
+            {msgIdx === mariaEntranceSlot ? mariaEntranceNode : null}
             <article
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
@@ -3989,34 +4056,48 @@ export default function PlayerPage() {
               data-cell-key={msg.cellKey || undefined}
               data-animate={msg.animate ? 'true' : undefined}
               data-media-resume={mediaResume ? 'true' : undefined}
-              aria-labelledby={labelId}
+              aria-labelledby={msg.role !== 'user' ? labelId : undefined}
+              aria-label={msg.role === 'user' ? 'Você' : undefined}
               tabIndex={-1}
               {...(isFeedback
                 ? { role: 'status', 'aria-live': 'polite' as const }
                 : {})}
             >
-              <p className="chat-bubble__label" id={labelId}>
-                {speaker}
-              </p>
-              {promptMovedToCard ? (
-                <div className="chat-bubble__body chat-bubble__body--cue">
-                  <p className="muted">Questão abaixo — escolha uma opção.</p>
+              <div className="chat-bubble__row">
+                <span className="chat-bubble__avatar" aria-hidden>
+                  {msg.role === 'user' ? 'V' : msg.role === 'assistant' ? 'M' : 'S'}
+                </span>
+                <div className="chat-bubble__stack">
+                  {msg.role !== 'user' ? (
+                    <p className="chat-bubble__label" id={labelId}>
+                      {speaker}
+                    </p>
+                  ) : null}
+                  <div className="chat-bubble__text">
+                    {promptMovedToCard ? (
+                      <p className="muted">Questão abaixo — escolha uma opção.</p>
+                    ) : (
+                      renderBubbleParts(msg.text, msg.id)
+                    )}
+                  </div>
+                  <div className="chat-bubble__meta">
+                    <span>
+                      {msg.timeLabel || formatBubbleTime(null, true) || ''}
+                    </span>
+                    {msg.role === 'user' ? (
+                      <span className="chat-bubble__checks" aria-label="Enviada">
+                        ✓✓
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-              ) : (
-                <div className="chat-bubble__body">
-                  {renderMessageLines(msg.text).map((part) =>
-                    renderMessagePart(part, {
-                      onOpenExternalMedia: (href) =>
-                        markExternalMediaOpen(msg.id, href),
-                    }),
-                  )}
-                </div>
-              )}
+              </div>
             </article>
             </Fragment>
           )
         })}
         {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
+        {mariaEntranceSlot >= chatMessages.length ? mariaEntranceNode : null}
 
         {showTypingBubble ? (
           <article
@@ -4032,19 +4113,26 @@ export default function PlayerPage() {
               mariaLongWait && busyReason === 'maria' ? 'true' : undefined
             }
           >
-            <p className="chat-bubble__label">{typing.label}</p>
-            <div className="chat-bubble__body">
-              <span className="typing-dots" aria-hidden="true">
-                <span />
-                <span />
-                <span />
+            <div className="chat-bubble__row">
+              <span className="chat-bubble__avatar" aria-hidden>
+                M
               </span>
-              <span className="typing-dots__reduced">{typing.reduced}</span>
-              {mariaLongWait && busyReason === 'maria' ? (
-                <p className="typing-dots__status" aria-hidden="true">
-                  Ainda pensando…
-                </p>
-              ) : null}
+              <div className="chat-bubble__stack">
+                <p className="chat-bubble__label">{typing.label}</p>
+                <div className="chat-bubble__text">
+                  <span className="typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span className="typing-dots__reduced">{typing.reduced}</span>
+                  {mariaLongWait && busyReason === 'maria' ? (
+                    <p className="typing-dots__status" aria-hidden="true">
+                      Ainda pensando…
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </article>
         ) : null}
@@ -4293,7 +4381,7 @@ export default function PlayerPage() {
             : ''
         }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
       >
-        <form
+<form
           className="chat-composer__form"
           onSubmit={(e) => {
             if (sendAriaDisabled) {
@@ -4358,11 +4446,11 @@ export default function PlayerPage() {
           />
           <button
             type="submit"
-            disabled={sendDisabledHard}
-            aria-disabled={sendAriaDisabled || undefined}
             className={`chat-composer__send${
               sendAriaDisabled ? ' is-aria-disabled' : ''
             }`}
+            disabled={sendDisabledHard}
+            aria-disabled={sendAriaDisabled || undefined}
             aria-label={
               exerciseSubmitting
                 ? 'Enviando resposta…'
@@ -4375,11 +4463,20 @@ export default function PlayerPage() {
                       : 'Enviar pergunta à Maria'
             }
           >
-            Enviar
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
+            {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
             {trailBusy
               ? // C2-R4 N01: rodapé na mesma fase do CTA/typing
                 trailBusyLabel.startsWith('Salvando')

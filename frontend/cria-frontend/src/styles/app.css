@@ -1,36 +1,43 @@
 :root {
-  /* ChatGPT-clone structure (wolney-fo/chatgpt-ui-clone), Crias brand accents */
-  --sidebar: #202123;
-  --main: #343541;
-  --main-alt: #444654;
-  --composer: #40414f;
-  --ink: #ececf1;
-  --muted: #d0d0dc;
-  --muted-dim: #b4b4c4;
-  /* R21-W01 / R01-F24: placeholder ≥ AA no composer; ainda distinto de --ink. */
-  --placeholder: #d0d0dc;
-  --accent: #19c37d;
-  /* C2-R5 N04: seleção / ícone — papel distinto do CTA primário. */
-  --accent-2: #3d9ecc;
-  --accent-ink: #0d0d0d;
-  --cta-continue: #19c37d;
-  --cta-send: #15a86c;
+  /* Mockup Maria — dark neon (ref-aluno-ui-maria-mockup) */
+  --sidebar: #101419;
+  --main: #171c27;
+  --main-alt: #1e293b;
+  --composer: #1a2230;
+  --ink: #f3f5f7;
+  --muted: #b8c0d0;
+  --muted-dim: #9aa3b5;
+  /* R21-W01 / R01-F24: placeholder ≥ AA; ainda distinto de --ink. */
+  --placeholder: #c4ccd8;
+  --accent: #17ea9d;
+  /* C2-R5 N04: seleção / ícone — papel distinto do CTA. */
+  --accent-2: #5b9fd4;
+  --accent-ink: #04140f;
+  --cta-continue: #17ea9d;
+  --cta-send: #12c986;
   --error: #f2a4a4;
-  /* R21-W03 / outdoor: non-text ≥ ~3:1 no --main. */
+  /* C2-R5 N04: chrome neutro — verde só no CTA/accent. */
   --border: rgba(255, 255, 255, 0.48);
-  --radius: 8px;
+  --border-subtle: rgba(255, 255, 255, 0.18);
+  --radius: 12px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
   /* R05-V05: Fraunces no display (já carregada no index). */
   --font-display: 'Fraunces', 'Source Sans 3', Georgia, serif;
   --font-body: 'Source Sans 3', system-ui, sans-serif;
   --font: var(--font-body);
-  --bubble-user: #343541;
+  --bubble-user: #0e5c40;
+  --bubble-ai: #1e293b;
+  --intro-bg: #142018;
+  --avatar-bg: #0f3d2a;
   --sand: var(--main);
   /* Tokens incompletos (R05-V14 / R21): aliases semânticos */
   --bg: var(--main);
   --surface: var(--composer);
   --text: var(--ink);
-  /* R05-V18 / R03-A06 / R01-F24: labels VOCÊ/Maria mais legíveis outdoor. */
-  --label: #ececf1;
+  /* R05-V18 / R03-A06 / R01-F24: labels Maria/Você mais legíveis outdoor. */
+  --label: #f3f5f7;
 }
 
 *,
@@ -54,11 +61,11 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--ink);
-  /* C2-R5 N06: atmosfera no body (não flat ChatGPT). */
+  /* C2-R5 N06: atmosfera no body (não flat navy). */
   background:
-    radial-gradient(ellipse 90% 55% at 10% -12%, rgba(25, 195, 125, 0.18), transparent 58%),
-    radial-gradient(ellipse 70% 48% at 96% 108%, rgba(61, 158, 204, 0.12), transparent 52%),
-    linear-gradient(180deg, #3a3b4a 0%, var(--main) 48%, #2c2d38 100%);
+    radial-gradient(ellipse 90% 55% at 10% -12%, rgba(23, 234, 157, 0.16), transparent 58%),
+    radial-gradient(ellipse 70% 48% at 96% 108%, rgba(91, 159, 212, 0.14), transparent 52%),
+    linear-gradient(180deg, #1b2333 0%, var(--main) 48%, #121722 100%);
   background-attachment: fixed;
   font-size: 16px;
   line-height: 1.5;
@@ -222,7 +229,7 @@ textarea::placeholder {
 
 /*
  * R01-F18 + R21-W01: placeholder de login distinto do valor (ink),
- * mas sem crush < AA — usa token --placeholder (≥4.5:1 no composer).
+ * sem crush < AA — token --placeholder.
  */
 .login-panel input::placeholder {
   color: var(--placeholder, var(--muted-dim));
@@ -470,17 +477,19 @@ a.ghost:hover {
 }
 
 .chat-sidebar {
-  width: 260px;
+  width: 272px;
   flex-shrink: 0;
   background: var(--sidebar);
   color: var(--ink);
   display: flex;
   flex-direction: column;
-  padding: 0.5rem;
-  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
-  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
-  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
-  gap: 0.5rem;
+  padding: 0.75rem 0.65rem;
+  /* C2-R2-N02: notch — padding-top com safe-area (paridade tip6). */
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
+  gap: 0.55rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .chat-sidebar__nav {
@@ -522,24 +531,34 @@ a.ghost:hover {
 .chat-sidebar__new {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.75rem;
-  margin-bottom: 0.35rem;
-  border-radius: var(--radius);
+  gap: 0.55rem;
+  padding: 0.72rem 0.85rem;
+  margin-bottom: 0.45rem;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  background: rgba(6, 17, 21, 0.85);
   text-decoration: none;
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   font-weight: 600;
   flex-shrink: 0;
   transition:
     background 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.chat-sidebar__new-plus {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .chat-sidebar__new:hover {
   border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.1);
+  background: rgba(23, 234, 157, 0.08);
+  box-shadow: 0 0 0 1px rgba(23, 234, 157, 0.12);
 }
 
 /* R14-L11: verbo claro de retorno à aula (não só Sair). */
@@ -620,54 +639,127 @@ a.ghost:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.45rem;
   overflow-y: auto;
   flex: 1;
 }
 
-.chat-sidebar__list a {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  padding: 0.7rem 0.75rem;
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: inherit;
-  font-size: 0.875rem;
-  transition: background 0.2s ease;
-}
-
-.chat-sidebar__list a:hover,
-.chat-sidebar__list a.is-active {
-  background: #343541;
-}
-
-.chat-sidebar__list a.is-active {
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.chat-sidebar__list .trail-icon {
-  opacity: 0.7;
-  line-height: 1.4;
-}
-
-.chat-sidebar__list .trail-copy {
+.trail-card {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.35rem;
+  padding: 0.75rem 0.8rem 0.7rem 0.9rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  position: relative;
+}
+
+.trail-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(23, 234, 157, 0.18);
+}
+
+.trail-card.is-active {
+  background: rgba(23, 234, 157, 0.06);
+  border-color: rgba(23, 234, 157, 0.22);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.trail-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem;
   min-width: 0;
 }
 
-.chat-sidebar__list .trail-id {
-  font-weight: 600;
+.trail-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.trail-card__doc {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.trail-card__id {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.chat-sidebar__list .trail-meta {
+.trail-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.trail-card__status--in_progress {
+  color: var(--accent);
+}
+
+.trail-card__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.trail-card__meta {
   font-size: 0.72rem;
   color: var(--muted-dim);
+}
+
+.trail-card__progress {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.trail-card__progress-track {
+  flex: 1;
+  height: 0.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.trail-card__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(23, 234, 157, 0.45);
+}
+
+.trail-card__pct {
+  font-size: 0.68rem;
+  color: var(--muted);
+  /* R28-I02: cabe “8 %” com NBSP */
+  min-width: 2.6rem;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-sidebar__foot {
@@ -709,24 +801,25 @@ a.ghost:hover {
   font-size: 0.875rem;
   text-align: left;
   padding: 0.7rem 0.75rem;
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
   touch-action: manipulation;
   -webkit-touch-callout: none;
   user-select: none;
 }
 
 .chat-sidebar__logout-hint {
+  flex: 1 0 100%;
   font-size: 0.72rem;
   font-weight: 500;
   color: var(--muted-dim);
 }
 
 .chat-sidebar__logout:hover:not(:disabled) {
-  background: #343541;
+  background: rgba(255, 255, 255, 0.06);
   filter: none;
 }
 
@@ -742,9 +835,9 @@ a.ghost:hover {
   min-height: 0;
   /* R05-V04 / C2-R5 N06: atmosfera de marca reforçada. */
   background:
-    radial-gradient(ellipse 80% 50% at 12% -8%, rgba(25, 195, 125, 0.2), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 92% 108%, rgba(61, 158, 204, 0.14), transparent 50%),
-    linear-gradient(180deg, #3a3b4a 0%, transparent 42%, transparent 100%);
+    radial-gradient(ellipse 75% 48% at 10% -6%, rgba(23, 234, 157, 0.18), transparent 55%),
+    radial-gradient(ellipse 65% 40% at 95% 110%, rgba(91, 159, 212, 0.14), transparent 50%),
+    linear-gradient(180deg, #1b2333 0%, transparent 45%, transparent 100%);
   position: relative;
 }
 
@@ -774,11 +867,11 @@ button[aria-disabled='true'] {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.7rem 1rem;
-  padding-top: max(0.7rem, env(safe-area-inset-top, 0px));
-  /* R05-V11: topbar com presença de marca (não transparente fraca). */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: color-mix(in srgb, var(--sidebar) 72%, transparent);
+  padding: 0.85rem 1.35rem 0.55rem;
+  padding-top: max(0.85rem, env(safe-area-inset-top, 0px));
+  /* R05-V11: topbar com presença (não transparente fraca). */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--sidebar) 78%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   flex-shrink: 0;
@@ -788,20 +881,21 @@ button[aria-disabled='true'] {
 .chat-topbar__titles {
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
+  gap: 0.1rem;
   min-width: 0;
 }
 
 .chat-topbar__brand {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   letter-spacing: -0.02em;
   color: var(--ink);
   line-height: 1.15;
 }
 
 .chat-topbar__menu {
+  /* R27-T04: alvo ≥44 no menu hamburger (crítico na UI Maria) */
   min-width: 44px;
   min-height: 44px;
   display: none;
@@ -834,11 +928,20 @@ button[aria-disabled='true'] {
 
 .chat-topbar__title {
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chat-topbar__maria {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .chat-thread {
@@ -927,16 +1030,16 @@ button[aria-disabled='true'] {
 
 .chat-history-collapse__btn {
   appearance: none;
-  border: 1px solid var(--border, #d0d4dc);
-  background: var(--main-alt, #f4f5f7);
-  color: var(--muted, #5c6578);
+  border: 1px solid var(--border);
+  background: var(--composer);
+  color: var(--muted);
   font: inherit;
   font-size: 0.85rem;
   /* R01-F11: alvo ≥44px */
   min-height: 44px;
   min-width: 44px;
   padding: 0.55rem 0.9rem;
-  border-radius: var(--radius, 8px);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-touch-callout: none;
@@ -950,11 +1053,11 @@ button[aria-disabled='true'] {
 }
 
 .chat-history-collapse__btn:hover {
-  color: var(--ink, #111);
+  color: var(--ink);
   border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.1);
+  background: rgba(23, 234, 157, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.16);
+  box-shadow: 0 2px 10px rgba(23, 234, 157, 0.16);
 }
 
 /* R27-T03: pressed visível no histórico (além do tamanho ≥44). */
@@ -967,11 +1070,8 @@ button[aria-disabled='true'] {
 }
 
 .chat-bubble {
-  /* R05-V06: bolhas (não faixas full-bleed radius 0). */
   width: 100%;
-  padding: 0.45rem 0.85rem;
-  display: flex;
-  flex-direction: column;
+  padding: 0.55rem 0;
   background: transparent;
   /* R19-H05: containment + content-visibility (windowing DOM = follow-up) */
   content-visibility: auto;
@@ -1009,86 +1109,113 @@ button[aria-disabled='true'] {
     0 2px 12px rgba(0, 0, 0, 0.22);
 }
 
-.chat-bubble--user {
-  align-items: flex-end;
-}
-
+.chat-bubble--user,
 .chat-bubble--assistant,
 .chat-bubble--system {
-  align-items: flex-start;
+  background: transparent;
 }
 
 /* B5: opção escolhida no histórico — banner destacado (ref). */
-.chat-bubble--exercise-answer .chat-bubble__body {
+.chat-bubble--exercise-answer .chat-bubble__text {
   font-weight: 500;
-  color: var(--ink);
-  background: #2c2d3a;
-  border-color: rgba(255, 255, 255, 0.12);
 }
 
-.chat-bubble__inner,
-.chat-bubble__label,
-.chat-bubble__body {
-  max-width: min(85%, 36rem);
-  width: fit-content;
+.chat-bubble__row {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.chat-bubble--user .chat-bubble__row {
+  flex-direction: row-reverse;
+}
+
+.chat-bubble__avatar {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid rgba(23, 234, 157, 0.35);
+}
+
+.chat-bubble__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: min(100%, 34rem);
+  min-width: 0;
+}
+
+.chat-bubble--user .chat-bubble__stack {
+  align-items: flex-end;
 }
 
 .chat-bubble__label {
-  margin: 0 0 0.3rem 0.35rem;
+  margin: 0;
   /* R14-L03: label secundária — sem CAIXA ALTA competindo com o corpo */
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0.01em;
-  color: var(--label, var(--muted));
+  color: var(--muted);
 }
 
-.chat-bubble--user .chat-bubble__label {
-  margin-right: 0.35rem;
-  margin-left: 0;
-  text-align: right;
-}
-
-.chat-bubble--user .chat-bubble__body {
-  background: var(--main-alt);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1rem 1rem 0.35rem 1rem;
-  padding: 0.75rem 1rem;
-}
-
-.chat-bubble--assistant .chat-bubble__body {
-  background: color-mix(in srgb, var(--composer) 88%, #000 12%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 1rem 1rem 1rem 0.35rem;
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  line-height: 1.65;
+.chat-bubble__text {
+  margin: 0;
+  padding: 0.75rem 0.95rem;
+  border-radius: var(--radius-md);
+  font-size: 0.98rem;
+  line-height: 1.55;
   color: var(--ink);
+  word-break: break-word;
 }
 
-.chat-bubble--system .chat-bubble__body {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 0.85rem;
-  padding: 0.65rem 0.9rem;
+.chat-bubble--assistant .chat-bubble__text,
+.chat-bubble--system .chat-bubble__text {
+  background: var(--bubble-ai);
+}
+
+.chat-bubble--user .chat-bubble__text {
+  background: var(--bubble-user);
+}
+
+.chat-bubble--system .chat-bubble__text {
   color: var(--muted);
   font-style: italic;
 }
 
-.chat-bubble__body {
+.chat-bubble__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--muted-dim);
+  padding: 0 0.15rem;
+}
+
+.chat-bubble__checks {
+  display: inline-flex;
+  color: var(--accent);
+  letter-spacing: -0.18em;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.chat-bubble__body,
+.chat-bubble__text {
   overflow-wrap: anywhere;
   word-break: break-word;
   hyphens: auto;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
-}
-
-.chat-bubble:focus-visible {
-  outline: none;
-}
-
-.chat-bubble:focus-visible .chat-bubble__body {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .chat-bubble__body p {
@@ -1110,6 +1237,18 @@ button[aria-disabled='true'] {
   contain-intrinsic-size: 240px 135px;
 }
 
+.chat-bubble__text .chat-bubble__media {
+  margin: 0.2rem 0;
+}
+
+.chat-bubble__text p {
+  margin: 0 0 0.45rem;
+}
+
+.chat-bubble__text p:last-child {
+  margin-bottom: 0;
+}
+
 .chat-bubble__link {
   color: var(--accent);
   text-decoration: underline;
@@ -1121,7 +1260,7 @@ button[aria-disabled='true'] {
   line-height: 1.35;
 }
 
-/* R08-M03 residual: link externo vira chip ≥44, sem CTA verde primário. */
+/* R08-M03 residual: link externo vira chip ≥44, sem CTA neon primário. */
 .chat-bubble__link--chip {
   display: inline-flex;
   align-items: center;
@@ -1129,8 +1268,8 @@ button[aria-disabled='true'] {
   min-height: 44px;
   padding: 0.55rem 0.9rem;
   margin: 0.2rem 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, var(--radius));
+  border: 1px solid var(--border-subtle, var(--border));
   background: color-mix(in srgb, var(--surface, var(--composer)) 88%, #000 12%);
   color: var(--ink);
   text-decoration: none;
@@ -1148,7 +1287,7 @@ button[aria-disabled='true'] {
 
 .chat-bubble__link--chip:hover {
   border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.12);
+  background: rgba(23, 234, 157, 0.12);
 }
 
 .chat-bubble__link--chip:active {
@@ -1161,11 +1300,13 @@ button[aria-disabled='true'] {
   white-space: nowrap;
 }
 
-.chat-bubble__body em {
+.chat-bubble__body em,
+.chat-bubble__text em {
   font-style: italic;
 }
 
-.chat-bubble__body strong {
+.chat-bubble__body strong,
+.chat-bubble__text strong {
   font-weight: 700;
 }
 
@@ -1216,9 +1357,9 @@ button[aria-disabled='true'] {
   background:
     linear-gradient(
       110deg,
-      #1a1a22 0%,
-      #252532 45%,
-      #1a1a22 90%
+      #121820 0%,
+      #1c2430 45%,
+      #121820 90%
     );
   background-size: 200% 100%;
   animation: embed-skel 1.4s ease-in-out infinite;
@@ -1227,7 +1368,7 @@ button[aria-disabled='true'] {
 @media (prefers-reduced-motion: reduce) {
   .chat-bubble__embed-skeleton {
     animation: none;
-    background: #1a1a22;
+    background: #121820;
   }
 }
 
@@ -1240,7 +1381,7 @@ button[aria-disabled='true'] {
   }
 }
 
-.chat-bubble--typing .chat-bubble__body {
+.chat-bubble--typing .chat-bubble__text {
   min-height: 1.5rem;
   display: flex;
   align-items: center;
@@ -1249,7 +1390,7 @@ button[aria-disabled='true'] {
 }
 
 /* C2-R4 N03: espera longa da Maria — status além das dots. */
-.chat-bubble--typing-long .chat-bubble__body {
+.chat-bubble--typing-long .chat-bubble__text {
   flex-direction: column;
   align-items: flex-start;
 }
@@ -1433,7 +1574,7 @@ button[aria-disabled='true'] {
   position: sticky;
   bottom: 0;
   /* Shell já encolhe com --vv-height; só safe-area aqui (sem double-count do KB). */
-  /* C2-R5 N06: padding inferior mais curto — conteúdo respira. */
+  /* C2-R5 N06: chrome inferior compacto. */
   padding: 0.4rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
   padding-left: max(1rem, env(safe-area-inset-left, 0px));
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
@@ -1449,12 +1590,12 @@ button[aria-disabled='true'] {
   display: flex;
   align-items: flex-end;
   gap: 0.55rem;
-  padding: 0.55rem 0.75rem;
-  border: none;
-  border-radius: var(--radius);
+  padding: 0.55rem 0.55rem 0.55rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   background: var(--composer);
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.2s ease;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.22);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 /* B4: composer bloqueado precisa parecer bloqueado (não só disabled). */
@@ -1514,11 +1655,10 @@ button[aria-disabled='true'] {
 }
 
 .chat-composer__form:focus-within {
-  outline: 2px solid color-mix(in srgb, var(--accent) 75%, white);
-  outline-offset: 2px;
+  border-color: rgba(23, 234, 157, 0.45);
   box-shadow:
-    0 0 18px rgba(0, 0, 0, 0.14),
-    0 0 0 1px rgba(25, 195, 125, 0.28);
+    0 0 18px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(23, 234, 157, 0.18);
 }
 
 .chat-composer__input {
@@ -1542,7 +1682,8 @@ button[aria-disabled='true'] {
   outline-offset: 2px;
 }
 
-/* C2-R3 N02: Enviar — foco distinto do resting/enabled. */
+/* C2-R3 N02: Enviar — foco distinto do glow resting enabled. */
+.chat-composer__send:focus-visible,
 .chat-composer button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
@@ -1558,15 +1699,22 @@ button[aria-disabled='true'] {
   cursor: not-allowed;
 }
 
-.chat-composer button {
-  width: auto;
+.chat-composer__send {
+  /* R27 CONF-C03 / T01: alvo ≥44 (antes 2.55rem ≈ 40.8) */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   max-width: none;
   flex-shrink: 0;
-  min-height: 44px;
-  padding: 0.5rem 0.95rem;
-  border-radius: var(--radius);
-  background: var(--cta-send, var(--accent));
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
   color: var(--accent-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(23, 234, 157, 0.35);
   touch-action: manipulation;
   -webkit-touch-callout: none;
   user-select: none;
@@ -1579,11 +1727,13 @@ button[aria-disabled='true'] {
     border-color 0.2s ease;
 }
 
+.chat-composer__send:hover:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
 .chat-composer button:hover:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(25, 195, 125, 0.28);
+  box-shadow: 0 4px 16px rgba(23, 234, 157, 0.45);
 }
 
+.chat-composer__send:active:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
 .chat-composer button:active:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   transform: scale(0.98);
   background: color-mix(in srgb, var(--cta-send, var(--accent)) 72%, #0a0a0a);
@@ -1593,11 +1743,16 @@ button[aria-disabled='true'] {
 /*
  * R02-N11 / R03-A12 / R09-X03 / R09-X11 / R10-Z13:
  * Enviar locked/disabled NÃO pode ficar verde (cascade após .chat-composer button).
+ * Também mira .chat-composer__send (ícone circular da UI Maria).
  */
 .chat-composer--locked:not(.chat-composer--ready-submit) button,
+.chat-composer--locked:not(.chat-composer--ready-submit) .chat-composer__send,
 .chat-composer button:disabled,
+.chat-composer .chat-composer__send:disabled,
 .chat-composer button.is-aria-disabled,
-.chat-composer button[aria-disabled='true'] {
+.chat-composer .chat-composer__send.is-aria-disabled,
+.chat-composer button[aria-disabled='true'],
+.chat-composer .chat-composer__send[aria-disabled='true'] {
   background: #3a3b48;
   color: rgba(236, 236, 241, 0.48);
   opacity: 1;
@@ -1610,16 +1765,22 @@ button[aria-disabled='true'] {
 
 .chat-composer--locked:not(.chat-composer--ready-submit) button:hover,
 .chat-composer--locked:not(.chat-composer--ready-submit) button:active,
+.chat-composer--locked:not(.chat-composer--ready-submit) .chat-composer__send:hover,
+.chat-composer--locked:not(.chat-composer--ready-submit) .chat-composer__send:active,
 .chat-composer button:disabled:hover,
+.chat-composer .chat-composer__send:disabled:hover,
 .chat-composer button.is-aria-disabled:hover,
-.chat-composer button[aria-disabled='true']:hover {
+.chat-composer .chat-composer__send.is-aria-disabled:hover,
+.chat-composer button[aria-disabled='true']:hover,
+.chat-composer .chat-composer__send[aria-disabled='true']:hover {
   transform: none;
   box-shadow: none;
   filter: none;
 }
 
 /* D#2: opção selecionada → Enviar vira o confirm real (não teatro). */
-.chat-composer--locked.chat-composer--ready-submit button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+.chat-composer--locked.chat-composer--ready-submit button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
+.chat-composer--locked.chat-composer--ready-submit .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   background: var(--accent);
   color: var(--accent-ink);
   opacity: 1;
@@ -1627,40 +1788,50 @@ button[aria-disabled='true'] {
   border: none;
 }
 
-.chat-composer--locked.chat-composer--ready-submit button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
+.chat-composer--locked.chat-composer--ready-submit button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover,
+.chat-composer--locked.chat-composer--ready-submit .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(25, 195, 125, 0.28);
   filter: brightness(1.08);
 }
 
 /* R01-F16 / R09-X12: com Continuar vivo, Enviar vira secundário (hierarquia). */
-.chat-composer--with-continue:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+.chat-composer--with-continue:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
+.chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
   box-shadow: none;
 }
 
-.chat-composer--with-continue:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
+.chat-composer--with-continue:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover,
+.chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
   border-color: var(--accent);
   background: rgba(25, 195, 125, 0.1);
   box-shadow: 0 2px 10px rgba(25, 195, 125, 0.16);
   filter: none;
 }
 
-/* C2-R5 N03: com Voltar à trilha (Maria), Enviar/composer ficam neutros. */
-.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+/* C2-R5 N03: Voltar à trilha = primário; Enviar neutro na Maria. */
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']),
+.chat-composer--with-voltar:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
   box-shadow: none;
 }
 
-.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
+.chat-composer--with-voltar:not(.chat-composer--locked) button:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover,
+.chat-composer--with-voltar:not(.chat-composer--locked) .chat-composer__send:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']):hover {
   border-color: var(--accent);
-  background: rgba(25, 195, 125, 0.1);
-  box-shadow: 0 2px 10px rgba(25, 195, 125, 0.16);
+  background: rgba(23, 234, 157, 0.1);
+  box-shadow: 0 2px 10px rgba(23, 234, 157, 0.16);
   filter: none;
+}
+
+.chat-composer__send:disabled {
+  opacity: 0.4;
+  box-shadow: none;
 }
 
 .chat-composer__hint {
@@ -1850,10 +2021,12 @@ button[aria-disabled='true'] {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* C2-R2-N01: full-bleed como tip6 (não ~44% à direita). */
   justify-content: flex-start;
+  gap: 0.55rem;
   /* Soft edge scroller → CTA (em vez de corte flat). */
-  border-top: 1px solid color-mix(in srgb, var(--border, #d0d4dc) 40%, transparent);
-  background: linear-gradient(to bottom, transparent 0%, var(--main, #fff) 52%);
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  background: linear-gradient(to bottom, transparent 0%, var(--main) 52%);
   transition: opacity 0.2s ease;
 }
 
@@ -1912,14 +2085,16 @@ button[aria-disabled='true'] {
   width: 100%;
   max-width: 100%;
   min-height: 44px;
-  padding: 0.75rem 1.25rem;
-  border-radius: var(--radius);
+  padding: 0.7rem 1.15rem;
+  border-radius: var(--radius-sm);
+  /* C2-R5 N01: Continuar fill primário (≥ composer) — não ghost outline. */
   border: none;
   background: var(--cta-continue, var(--accent));
   color: var(--accent-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 4px 16px rgba(23, 234, 157, 0.28);
   touch-action: manipulation;
   -webkit-touch-callout: none;
   user-select: none;
@@ -1933,10 +2108,11 @@ button[aria-disabled='true'] {
 
 .chat-continue__btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(25, 195, 125, 0.32);
+  box-shadow: 0 6px 18px rgba(23, 234, 157, 0.38);
+  filter: brightness(1.05);
 }
 
-/* R27-T02: pressed do Continuar escurece o fill (não só scale). */
+/* R27-T02: pressed do Continuar escurece o fill. */
 .chat-continue__btn:active:not(:disabled) {
   transform: scale(0.98);
   box-shadow: none;
@@ -2006,6 +2182,7 @@ button[aria-disabled='true'] {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
+  box-shadow: none;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
@@ -2088,6 +2265,183 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   bottom: 0.85rem;
 }
 
+/* —— Conteúdo (matéria) + entrada Maria (Clippy) —— */
+.lesson-card {
+  max-width: 48rem;
+  width: calc(100% - 2.5rem);
+  margin: 0.35rem auto 1rem;
+  padding: 1.1rem 1.15rem;
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  border-radius: var(--radius-md);
+  /* C2-R5 N04: borda/ícone em accent-2 — CTA fica com --accent. */
+  border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
+  background: rgba(26, 34, 48, 0.92);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent-2) 12%, transparent);
+}
+
+/* C2-R8 N01: focável via tabIndex=-1 pós-Continuar (anel teclado). */
+.lesson-card:focus {
+  outline: none;
+}
+.lesson-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lesson-card__icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #061018;
+  background: var(--accent-2);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 70%, white);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+
+.lesson-card__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lesson-card__body {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.lesson-card__body p {
+  margin: 0 0 0.45rem;
+}
+
+.maria-entrance {
+  max-width: 48rem;
+  width: calc(100% - 2.5rem);
+  margin: 0.75rem auto 1.1rem;
+  animation: maria-arrive 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.maria-entrance__divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.maria-entrance__divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(23, 234, 157, 0.55),
+    transparent
+  );
+  box-shadow: 0 0 8px rgba(23, 234, 157, 0.35);
+}
+
+.maria-entrance__pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: #0f1614;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: 0 0 14px rgba(23, 234, 157, 0.22);
+}
+
+.maria-entrance__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-start;
+  padding-left: 0.25rem;
+}
+
+.maria-mascot {
+  position: relative;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 14px rgba(23, 234, 157, 0.55));
+  animation: maria-bob 2.8s ease-in-out infinite;
+}
+
+/* C2-R4 N04: durante a espera da resposta, só as typing-dots loopam. */
+.maria-mascot--static {
+  animation: none;
+}
+
+.maria-entrance__intro {
+  max-width: min(100%, 22rem);
+  padding: 0.75rem 0.95rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent);
+  background: var(--intro-bg);
+  box-shadow: 0 0 18px rgba(23, 234, 157, 0.18);
+}
+
+.maria-entrance__intro-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.maria-entrance__intro-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.maria-entrance__intro-text span {
+  display: block;
+  font-weight: 500;
+  font-size: 0.92rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+@keyframes maria-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes maria-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-bubble--enter,
   .chat-bubble--enter-assistant,
@@ -2100,7 +2454,9 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   .chat-exercise,
   .chat-new-msg-chip,
   .chat-bubble__media img,
-  .chat-sidebar__backdrop {
+  .chat-sidebar__backdrop,
+  .maria-entrance,
+  .maria-mascot {
     animation: none !important;
   }
 
@@ -2166,78 +2522,6 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* C2-R1 N02/N05: passo atual acima do hist — evita void / Maria no mount. */
-.lesson-card {
-  max-width: 48rem;
-  width: calc(100% - 2.5rem);
-  margin: 0.5rem auto 1rem;
-  padding: 1.05rem 1.1rem;
-  display: flex;
-  gap: 0.85rem;
-  align-items: flex-start;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--border));
-  background: color-mix(in srgb, var(--main-alt) 82%, var(--accent-2) 8%);
-  animation: lesson-card-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* C2-R8 N01: focável via tabIndex=-1 pós-Continuar (anel teclado). */
-.lesson-card:focus {
-  outline: none;
-}
-.lesson-card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.lesson-card__icon {
-  flex-shrink: 0;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 0.65rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #061018;
-  background: var(--accent-2);
-}
-
-.lesson-card__title {
-  margin: 0 0 0.35rem;
-  font-family: var(--font-display);
-  font-size: 1.12rem;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.lesson-card__body {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.55;
-}
-
-.lesson-card__body p {
-  margin: 0 0 0.45rem;
-}
-
-@keyframes lesson-card-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.35rem);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lesson-card {
-    animation: none;
-  }
 }
 
 .chat-thread__skeleton {
@@ -2358,7 +2642,7 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
 .chat-home__cta:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(25, 195, 125, 0.32);
+  box-shadow: 0 4px 14px rgba(23, 234, 157, 0.32);
 }
 
 .chat-home .lede.error {
@@ -2438,7 +2722,12 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   .chat-topbar__title {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
+  }
+
+  .chat-topbar__maria {
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
   }
 
   .chat-topbar__menu {
@@ -2488,16 +2777,11 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   .chat-bubble {
-    padding: 0.25rem 0.55rem;
+    padding: 0.2rem 0;
   }
 
-  .chat-bubble__body {
+  .chat-bubble__text {
     padding: 0.45rem 0.7rem;
-  }
-
-  .chat-bubble__label {
-    margin-bottom: 0.15rem;
-    font-size: 0.65rem;
   }
 
   /* R24-LS06: embed/mídia cabem no VH curto sem engolir o fio. */

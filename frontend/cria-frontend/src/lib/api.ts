@@ -317,7 +317,7 @@ export async function listStudentTrails(
   return Array.isArray(body) ? (body as StudentTrailRow[]) : []
 }
 
-/** Totais de etapas por trilha — meta PT “Etapa X de Y” (R28-I01). */
+/** Totais de etapas por trilha (sidebar Maria — progresso). */
 export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
   const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
   url.searchParams.set('simple', '1')

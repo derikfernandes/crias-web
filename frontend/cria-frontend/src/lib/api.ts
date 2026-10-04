@@ -105,6 +105,8 @@ export type NextContentOk = {
   explanation: string | null
   is_released: boolean
   next_action: string
+  /** Optimistic lock p/ advance (C2-R22 N02); legado pode omitir. */
+  progress_version?: number
 }
 
 /** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */
@@ -147,6 +149,8 @@ export type AdvanceResponse = {
   next_question_number?: number
   completed?: boolean
   message?: string
+  progress_version?: number
+  replay?: boolean
 }
 
 export type ConversationLogRow = {
@@ -457,11 +461,31 @@ export async function createConversationLog(input: {
 export async function advanceTrail(
   studentId: string,
   trailId: string,
+  opts?: {
+    expectedVersion?: number
+    idempotencyKey?: string
+  },
 ): Promise<AdvanceResponse> {
+  const idempotencyKey =
+    (opts?.idempotencyKey && opts.idempotencyKey.trim()) ||
+    `adv-${studentId}-${trailId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const expectedVersion =
+    typeof opts?.expectedVersion === 'number' &&
+    Number.isFinite(opts.expectedVersion)
+      ? Math.trunc(opts.expectedVersion)
+      : 0
   const res = await fetchWithTimeout(`${API_BASE}/student_trails/advance`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ student_id: studentId, trail_id: trailId }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify({
+      student_id: studentId,
+      trail_id: trailId,
+      expected_version: expectedVersion,
+      idempotency_key: idempotencyKey,
+    }),
   })
   const body = await parseJson(res)
   if (!res.ok) {

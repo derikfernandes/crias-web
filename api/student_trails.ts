@@ -468,10 +468,23 @@ async function handleRequest(request: Request): Promise<Response> {
             error: 'Campos "student_id" e "trail_id" são obrigatórios.',
           })
         }
+        const idempotencyKey =
+          request.headers.get('Idempotency-Key')?.trim() ||
+          sanitizeString(body.idempotency_key) ||
+          null
+        const expectedVersionRaw = body.expected_version
+        const expectedVersion =
+          expectedVersionRaw === undefined || expectedVersionRaw === null
+            ? undefined
+            : parseIntLoose(expectedVersionRaw) ?? undefined
         const result = await advanceStudentTrailProgress(
           db,
           targetStudentId,
           targetTrailId,
+          {
+            expected_version: expectedVersion,
+            idempotency_key: idempotencyKey,
+          },
         )
         if (!result.ok) {
           return respond(result.httpStatus, {

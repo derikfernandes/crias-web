@@ -16,6 +16,8 @@ export type StudentTrailRuntimePosition = {
   current_stage_number: number
   current_question_number: number
   status: StudentTrailStatus
+  /** Optimistic lock (C2-R22 N02); ausente no doc legado → 0. */
+  progress_version: number
 }
 
 export function studentTrailDocId(studentId: string, trailId: string): string {
@@ -50,6 +52,7 @@ export async function createStudentTrail(
       current_stage_number: data.current_stage_number,
       current_question_number: data.current_question_number,
       status: data.status,
+      progress_version: 0,
       completed_at: null,
       last_interaction_at: null,
       created_at: now,
@@ -144,6 +147,14 @@ export async function getStudentTrailPosition(
       ? (statusRaw as StudentTrailStatus)
       : 'not_started'
 
+  const versionRaw = data.progress_version
+  const progress_version =
+    typeof versionRaw === 'number' &&
+    Number.isFinite(versionRaw) &&
+    versionRaw >= 0
+      ? Math.trunc(versionRaw)
+      : 0
+
   return {
     student_id,
     institution_id,
@@ -151,6 +162,7 @@ export async function getStudentTrailPosition(
     current_stage_number,
     current_question_number,
     status,
+    progress_version,
   }
 }
 
@@ -217,6 +229,14 @@ export async function advanceStudentTrailQuestion(
     const newStatus =
       (patch.status as StudentTrailStatus | undefined) ?? status
 
+    const versionRaw = data.progress_version
+    const progress_version =
+      typeof versionRaw === 'number' &&
+      Number.isFinite(versionRaw) &&
+      versionRaw >= 0
+        ? Math.trunc(versionRaw)
+        : 0
+
     const pos: StudentTrailRuntimePosition = {
       student_id: studentId,
       institution_id,
@@ -224,6 +244,7 @@ export async function advanceStudentTrailQuestion(
       current_stage_number,
       current_question_number: nextQuestion,
       status: newStatus,
+      progress_version,
     }
     return pos
   })
@@ -296,6 +317,14 @@ export async function advanceStudentTrailStage(
     const newStatus =
       (patch.status as StudentTrailStatus | undefined) ?? status
 
+    const versionRaw = data.progress_version
+    const progress_version =
+      typeof versionRaw === 'number' &&
+      Number.isFinite(versionRaw) &&
+      versionRaw >= 0
+        ? Math.trunc(versionRaw)
+        : 0
+
     const pos: StudentTrailRuntimePosition = {
       student_id: studentId,
       institution_id,
@@ -303,6 +332,7 @@ export async function advanceStudentTrailStage(
       current_stage_number: nextStage,
       current_question_number,
       status: newStatus,
+      progress_version,
     }
     return pos
   })

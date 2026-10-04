@@ -1933,12 +1933,17 @@ export default function PlayerPage() {
    * C2-R27 N01: reload / navegação documento mid-Maria — unmount React pode
    * não rodar; pagehide limpa `crias:maria-draft` (parity Voltar/SPA leave)
    * para reenter sem sidechat/parceiro.
+   * C2-R28 N01: bfcache/Back congela o React state — também sair do sidechat
+   * (`setMariaSidechat(false)` + `setMariaEntrance(false)`, parity Voltar)
+   * para Continuar voltar e não ficar Maria fantasma (Voltar sem Continuar).
    */
   useEffect(() => {
     const clearMidMariaPersist = () => {
       if (!mariaInFlightRef.current) return
       mariaCancelledRef.current = true
       writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
+      setMariaSidechat(false)
+      setMariaEntrance(false)
     }
     window.addEventListener('pagehide', clearMidMariaPersist)
     return () => window.removeEventListener('pagehide', clearMidMariaPersist)

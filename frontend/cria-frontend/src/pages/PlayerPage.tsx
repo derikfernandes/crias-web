@@ -295,6 +295,61 @@ function releaseTrailAdvanceClaim(trailId: string, claimId: string) {
   }
 }
 
+/** C2-R23 N02: claim cross-tab antes do POST /exercise_attempts. */
+function trailExerciseClaimKey(trailId: string): string {
+  return `crias:trail-exercise-claim:${trailId}`
+}
+
+function tryClaimTrailExercise(
+  trailId: string,
+  cellKey: string,
+): string | null {
+  const claimId = `ex-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  if (typeof localStorage === 'undefined') return claimId
+  const key = trailExerciseClaimKey(trailId)
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const prev = JSON.parse(raw) as {
+        cellKey?: string
+        at?: number
+        id?: string
+      }
+      if (
+        prev.cellKey === cellKey &&
+        typeof prev.at === 'number' &&
+        Date.now() - prev.at < 12_000
+      ) {
+        return null
+      }
+    }
+    localStorage.setItem(
+      key,
+      JSON.stringify({ cellKey, at: Date.now(), id: claimId }),
+    )
+    const again = JSON.parse(localStorage.getItem(key) || '{}') as {
+      id?: string
+    }
+    if (again.id !== claimId) return null
+    return claimId
+  } catch {
+    return claimId
+  }
+}
+
+function releaseTrailExerciseClaim(trailId: string, claimId: string) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const key = trailExerciseClaimKey(trailId)
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    const cur = JSON.parse(raw) as { id?: string }
+    if (cur.id === claimId) localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}
+
 function publishTrailProgress(
   trailId: string,
   pos?: { stage_number: number; question_number: number } | null,
@@ -792,6 +847,10 @@ export default function PlayerPage() {
   const skipNextBlocoDeliveryRef = useRef(false)
   /** Race guard síncrono — double-tap Continuar (R04-L01 / R06-E02). */
   const advanceInFlightRef = useRef(false)
+  /** C2-R23 N01: race guard síncrono — double-submit Enviar exercício. */
+  const submitInFlightRef = useRef(false)
+  /** C2-R23 N05: race guard síncrono — double-submit Maria. */
+  const mariaInFlightRef = useRef(false)
   /** advance OK mas next-content falhou — retry só resync (R18-N02). */
   const advanceCommittedRef = useRef(false)
   /** C2-R4 N02: invalida prefetch history stale (trail change / remount). */
@@ -1202,6 +1261,17 @@ export default function PlayerPage() {
     const key = trailPosStorageKey(trailId)
     const onStorage = (e: StorageEvent) => {
       if (e.key !== key || !e.newValue) return
+      // C2-R23 N03: trava chrome/opções no mesmo tick do storage — antes do fetch.
+      if (
+        !resyncInFlightRef.current &&
+        !advanceInFlightRef.current &&
+        busyReasonRef.current == null
+      ) {
+        setBusy(true)
+        setBusyReason('trail')
+        busyReasonRef.current = 'trail'
+        setTrailBusyLabel('Atualizando etapa…')
+      }
       void resyncIfStale()
     }
     window.addEventListener('storage', onStorage)
@@ -1454,6 +1524,8 @@ export default function PlayerPage() {
     setMariaEntrance(false)
     mariaCancelledRef.current = false
     advanceInFlightRef.current = false
+    submitInFlightRef.current = false
+    mariaInFlightRef.current = false
     resyncInFlightRef.current = false
     // C2-R4 N02: cancela prefetch history pendente desta trilha.
     historyFetchGenRef.current += 1
@@ -2128,16 +2200,20 @@ export default function PlayerPage() {
     prefetched?: NextContentOk | NextContentStatus,
   ): Promise<'same' | 'updated' | 'busy' | 'error'> {
     if (advanceInFlightRef.current || resyncInFlightRef.current) return 'busy'
-    if (busyReasonRef.current === 'trail') return 'busy'
     const liveSession = getSession()
     if (!liveSession || !trailId) return 'busy'
     resyncInFlightRef.current = true
-    // Lock chrome antes do await — fecha janela TOCTOU do Continuar.
-    const ownChrome = busyReasonRef.current == null
-    if (ownChrome) {
+    // Lock chrome antes do await — fecha janela TOCTOU do Continuar / Enviar.
+    // C2-R23 N03: storage pode pré-travar com busyReason trail; assume ownership.
+    const prelockedTrail =
+      busyReasonRef.current === 'trail' && !advanceInFlightRef.current
+    const ownChrome = busyReasonRef.current == null || prelockedTrail
+    if (busyReasonRef.current == null) {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
+      setTrailBusyLabel('Atualizando etapa…')
+    } else if (prelockedTrail) {
       setTrailBusyLabel('Atualizando etapa…')
     }
     try {
@@ -2411,6 +2487,8 @@ export default function PlayerPage() {
     if (advanceInFlightRef.current || busy) return
     // C2-R22 N01: resync silencioso em voo — não POST /advance em paralelo.
     if (resyncInFlightRef.current) return
+    // C2-R23 N04: Voltar mid-Maria não pode liberar advance enquanto askMaria voa.
+    if (mariaInFlightRef.current) return
     // C2-R9 N01: rascunho Maria compete com avanço — não avançar.
     if (draft.trim()) return
     // OM04: offline — não dispara advance fadado.
@@ -2638,13 +2716,17 @@ export default function PlayerPage() {
     if (content.stage_type === 'exercise' && !exerciseDone) return
     // C2-R15 N03: offline — silent return (parity Enviar disabled; sem inventar Tentar).
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    // C2-R23 N05: guard síncrono — Enter+click / rajada não multiplica POST/bolha.
+    if (mariaInFlightRef.current || busy) return
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
+    mariaInFlightRef.current = true
     mariaCancelledRef.current = false
     // Entra no sidechat já no envio — evita limbo sem Continuar/Voltar (R07-P02).
     setMariaSidechat(true)
     setBusy(true)
     setBusyReason('maria')
+    busyReasonRef.current = 'maria'
     clearError()
     const q = content.question_number
     const askLine = userLine
@@ -2699,8 +2781,10 @@ export default function PlayerPage() {
         void doMaria(askLine)
       })
     } finally {
+      mariaInFlightRef.current = false
       setBusy(false)
       setBusyReason(null)
+      busyReasonRef.current = null
       // C2-R7 N01 / R23-L04: Voltar/composer estável — só no ack.
       if (mariaAcked) {
         focusAfterMariaAck()
@@ -2719,10 +2803,15 @@ export default function PlayerPage() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
     setMariaEntrance(false)
-    // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
-    setBusy(false)
-    setBusyReason(null)
     setShowTyping(false)
+    // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
+    // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
+    // até o finally do doMaria (Voltar só sai do sidechat).
+    if (!mariaInFlightRef.current) {
+      setBusy(false)
+      setBusyReason(null)
+      busyReasonRef.current = null
+    }
     clearError()
     const current = contentRef.current
     if (current?.status !== 'ok') return
@@ -2800,6 +2889,8 @@ export default function PlayerPage() {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
+    // C2-R23 N03: resync em voo — não seleciona na célula stale.
+    if (resyncInFlightRef.current || submitInFlightRef.current) return
     if (exerciseDone || exercisePhase === 'submitting') return
     setSelectedOptionKey(option.key)
     setExercisePhase('selected')
@@ -2824,6 +2915,8 @@ export default function PlayerPage() {
     if (busy || content?.status !== 'ok' || content.stage_type !== 'exercise') {
       return
     }
+    // C2-R23 N01/N03: guards síncronos (React busy ainda não pintou / resync).
+    if (submitInFlightRef.current || resyncInFlightRef.current) return
     if (exerciseDone || exercisePhase === 'submitting') return
     // C2-R15 N01: offline — não dispara Enviar fadado (parity Continuar/Entrar/Maria).
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
@@ -2834,23 +2927,59 @@ export default function PlayerPage() {
     )
     if (!option) return
 
+    const cellKey = trailCellKey(content.stage_number, content.question_number)
+    const exerciseClaimId = tryClaimTrailExercise(trailId, cellKey)
+    if (!exerciseClaimId) {
+      // C2-R23 N02: outra aba já reivindicou o Enviar — só ressynca.
+      setBusy(true)
+      setBusyReason('trail')
+      busyReasonRef.current = 'trail'
+      setTrailBusyLabel('Atualizando etapa…')
+      deliveredKeyRef.current = null
+      await resyncIfStale()
+      return
+    }
+
+    submitInFlightRef.current = true
     setBusy(true)
     setBusyReason('exercise')
+    busyReasonRef.current = 'exercise'
     setPendingOptionKey(option.key)
     setExercisePhase('submitting')
     clearError()
     setMariaSidechat(false)
     const q = content.question_number
+    let submitSucceeded = false
     try {
-      const attempt = await submitExerciseAttempt({
-        student_id: liveSession.student_id,
-        institution_id: liveSession.institution_id,
-        trail_id: trailId,
-        stage_number: content.stage_number,
-        question_number: content.question_number,
-        student_answer: option.key,
-        feedback: content.explanation,
-      })
+      let attempt
+      try {
+        attempt = await submitExerciseAttempt({
+          student_id: liveSession.student_id,
+          institution_id: liveSession.institution_id,
+          trail_id: trailId,
+          stage_number: content.stage_number,
+          question_number: content.question_number,
+          student_answer: option.key,
+          feedback: content.explanation,
+          expected_version:
+            typeof content.progress_version === 'number'
+              ? content.progress_version
+              : 0,
+          idempotencyKey: exerciseClaimId,
+        })
+      } catch (err) {
+        // C2-R23 N02/N03: 409 conflict / célula movida → só resync.
+        if (err instanceof ApiRequestError && err.status === 409) {
+          setBusyReason('trail')
+          busyReasonRef.current = 'trail'
+          setTrailBusyLabel('Atualizando etapa…')
+          deliveredKeyRef.current = null
+          await resyncIfStale()
+          submitSucceeded = true
+          return
+        }
+        throw err
+      }
       // D#3: só feedback da escola / IA — sem hardcode de veredito.
       const pedagogical = attempt.pedagogical_feedback?.trim() || null
       let rich =
@@ -2927,6 +3056,7 @@ export default function PlayerPage() {
       setSelectedOptionKey(null)
       setPendingOptionKey(null)
       writeExerciseSelect(trailId, null)
+      submitSucceeded = true
       // R23-L02 / L07: anunciar feedback + focar Continuar (chrome, sem CTA novo).
       setSrAnnounce(
         feedbackText
@@ -2943,8 +3073,14 @@ export default function PlayerPage() {
       setSrAnnounce('')
       reportError(err, 'Erro ao enviar a resposta.')
     } finally {
+      // Sucesso: mantém claim até TTL — outra aba na mesma célula não POST.
+      if (exerciseClaimId && !submitSucceeded) {
+        releaseTrailExerciseClaim(trailId, exerciseClaimId)
+      }
+      submitInFlightRef.current = false
       setBusy(false)
       setBusyReason(null)
+      busyReasonRef.current = null
       window.requestAnimationFrame(() => {
         window.setTimeout(() => {
           if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
@@ -3020,6 +3156,7 @@ export default function PlayerPage() {
     !!selectedOptionKey &&
     !busy &&
     !offline &&
+    !submitInFlightRef.current &&
     exercisePhase !== 'submitting' &&
     (exercisePhase === 'selected' || exercisePhase === 'error')
   /** C2-R14 N01: offline/canRetry — Enviar Maria off (parity Continuar; recovery = Tentar). */
@@ -3029,7 +3166,8 @@ export default function PlayerPage() {
     !composerBlocked &&
     !!draft.trim() &&
     !offline &&
-    !canRetry
+    !canRetry &&
+    !mariaInFlightRef.current
   const canSend = canSubmitExercise || canSendFreeText
   /**
    * C2-R9 N01: rascunho no composer + Continuar vivos = avanço acidental.
@@ -3047,6 +3185,7 @@ export default function PlayerPage() {
     !continuarLeaving &&
     !mariaSidechat &&
     !advanceInFlightRef.current &&
+    !mariaInFlightRef.current &&
     !canRetry &&
     !exerciseOptionsMissing &&
     (content.stage_type === 'fixed' ||
@@ -3221,6 +3360,8 @@ export default function PlayerPage() {
         : 'Pergunte à Maria...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
+  /** C2-R23 N03: exercício stale sob resync — trava card/opções como pending. */
+  const exerciseResyncLock = trailBusy && optionsVisible
   const hintKey =
     content?.status !== 'ok'
       ? 'off'
@@ -3289,11 +3430,13 @@ export default function PlayerPage() {
       ? trailCellKey(content.stage_number, content.question_number)
       : null
   const exerciseLegend =
-    exerciseSubmitting
-      ? 'Enviando resposta…'
-      : exercisePhase === 'error'
-        ? 'Não foi possível enviar'
-        : 'Responda a questão'
+    exerciseResyncLock
+      ? trailBusyLabel
+      : exerciseSubmitting
+        ? 'Enviando resposta…'
+        : exercisePhase === 'error'
+          ? 'Não foi possível enviar'
+          : 'Responda a questão'
 
   const currentCell =
     content?.status === 'ok'
@@ -3672,15 +3815,23 @@ export default function PlayerPage() {
           <div
             className={[
               'chat-exercise',
-              exerciseSubmitting ? 'chat-exercise--pending' : '',
-              exercisePhase === 'error' ? 'chat-exercise--error-state' : '',
+              exerciseSubmitting || exerciseResyncLock
+                ? 'chat-exercise--pending'
+                : '',
+              exercisePhase === 'error' && !exerciseResyncLock
+                ? 'chat-exercise--error-state'
+                : '',
             ]
               .filter(Boolean)
               .join(' ')}
             role="group"
             aria-label="Responda a questão"
-            aria-busy={exerciseSubmitting || undefined}
-            data-exercise-phase={exercisePhase}
+            aria-busy={
+              exerciseSubmitting || exerciseResyncLock || undefined
+            }
+            data-exercise-phase={
+              exerciseResyncLock ? 'resyncing' : exercisePhase
+            }
           >
             <p className="chat-exercise__legend">{exerciseLegend}</p>
             {exercisePrompt ? (
@@ -3697,7 +3848,8 @@ export default function PlayerPage() {
             >
               {options.map((opt, optIndex) => {
                 const selected = highlightOptionKey === opt.key
-                const dimmed = exerciseSubmitting && !selected
+                const dimmed =
+                  (exerciseSubmitting || exerciseResyncLock) && !selected
                 // C2-R8 N02: um tab stop — marcada (ou a 1ª se nenhuma).
                 const rovingTabIndex = highlightOptionKey
                   ? selected
@@ -3720,7 +3872,7 @@ export default function PlayerPage() {
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                    disabled={busy || exerciseSubmitting}
+                    disabled={busy || exerciseSubmitting || exerciseResyncLock}
                     onClick={() => onOptionSelect(opt)}
                     onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
                   >
@@ -3729,7 +3881,7 @@ export default function PlayerPage() {
                 )
               })}
             </div>
-            {exercisePhase === 'error' ? (
+            {exercisePhase === 'error' && !exerciseResyncLock ? (
               <div className="chat-exercise__retry" role="status">
                 <p>
                   Não foi possível enviar. Sua escolha foi mantida. Toque em
@@ -3740,6 +3892,11 @@ export default function PlayerPage() {
             {exerciseSubmitting ? (
               <p className="chat-exercise__pending-label" aria-live="polite">
                 Enviando resposta…
+              </p>
+            ) : null}
+            {exerciseResyncLock ? (
+              <p className="chat-exercise__pending-label" aria-live="polite">
+                {trailBusyLabel}
               </p>
             ) : null}
           </div>

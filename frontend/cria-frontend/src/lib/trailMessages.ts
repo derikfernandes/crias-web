@@ -450,8 +450,9 @@ export function alignBlocoWithAttempt(
   bloco: string,
   isCorrect: boolean,
 ): string {
+  // "A resposta correta é a letra X" é gabarito/explicação, não celebração.
   const celebrate =
-    /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta|muito\s+bem[,!]?\s*(voc|$)/i
+    /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta(?!\s*(?:é|e\s|era\s|seria\s|:))|muito\s+bem[,!]?\s*(voc|$)/i
   const mourn =
     /resposta\s+incorreta|voc[eê]\s+errou|n[aã]o\s+acert|infelizmente|n[aã]o\s+foi\s+dessa/i
   const lines = bloco.split(/\r?\n/)
@@ -462,7 +463,47 @@ export function alignBlocoWithAttempt(
     if (isCorrect && mourn.test(t)) return false
     return true
   })
-  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  const aligned = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  // Nunca reduzir a bolha a só título + fechamento (bug t47: “🤔 Resposta”
+  // + “💬 …” sem veredito). Sem corpo → mantém o texto da IA.
+  if (hasFeedbackBody(bloco) && !hasFeedbackBody(aligned)) return bloco.trim()
+  return aligned
+}
+
+/** Título curto (ex.: "*🤔 Resposta*") e fechamento 💬 não contam como corpo. */
+export function hasFeedbackBody(text: string): boolean {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .some((t) => {
+      if (t.startsWith('💬')) return false
+      const isShortTitle = t.length <= 40 && !/[.!?:;]/.test(t)
+      return !isShortTitle
+    })
+}
+
+/**
+ * Texto da bolha de feedback do exercício (D#3: só escola / IA, sem hardcode).
+ * `pedagogical` é gerado pela IA PARA ESTA TENTATIVA (resposta + resultado no
+ * contexto) → vem primeiro e não é podado. Fallbacks (explanation da questão /
+ * BLOCO em cache, genérico) mantêm o alinhamento com o resultado.
+ */
+export function pickExerciseFeedbackText(input: {
+  pedagogical?: string | null
+  explanation?: string | null
+  legacyFeedback?: string | null
+  isCorrect: boolean
+  scored: boolean
+}): string | null {
+  const pedagogical = input.pedagogical?.trim()
+  if (pedagogical) return stripHardcodedVerdict(pedagogical) || null
+  let rich = input.explanation?.trim() || input.legacyFeedback?.trim() || null
+  if (rich) rich = stripHardcodedVerdict(rich) || null
+  if (rich && input.scored) {
+    rich = alignBlocoWithAttempt(rich, input.isCorrect) || null
+  }
+  return rich?.trim() || null
 }
 
 export function blocoConflictsWithAttempt(

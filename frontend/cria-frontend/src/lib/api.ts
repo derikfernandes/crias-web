@@ -544,24 +544,30 @@ export async function submitExerciseAttempt(input: {
     Number.isFinite(input.expected_version)
       ? Math.trunc(input.expected_version)
       : 0
-  const res = await fetchWithTimeout(`${API_BASE}/exercise_attempts`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
+  // Timeout maior: o feedback da IA é gerado nesta chamada (resposta do aluno
+  // no contexto), como na Maria.
+  const res = await fetchWithTimeout(
+    `${API_BASE}/exercise_attempts`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        student_id: input.student_id,
+        institution_id: input.institution_id,
+        trail_id: input.trail_id,
+        stage_number: input.stage_number,
+        question_number: input.question_number,
+        student_answer: input.student_answer,
+        feedback: input.feedback,
+        expected_version: expectedVersion,
+        idempotency_key: idempotencyKey,
+      }),
     },
-    body: JSON.stringify({
-      student_id: input.student_id,
-      institution_id: input.institution_id,
-      trail_id: input.trail_id,
-      stage_number: input.stage_number,
-      question_number: input.question_number,
-      student_answer: input.student_answer,
-      feedback: input.feedback,
-      expected_version: expectedVersion,
-      idempotency_key: idempotencyKey,
-    }),
-  })
+    MARIA_TIMEOUT_MS,
+  )
   const body = await parseJson(res)
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível enviar a resposta.')

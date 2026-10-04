@@ -379,6 +379,9 @@ async function handleRequest(request: Request): Promise<Response> {
             stage_number: validated.data.stage_number,
             question_number: validated.data.question_number,
             is_correct: result.is_correct,
+            // Resposta + resultado no contexto da IA (antes só o gabarito).
+            student_answer: validated.data.student_answer,
+            has_gabarito: result.score !== null,
           })
         } catch {
           pedagogical_feedback = null

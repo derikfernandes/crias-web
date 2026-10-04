@@ -93,8 +93,10 @@ export function isBlocoRespostaStage(
   )
 }
 
+// "A resposta correta é a letra X" é gabarito/explicação, não celebração —
+// não pode ser podado de feedback de tentativa errada.
 const BLOCO_CELEBRATE_RE =
-  /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta/i
+  /parab[eé]ns|voc[eê]\s+acert|pelo\s+acerto|resposta\s+correta(?!\s*(?:é|e\s|era\s|seria\s|:))/i
 const BLOCO_MOURN_RE =
   /resposta\s+incorreta|voc[eê]\s+errou|n[aã]o\s+acert|infelizmente/i
 
@@ -121,7 +123,24 @@ export function alignBlocoWithAttempt(
     if (isCorrect && BLOCO_MOURN_RE.test(t)) return false
     return true
   })
-  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  const aligned = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  // Nunca reduzir o feedback a só título + fechamento (bug t47 S9: bolha
+  // “🤔 Resposta” + “💬 …” sem veredito). Sem corpo → mantém o texto da IA.
+  if (hasFeedbackBody(text) && !hasFeedbackBody(aligned)) return text.trim()
+  return aligned
+}
+
+/** Linha de título curta (ex.: "*🤔 Resposta*") ou fechamento 💬 não contam como corpo. */
+export function hasFeedbackBody(text: string): boolean {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .some((t) => {
+      if (t.startsWith('💬')) return false
+      const isShortTitle = t.length <= 40 && !/[.!?:;]/.test(t)
+      return !isShortTitle
+    })
 }
 
 /**
@@ -137,6 +156,14 @@ export async function ensureNextBlocoRespostaFeedback(
     question_number: number
     /** Quando informado, alinha/invalida cache se o texto contradiz o attempt. */
     is_correct?: boolean | null
+    /**
+     * Alternativa escolhida nesta tentativa. Quando presente, o feedback é
+     * gerado pela IA com a resposta do aluno + resultado no contexto (o cache
+     * da célula BLOCO é gerado no prefetch, antes de o aluno responder).
+     */
+    student_answer?: string | null
+    /** false = questão sem gabarito (attempt unscored). */
+    has_gabarito?: boolean
   },
 ): Promise<string | null> {
   try {
@@ -175,9 +202,42 @@ export async function ensureNextBlocoRespostaFeedback(
       question_number: next.next_question_number,
     }
 
-    const { ensureTrailAiContent } = await import(
-      './trail-ai/ensureTrailAiContent.js'
-    )
+    const { ensureTrailAiContent, generateExerciseAttemptFeedback } =
+      await import('./trail-ai/ensureTrailAiContent.js')
+
+    const studentAnswer =
+      typeof input.student_answer === 'string' ? input.student_answer.trim() : ''
+    if (studentAnswer) {
+      try {
+        const gen = await generateExerciseAttemptFeedback(db, {
+          ...cell,
+          attempt: {
+            stage_number: input.stage_number,
+            question_number: input.question_number,
+            student_answer: studentAnswer,
+            is_correct:
+              input.has_gabarito === false
+                ? null
+                : typeof input.is_correct === 'boolean'
+                  ? input.is_correct
+                  : null,
+          },
+        })
+        const tailored = gen.content.trim()
+        if (tailored) return tailored
+      } catch (e) {
+        console.error(
+          '[exercise-feedback] geração com a resposta do aluno falhou; usando BLOCO da célula',
+          {
+            trail_id: input.trail_id,
+            stage_number: cell.stage_number,
+            question_number: cell.question_number,
+            error: e instanceof Error ? e.message : String(e),
+          },
+        )
+      }
+    }
+
     let ensured = await ensureTrailAiContent(db, cell)
     let text = ensured.content?.trim() || null
     if (!text) return null
@@ -193,7 +253,13 @@ export async function ensureNextBlocoRespostaFeedback(
     }
 
     return text
-  } catch {
+  } catch (e) {
+    console.error('[exercise-feedback] BLOCO RESPOSTA indisponível', {
+      trail_id: input.trail_id,
+      stage_number: input.stage_number,
+      question_number: input.question_number,
+      error: e instanceof Error ? e.message : String(e),
+    })
     return null
   }
 }

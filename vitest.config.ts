@@ -13,6 +13,13 @@ export default defineConfig({
         },
       },
       {
+        test: {
+          name: 'aluno',
+          include: ['frontend/cria-frontend/src/lib/**/*.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
         plugins: [react()],
         test: {
           name: 'frontend',

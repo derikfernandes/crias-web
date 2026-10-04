@@ -1,6 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
 import { createConversationLog } from '../conversationLogService'
+import { normalizeAnswerForCompare, resolveExerciseOptions } from '../exerciseOptions'
 import { getStudentTrailPosition } from '../studentTrailService'
 import { trailStageQuestionDocId } from '../trailStageQuestionService'
 import {
@@ -594,6 +595,208 @@ export async function ensureTrailAiContent(
     })
     throw e
   }
+}
+
+export type ExerciseAttemptForFeedback = {
+  /** Célula do exercício respondido. */
+  stage_number: number
+  question_number: number
+  /** Chave da alternativa escolhida (ex.: "B"). */
+  student_answer: string
+  /** null = questão sem gabarito (attempt unscored). */
+  is_correct: boolean | null
+}
+
+/**
+ * Bloco de dados da tentativa para o CONTENT do BLOCO RESPOSTA.
+ * Só dados (alternativa escolhida + resultado pelo gabarito da escola);
+ * o texto pedagógico continua vindo do comando do bloco + IA.
+ */
+export function buildAttemptContentSection(input: {
+  student_answer: string
+  is_correct: boolean | null
+  options: Array<{ key: string; text: string }> | null
+}): string {
+  const answer = String(input.student_answer ?? '').trim()
+  const norm = normalizeAnswerForCompare(answer)
+  const match = (input.options ?? []).find(
+    (o, idx) =>
+      o.key.trim().toUpperCase() === answer.toUpperCase() ||
+      normalizeAnswerForCompare(o.key) === norm ||
+      String(idx + 1) === norm,
+  )
+  const chosen = match?.text?.trim() || answer
+  const lines = [
+    '=== RESPOSTA DO ALUNO NESTA TENTATIVA ===',
+    `Alternativa escolhida pelo aluno: ${chosen}`,
+  ]
+  if (input.is_correct === true) lines.push('Resultado pelo gabarito: CORRETA')
+  else if (input.is_correct === false) {
+    lines.push('Resultado pelo gabarito: INCORRETA')
+  }
+  return lines.join('\n')
+}
+
+function feedbackTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.TRAIL_AI_FEEDBACK_TIMEOUT_MS
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : 30_000
+}
+
+/**
+ * Feedback do exercício para UMA tentativa: BLOCO RESPOSTA (comando + conteúdo
+ * da escola + exercício/gabarito) + a resposta do aluno e o resultado.
+ *
+ * O cache de célula (`ensureTrailAiContent`) do BLOCO é gerado no prefetch,
+ * antes de o aluno responder — por isso não serve como correção da tentativa.
+ * Aqui não grava cache nem log: o player persiste como `exercise_feedback`.
+ */
+export async function generateExerciseAttemptFeedback(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    /** Célula BLOCO RESPOSTA (stage AI seguinte ao exercício). */
+    stage_number: number
+    question_number: number
+    attempt: ExerciseAttemptForFeedback
+  },
+  env: NodeJS.ProcessEnv = process.env,
+  generateImpl: typeof generateContentWithGemini = generateContentWithGemini,
+): Promise<{ content: string; model: string }> {
+  const studentId = input.student_id.trim()
+  const trailId = input.trail_id.trim()
+  if (!studentId || !trailId) {
+    throw new Error('student_id e trail_id são obrigatórios.')
+  }
+  if (isTrailAiDisabled(env)) {
+    throw new Error('Geração IA desligada (TRAIL_AI_DISABLED).')
+  }
+
+  const meta = await loadCellMeta(
+    db,
+    trailId,
+    input.stage_number,
+    input.question_number,
+  )
+  if (meta.stageType !== 'ai' || !meta.isBloco) {
+    throw new Error('Célula seguinte não é BLOCO RESPOSTA.')
+  }
+
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const [exerciseSnap, studentSnap] = await Promise.all([
+    db
+      .collection(questionsCollection)
+      .doc(
+        trailStageQuestionDocId(
+          trailId,
+          input.attempt.stage_number,
+          input.attempt.question_number,
+        ),
+      )
+      .get(),
+    db.collection(studentsCollection).doc(studentId).get(),
+  ])
+  const exerciseData = (exerciseSnap.data() ?? {}) as Record<string, unknown>
+  const exerciseContent =
+    typeof exerciseData.content === 'string' ? exerciseData.content : ''
+  const options = resolveExerciseOptions(exerciseData.options, exerciseContent)
+
+  let content = meta.enrichedContent
+  let subjectSource = meta.subjectSource
+  // Sem exercício anterior encontrado pelo BLOCO: usa o da própria tentativa.
+  if (content === meta.baseContent && exerciseContent.trim()) {
+    content = enrichBlocoContent({
+      blocoContent: meta.baseContent,
+      exerciseContent,
+      correctOption:
+        typeof exerciseData.correct_option === 'string'
+          ? exerciseData.correct_option
+          : null,
+      correctLetter: extractCorrectLetterFromText(meta.baseContent),
+    })
+    subjectSource = exerciseContent
+  }
+  content = [
+    content,
+    buildAttemptContentSection({
+      student_answer: input.attempt.student_answer,
+      is_correct: input.attempt.is_correct,
+      options,
+    }),
+  ]
+    .filter((p) => p.trim())
+    .join('\n\n')
+
+  const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
+  const name = typeof studentData.name === 'string' ? studentData.name : ''
+  const school_grade =
+    typeof studentData.school_grade === 'string' ? studentData.school_grade : ''
+  const student_level =
+    typeof studentData.student_level === 'number' ||
+    typeof studentData.student_level === 'string'
+      ? studentData.student_level
+      : 2
+
+  const recent = await listRecentContextLogs(db, {
+    student_id: studentId,
+    trail_id: trailId,
+    limit: contextLimit(env),
+  })
+  const context = filterContextForBloco(
+    formatContextFromLogs(recent, contextLimit(env)),
+    {
+      stage_number: input.stage_number,
+      question_number: input.question_number,
+      subjectSource,
+    },
+  )
+
+  const built = buildTrailAiPrompt({
+    name,
+    school_grade,
+    student_level,
+    prompt: meta.prompt,
+    content,
+    context,
+    trail_title: meta.title,
+  })
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('Timeout na geração do feedback do exercício.')),
+      feedbackTimeoutMs(env),
+    )
+  })
+  let gen: { text: string; model: string }
+  try {
+    gen = await Promise.race([
+      generateImpl(
+        {
+          systemInstruction: built.systemInstruction,
+          userText: built.userText,
+        },
+        env,
+      ),
+      timeout,
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+
+  const formatted = formatAiAnswer(gen.text)
+  if (!formatted) {
+    throw new Error('Resposta da IA vazia após formatação.')
+  }
+  if (blocoMismatchesSubject(formatted, subjectSource)) {
+    throw new Error(
+      'Feedback do exercício incoerente com o exercício (matéria divergente).',
+    )
+  }
+  return { content: formatted, model: gen.model }
 }
 
 function logsCollectionName(): string {

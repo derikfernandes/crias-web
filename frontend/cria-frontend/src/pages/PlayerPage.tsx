@@ -32,7 +32,6 @@ import {
 } from '../lib/networkError'
 import { clearSession, getSession, requireSession } from '../lib/session'
 import {
-  alignBlocoWithAttempt,
   type ChatMessage,
   formatBubbleTime,
   type InlineSeg,
@@ -45,9 +44,9 @@ import {
   mediaHintForText,
   normalizeTitleKey,
   parseInlineMarkdown,
+  pickExerciseFeedbackText,
   renderMessageLines,
   stripDecorTitle,
-  stripHardcodedVerdict,
   stripMidLessonConclusion,
   textHasEmbed,
   trailCellKey,
@@ -3311,20 +3310,15 @@ export default function PlayerPage() {
         throw err
       }
       // D#3: só feedback da escola / IA — sem hardcode de veredito.
-      const pedagogical = attempt.pedagogical_feedback?.trim() || null
-      let rich =
-        content.explanation?.trim() ||
-        pedagogical ||
-        attempt.feedback?.trim() ||
-        null
-      if (rich) {
-        rich = stripHardcodedVerdict(rich) || null
-      }
-      // R02: não misturar “Parabéns pelo acerto” com attempt errado.
-      if (rich && attempt.score !== null) {
-        rich = alignBlocoWithAttempt(rich, attempt.is_correct) || null
-      }
-      const feedbackText = rich?.trim() || null
+      // IA da tentativa (resposta do aluno no contexto) antes do BLOCO genérico.
+      // R02: fallbacks continuam alinhados ao resultado do attempt.
+      const feedbackText = pickExerciseFeedbackText({
+        pedagogical: attempt.pedagogical_feedback,
+        explanation: content.explanation,
+        legacyFeedback: attempt.feedback,
+        isCorrect: attempt.is_correct,
+        scored: attempt.score !== null,
+      })
       // B3: se o BLOCO seguinte já entrou neste feedback, pular reentrega.
       skipNextBlocoDeliveryRef.current = Boolean(feedbackText)
       // B5: opção escolhida vira banner no histórico (não some).

@@ -5,7 +5,8 @@
   "outputDirectory": "frontend/trilha-admin/dist",
   "functions": {
     "api/dashboard_summary.ts": { "maxDuration": 60 },
-    "api/student_trails.ts": { "maxDuration": 60 }
+    "api/student_trails.ts": { "maxDuration": 60 },
+    "api/exercise_attempts.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/institution/", "destination": "/api/institution" },

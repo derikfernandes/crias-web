@@ -3161,18 +3161,42 @@ export default function PlayerPage() {
      * bolhas da Maria (ocultas no tail) no meio, cada Voltar empilhava mais um
      * resume idêntico.
      */
-    setMessages((prev) => [
-      ...prev.filter((m) => !isSameCellStepCopy(m, key)),
-      markAnimate({
-        id: resumeId,
-        role: 'assistant',
-        text,
-        stageType: current.stage_type,
-        cellKey: key,
-        kind: 'resume',
-        questionNumber: current.question_number,
-      }),
-    ])
+    const resumeMsg: ChatMessage = {
+      id: resumeId,
+      role: 'assistant',
+      text,
+      stageType: current.stage_type,
+      cellKey: key,
+      kind: 'resume',
+      questionNumber: current.question_number,
+    }
+    setMessages((prev) => {
+      /**
+       * Exercício: Maria só abre após o feedback, então o passo já foi
+       * respondido. A entrega da célula fica NO LUGAR (antes da resposta +
+       * feedback); só cópias extras são removidas. Anexar o resume no fim
+       * levava o lesson-card (que ocupa o slot da bolha da célula) para
+       * baixo do próprio feedback, sem opções — parecia um exercício novo
+       * sem como responder.
+       * Sem cópia da célula no estado (eject para célula nova), segue o
+       * caminho de sempre: anexa o resume no fim.
+       */
+      const firstIdx =
+        current.stage_type === 'exercise'
+          ? prev.findIndex((m) => isSameCellStepCopy(m, key))
+          : -1
+      if (firstIdx >= 0) {
+        const out: ChatMessage[] = []
+        prev.forEach((m, i) => {
+          if (i === firstIdx || !isSameCellStepCopy(m, key)) out.push(m)
+        })
+        return out.length === prev.length ? prev : out
+      }
+      return [
+        ...prev.filter((m) => !isSameCellStepCopy(m, key)),
+        markAnimate(resumeMsg),
+      ]
+    })
     // F08: pós-Voltar → foco no Continuar (ou composer).
     // C2-R27 N02: mid-flight Continuar gated (“Aguarde…”) ainda é o alvo útil —
     // não cair no composer disabled → BODY. holdFocus cobre o settle.

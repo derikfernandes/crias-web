@@ -1,0 +1,47 @@
+import type { SVGProps } from 'react'
+
+/** Ícone Trilha — caminho com 3 waypoints (I9). Herda currentColor. */
+export function TrilhaPathIcon({
+  size = 20,
+  title,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number; title?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      role={title ? 'img' : 'presentation'}
+      aria-hidden={title ? undefined : true}
+      aria-label={title}
+      {...props}
+    >
+      {title ? <title>{title}</title> : null}
+      <path
+        d="M3.5 16.5c2.2-1.2 3.8-3.6 5.2-5.6.9-1.3 2.1-2.4 3.6-2.9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12.3 8c1.6-.4 3.3.1 4.7 1.4 1.5 1.4 2.6 3.4 3.5 5.1"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="5" cy="17" r="1.75" fill="currentColor" />
+      <circle cx="12" cy="8" r="2.1" fill="currentColor" />
+      <circle
+        cx="20"
+        cy="15.5"
+        r="1.75"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  )
+}

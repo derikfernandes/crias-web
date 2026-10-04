@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { AdminLayout } from './layouts/AdminLayout'
-import { ProtectedPage } from './layouts/RouteGuards'
+import { ProtectedPage, RequireStudentAuth } from './layouts/RouteGuards'
 import { LoginPage } from './pages/LoginPage'
 import './design/styles/app.css'
 
@@ -69,11 +69,74 @@ const TrailsListPage = lazy(() =>
     default: m.TrailsListPage,
   })),
 )
+const TrilhaLoginPage = lazy(() =>
+  import('./pages/trilha/TrilhaLoginPage').then((m) => ({
+    default: m.TrilhaLoginPage,
+  })),
+)
+const TrilhaHomePage = lazy(() =>
+  import('./pages/trilha/TrilhaHomePage').then((m) => ({
+    default: m.TrilhaHomePage,
+  })),
+)
+const TrilhaPlayerPage = lazy(() =>
+  import('./pages/trilha/TrilhaPlayerPage').then((m) => ({
+    default: m.TrilhaPlayerPage,
+  })),
+)
+const TrilhaHistoryPage = lazy(() =>
+  import('./pages/trilha/TrilhaHistoryPage').then((m) => ({
+    default: m.TrilhaHistoryPage,
+  })),
+)
+const TrilhaUxDemoPage = lazy(() =>
+  import('./pages/trilha/TrilhaUxDemoPage').then((m) => ({
+    default: m.TrilhaUxDemoPage,
+  })),
+)
 
 const routerBasename =
   import.meta.env.BASE_URL === '/'
     ? undefined
     : import.meta.env.BASE_URL.replace(/\/$/, '')
+
+function TrilhaRoutes() {
+  return (
+    <Suspense fallback={<p className="muted">Carregando…</p>}>
+      <Routes>
+        <Route path="login" element={<TrilhaLoginPage />} />
+        <Route
+          path="play"
+          element={
+            <RequireStudentAuth>
+              <TrilhaPlayerPage />
+            </RequireStudentAuth>
+          }
+        />
+        <Route
+          path="historico"
+          element={
+            <RequireStudentAuth>
+              <TrilhaHistoryPage />
+            </RequireStudentAuth>
+          }
+        />
+        {import.meta.env.DEV ? (
+          <Route path="ux-demo" element={<TrilhaUxDemoPage />} />
+        ) : null}
+        <Route
+          index
+          element={
+            <RequireStudentAuth>
+              <TrilhaHomePage />
+            </RequireStudentAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/trilha" replace />} />
+      </Routes>
+    </Suspense>
+  )
+}
 
 function AppRoutes() {
   return (
@@ -206,6 +269,7 @@ export default function App() {
       <BrowserRouter basename={routerBasename}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/trilha/*" element={<TrilhaRoutes />} />
           <Route path="*" element={<AppRoutes />} />
         </Routes>
       </BrowserRouter>

@@ -73,6 +73,13 @@ const HISTORY_IDLE_TIMEOUT_MS = 900
 
 /** Distância do fim para considerar “sticky bottom”. */
 const STICKY_BOTTOM_PX = 120
+/**
+ * Depois de um gesto de scroll-up, só volta a seguir o fim quando o próprio
+ * aluno desce até (quase) o fim — não basta estar dentro de STICKY_BOTTOM_PX.
+ */
+const RESUME_FOLLOW_PX = 24
+/** Janela em que um scroll ainda é atribuído ao último input do aluno (wheel/tecla). */
+const USER_INPUT_WINDOW_MS = 350
 
 function scheduleIdle(fn: () => void, timeout = HISTORY_IDLE_TIMEOUT_MS): () => void {
   const w = window as Window & {
@@ -852,6 +859,15 @@ export default function PlayerPage() {
    * (wheel/touch/keys). Gap por crescimento de conteúdo NÃO arma pin.
    */
   const userScrollUpGestureRef = useRef(false)
+  /** Dedo/ponteiro no scroller — enquanto true, nada de auto-scroll. */
+  const touchActiveRef = useRef(false)
+  const pointerActiveRef = useRef(false)
+  /** Último input do aluno (wheel/touchmove/tecla) — scroll logo após é dele. */
+  const lastUserInputAtRef = useRef(0)
+  /** scrollTop do último onScroll — direção do movimento. */
+  const lastScrollTopRef = useRef(0)
+  /** Smooth programático em voo (Ir para o fim) — gesto do aluno cancela. */
+  const smoothScrollUntilRef = useRef(0)
   const reduceMotionRef = useRef(false)
   const historyBeforeRef = useRef<number | null>(null)
   const oldestLogMsRef = useRef<number | null>(null)
@@ -1407,27 +1423,64 @@ export default function PlayerPage() {
     const el = threadRef.current
     if (!el || !historyReady) return
 
-    const markScrollUp = () => {
-      if (programmaticScrollRef.current || initialAnchorPendingRef.current) {
-        return
-      }
-      userScrollUpGestureRef.current = true
-    }
+    // Gesto do aluno sempre vence scroll programático / âncora inicial:
+    // antes, markScrollUp era ignorado nessas janelas e o stick puxava o dedo.
+    const markScrollUp = () => markUserScrollUp()
 
     const onWheel = (e: WheelEvent) => {
+      lastUserInputAtRef.current = Date.now()
       if (e.deltaY < 0) markScrollUp()
     }
     let touchY = 0
+    let upAccum = 0
     const onTouchStart = (e: TouchEvent) => {
+      touchActiveRef.current = true
+      lastUserInputAtRef.current = Date.now()
       touchY = e.touches[0]?.clientY ?? 0
+      upAccum = 0
     }
     const onTouchMove = (e: TouchEvent) => {
+      lastUserInputAtRef.current = Date.now()
       const y = e.touches[0]?.clientY ?? 0
-      // Dedo para baixo → conteúdo sobe (scroll-up).
-      if (y - touchY > 6) markScrollUp()
+      const dy = y - touchY
       touchY = y
+      // Dedo para baixo → conteúdo sobe (scroll-up). Acumula: telas de 120Hz
+      // entregam 1–4px por touchmove — o limiar por evento (>6px) nunca armava.
+      upAccum = dy > 0 ? upAccum + dy : 0
+      if (upAccum > 4) markScrollUp()
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length > 0) return
+      touchActiveRef.current = false
+      lastUserInputAtRef.current = Date.now()
+      // Sem gesto de subida: o aluno segue no fim — reassume o stick que foi
+      // adiado enquanto o dedo estava na tela (append/layout durante o toque).
+      requestAnimationFrame(() => {
+        if (
+          touchActiveRef.current ||
+          userScrollUpGestureRef.current ||
+          pinnedAwayRef.current ||
+          initialAnchorPendingRef.current ||
+          isPinLocked()
+        ) {
+          return
+        }
+        if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+          runProgrammaticScroll(() => {
+            el.scrollTop = el.scrollHeight
+          })
+        }
+        nearBottomRef.current = true
+      })
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') pointerActiveRef.current = true
+    }
+    const onPointerUp = () => {
+      pointerActiveRef.current = false
     }
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      lastUserInputAtRef.current = Date.now()
       if (e.key === 'PageUp' || e.key === 'Home' || e.key === 'ArrowUp') {
         markScrollUp()
       }
@@ -1436,13 +1489,26 @@ export default function PlayerPage() {
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    el.addEventListener('pointerdown', onPointerDown, { passive: true })
+    window.addEventListener('pointerup', onPointerUp, { passive: true })
+    window.addEventListener('pointercancel', onPointerUp, { passive: true })
     el.addEventListener('keydown', onKeyDown)
     return () => {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+      el.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
       el.removeEventListener('keydown', onKeyDown)
+      touchActiveRef.current = false
+      pointerActiveRef.current = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- markUserScrollUp só usa refs
   }, [historyReady])
 
   /**
@@ -1454,8 +1520,12 @@ export default function PlayerPage() {
     if (!el || !historyReady) return
 
     const stickIfUnpinned = () => {
+      // Layout (iframe/imagem/content-visibility/viewport) nunca puxa quem
+      // subiu — nem enquanto o dedo/ponteiro ainda está no scroller.
       if (
         pinnedAwayRef.current ||
+        userScrollUpGestureRef.current ||
+        userInteractingNow() ||
         isPinLocked() ||
         initialAnchorPendingRef.current
       ) {
@@ -2030,6 +2100,42 @@ export default function PlayerPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [draft])
 
+  /** Dedo/ponteiro no scroller ou input muito recente — não auto-scrollar. */
+  function userInteractingNow(): boolean {
+    return (
+      touchActiveRef.current ||
+      pointerActiveRef.current ||
+      Date.now() - lastUserInputAtRef.current < USER_INPUT_WINDOW_MS
+    )
+  }
+
+  /**
+   * Gesto real de scroll-up: para TODO auto-scroll até o aluno voltar ao fim
+   * sozinho ou tocar no chip. Cancela smooth programático em voo.
+   */
+  function markUserScrollUp() {
+    const el = threadRef.current
+    lastUserInputAtRef.current = Date.now()
+    userScrollUpGestureRef.current = true
+    pinnedAwayRef.current = true
+    nearBottomRef.current = false
+    // Âncora inicial não deve mais reancorar quem já está lendo o histórico.
+    initialAnchorPendingRef.current = false
+    if (programmaticScrollTimerRef.current != null) {
+      window.clearTimeout(programmaticScrollTimerRef.current)
+      programmaticScrollTimerRef.current = null
+    }
+    programmaticScrollRef.current = false
+    if (!el) return
+    if (Date.now() < smoothScrollUntilRef.current) {
+      smoothScrollUntilRef.current = 0
+      // Interrompe o smooth no ponto atual — não briga com o dedo.
+      el.scrollTo({ top: el.scrollTop, behavior: 'instant' as ScrollBehavior })
+    }
+    pinnedScrollTopRef.current = el.scrollTop
+    lastScrollTopRef.current = el.scrollTop
+  }
+
   function capturePinFromScroll() {
     const el = threadRef.current
     if (!el) return false
@@ -2099,39 +2205,60 @@ export default function PlayerPage() {
   function updateNearBottom() {
     const el = threadRef.current
     if (!el) return
+    const top = el.scrollTop
+    const movedUp = top < lastScrollTopRef.current - 1
+    lastScrollTopRef.current = top
+    const userDriven = userInteractingNow()
+    const gap = el.scrollHeight - top - el.clientHeight
+    // Scroll subindo com dedo/ponteiro/wheel recente = gesto do aluno
+    // (cobre momentum, scrollbar e telas que não entregam touchmove útil).
+    // Clamp no fim (teclado fechando) não conta: gap continua ~0.
+    if (movedUp && userDriven && gap > RESUME_FOLLOW_PX) markUserScrollUp()
     // Scroll programático / âncora inicial: não promove pin.
-    if (programmaticScrollRef.current || initialAnchorPendingRef.current) {
-      if (isScrollNearBottom(el)) {
+    if (
+      !userDriven &&
+      (programmaticScrollRef.current || initialAnchorPendingRef.current)
+    ) {
+      if (!userScrollUpGestureRef.current && isScrollNearBottom(el)) {
         nearBottomRef.current = true
         pinnedAwayRef.current = false
-        userScrollUpGestureRef.current = false
         clearJumpChip()
       }
       return
     }
-    // Durante/após Continuar com pin: trava scrollTop.
+    // Durante/após Continuar com pin: trava scrollTop — salvo se o aluno
+    // está rolando (aí o pin acompanha o dedo em vez de brigar com ele).
     if (isPinLocked()) {
-      if (el.scrollTop !== pinnedScrollTopRef.current) {
+      if (userDriven) {
+        pinnedScrollTopRef.current = top
+      } else if (top !== pinnedScrollTopRef.current) {
         el.scrollTop = pinnedScrollTopRef.current
       }
       nearBottomRef.current = false
       return
     }
-    const near = isScrollNearBottom(el)
-    nearBottomRef.current = near
-    if (near) {
-      pinnedAwayRef.current = false
-      userScrollUpGestureRef.current = false
-      clearJumpChip()
+    const near = gap < STICKY_BOTTOM_PX
+    // Aluno subiu de propósito: só volta a seguir quando ele mesmo chega ao fim.
+    if (userScrollUpGestureRef.current || pinnedAwayRef.current) {
+      // Clamp por encolhimento do conteúdo também “sobe” — só o dedo ainda
+      // arrastando para cima segura o pin colado no fim.
+      if (gap <= RESUME_FOLLOW_PX && !(movedUp && touchActiveRef.current)) {
+        pinnedAwayRef.current = false
+        userScrollUpGestureRef.current = false
+        nearBottomRef.current = true
+        clearJumpChip()
+        return
+      }
+      pinnedAwayRef.current = true
+      nearBottomRef.current = false
+      pinnedScrollTopRef.current = top
+      // R19-H03: atalho “Ir para o fim” sempre que !nearBottom.
+      if (!near) showJumpChip()
       return
     }
-    // Longe do fundo: pin só se houve gesto de scroll-up (C4-MARIA-FALSE-PIN).
-    if (userScrollUpGestureRef.current || pinnedAwayRef.current) {
-      pinnedAwayRef.current = true
-      pinnedScrollTopRef.current = el.scrollTop
-      // R19-H03: atalho “Ir para o fim” sempre que !nearBottom.
-      showJumpChip()
-    }
+    nearBottomRef.current = near
+    if (near) clearJumpChip()
+    // Longe do fundo sem gesto: crescimento de conteúdo ≠ pin (C4-MARIA-FALSE-PIN).
   }
 
   function runProgrammaticScroll(fn: () => void) {
@@ -2164,10 +2291,15 @@ export default function PlayerPage() {
         el.scrollTop = top
         return
       }
+      smoothScrollUntilRef.current = Date.now() + 600
       el.scrollTo({ top, behavior: 'smooth' })
       // Reforça no fim do smooth — append/imagem pode crescer no meio.
       window.setTimeout(() => {
-        if (!pinnedAwayRef.current && threadRef.current) {
+        if (
+          !pinnedAwayRef.current &&
+          !userScrollUpGestureRef.current &&
+          threadRef.current
+        ) {
           threadRef.current.scrollTop = threadRef.current.scrollHeight
         }
       }, 280)
@@ -2263,6 +2395,9 @@ export default function PlayerPage() {
       showJumpChip({ unseen: true })
       return
     }
+    // Dedo no scroller: não arrancar a tela da mão do aluno (o stick do
+    // ResizeObserver assume quando ele soltar, se ainda estiver no fim).
+    if (userScrollUpGestureRef.current || touchActiveRef.current) return
     // Sem pin do usuário: sempre stick-to-bottom (auto) — gap de append ≠ chip.
     nearBottomRef.current = true
     scrollToBottom('auto')

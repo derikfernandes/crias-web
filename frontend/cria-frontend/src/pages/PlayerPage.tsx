@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   advanceTrail,
+  ApiRequestError,
   askMaria,
   createConversationLog,
   fetchNextContent,
@@ -235,6 +236,61 @@ function writeMariaPersist(
 /** C2-R21 N01: posição cross-tab (storage event em outras abas). */
 function trailPosStorageKey(trailId: string): string {
   return `crias:trail-pos:${trailId}`
+}
+
+/** C2-R22 N02: claim cross-tab antes do POST /advance (mitiga TOCTOU sem API). */
+function trailAdvanceClaimKey(trailId: string): string {
+  return `crias:trail-advance-claim:${trailId}`
+}
+
+function tryClaimTrailAdvance(
+  trailId: string,
+  cellKey: string,
+): string | null {
+  const claimId = `adv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  if (typeof localStorage === 'undefined') return claimId
+  const key = trailAdvanceClaimKey(trailId)
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const prev = JSON.parse(raw) as {
+        cellKey?: string
+        at?: number
+        id?: string
+      }
+      if (
+        prev.cellKey === cellKey &&
+        typeof prev.at === 'number' &&
+        Date.now() - prev.at < 12_000
+      ) {
+        return null
+      }
+    }
+    localStorage.setItem(
+      key,
+      JSON.stringify({ cellKey, at: Date.now(), id: claimId }),
+    )
+    const again = JSON.parse(localStorage.getItem(key) || '{}') as {
+      id?: string
+    }
+    if (again.id !== claimId) return null
+    return claimId
+  } catch {
+    return claimId
+  }
+}
+
+function releaseTrailAdvanceClaim(trailId: string, claimId: string) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const key = trailAdvanceClaimKey(trailId)
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    const cur = JSON.parse(raw) as { id?: string }
+    if (cur.id === claimId) localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
 }
 
 function publishTrailProgress(
@@ -2065,6 +2121,7 @@ export default function PlayerPage() {
   /**
    * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),
    * aplica next-content sem chamar advance.
+   * C2-R22 N01: busy no chrome durante o fetch — Continuar não fica liberado.
    */
   async function resyncIfStale(
     prefetched?: NextContentOk | NextContentStatus,
@@ -2074,6 +2131,14 @@ export default function PlayerPage() {
     const liveSession = getSession()
     if (!liveSession || !trailId) return 'busy'
     resyncInFlightRef.current = true
+    // Lock chrome antes do await — fecha janela TOCTOU do Continuar.
+    const ownChrome = busyReasonRef.current == null
+    if (ownChrome) {
+      setBusy(true)
+      setBusyReason('trail')
+      busyReasonRef.current = 'trail'
+      setTrailBusyLabel('Atualizando etapa…')
+    }
     try {
       const data =
         prefetched ??
@@ -2104,6 +2169,12 @@ export default function PlayerPage() {
       return 'error'
     } finally {
       resyncInFlightRef.current = false
+      if (ownChrome && busyReasonRef.current === 'trail') {
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+        setTrailBusyLabel('Preparando etapa…')
+      }
     }
   }
 
@@ -2158,7 +2229,12 @@ export default function PlayerPage() {
         skipNextBlocoDeliveryRef.current = false
         const blocoKey = trailCellKey(data.stage_number, data.question_number)
         deliveredKeyRef.current = blocoKey
-        const advanceAgain = await advanceTrail(session.student_id, trailId)
+        const advanceAgain = await advanceTrail(session.student_id, trailId, {
+          expectedVersion:
+            typeof data.progress_version === 'number'
+              ? data.progress_version
+              : 0,
+        })
         if (advanceAgain.status === 'ok' && advanceAgain.completed) {
           const completed: NextContentStatus = {
             status: 'completed',
@@ -2332,6 +2408,8 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
+    // C2-R22 N01: resync silencioso em voo — não POST /advance em paralelo.
+    if (resyncInFlightRef.current) return
     // C2-R9 N01: rascunho Maria compete com avanço — não avançar.
     if (draft.trim()) return
     // OM04: offline — não dispara advance fadado.
@@ -2365,6 +2443,7 @@ export default function PlayerPage() {
     })
     let advanceSucceeded = false
     let advancedContent: NextContentOk | NextContentStatus | null = null
+    let advanceClaimId: string | null = null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       // C2-R21 N01/N02: revalida posição antes do advance — UI stale não pula etapa.
@@ -2381,6 +2460,11 @@ export default function PlayerPage() {
         reportError(err, 'Erro ao conferir a etapa.', () => {
           void doAdvance()
         })
+        return
+      }
+      // Resync pode ter corrido no await — não avançar sobre UI mutada.
+      if (resyncInFlightRef.current) {
+        advanceSucceeded = true
         return
       }
       const ui = contentRef.current
@@ -2407,7 +2491,55 @@ export default function PlayerPage() {
         return
       }
 
-      const result = await advanceTrail(liveSession.student_id, trailId)
+      // C2-R22 N02: claim cross-tab + expected_version no POST.
+      if (livePos.status === 'ok') {
+        const cellKey = trailCellKey(
+          livePos.stage_number,
+          livePos.question_number,
+        )
+        advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
+        if (!advanceClaimId) {
+          setTrailBusyLabel('Atualizando etapa…')
+          deliveredKeyRef.current = null
+          advancedContent = await loadNextAfterAdvance(livePos)
+          publishTrailProgress(trailId, {
+            stage_number: livePos.stage_number,
+            question_number: livePos.question_number,
+          })
+          advanceSucceeded = true
+          return
+        }
+      }
+
+      let result
+      try {
+        result = await advanceTrail(liveSession.student_id, trailId, {
+          expectedVersion:
+            livePos.status === 'ok' &&
+            typeof livePos.progress_version === 'number'
+              ? livePos.progress_version
+              : 0,
+          idempotencyKey: advanceClaimId ?? undefined,
+        })
+      } catch (err) {
+        // 409 conflict / versão divergente → só resync, sem segundo advance.
+        if (err instanceof ApiRequestError && err.status === 409) {
+          setTrailBusyLabel('Atualizando etapa…')
+          deliveredKeyRef.current = null
+          advancedContent = await loadNextAfterAdvance()
+          if (advancedContent && advancedContent.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: advancedContent.stage_number,
+              question_number: advancedContent.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
+          advanceSucceeded = true
+          return
+        }
+        throw err
+      }
       if (result.status === 'ok' && result.completed) {
         advanceCommittedRef.current = false
         advanceSucceeded = true
@@ -2472,6 +2604,11 @@ export default function PlayerPage() {
         }
       }
     } finally {
+      // Sucesso: mantém claim até TTL (12s) — outra aba na mesma célula não POST.
+      // Falha/abort: libera para retry.
+      if (advanceClaimId && !advanceSucceeded) {
+        releaseTrailAdvanceClaim(trailId, advanceClaimId)
+      }
       advanceInFlightRef.current = false
       setBusy(false)
       setBusyReason(null)

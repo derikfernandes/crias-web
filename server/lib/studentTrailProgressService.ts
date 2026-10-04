@@ -24,6 +24,7 @@ export type ProgressErrorCode =
   | 'inactive_trail'
   | 'blocked'
   | 'completed'
+  | 'conflict'
   | 'invalid_payload'
   | 'invalid_credentials'
   | 'password_not_set'
@@ -47,6 +48,8 @@ export type NextContentOk = {
   explanation: string | null
   is_released: true
   next_action: 'deliver_content'
+  /** Optimistic lock p/ POST advance (C2-R22 N02). */
+  progress_version: number
 }
 
 export type NextContentStatusBody = {
@@ -63,6 +66,8 @@ export type AdvanceOk = {
   next_stage_number: number
   next_question_number: number
   completed: boolean
+  progress_version?: number
+  replay?: boolean
 }
 
 export type IdentifyOk = {
@@ -777,6 +782,7 @@ export async function getNextContent(
       explanation,
       is_released: true,
       next_action: 'deliver_content',
+      progress_version: pos.progress_version,
     },
     background,
   }
@@ -953,6 +959,7 @@ export async function getAdvanceGate(
       explanation: null,
       is_released: true,
       next_action: 'deliver_content',
+      progress_version: pos.progress_version,
     },
   }
 }
@@ -1039,11 +1046,24 @@ export async function advanceStudentTrailProgress(
   db: Firestore,
   studentId: string,
   trailId: string,
+  opts?: {
+    expected_version?: number
+    idempotency_key?: string | null
+  },
 ): Promise<ProgressResult<AdvanceOk | NextContentStatusBody>> {
   const studentTrailsCollection =
     process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails'
   const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
   const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const expectedVersion =
+    typeof opts?.expected_version === 'number' &&
+    Number.isFinite(opts.expected_version)
+      ? Math.trunc(opts.expected_version)
+      : undefined
+  const idempotencyKey =
+    typeof opts?.idempotency_key === 'string' && opts.idempotency_key.trim()
+      ? opts.idempotency_key.trim().slice(0, 128)
+      : null
 
   const [studentSnap, trailSnap, currentSnap] = await Promise.all([
     db.collection(studentsCollection).doc(studentId).get(),
@@ -1159,13 +1179,120 @@ export async function advanceStudentTrailProgress(
     total_questions: maxQuestion,
   })
 
+  const id = studentTrailDocId(studentId, trailId)
+  const ref = db.collection(studentTrailsCollection).doc(id)
+
+  // C2-R22 N02: replay Idempotency-Key — não avança de novo.
+  if (idempotencyKey) {
+    const lastKey =
+      typeof data.last_idempotency_key === 'string'
+        ? data.last_idempotency_key
+        : null
+    if (lastKey && lastKey === idempotencyKey) {
+      const versionRaw = data.progress_version
+      const progress_version =
+        typeof versionRaw === 'number' &&
+        Number.isFinite(versionRaw) &&
+        versionRaw >= 0
+          ? Math.trunc(versionRaw)
+          : 0
+      return {
+        ok: true,
+        data: {
+          status: 'ok',
+          next_stage_number: currentStage,
+          next_question_number: currentQuestion,
+          completed: statusRaw === 'completed',
+          progress_version,
+          replay: true,
+        },
+      }
+    }
+  }
+
+  // C2-R22 N02: optimistic lock cedo (antes de I/O pesada).
+  {
+    const versionRaw = data.progress_version
+    const progress_version =
+      typeof versionRaw === 'number' &&
+      Number.isFinite(versionRaw) &&
+      versionRaw >= 0
+        ? Math.trunc(versionRaw)
+        : 0
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== progress_version
+    ) {
+      return {
+        ok: false,
+        code: 'conflict',
+        message: 'progress_version divergente; re-fetch next-content.',
+        httpStatus: 409,
+      }
+    }
+  }
+
   if (next.completed) {
-    await completeStudentTrail(
-      db,
-      studentTrailsCollection,
-      studentId,
-      trailId,
-    )
+    let committedVersion = 0
+    try {
+      committedVersion = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref)
+        if (!snap.exists) {
+          throw new Error('not_found')
+        }
+        const live = (snap.data() ?? {}) as Record<string, unknown>
+        const liveVersion =
+          typeof live.progress_version === 'number' &&
+          Number.isFinite(live.progress_version) &&
+          live.progress_version >= 0
+            ? Math.trunc(live.progress_version)
+            : 0
+        if (
+          expectedVersion !== undefined &&
+          expectedVersion !== liveVersion
+        ) {
+          throw new Error('conflict')
+        }
+        if (
+          idempotencyKey &&
+          typeof live.last_idempotency_key === 'string' &&
+          live.last_idempotency_key === idempotencyKey
+        ) {
+          return liveVersion
+        }
+        const now = FieldValue.serverTimestamp()
+        const newVersion = liveVersion + 1
+        const patch: Record<string, unknown> = {
+          status: 'completed',
+          completed_at: now,
+          last_interaction_at: now,
+          updated_at: now,
+          progress_version: newVersion,
+        }
+        if (idempotencyKey) patch.last_idempotency_key = idempotencyKey
+        if (!live.started_at) patch.started_at = now
+        tx.update(ref, patch)
+        return newVersion
+      })
+    } catch (e) {
+      if (e instanceof Error && e.message === 'conflict') {
+        return {
+          ok: false,
+          code: 'conflict',
+          message: 'progress_version divergente; re-fetch next-content.',
+          httpStatus: 409,
+        }
+      }
+      if (e instanceof Error && e.message === 'not_found') {
+        return {
+          ok: false,
+          code: 'not_found',
+          message: 'Aluno, trilha ou vínculo não encontrado.',
+          httpStatus: 404,
+        }
+      }
+      throw e
+    }
     return {
       ok: true,
       data: {
@@ -1173,6 +1300,7 @@ export async function advanceStudentTrailProgress(
         next_stage_number: currentStage,
         next_question_number: currentQuestion,
         completed: true,
+        progress_version: committedVersion,
       },
     }
   }
@@ -1194,12 +1322,64 @@ export async function advanceStudentTrailProgress(
   ])
 
   if (!destStage.exists || !destQuestion.exists) {
-    await completeStudentTrail(
-      db,
-      studentTrailsCollection,
-      studentId,
-      trailId,
-    )
+    let committedVersion = 0
+    try {
+      committedVersion = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref)
+        if (!snap.exists) throw new Error('not_found')
+        const live = (snap.data() ?? {}) as Record<string, unknown>
+        const liveVersion =
+          typeof live.progress_version === 'number' &&
+          Number.isFinite(live.progress_version) &&
+          live.progress_version >= 0
+            ? Math.trunc(live.progress_version)
+            : 0
+        if (
+          expectedVersion !== undefined &&
+          expectedVersion !== liveVersion
+        ) {
+          throw new Error('conflict')
+        }
+        if (
+          idempotencyKey &&
+          typeof live.last_idempotency_key === 'string' &&
+          live.last_idempotency_key === idempotencyKey
+        ) {
+          return liveVersion
+        }
+        const now = FieldValue.serverTimestamp()
+        const newVersion = liveVersion + 1
+        const patch: Record<string, unknown> = {
+          status: 'completed',
+          completed_at: now,
+          last_interaction_at: now,
+          updated_at: now,
+          progress_version: newVersion,
+        }
+        if (idempotencyKey) patch.last_idempotency_key = idempotencyKey
+        if (!live.started_at) patch.started_at = now
+        tx.update(ref, patch)
+        return newVersion
+      })
+    } catch (e) {
+      if (e instanceof Error && e.message === 'conflict') {
+        return {
+          ok: false,
+          code: 'conflict',
+          message: 'progress_version divergente; re-fetch next-content.',
+          httpStatus: 409,
+        }
+      }
+      if (e instanceof Error && e.message === 'not_found') {
+        return {
+          ok: false,
+          code: 'not_found',
+          message: 'Aluno, trilha ou vínculo não encontrado.',
+          httpStatus: 404,
+        }
+      }
+      throw e
+    }
     return {
       ok: true,
       data: {
@@ -1207,24 +1387,101 @@ export async function advanceStudentTrailProgress(
         next_stage_number: next.next_stage_number,
         next_question_number: next.next_question_number,
         completed: true,
+        progress_version: committedVersion,
       },
     }
   }
 
-  const id = studentTrailDocId(studentId, trailId)
-  const now = FieldValue.serverTimestamp()
-  const patch: Record<string, unknown> = {
-    current_stage_number: next.next_stage_number,
-    current_question_number: next.next_question_number,
-    status: 'in_progress',
-    last_interaction_at: now,
-    updated_at: now,
-  }
-  if (!data.started_at) {
-    patch.started_at = now
+  let committedVersion = 0
+  let replayed = false
+  try {
+    const txResult = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref)
+      if (!snap.exists) throw new Error('not_found')
+      const live = (snap.data() ?? {}) as Record<string, unknown>
+      const liveVersion =
+        typeof live.progress_version === 'number' &&
+        Number.isFinite(live.progress_version) &&
+        live.progress_version >= 0
+          ? Math.trunc(live.progress_version)
+          : 0
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== liveVersion
+      ) {
+        throw new Error('conflict')
+      }
+      if (
+        idempotencyKey &&
+        typeof live.last_idempotency_key === 'string' &&
+        live.last_idempotency_key === idempotencyKey
+      ) {
+        return { version: liveVersion, replay: true as const }
+      }
+      const liveStage =
+        typeof live.current_stage_number === 'number' &&
+        Number.isFinite(live.current_stage_number)
+          ? live.current_stage_number
+          : 1
+      const liveQuestion =
+        typeof live.current_question_number === 'number' &&
+        Number.isFinite(live.current_question_number)
+          ? live.current_question_number
+          : 1
+      // Outra aba já avançou a célula — conflito mesmo sem expected_version.
+      if (liveStage !== currentStage || liveQuestion !== currentQuestion) {
+        throw new Error('conflict')
+      }
+      const now = FieldValue.serverTimestamp()
+      const newVersion = liveVersion + 1
+      const patch: Record<string, unknown> = {
+        current_stage_number: next.next_stage_number,
+        current_question_number: next.next_question_number,
+        status: 'in_progress',
+        last_interaction_at: now,
+        updated_at: now,
+        progress_version: newVersion,
+      }
+      if (idempotencyKey) patch.last_idempotency_key = idempotencyKey
+      if (!live.started_at) patch.started_at = now
+      tx.update(ref, patch)
+      return { version: newVersion, replay: false as const }
+    })
+    committedVersion = txResult.version
+    replayed = txResult.replay
+  } catch (e) {
+    if (e instanceof Error && e.message === 'conflict') {
+      return {
+        ok: false,
+        code: 'conflict',
+        message: 'progress_version divergente; re-fetch next-content.',
+        httpStatus: 409,
+      }
+    }
+    if (e instanceof Error && e.message === 'not_found') {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'Aluno, trilha ou vínculo não encontrado.',
+        httpStatus: 404,
+      }
+    }
+    throw e
   }
 
-  await db.collection(studentTrailsCollection).doc(id).update(patch)
+  if (replayed) {
+    return {
+      ok: true,
+      data: {
+        status: 'ok',
+        next_stage_number: currentStage,
+        next_question_number: currentQuestion,
+        completed: false,
+        progress_version: committedVersion,
+        replay: true,
+      },
+    }
+  }
 
   // Se o destino é AI, aquece/garante o conteúdo ANTES de responder o Continuar.
   // Com cache hit (prefetch ou delivery prévia) fica ~O(1); senão gera uma vez aqui
@@ -1277,6 +1534,7 @@ export async function advanceStudentTrailProgress(
       next_stage_number: next.next_stage_number,
       next_question_number: next.next_question_number,
       completed: false,
+      progress_version: committedVersion,
     },
     background,
   }

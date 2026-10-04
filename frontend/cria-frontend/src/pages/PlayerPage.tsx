@@ -2836,11 +2836,7 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
-<<<<<<< HEAD
     setMariaEntrance(false)
-    setShowTyping(false)
-=======
->>>>>>> 357044b (fix(aluno): lote P36 Ciclo2 R26 — limbo Voltar mid-Maria + leave cancel)
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
     // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
     // até o finally do doMaria (Voltar só sai do sidechat).

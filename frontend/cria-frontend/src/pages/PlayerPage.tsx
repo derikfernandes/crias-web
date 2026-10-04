@@ -1173,12 +1173,21 @@ export default function PlayerPage() {
 
   // R12-O07 / R18-N05: ao voltar online, libera busy preso; erro+retry permanece.
   // OM01: NÃO zerar advanceInFlight mid-flight — finally do fetch libera o lock.
+  // C2-R24 N02: idem para submit/Maria em voo — não pintar erro falso mid-POST.
   // OM04: sincroniza flag offline com o banner do shell.
   useEffect(() => {
     const goOffline = () => setOffline(true)
     const onOnline = () => {
       setOffline(false)
-      // R18-N06: se submit estava em voo, vira error (card + seleção ficam).
+      // C2-R24 N02 / OM01: mutate ainda em voo — busy/UI ficam até settle.
+      if (
+        advanceInFlightRef.current ||
+        submitInFlightRef.current ||
+        mariaInFlightRef.current
+      ) {
+        return
+      }
+      // R18-N06: seleção pendente sem mutate vivo → error (card + seleção ficam).
       setPendingOptionKey((pending) => {
         if (pending) {
           window.setTimeout(() => {
@@ -1189,8 +1198,6 @@ export default function PlayerPage() {
         }
         return null
       })
-      // OM01: mutate ainda em voo — busy/lock ficam até settle/abort.
-      if (advanceInFlightRef.current) return
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
@@ -2770,12 +2777,14 @@ export default function PlayerPage() {
       // C2-R14 N02: falha rede/sistema — sem sidechat, sem bolha “enviada”.
       setMessages((prev) => prev.filter((m) => m.id !== userMsgId))
       setDraft(askLine)
+      // C2-R24 N01: Voltar mid-Maria — falha do mutate cancelado NÃO arma
+      // canRetry/Tentar (sequestraria Continuar na trilha).
       if (!mariaCancelledRef.current) {
         setMariaSidechat(false)
+        reportError(err, 'Erro ao falar com Maria.', () => {
+          void doMaria(askLine)
+        })
       }
-      reportError(err, 'Erro ao falar com Maria.', () => {
-        void doMaria(askLine)
-      })
     } finally {
       mariaInFlightRef.current = false
       setBusy(false)

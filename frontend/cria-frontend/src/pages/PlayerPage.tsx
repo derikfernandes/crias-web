@@ -234,6 +234,85 @@ function writeMariaPersist(
   }
 }
 
+/** C2-R21 N01: posição cross-tab (storage event em outras abas). */
+function trailPosStorageKey(trailId: string): string {
+  return `crias:trail-pos:${trailId}`
+}
+
+function publishTrailProgress(
+  trailId: string,
+  pos?: { stage_number: number; question_number: number } | null,
+) {
+  if (trailId && pos && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(
+        trailPosStorageKey(trailId),
+        JSON.stringify({
+          stage: pos.stage_number,
+          question: pos.question_number,
+          at: Date.now(),
+        }),
+      )
+    } catch {
+      // quota / private mode — ignore
+    }
+  }
+  window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+}
+
+/** C2-R21 N03: seleção de exercício sobrevive a reload (parity Maria draft). */
+function exerciseSelectKey(trailId: string): string {
+  return `crias:exercise-select:${trailId}`
+}
+
+function readExerciseSelect(trailId: string): {
+  stage: number
+  question: number
+  optionKey: string
+} | null {
+  if (!trailId || typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(exerciseSelectKey(trailId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as {
+      stage?: unknown
+      question?: unknown
+      optionKey?: unknown
+    }
+    if (
+      typeof parsed.stage !== 'number' ||
+      typeof parsed.question !== 'number' ||
+      typeof parsed.optionKey !== 'string' ||
+      !parsed.optionKey
+    ) {
+      return null
+    }
+    return {
+      stage: parsed.stage,
+      question: parsed.question,
+      optionKey: parsed.optionKey,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeExerciseSelect(
+  trailId: string,
+  state: { stage: number; question: number; optionKey: string } | null,
+) {
+  if (!trailId || typeof sessionStorage === 'undefined') return
+  try {
+    if (!state) {
+      sessionStorage.removeItem(exerciseSelectKey(trailId))
+      return
+    }
+    sessionStorage.setItem(exerciseSelectKey(trailId), JSON.stringify(state))
+  } catch {
+    // quota / private mode — ignore
+  }
+}
+
 function renderInlineSegments(segments: InlineSeg[] | undefined, fallback: string): ReactNode {
   if (!segments || segments.length === 0) return fallback || '\u00a0'
   return segments.map((seg) => {
@@ -621,6 +700,8 @@ export default function PlayerPage() {
   const messagesRef = useRef<ChatMessage[]>([])
   const voltarBtnRef = useRef<HTMLButtonElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
+  /** C2-R21 N01/N02: evita refetch paralelo (visibility / storage / Continuar). */
+  const resyncInFlightRef = useRef(false)
   const contentRef = useRef(content)
   const nearBottomRef = useRef(true)
   /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
@@ -1017,6 +1098,7 @@ export default function PlayerPage() {
   /**
    * R08-M05: ao voltar da aba/popup de YT/Drive, reancora a bolha da mídia,
    * anuncia e destaca Continuar — sem inventar botão novo.
+   * C2-R21 N02: no mesmo retorno, revalida next-content (aba stale / app switcher).
    */
   useEffect(() => {
     let clearTimer: number | null = null
@@ -1024,6 +1106,8 @@ export default function PlayerPage() {
       if (document.visibilityState && document.visibilityState !== 'visible') {
         return
       }
+      // C2-R21 N02: refetch posição ao voltar — Continuar age na etapa atual.
+      void resyncIfStale()
       const open = externalMediaOpenRef.current
       if (!open) return
       if (Date.now() - open.at > 30 * 60_000) {
@@ -1052,7 +1136,22 @@ export default function PlayerPage() {
       window.removeEventListener('focus', onReturn)
       if (clearTimer != null) window.clearTimeout(clearTimer)
     }
-  }, [])
+    // resyncIfStale é estável o bastante via refs; trailId muda remonta o player.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ver resyncIfStale abaixo
+  }, [trailId])
+
+  /** C2-R21 N01: outra aba avançou → ressync (storage), sem segundo advance. */
+  useEffect(() => {
+    if (!trailId) return
+    const key = trailPosStorageKey(trailId)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== key || !e.newValue) return
+      void resyncIfStale()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ver resyncIfStale abaixo
+  }, [trailId])
 
   /** R24-LS03: pós-rotate, reancora enunciado/opções na viewport. */
   useEffect(() => {
@@ -1292,12 +1391,14 @@ export default function PlayerPage() {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
+    writeExerciseSelect(trailId, null)
     setExercisePhase('idle')
     setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     setMariaEntrance(false)
     mariaCancelledRef.current = false
     advanceInFlightRef.current = false
+    resyncInFlightRef.current = false
     // C2-R4 N02: cancela prefetch history pendente desta trilha.
     historyFetchGenRef.current += 1
     if (historyIdleCancelRef.current) {
@@ -1669,6 +1770,40 @@ export default function PlayerPage() {
     writeMariaPersist(trailId, { draft, mariaSidechat })
   }, [trailId, draft, mariaSidechat])
 
+  /**
+   * C2-R21 N03: restaura seleção do exercício após reload mid-aula
+   * (parity `crias:maria-draft`).
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
+    if (exerciseDone || exercisePhase === 'submitting' || exercisePhase === 'done') {
+      return
+    }
+    if (selectedOptionKey) return
+    const saved = readExerciseSelect(trailId)
+    if (!saved) return
+    if (
+      saved.stage !== content.stage_number ||
+      saved.question !== content.question_number
+    ) {
+      writeExerciseSelect(trailId, null)
+      return
+    }
+    const opts = normalizeExerciseOptions(content.options)
+    if (!opts.some((o) => o.key === saved.optionKey)) {
+      writeExerciseSelect(trailId, null)
+      return
+    }
+    setSelectedOptionKey(saved.optionKey)
+    setExercisePhase('selected')
+  }, [
+    content,
+    exerciseDone,
+    exercisePhase,
+    selectedOptionKey,
+    trailId,
+  ])
+
   /** R15-Y03: avisa ao fechar aba se há rascunho no composer. */
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1929,19 +2064,67 @@ export default function PlayerPage() {
   }, [content, exerciseDone])
 
   /**
+   * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),
+   * aplica next-content sem chamar advance.
+   */
+  async function resyncIfStale(
+    prefetched?: NextContentOk | NextContentStatus,
+  ): Promise<'same' | 'updated' | 'busy' | 'error'> {
+    if (advanceInFlightRef.current || resyncInFlightRef.current) return 'busy'
+    if (busyReasonRef.current === 'trail') return 'busy'
+    const liveSession = getSession()
+    if (!liveSession || !trailId) return 'busy'
+    resyncInFlightRef.current = true
+    try {
+      const data =
+        prefetched ??
+        (await fetchNextContent(liveSession.student_id, trailId))
+      const ui = contentRef.current
+      if (ui?.status === 'ok' && data.status === 'ok') {
+        if (
+          ui.stage_number === data.stage_number &&
+          ui.question_number === data.question_number
+        ) {
+          return 'same'
+        }
+      } else if (ui && data.status !== 'ok' && ui.status === data.status) {
+        return 'same'
+      }
+      deliveredKeyRef.current = null
+      await loadNextAfterAdvance(data)
+      if (data.status === 'ok') {
+        publishTrailProgress(trailId, {
+          stage_number: data.stage_number,
+          question_number: data.question_number,
+        })
+      } else {
+        window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+      }
+      return 'updated'
+    } catch {
+      return 'error'
+    } finally {
+      resyncInFlightRef.current = false
+    }
+  }
+
+  /**
    * Após Continuar: só busca next-content (não recarrega 700+ logs).
    * Dedupe por célula; em erro reconcilia content.
+   * `prefetched` evita refetch quando a posição já foi lida (stale guard).
    */
-  async function loadNextAfterAdvance(): Promise<
-    NextContentOk | NextContentStatus | null
-  > {
+  async function loadNextAfterAdvance(
+    prefetched?: NextContentOk | NextContentStatus,
+  ): Promise<NextContentOk | NextContentStatus | null> {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
+    writeExerciseSelect(trailId, null)
     setMariaSidechat(false)
     mariaCancelledRef.current = false
     try {
-      const data = await fetchNextContent(session.student_id, trailId)
+      const data =
+        prefetched ?? (await fetchNextContent(session.student_id, trailId))
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
       if (data.status !== 'ok') {
@@ -1998,7 +2181,14 @@ export default function PlayerPage() {
         if (advanceAgain.status === 'ok') {
           deliveredKeyRef.current = null
           const nested = await loadNextAfterAdvance()
-          window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          if (nested && nested.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: nested.stage_number,
+              question_number: nested.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
           return nested
         }
         setContent(advanceAgain as NextContentStatus)
@@ -2114,9 +2304,16 @@ export default function PlayerPage() {
     clearError()
     try {
       deliveredKeyRef.current = null
-      await loadNextAfterAdvance()
+      const next = await loadNextAfterAdvance()
       advanceCommittedRef.current = false
-      window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+      if (next && next.status === 'ok') {
+        publishTrailProgress(trailId, {
+          stage_number: next.stage_number,
+          question_number: next.question_number,
+        })
+      } else {
+        window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+      }
     } catch (err) {
       reportError(err, 'Etapa salva. Recarregando…', () => {
         void resyncAfterAdvance()
@@ -2171,6 +2368,46 @@ export default function PlayerPage() {
     let advancedContent: NextContentOk | NextContentStatus | null = null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
+      // C2-R21 N01/N02: revalida posição antes do advance — UI stale não pula etapa.
+      let livePos: NextContentOk | NextContentStatus
+      try {
+        livePos = await fetchNextContent(liveSession.student_id, trailId)
+      } catch (err) {
+        advanceInFlightRef.current = false
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+        setTrailBusyLabel('Preparando etapa…')
+        setContinuarLeaving(false)
+        reportError(err, 'Erro ao conferir a etapa.', () => {
+          void doAdvance()
+        })
+        return
+      }
+      const ui = contentRef.current
+      if (ui?.status === 'ok' && livePos.status === 'ok') {
+        const uiKey = trailCellKey(ui.stage_number, ui.question_number)
+        const liveKey = trailCellKey(
+          livePos.stage_number,
+          livePos.question_number,
+        )
+        if (uiKey !== liveKey) {
+          setTrailBusyLabel('Atualizando etapa…')
+          deliveredKeyRef.current = null
+          advancedContent = await loadNextAfterAdvance(livePos)
+          publishTrailProgress(trailId, {
+            stage_number: livePos.stage_number,
+            question_number: livePos.question_number,
+          })
+          advanceSucceeded = true
+          return
+        }
+      } else if (livePos.status !== 'ok') {
+        setContent(livePos)
+        advanceSucceeded = true
+        return
+      }
+
       const result = await advanceTrail(liveSession.student_id, trailId)
       if (result.status === 'ok' && result.completed) {
         advanceCommittedRef.current = false
@@ -2190,6 +2427,7 @@ export default function PlayerPage() {
             text: 'Parabéns! Você concluiu esta trilha.',
           }),
         ])
+        window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
@@ -2197,7 +2435,14 @@ export default function PlayerPage() {
         advancedContent = await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         advanceSucceeded = true
-        window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+        if (advancedContent && advancedContent.status === 'ok') {
+          publishTrailProgress(trailId, {
+            stage_number: advancedContent.stage_number,
+            question_number: advancedContent.question_number,
+          })
+        } else {
+          window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+        }
       } else {
         setContent(result as NextContentStatus)
       }
@@ -2422,6 +2667,12 @@ export default function PlayerPage() {
     setSelectedOptionKey(option.key)
     setExercisePhase('selected')
     setPendingOptionKey(null)
+    // C2-R21 N03: persiste seleção (reload mid-aula).
+    writeExerciseSelect(trailId, {
+      stage: content.stage_number,
+      question: content.question_number,
+      optionKey: option.key,
+    })
     clearError()
     // R23-L04: seleção mantém foco no radio (não deixa cair no body).
     window.requestAnimationFrame(() => {
@@ -2538,6 +2789,7 @@ export default function PlayerPage() {
       setExercisePhase('done')
       setSelectedOptionKey(null)
       setPendingOptionKey(null)
+      writeExerciseSelect(trailId, null)
       // R23-L02 / L07: anunciar feedback + focar Continuar (chrome, sem CTA novo).
       setSrAnnounce(
         feedbackText

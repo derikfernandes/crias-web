@@ -1489,12 +1489,23 @@ export default function PlayerPage() {
   /**
    * C2-R16 N04: mid-flight Continuar busy — reafirma foco no CTA enquanto
    * `aria-busy` e o botão seguem montados (antes do settle lesson-card).
+   * C2-R26 N01: idem após Voltar mid-Maria (CTA gated “Aguarde…”).
    */
   useEffect(() => {
-    const midBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
+    const midBusy =
+      Boolean(busy && busyReason === 'trail') ||
+      continuarLeaving ||
+      Boolean(busy && busyReason === 'maria' && !mariaSidechat)
     if (!midBusy) return
     holdFocusOnTrailBusy()
-  }, [busy, busyReason, continuarLeaving, trailBusyLabel, holdFocusOnTrailBusy])
+  }, [
+    busy,
+    busyReason,
+    continuarLeaving,
+    trailBusyLabel,
+    mariaSidechat,
+    holdFocusOnTrailBusy,
+  ])
 
   const persistLog = useCallback(
     async (input: {
@@ -1904,6 +1915,19 @@ export default function PlayerPage() {
   useEffect(() => {
     writeMariaPersist(trailId, { draft, mariaSidechat })
   }, [trailId, draft, mariaSidechat])
+
+  /**
+   * C2-R26 N02: sair da trilha mid-Maria (unmount / troca de trail) = cancel
+   * limpo — parity Voltar. Sem isso o persist restaura sidechat (#7) ou o
+   * catch repovoa draft e pausa Continuar (#6).
+   */
+  useEffect(() => {
+    return () => {
+      if (!mariaInFlightRef.current) return
+      mariaCancelledRef.current = true
+      writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
+    }
+  }, [trailId])
 
   /**
    * C2-R21 N03: restaura seleção do exercício após reload mid-aula
@@ -2812,12 +2836,20 @@ export default function PlayerPage() {
   function onVoltarParaTrilha() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
+<<<<<<< HEAD
     setMariaEntrance(false)
     setShowTyping(false)
+=======
+>>>>>>> 357044b (fix(aluno): lote P36 Ciclo2 R26 — limbo Voltar mid-Maria + leave cancel)
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
     // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
     // até o finally do doMaria (Voltar só sai do sidechat).
-    if (!mariaInFlightRef.current) {
+    // C2-R26 N01: mid-flight mantém typing + CTA gated (sem limbo sem botão /
+    // hint “botão verde” mentiroso). Só zera typing quando não há voo.
+    if (mariaInFlightRef.current) {
+      setShowTyping(true)
+    } else {
+      setShowTyping(false)
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
@@ -3370,6 +3402,13 @@ export default function PlayerPage() {
         : 'Pergunte à Maria...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
+  /**
+   * C2-R26 N01: após Voltar mid-Maria, busy/maria ficam até settle mas
+   * sidechat já sumiu — Continuar gated + typing (sem limbo sem CTA).
+   */
+  const mariaBusyPending = Boolean(
+    busy && busyReason === 'maria' && !mariaSidechat,
+  )
   /** C2-R23 N03: exercício stale sob resync — trava card/opções como pending. */
   const exerciseResyncLock = trailBusy && optionsVisible
   const hintKey =
@@ -3379,15 +3418,17 @@ export default function PlayerPage() {
         ? trailBusyLabel.startsWith('Salvando')
           ? 'busy-save'
           : 'busy-load'
-        : content.stage_type === 'exercise'
-          ? exerciseDone
-            ? 'ex-done'
-            : exerciseComposerOpen
-              ? 'ex-locked'
-              : 'ex-pending'
-          : mariaSidechat
-            ? 'maria'
-            : 'trail'
+        : mariaBusyPending
+          ? 'maria-pending'
+          : content.stage_type === 'exercise'
+            ? exerciseDone
+              ? 'ex-done'
+              : exerciseComposerOpen
+                ? 'ex-locked'
+                : 'ex-pending'
+            : mariaSidechat
+              ? 'maria'
+              : 'trail'
 
   // C2-R4 N01/N03: typing alinhado ao CTA (trail) e estágio longo (Maria).
   const typing = typingCopy(busyReason, {
@@ -3413,7 +3454,7 @@ export default function PlayerPage() {
       showVoltarTrilha ||
       continuarLeaving ||
       (busy && busyReason === 'trail') ||
-      (busy && busyReason === 'maria' && mariaSidechat))
+      (busy && busyReason === 'maria'))
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
@@ -3942,15 +3983,19 @@ export default function PlayerPage() {
             </div>
           ) : null}
 
-          {showContinuar || trailBusy ? (
+          {showContinuar || trailBusy || mariaBusyPending ? (
             <div
-              className={`chat-continue${trailBusy ? ' chat-continue--leaving' : ' chat-continue--enter'}${
-                currentStageHasEmbed && !trailBusy
+              className={`chat-continue${
+                trailBusy || mariaBusyPending
+                  ? ' chat-continue--leaving'
+                  : ' chat-continue--enter'
+              }${
+                currentStageHasEmbed && !trailBusy && !mariaBusyPending
                   ? ' chat-continue--with-media'
                   : ''
               }`}
             >
-              {currentStageMediaHint && !trailBusy ? (
+              {currentStageMediaHint && !trailBusy && !mariaBusyPending ? (
                 <p className="chat-cta-slot__media-hint">
                   {currentStageMediaHint}
                 </p>
@@ -3959,7 +4004,7 @@ export default function PlayerPage() {
                 ref={continuarBtnRef}
                 type="button"
                 className={`chat-continue__btn${
-                  currentStageHasEmbed && !trailBusy
+                  currentStageHasEmbed && !trailBusy && !mariaBusyPending
                     ? ' chat-continue__btn--secondary'
                     : ''
                 }`}
@@ -3970,15 +4015,21 @@ export default function PlayerPage() {
                   offline ||
                   hasMariaDraft
                 }
-                aria-busy={trailBusy || undefined}
+                aria-busy={trailBusy || mariaBusyPending || undefined}
                 title={
                   hasMariaDraft
                     ? 'Envie a dúvida à Maria antes de avançar'
-                    : undefined
+                    : mariaBusyPending
+                      ? 'Aguarde — finalizando conversa com Maria'
+                      : undefined
                 }
                 onClick={() => void doAdvance()}
               >
-                {trailBusy ? trailBusyLabel : continuarLabel}
+                {trailBusy
+                  ? trailBusyLabel
+                  : mariaBusyPending
+                    ? 'Aguarde…'
+                    : continuarLabel}
               </button>
             </div>
           ) : null}
@@ -4013,7 +4064,7 @@ export default function PlayerPage() {
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
         }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
-          showContinuar && !hasMariaDraft
+          (showContinuar && !hasMariaDraft) || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
         }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
@@ -4119,19 +4170,22 @@ export default function PlayerPage() {
                 trailBusyLabel.startsWith('Salvando')
                 ? 'Aguarde — salvando progresso'
                 : 'Aguarde — carregando a próxima etapa'
-              : hasMariaDraft && showContinuar
-                ? // C2-R9 N01: draft pausa Continuar
-                  'Enviar a dúvida à Maria — Continuar pausado'
-                : content.stage_type === 'exercise'
-                  ? showContinuar
-                    ? 'Pergunte à Maria · Continuar trilha avança'
-                    : 'Pergunte à Maria; o botão verde avança a trilha'
-                  : mariaSidechat
-                    ? 'Voltar à trilha reexibe o passo atual'
-                    : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
-                      showContinuar
-                      ? 'Enviar fala com Maria · Continuar trilha avança'
-                      : 'Enviar fala com Maria · o botão verde avança a trilha'}
+              : mariaBusyPending
+                ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
+                  'Aguarde — finalizando conversa com Maria'
+                : hasMariaDraft && showContinuar
+                  ? // C2-R9 N01: draft pausa Continuar
+                    'Enviar a dúvida à Maria — Continuar pausado'
+                  : content.stage_type === 'exercise'
+                    ? showContinuar
+                      ? 'Pergunte à Maria · Continuar trilha avança'
+                      : 'Pergunte à Maria'
+                    : mariaSidechat
+                      ? 'Voltar à trilha reexibe o passo atual'
+                      : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                        showContinuar
+                        ? 'Enviar fala com Maria · Continuar trilha avança'
+                        : 'Enviar fala com Maria'}
           </p>
         ) : null}
       </footer>

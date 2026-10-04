@@ -1,4 +1,5 @@
 import {
+  Fragment,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -3641,6 +3642,76 @@ export default function PlayerPage() {
           ? 'Não foi possível enviar'
           : 'Responda a questão'
 
+  /**
+   * Ordem do chat: histórico em cima, novidade sempre no FIM.
+   * O lesson-card (passo corrente) ocupa o lugar da bolha da célula atual na
+   * lista — antes ficava fixo no topo do scroller, acima de todo o histórico,
+   * e cada etapa nova “aparecia em cima”. Sem bolha da célula no tail
+   * (ainda gerando / fora do recorte), vai para o fim.
+   */
+  const currentCellVisibleIdx = currentCell
+    ? visibleMessages.findIndex(
+        (m) =>
+          m.role === 'assistant' &&
+          m.cellKey === currentCell &&
+          m.kind !== 'feedback' &&
+          m.kind !== 'sidechat' &&
+          m.kind !== 'resume',
+      )
+    : -1
+  const lessonCardSlot = (() => {
+    if (currentCellVisibleIdx < 0) return chatMessages.length
+    const before = new Set(
+      visibleMessages.slice(0, currentCellVisibleIdx).map((m) => m.id),
+    )
+    const idx = chatMessages.findIndex((m) => !before.has(m.id))
+    return idx < 0 ? chatMessages.length : idx
+  })()
+
+  const lessonCardNode =
+    !trailShellUnavailable && showLessonCard ? (
+      <section
+        ref={(node) => {
+          lessonCardRef.current = node
+        }}
+        className="lesson-card"
+        tabIndex={-1}
+        aria-label={
+          lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'
+        }
+        data-current-step="true"
+      >
+        <span className="lesson-card__icon" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4.5 5.25c1.6-.9 3.4-1.35 5.25-1.35.95 0 1.9.15 2.8.45v14.4a9.3 9.3 0 0 0-2.8-.45c-1.85 0-3.65.45-5.25 1.35V5.25z"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M19.5 5.25c-1.6-.9-3.4-1.35-5.25-1.35-.95 0-1.9.15-2.8.45v14.4c.9-.3 1.85-.45 2.8-.45 1.85 0 3.65.45 5.25 1.35V5.25z"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <div className="lesson-card__copy">
+          {lessonTitle ? (
+            <h2 className="lesson-card__title">{lessonTitle}</h2>
+          ) : null}
+          {lessonBody ? (
+            <div className="lesson-card__body">
+              {renderMessageLines(lessonBody).map((part) =>
+                renderMessagePart(part),
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
+    ) : null
+
   return (
     <main
       className="chat-thread"
@@ -3750,50 +3821,8 @@ export default function PlayerPage() {
             </button>
           </div>
         ) : null}
-        {!trailShellUnavailable && showLessonCard ? (
-          <section
-            ref={(node) => {
-              lessonCardRef.current = node
-            }}
-            className="lesson-card"
-            tabIndex={-1}
-            aria-label={
-              lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'
-            }
-            data-current-step="true"
-          >
-            <span className="lesson-card__icon" aria-hidden>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4.5 5.25c1.6-.9 3.4-1.35 5.25-1.35.95 0 1.9.15 2.8.45v14.4a9.3 9.3 0 0 0-2.8-.45c-1.85 0-3.65.45-5.25 1.35V5.25z"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M19.5 5.25c-1.6-.9-3.4-1.35-5.25-1.35-.95 0-1.9.15-2.8.45v14.4c.9-.3 1.85-.45 2.8-.45 1.85 0 3.65.45 5.25 1.35V5.25z"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <div className="lesson-card__copy">
-              {lessonTitle ? (
-                <h2 className="lesson-card__title">{lessonTitle}</h2>
-              ) : null}
-              {lessonBody ? (
-                <div className="lesson-card__body">
-                  {renderMessageLines(lessonBody).map((part) =>
-                    renderMessagePart(part),
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
         {!trailShellUnavailable &&
-          chatMessages.map((msg) => {
+          chatMessages.map((msg, msgIdx) => {
           const promptMovedToCard =
             Boolean(activeExerciseCellKey) &&
             msg.role === 'assistant' &&
@@ -3809,8 +3838,9 @@ export default function PlayerPage() {
           const isFeedback = msg.kind === 'feedback'
           const mediaResume = mediaResumeMsgId === msg.id
           return (
+            <Fragment key={msg.id}>
+            {msgIdx === lessonCardSlot ? lessonCardNode : null}
             <article
-              key={msg.id}
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
               }${mediaResume ? ' chat-bubble--media-resume' : ''}`}
@@ -3843,8 +3873,10 @@ export default function PlayerPage() {
                 </div>
               )}
             </article>
+            </Fragment>
           )
         })}
+        {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
 
         {showTypingBubble ? (
           <article

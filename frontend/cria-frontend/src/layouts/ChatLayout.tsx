@@ -1,5 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import {
   fetchTrailNames,
   fetchTrailStageTotals,
@@ -69,6 +75,8 @@ export default function ChatLayout() {
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
   const restoreFocusRef = useRef(false)
+  /** Só a resposta mais recente de /student_trails aplica (sem stale fora de ordem). */
+  const trailsReqSeqRef = useRef(0)
 
   // ER05: sessão sumiu mid-app → login (guarda rota para pós-login).
   useEffect(() => {
@@ -113,12 +121,15 @@ export default function ChatLayout() {
       })
       return
     }
+    const seq = ++trailsReqSeqRef.current
     setTrailsLoading(true)
     setTrailsError(null)
     try {
       const data = await listStudentTrails(s.student_id)
+      if (seq !== trailsReqSeqRef.current) return
       setRows(data)
     } catch (err) {
+      if (seq !== trailsReqSeqRef.current) return
       if (isAuthError(err)) {
         clearSession('auth')
         navigate('/login', {
@@ -137,7 +148,7 @@ export default function ChatLayout() {
       )
       setRows(null)
     } finally {
-      setTrailsLoading(false)
+      if (seq === trailsReqSeqRef.current) setTrailsLoading(false)
     }
   }, [navigate, location])
 
@@ -310,18 +321,21 @@ export default function ChatLayout() {
     Boolean(continueAulaHref) &&
     location.pathname !== continueAulaHref
   const [playerChrome, setPlayerChrome] = useState<{
+    trailId: string | null
     stageTitle: string | null
     stageNumber: number | null
     questionNumber: number | null
     mariaActive: boolean
   }>({
+    trailId: null,
     stageTitle: null,
     stageNumber: null,
     questionNumber: null,
     mariaActive: false,
   })
 
-  useEffect(() => {
+  // Layout effect: listener ativo antes do layout effect do player que despacha.
+  useLayoutEffect(() => {
     const onChrome = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
         trailId?: string
@@ -332,6 +346,7 @@ export default function ChatLayout() {
       }
       if (detail?.trailId && detail.trailId !== activeTrailId) return
       setPlayerChrome({
+        trailId: detail.trailId ?? activeTrailId,
         stageTitle: detail.stageTitle ?? null,
         stageNumber:
           typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
@@ -349,6 +364,7 @@ export default function ChatLayout() {
   useEffect(() => {
     if (!activeTrailId) {
       setPlayerChrome({
+        trailId: null,
         stageTitle: null,
         stageNumber: null,
         questionNumber: null,
@@ -368,8 +384,19 @@ export default function ChatLayout() {
     activeTrailId && stageTotals[activeTrailId] > 0
       ? stageTotals[activeTrailId]
       : null
+  /**
+   * Etapa exibida pelo player (mesma fonte do header). O GET /student_trails
+   * do sidebar volta depois do next-content — sem isto o card da trilha ativa
+   * ficava 1 etapa atrás da tela (ex.: “Etapa 3 de 12” com a etapa 4 aberta).
+   */
+  const playerStageNumber =
+    activeTrailId &&
+    playerChrome.trailId === activeTrailId &&
+    typeof playerChrome.stageNumber === 'number'
+      ? playerChrome.stageNumber
+      : null
   const activeStageNumber =
-    playerChrome.stageNumber ?? activeRow?.current_stage_number ?? null
+    playerStageNumber ?? activeRow?.current_stage_number ?? null
   const activeStageTotal =
     activeStageTotalRaw != null && activeStageNumber != null
       ? Math.max(activeStageTotalRaw, activeStageNumber)
@@ -469,19 +496,25 @@ export default function ChatLayout() {
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
+                const stageNumber =
+                  row.trail_id === activeTrailId &&
+                  playerStageNumber != null &&
+                  row.status !== 'completed'
+                    ? playerStageNumber
+                    : row.current_stage_number
                 const totalRaw =
                   stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
                     ? stageTotals[row.trail_id]
                     : null
                 const total =
                   totalRaw != null
-                    ? Math.max(totalRaw, row.current_stage_number)
+                    ? Math.max(totalRaw, stageNumber)
                     : null
                 const label = trailNames[row.trail_id] || 'Trilha'
                 const etapaMeta =
                   total != null
-                    ? `Etapa ${row.current_stage_number} de ${total}`
-                    : `Etapa ${row.current_stage_number}`
+                    ? `Etapa ${stageNumber} de ${total}`
+                    : `Etapa ${stageNumber}`
                 return (
                   <li key={row.id}>
                     <Link

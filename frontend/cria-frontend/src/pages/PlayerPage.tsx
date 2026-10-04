@@ -681,6 +681,24 @@ function appendTrailMessage(
   return { messages: [...prev, animated], isNew: true }
 }
 
+/**
+ * Cópia do passo (entrega ou resume “Continuando a trilha”) da célula —
+ * não inclui Maria (sidechat), feedback nem a resposta do aluno.
+ */
+function isSameCellStepCopy(m: ChatMessage, cellKey: string): boolean {
+  if (m.role !== 'assistant') return false
+  if (
+    m.kind === 'sidechat' ||
+    m.kind === 'feedback' ||
+    m.kind === 'exercise-answer'
+  ) {
+    return false
+  }
+  if (m.cellKey === cellKey) return true
+  // Resume legado (sem cellKey) desta célula.
+  return m.kind === 'resume' && m.id.startsWith(`trail-resume-${cellKey}-`)
+}
+
 function bubbleClassName(msg: ChatMessage): string {
   const parts = [`chat-bubble`, `chat-bubble--${msg.role}`]
   if (msg.kind === 'exercise-answer') {
@@ -1156,7 +1174,9 @@ export default function PlayerPage() {
   }
 
   // Header chrome: progresso vivo + sessão Maria (D#8 / R08-M06 / C2-R5 N02).
-  useEffect(() => {
+  // Layout effect: header + sidebar (ChatLayout) re-renderizam antes do paint
+  // do conteúdo novo — sem 1 frame com a etapa anterior.
+  useLayoutEffect(() => {
     if (content?.status !== 'ok') return
     const title = content.stage_title?.trim() || null
     window.dispatchEvent(
@@ -2990,40 +3010,27 @@ export default function PlayerPage() {
       skipSmoothScrollRef.current = true
     }
 
-    setMessages((prev) => {
-      const last = prev[prev.length - 1]
-      // Evita flood: substitui resume consecutivo idêntico da mesma célula.
-      const lastIsSameResume =
-        !!last &&
-        last.role === 'assistant' &&
-        typeof last.id === 'string' &&
-        last.id.startsWith(`trail-resume-${key}-`) &&
-        last.text === text
-      if (lastIsSameResume) {
-        return [
-          ...prev.slice(0, -1),
-          markAnimate({
-            ...last,
-            id: resumeId,
-            text,
-            kind: 'resume',
-            questionNumber: current.question_number,
-          }),
-        ]
-      }
-      return [
-        ...prev,
-        markAnimate({
-          id: resumeId,
-          role: 'assistant',
-          text,
-          stageType: current.stage_type,
-          cellKey: undefined,
-          kind: 'resume',
-          questionNumber: current.question_number,
-        }),
-      ]
-    })
+    /**
+     * Passo atual reexibido UMA vez: a bolha “Continuando a trilha” vira a
+     * entrega da célula (mesmo cellKey) e substitui a bolha original da etapa
+     * e qualquer resume anterior desta célula. Antes era anexada sem cellKey:
+     * o passo aparecia no lesson-card + no resume e, após Continuar, a bolha
+     * original + o resume (2×). O dedupe só olhava a última mensagem — com as
+     * bolhas da Maria (ocultas no tail) no meio, cada Voltar empilhava mais um
+     * resume idêntico.
+     */
+    setMessages((prev) => [
+      ...prev.filter((m) => !isSameCellStepCopy(m, key)),
+      markAnimate({
+        id: resumeId,
+        role: 'assistant',
+        text,
+        stageType: current.stage_type,
+        cellKey: key,
+        kind: 'resume',
+        questionNumber: current.question_number,
+      }),
+    ])
     // F08: pós-Voltar → foco no Continuar (ou composer).
     // C2-R27 N02: mid-flight Continuar gated (“Aguarde…”) ainda é o alvo útil —
     // não cair no composer disabled → BODY. holdFocus cobre o settle.
@@ -3473,8 +3480,7 @@ export default function PlayerPage() {
       msg.cellKey === currentCell &&
       msg.role === 'assistant' &&
       msg.kind !== 'feedback' &&
-      msg.kind !== 'sidechat' &&
-      msg.kind !== 'resume'
+      msg.kind !== 'sidechat'
     ) {
       return false
     }
@@ -3655,8 +3661,7 @@ export default function PlayerPage() {
           m.role === 'assistant' &&
           m.cellKey === currentCell &&
           m.kind !== 'feedback' &&
-          m.kind !== 'sidechat' &&
-          m.kind !== 'resume',
+          m.kind !== 'sidechat',
       )
     : -1
   const lessonCardSlot = (() => {

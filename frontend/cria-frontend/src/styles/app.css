@@ -1004,6 +1004,17 @@ button[aria-disabled='true'] {
   scroll-padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px));
 }
 
+/*
+ * Itens do log nunca encolhem. Com content-visibility:auto (R19-H05), a bolha
+ * fora da tela perde o min-height de conteúdo e o flex-shrink do scroller em
+ * coluna a esmagava até o padding (~18px): o scrollHeight oscilava milhares
+ * de px durante o swipe, o ResizeObserver disparava sem parar e o clamp
+ * jogava o aluno para o fim. Sem shrink vale o contain-intrinsic-size.
+ */
+.chat-thread__scroll > * {
+  flex-shrink: 0;
+}
+
 /* CTA + chip ficam irmãos do scroller em .chat-thread__body (C3-CTA-OVERLAP). */
 
 .chat-thread__loading {

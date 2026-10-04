@@ -858,6 +858,11 @@ export default function PlayerPage() {
   const historyIdleCancelRef = useRef<(() => void) | null>(null)
   /** Usuário saiu da Maria enquanto a resposta ainda vinha. */
   const mariaCancelledRef = useRef(false)
+  /**
+   * C2-R31 N01/N02: resync stale mid-Maria (posição mudou) — descarta reply
+   * tardia e a bolha do aluno; distinto de Voltar mid (mesma célula + Aguarde).
+   */
+  const mariaDropLateReplyRef = useRef(false)
   /** Última ação retryável (rede/sistema). */
   const retryFnRef = useRef<(() => void) | null>(null)
   /** Âncora pós-expand / prepend (R19-H01 / H02) — aplica em useLayoutEffect. */
@@ -1546,6 +1551,7 @@ export default function PlayerPage() {
     setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     mariaCancelledRef.current = false
+    mariaDropLateReplyRef.current = false
     advanceInFlightRef.current = false
     submitInFlightRef.current = false
     mariaInFlightRef.current = false
@@ -2344,6 +2350,17 @@ export default function PlayerPage() {
       setDraft('')
       writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
       mariaCancelledRef.current = true
+      // C2-R31 N01/N02: mid-flight + posição nova — cancela teatro Aguarde/
+      // typing na etapa nova e marca drop da reply tardia (sem desfecho oculto).
+      // Voltar mid deliberado (mesma célula) preserva Aguarde via mariaInFlight.
+      if (mariaInFlightRef.current) {
+        mariaDropLateReplyRef.current = true
+        mariaInFlightRef.current = false
+        setShowTyping(false)
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+      }
     } else {
       mariaCancelledRef.current = false
     }
@@ -2839,6 +2856,7 @@ export default function PlayerPage() {
     if (!liveSession) return
     mariaInFlightRef.current = true
     mariaCancelledRef.current = false
+    mariaDropLateReplyRef.current = false
     // Entra no sidechat já no envio — evita limbo sem Continuar/Voltar (R07-P02).
     setMariaSidechat(true)
     setBusy(true)
@@ -2869,21 +2887,24 @@ export default function PlayerPage() {
         stage_number: content.stage_number,
         question_number: content.question_number,
       })
-      setMessages((prev) => [
-        ...prev,
-        markAnimate({
-          id: `m-${Date.now()}`,
-          role: 'assistant',
-          text: result.reply,
-          questionNumber: q,
-          kind: 'sidechat',
-        }),
-      ])
+      // C2-R31 N02: stale eject mid — não anexa reply que some no hist oculto.
+      if (!mariaDropLateReplyRef.current) {
+        setMessages((prev) => [
+          ...prev,
+          markAnimate({
+            id: `m-${Date.now()}`,
+            role: 'assistant',
+            text: result.reply,
+            questionNumber: q,
+            kind: 'sidechat',
+          }),
+        ])
+        mariaAcked = true
+      }
       // Se o aluno já voltou, não reabre o limbo do sidechat.
       if (!mariaCancelledRef.current) {
         setMariaSidechat(true)
       }
-      mariaAcked = true
     } catch (err) {
       // C2-R14 N02: falha rede/sistema — sem sidechat, sem bolha “enviada”.
       setMessages((prev) => prev.filter((m) => m.id !== userMsgId))
@@ -2898,10 +2919,20 @@ export default function PlayerPage() {
         })
       }
     } finally {
+      const droppedLate = mariaDropLateReplyRef.current
+      mariaDropLateReplyRef.current = false
       mariaInFlightRef.current = false
-      setBusy(false)
-      setBusyReason(null)
-      busyReasonRef.current = null
+      // C2-R31: se stale eject já zerou busy/maria (ou Continuar avançou),
+      // não sequestrar busyReason de trail.
+      if (busyReasonRef.current === 'maria') {
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+      }
+      // C2-R31 N02: remove pergunta órfã do voo abortado por posição stale.
+      if (droppedLate) {
+        setMessages((prev) => prev.filter((m) => m.id !== userMsgId))
+      }
       // C2-R7 N01 / R23-L04: Voltar/composer estável — só no ack.
       if (mariaAcked) {
         focusAfterMariaAck()

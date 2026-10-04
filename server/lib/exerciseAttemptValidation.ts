@@ -6,6 +6,9 @@ export type ExerciseAttemptCreatePayload = {
   question_number: number
   student_answer: string
   feedback: string | null
+  /** Optimistic lock (C2-R23); omitido → sem check de versão. */
+  expected_version?: number
+  idempotency_key?: string | null
 }
 
 export function sanitizeString(v: unknown): string | null {
@@ -82,6 +85,21 @@ export function validateExerciseAttemptCreate(
 
   const feedback = parseOptionalString(body.feedback)
 
+  const expectedRaw = body.expected_version
+  let expected_version: number | undefined
+  if (expectedRaw !== undefined && expectedRaw !== null) {
+    const n = parseIntLoose(expectedRaw)
+    if (n === null || n < 0) {
+      return {
+        ok: false,
+        error: 'Campo "expected_version" deve ser um inteiro >= 0',
+      }
+    }
+    expected_version = n
+  }
+
+  const idempotency_key = parseOptionalString(body.idempotency_key)
+
   return {
     ok: true,
     data: {
@@ -92,6 +110,8 @@ export function validateExerciseAttemptCreate(
       question_number,
       student_answer,
       feedback,
+      expected_version,
+      idempotency_key,
     },
   }
 }

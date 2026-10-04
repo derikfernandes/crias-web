@@ -1,5 +1,5 @@
 /**
- * Classificação e agregação de uso dos agentes de IA (Chatis).
+ * Classificação e agregação de uso dos agentes de IA (atividade de sessão).
  * Fonte de verdade alinhada a specs/10_AGENT_USAGE_DASHBOARD.md.
  *
  * Agrega por **disciplina** (label): aliases `Trilha - X` + `Tutor - X`

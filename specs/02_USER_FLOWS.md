@@ -27,7 +27,7 @@ Critérios:
 
 - Aluno fica vinculado à instituição.
 - `student_level` default é 2 quando não preenchido.
-- Telefone salva apenas números.
+- Telefone salva apenas números (identificador de login/contato, não canal de mensagens).
 
 ## Fluxo 3 — Criar trilha
 
@@ -55,23 +55,23 @@ Critérios:
 2. Visualiza conteúdos criados.
 3. Marca conteúdo ou etapa como liberado.
 4. Sistema atualiza `is_released`.
-5. Chatis passa a poder entregar o conteúdo.
+5. O player web do aluno passa a poder entregar o conteúdo.
 
 Critérios:
 
-- Conteúdo não liberado não deve ser entregue.
-- Conteúdo liberado deve aparecer no fluxo conversacional.
+- Conteúdo não liberado não deve ser entregue (`blocked`).
+- Conteúdo liberado deve aparecer no next-content do player.
 
-## Fluxo 5 — Chatis entrega próximo conteúdo
+## Fluxo 5 — Aluno consome próximo conteúdo (app web)
 
-1. Chatis identifica aluno pelo telefone.
-2. API localiza aluno ativo.
-3. API localiza trilha ativa do aluno.
-4. API identifica stage e question atuais.
-5. API verifica se o conteúdo está liberado.
+1. Aluno informa telefone + código da instituição.
+2. API identifica aluno ativo na instituição.
+3. Aluno vê lista de trilhas vinculadas (`student_trails`).
+4. Aluno abre uma trilha; API identifica stage e question atuais.
+5. API verifica se o conteúdo está liberado e ativo.
 6. API retorna conteúdo, prompt e tipo de stage.
-7. Chatis entrega a resposta ao aluno.
-8. Chatis chama avanço de progresso quando necessário.
+7. App renderiza conforme `stage_type` (`fixed` / `ai` / `exercise`).
+8. Aluno avança; app chama `POST /student_trails/advance`.
 
 Critérios:
 

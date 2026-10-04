@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   listRecentContextLogs,
   resolveDeliveredAiContent,
-} from '../resolveDeliveredAiContent'
+} from '../engineResolveDeliveredAiContent'
 import { createMemoryFirestore } from '../../trail-engine/__tests__/memoryFirestore'
 
 const COLLECTIONS = {

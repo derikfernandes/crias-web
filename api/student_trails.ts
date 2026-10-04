@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { waitUntil } from '@vercel/functions'
 
 import {
   createStudentTrail,
@@ -14,11 +15,20 @@ import {
   updateStudentTrailPosition,
 } from '../server/lib/studentTrailService'
 import {
+  advanceStudentTrailProgress,
+  getNextContent,
+  getStudentTrailStatus,
+  listStudentTrailsForStudent,
+} from '../server/lib/studentTrailProgressService'
+import {
   validateStudentTrailCreate,
   parseStatus,
   parseIntLoose,
   type StudentTrailStatus,
 } from '../server/lib/studentTrailValidation'
+import { ensureTrailAiContent } from '../server/lib/trail-ai/ensureTrailAiContent'
+import { getTrailHistoryPage } from '../server/lib/trail-engine/getHistory'
+import { askMariaTutor } from '../server/lib/maria/askMariaTutor'
 import {
   authorizeStudentResource,
   resolveAuthPrincipal,
@@ -28,7 +38,7 @@ import {
   assertServiceBearer,
   defaultCollectionNames,
   ensureStepDelivery,
-  getNextContent,
+  getNextContent as engineGetNextContent,
   getTrailConversation,
   getTrailHistory,
   getStatus as engineGetStatus,
@@ -41,7 +51,7 @@ import {
   type TrailChannel,
   type StudentTrailProgress,
 } from '../server/lib/trail-engine'
-import { ensureTrailAiContent } from '../server/lib/trail-ai/ensureTrailAiContent'
+import { ensureTrailAiContentForEngine } from '../server/lib/trail-ai/engineEnsureTrailAiContent'
 
 type Json = Record<string, unknown>
 
@@ -82,6 +92,26 @@ const KNOWN_FACADES = new Set([
 
 function isKnownFacade(facade: string | null): boolean {
   return facade !== null && KNOWN_FACADES.has(facade)
+}
+
+/**
+ * POSTs do player web /aluno (`?action=`), que não enviam service Bearer:
+ * mantêm o comportamento do player (PR #6). Restantes mutações legadas
+ * (CRUD / PUT ?action= / DELETE) continuam a exigir Bearer.
+ */
+const STUDENT_PLAYER_POST_ACTIONS = new Set(['advance', 'ensure-ai', 'maria'])
+
+function isStudentPlayerPostAction(
+  method: string,
+  facade: string | null,
+  action: string | null,
+): boolean {
+  return (
+    facade === null &&
+    method.toUpperCase() === 'POST' &&
+    action !== null &&
+    STUDENT_PLAYER_POST_ACTIONS.has(action)
+  )
 }
 
 function requireFacadeAuth(
@@ -166,7 +196,7 @@ async function buildHomeEnrollmentCard(
     }
   }
 
-  const next = await getNextContent(db, {
+  const next = await engineGetNextContent(db, {
     student_id: enrollment.student_id,
     trail_id: enrollment.trail_id,
     channel: 'app',
@@ -507,7 +537,11 @@ async function handleRequest(request: Request): Promise<Response> {
 
   // Mutações legadas (Chatis CRUD / ?action=): service Bearer (Ciclo 1 B1).
   // Fachada conhecida: AuthZ via requireFacadeAuth (service OU sessão aluno).
-  if (isMutationMethod(request.method) && !isKnownFacade(facade)) {
+  if (
+    isMutationMethod(request.method) &&
+    !isKnownFacade(facade) &&
+    !isStudentPlayerPostAction(request.method, facade, action)
+  ) {
     try {
       assertServiceBearer(request.headers)
     } catch (e) {
@@ -595,7 +629,7 @@ async function handleRequest(request: Request): Promise<Response> {
       const authz = requireFacadeAuth(request, qStudentId)
       if (!authz.ok) return respond(authz.status, authz.body)
       try {
-        const content = await getNextContent(db, {
+        const content = await engineGetNextContent(db, {
           student_id: qStudentId,
           trail_id: qTrailId,
           channel: resolveMutationChannel(
@@ -635,7 +669,7 @@ async function handleRequest(request: Request): Promise<Response> {
       const authz = requireFacadeAuth(request, studentId)
       if (!authz.ok) return respond(authz.status, authz.body)
       try {
-        const ensured = await ensureTrailAiContent(db, {
+        const ensured = await ensureTrailAiContentForEngine(db, {
           student_id: studentId,
           trail_id: trailId,
           channel: resolveMutationChannel(
@@ -983,9 +1017,124 @@ async function handleRequest(request: Request): Promise<Response> {
       }
     }
 
+    // GET /student_trails/next-content | history | status (?action=, player /aluno)
+    if (
+      request.method === 'GET' &&
+      (action === 'next-content' || action === 'history' || action === 'status')
+    ) {
+      if (action === 'next-content') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const result = await getNextContent(db, qStudentId, qTrailId)
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        // Mantém a function viva p/ prefetch da próxima AI (senão o serverless mata).
+        if (result.background) {
+          waitUntil(result.background)
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
+      if (action === 'history') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const limitParam = parseIntLoose(url.searchParams.get('limit'))
+        const beforeParam = parseIntLoose(url.searchParams.get('before'))
+        const includeAhead =
+          url.searchParams.get('include_ahead') === '1' ||
+          url.searchParams.get('include_ahead') === 'true'
+        // Legacy: full=1 devolve dump completo (sem paginação) — ainda higienizado.
+        const fullDump =
+          url.searchParams.get('full') === '1' ||
+          url.searchParams.get('full') === 'true'
+
+        const page = await getTrailHistoryPage(db, {
+          student_id: qStudentId,
+          trail_id: qTrailId,
+          limit: fullDump
+            ? 0
+            : limitParam && limitParam > 0
+              ? limitParam
+              : 40,
+          before: beforeParam,
+          include_ahead: includeAhead,
+        })
+
+        const mapped = page.logs.map((row) => ({
+          id: row.id,
+          student_id: row.student_id,
+          trail_id: row.trail_id,
+          stage_number: row.stage_number,
+          question_number: row.question_number,
+          sender: row.sender,
+          message_text: row.message_text,
+          institution_id: row.institution_id,
+          message_type: row.message_type,
+          metadata: row.metadata,
+          created_at: null,
+          created_at_brasilia: row.created_at_brasilia,
+          created_at_ms: row.created_at_ms,
+        }))
+
+        return jsonResponse(
+          {
+            logs: mapped,
+            has_more: page.has_more,
+            next_before: page.next_before,
+            total_matching: page.total_matching,
+            position: page.position,
+          } as unknown as Json,
+          { status: 200, headers: corsHeaders() },
+        )
+      }
+
+      if (action === 'status') {
+        if (!qStudentId || !qTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Informe student_id e trail_id.',
+          })
+        }
+        const result = await getStudentTrailStatus(db, qStudentId, qTrailId)
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+    }
+
     // GET /student_trails/
     // GET /student_trails?id=...
     // GET /student_trails?student_id=...&trail_id=...
+    // GET /student_trails/?student_id=
     // RT-H1: leitura sensível exige service Bearer OU sessão do próprio aluno.
     if (request.method === 'GET') {
       if (id) {
@@ -1057,14 +1206,183 @@ async function handleRequest(request: Request): Promise<Response> {
         })
       }
 
+      if (qStudentId) {
+        const listed = await listStudentTrailsForStudent(db, qStudentId)
+        if (!listed.ok) {
+          return respond(listed.httpStatus, {
+            status: 'error',
+            code: listed.code,
+            error: listed.message,
+          })
+        }
+        return jsonResponse(listed.data as unknown as Json[], {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
       return respond(400, {
         error:
-          'Informe id, ou (student_id + trail_id) para buscar o progresso.',
+          'Informe id, student_id, ou (student_id + trail_id) para buscar o progresso.',
       })
     }
 
-    // POST /student_trails/
+    // POST /student_trails/advance
+    // POST /student_trails/ (create)
     if (request.method === 'POST') {
+      if (action === 'advance') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        if (!targetStudentId || !targetTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id" e "trail_id" são obrigatórios.',
+          })
+        }
+        const idempotencyKey =
+          request.headers.get('Idempotency-Key')?.trim() ||
+          sanitizeString(body.idempotency_key) ||
+          null
+        const expectedVersionRaw = body.expected_version
+        const expectedVersion =
+          expectedVersionRaw === undefined || expectedVersionRaw === null
+            ? undefined
+            : parseIntLoose(expectedVersionRaw) ?? undefined
+        const result = await advanceStudentTrailProgress(
+          db,
+          targetStudentId,
+          targetTrailId,
+          {
+            expected_version: expectedVersion,
+            idempotency_key: idempotencyKey,
+          },
+        )
+        if (!result.ok) {
+          return respond(result.httpStatus, {
+            status: 'error',
+            code: result.code,
+            message: result.message,
+            error: result.message,
+          })
+        }
+        if (result.background) {
+          waitUntil(result.background)
+        }
+        return jsonResponse(result.data as Json, {
+          status: 200,
+          headers: corsHeaders(),
+        })
+      }
+
+      if (action === 'ensure-ai') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        if (!targetStudentId || !targetTrailId) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id" e "trail_id" são obrigatórios.',
+          })
+        }
+        const stageNumber =
+          typeof body.stage_number === 'number' && body.stage_number >= 1
+            ? Math.trunc(body.stage_number)
+            : undefined
+        const questionNumber =
+          typeof body.question_number === 'number' && body.question_number >= 1
+            ? Math.trunc(body.question_number)
+            : undefined
+        const forceRegenerate =
+          body.force_regenerate === true ||
+          body.force_regenerate === 'true' ||
+          url.searchParams.get('force_regenerate') === '1'
+        try {
+          const ensured = await ensureTrailAiContent(db, {
+            student_id: targetStudentId,
+            trail_id: targetTrailId,
+            stage_number: stageNumber,
+            question_number: questionNumber,
+            force_regenerate: forceRegenerate,
+          })
+          return jsonResponse(
+            { status: 'ok', ...ensured } as Json,
+            { status: 200, headers: corsHeaders() },
+          )
+        } catch (e) {
+          return respond(500, {
+            status: 'error',
+            code: 'internal_error',
+            error: e instanceof Error ? e.message : 'Falha ensure-ai',
+          })
+        }
+      }
+
+      if (action === 'maria') {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          payload = {}
+        }
+        const body = (payload ?? {}) as Record<string, unknown>
+        const targetStudentId =
+          qStudentId ?? sanitizeString(body.student_id) ?? null
+        const targetTrailId =
+          qTrailId ?? sanitizeString(body.trail_id) ?? null
+        const message = sanitizeString(body.message)
+        if (!targetStudentId || !targetTrailId || !message) {
+          return respond(400, {
+            status: 'error',
+            code: 'invalid_payload',
+            error: 'Campos "student_id", "trail_id" e "message" são obrigatórios.',
+          })
+        }
+        try {
+          const result = await askMariaTutor(db, {
+            student_id: targetStudentId,
+            trail_id: targetTrailId,
+            message,
+            stage_number:
+              typeof body.stage_number === 'number'
+                ? body.stage_number
+                : undefined,
+            question_number:
+              typeof body.question_number === 'number'
+                ? body.question_number
+                : undefined,
+          })
+          return jsonResponse(result as unknown as Json, {
+            status: 200,
+            headers: corsHeaders(),
+          })
+        } catch (e) {
+          return respond(500, {
+            status: 'error',
+            code: 'internal_error',
+            error: e instanceof Error ? e.message : 'Falha Maria tutora',
+          })
+        }
+      }
+
       if (id) {
         return respond(400, { error: 'id não deve ser enviado em POST' })
       }

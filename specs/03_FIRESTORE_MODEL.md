@@ -3,7 +3,7 @@
 ## Regra geral
 
 O painel administrativo usa Firestore Client SDK para leitura e escrita.
-Integrações externas, como Chatis, devem usar API HTTP, que por sua vez acessa Firestore via backend/admin SDK.
+O app web do aluno e demais consumidores externos usam API HTTP, que acessa Firestore via backend/admin SDK.
 
 ## Collections
 
@@ -107,6 +107,34 @@ Campos:
 - `created_at`: timestamp
 - `updated_at`: timestamp
 
+### `student_trails`
+
+Documento:
+
+```text
+student_trails/{student_id}_trail_{trail_id}
+```
+
+Campos:
+
+- `student_id`: string
+- `institution_id`: string
+- `trail_id`: string
+- `current_stage_number`: number (>= 1)
+- `current_question_number`: number (>= 1)
+- `status`: `not_started` | `in_progress` | `completed` | `blocked`
+- `started_at`: timestamp | null
+- `completed_at`: timestamp | null
+- `last_interaction_at`: timestamp | null
+- `created_at`: timestamp
+- `updated_at`: timestamp
+
+Uso:
+
+- progresso canônico do aluno na trilha;
+- consumido pelo player web via `next-content` / `advance`;
+- administrável no painel (vínculo, posição, block/complete).
+
 ### `counters`
 
 Documento:
@@ -127,5 +155,5 @@ Uso:
 
 - Não criar novos campos sem atualizar esta spec.
 - Não alterar nomes de collections sem plano de migração.
-- Não alterar padrão de ids sem revisar integração Chatis.
-- Campos consumidos por API externa devem ser estáveis.
+- Não alterar padrão de ids sem revisar o contrato do player web e da API.
+- Campos consumidos pela API do aluno devem ser estáveis.

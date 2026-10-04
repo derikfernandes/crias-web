@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ensureTrailAiContent } from '../ensureTrailAiContent'
+import { ensureTrailAiContentForEngine as ensureTrailAiContent } from '../engineEnsureTrailAiContent'
 
 type DocData = Record<string, unknown>
 

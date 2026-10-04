@@ -35,4 +35,4 @@ Gerar documentacao curta, pratica e alinhada com as specs.
 
 ## Saida esperada
 
-- usage.md, architecture.md, firestore-schema.md, api-routing.md ou chatis-flow.md atualizado.
+- usage.md, architecture.md, firestore-schema.md, api-routing.md ou docs do player atualizados.

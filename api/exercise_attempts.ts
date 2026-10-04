@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import {
   countExerciseAttemptsForQuestion,
   createExerciseAttemptWithQuestionLookup,
+  ExerciseAttemptConflictError,
   getLastExerciseAttemptForQuestion,
   listExerciseAttemptsByQuestion,
   listExerciseAttemptsByStudent,
@@ -38,7 +39,8 @@ function corsHeaders(): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers':
+      'Content-Type, Authorization, Idempotency-Key',
   }
 }
 
@@ -168,13 +170,16 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   // RT-H2: dumps de attempts exigem service Bearer (sem IDOR anónimo).
-  try {
-    assertServiceBearer(request.headers)
-  } catch (e) {
-    if (isTrailEngineError(e)) {
-      return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+  // POST (gravação pelo player /aluno, sem service token) mantém-se aberto.
+  if (request.method.toUpperCase() !== 'POST') {
+    try {
+      assertServiceBearer(request.headers)
+    } catch (e) {
+      if (isTrailEngineError(e)) {
+        return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+      }
+      throw e
     }
-    throw e
   }
 
   let db: ReturnType<typeof getFirestore>
@@ -332,13 +337,53 @@ async function handleRequest(request: Request): Promise<Response> {
       const validated = validateExerciseAttemptCreate(payload)
       if (validated.ok === false) return respond(400, { error: validated.error })
 
-      const result = await createExerciseAttemptWithQuestionLookup(
-        db,
-        attemptsCollection,
-        questionsCollection,
-        stagesCollection,
-        validated.data,
-      )
+      const headerIdem =
+        request.headers.get('Idempotency-Key')?.trim() || null
+      const merged = {
+        ...validated.data,
+        idempotency_key:
+          headerIdem || validated.data.idempotency_key || null,
+      }
+
+      let result: Awaited<
+        ReturnType<typeof createExerciseAttemptWithQuestionLookup>
+      >
+      try {
+        result = await createExerciseAttemptWithQuestionLookup(
+          db,
+          attemptsCollection,
+          questionsCollection,
+          stagesCollection,
+          merged,
+        )
+      } catch (err) {
+        if (err instanceof ExerciseAttemptConflictError) {
+          return respond(409, {
+            error: err.message,
+            code: 'conflict',
+          })
+        }
+        throw err
+      }
+
+      // Feedback rico: gera/recupera BLOCO RESPOSTA do próximo stage AI (se houver).
+      let pedagogical_feedback: string | null = null
+      if (!result.replay) {
+        try {
+          const { ensureNextBlocoRespostaFeedback } = await import(
+            '../server/lib/studentTrailProgressService.js'
+          )
+          pedagogical_feedback = await ensureNextBlocoRespostaFeedback(db, {
+            student_id: validated.data.student_id,
+            trail_id: validated.data.trail_id,
+            stage_number: validated.data.stage_number,
+            question_number: validated.data.question_number,
+            is_correct: result.is_correct,
+          })
+        } catch {
+          pedagogical_feedback = null
+        }
+      }
 
       return jsonResponse(
         {
@@ -352,13 +397,22 @@ async function handleRequest(request: Request): Promise<Response> {
           is_correct: result.is_correct,
           score: result.score,
           attempt_number: result.attempt_number,
+          feedback: result.feedback ?? validated.data.feedback ?? null,
+          pedagogical_feedback,
+          replay: result.replay === true,
         },
-        { status: 201, headers: corsHeaders() },
+        { status: result.replay ? 200 : 201, headers: corsHeaders() },
       )
     }
 
     return respond(405, { error: `Método ${request.method} não permitido` })
   } catch (e) {
+    if (e instanceof ExerciseAttemptConflictError) {
+      return respond(409, {
+        error: e.message,
+        code: 'conflict',
+      })
+    }
     return respond(500, {
       error: e instanceof Error ? e.message : 'Erro interno',
     })

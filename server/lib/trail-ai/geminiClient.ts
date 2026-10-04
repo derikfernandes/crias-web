@@ -299,6 +299,9 @@ export async function generateContentWithGemini(
         parts: [{ text: input.userText }],
       },
     ],
+    generationConfig: {
+      maxOutputTokens: 8000,
+    },
   }
 
   const res = await fetchImpl(url.toString(), {

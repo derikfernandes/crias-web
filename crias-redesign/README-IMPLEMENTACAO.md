@@ -148,7 +148,7 @@ Lista: tabela com nome, matéria, profundidade (blocos + exercícios), atividade
 Editor em abas: **Geral · Estrutura · Atividades · Desempenho · Alunos**.
 - Geral: nome, descrição, matéria (TrailForm, protegido) e objetivo (desenvolver `trails.goal`).
 - Estrutura: n conteúdos + m exercícios por atividade (`trail_stages`, `phase_blueprint`). Terminologia: **bloco = stage (vertical)**, **atividade = question (horizontal)** (spec 01).
-- Atividades: liberar/bloquear (`is_released`), texto fixo / IA / exercício com gabarito, prévia estilo WhatsApp, importar XLSX (`loadXlsx`). Datas, habilidade, orientações e materiais: desenvolver.
+- Atividades: liberar/bloquear (`is_released`), texto fixo / IA / exercício com gabarito, prévia do conteúdo no player, importar XLSX (`loadXlsx`). Datas, habilidade, orientações e materiais: desenvolver.
 - Desempenho e Alunos: `student_trails` + `exercise_attempts`; mover aluno via `update_position`.
 
 Status "Rascunho": `trails.active` é booleano. Até decidir `trails.status`, mostre só Ativa/Inativa.
@@ -166,7 +166,7 @@ Regra de situação (calcular no **container**, não na view), sobre o percentua
 - Início < 34% · Meio 34–66% · Final ≥ 67%
 
 ### 5.5 Alunos · perfil
-Blocos: cabeçalho (nome, turma, ano, nível, última interação, ações), painel de edição (formSlot do StudentForm), percurso por trilha com "mover de atividade", aprendizagem (mais errou/acertou por disciplina), outras trilhas + vincular, histórico do WhatsApp com filtro Tudo / Trilha / Tutores de IA (`chatSlot`, `agentHistoryFilterLabel`), desativar.
+Blocos: cabeçalho (nome, turma, ano, nível, última interação, ações), painel de edição (formSlot do StudentForm), percurso por trilha com "mover de atividade", aprendizagem (mais errou/acertou por disciplina), outras trilhas + vincular, histórico de sessão com filtro Tudo / Trilha / Tutores de IA (`chatSlot`, `agentHistoryFilterLabel`), desativar.
 
 Campos novos do painel (código, e-mail, turma, nível automático, necessidades específicas, observações) são Fase C. Renderize cada um só quando a prop existir.
 

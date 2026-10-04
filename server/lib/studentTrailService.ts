@@ -26,7 +26,8 @@ export type StudentTrailRuntimePosition = {
   current_stage_number: number
   current_question_number: number
   status: StudentTrailStatus
-  progress_version?: number
+  /** Optimistic lock (C2-R22 N02); ausente no doc legado → 0. */
+  progress_version: number
 }
 
 export function studentTrailDocId(studentId: string, trailId: string): string {
@@ -86,6 +87,7 @@ export async function createStudentTrail(
       current_stage_number: data.current_stage_number,
       current_question_number: data.current_question_number,
       status: data.status,
+      progress_version: 0,
       completed_at: null,
       last_interaction_at: null,
       created_at: now,

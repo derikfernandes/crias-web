@@ -13,30 +13,9 @@ import type {
 } from './conversationLogValidation'
 import { formatDateTimeBrasilia } from './brasiliaDateTime'
 
-export type ConversationLogRuntime = {
-  id: string
-  student_id: string
-  trail_id: string
-  stage_number: number
-  question_number: number
-  sender: ConversationLogSender
-  message_text: string
-  institution_id: string | null
-  message_type: ConversationLogMessageType | null
-  metadata: Record<string, unknown> | null
-  created_at: unknown
-}
-
-/** Shape mínimo usado pelos callers (API) — evita fabricar QuerySnapshot. */
-export type ConversationLogListResult = {
-  docs: QueryDocumentSnapshot[]
-  empty: boolean
-  size: number
-}
-
 /**
- * Rank temporal para ordenação em memória.
- * Preferimos created_at_brasilia; fallback created_at (Timestamp).
+ * Epoch ms for sorting without Firestore orderBy (índice composto).
+ * Preferimos created_at_brasilia; fallback created_at (Timestamp / {seconds} / number).
  */
 export function conversationLogCreatedAtMillis(
   data: Record<string, unknown>,
@@ -57,11 +36,40 @@ export function conversationLogCreatedAtMillis(
     try {
       return (created as { toDate: () => Date }).toDate().getTime()
     } catch {
-      return 0
+      /* ignore */
     }
+  }
+  if (
+    created &&
+    typeof created === 'object' &&
+    'seconds' in created &&
+    typeof (created as { seconds?: unknown }).seconds === 'number'
+  ) {
+    return ((created as { seconds: number }).seconds || 0) * 1000
   }
   if (typeof created === 'number' && Number.isFinite(created)) return created
   return 0
+}
+
+export type ConversationLogRuntime = {
+  id: string
+  student_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+  sender: ConversationLogSender
+  message_text: string
+  institution_id: string | null
+  message_type: ConversationLogMessageType | null
+  metadata: Record<string, unknown> | null
+  created_at: unknown
+}
+
+/** Shape mínimo usado pelos callers (API) — evita fabricar QuerySnapshot. */
+export type ConversationLogListResult = {
+  docs: QueryDocumentSnapshot[]
+  empty: boolean
+  size: number
 }
 
 function sortByCreatedAtAsc(

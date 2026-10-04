@@ -7,6 +7,7 @@ import {
   updateStudent,
 } from '../lib/public/students'
 import { studentPath } from '../lib/paths'
+import { updateStudentPassword } from '../lib/studentApi'
 import type { Student } from '../types/student'
 
 type Props = {
@@ -59,6 +60,7 @@ export function StudentForm({ docId, initial }: Props) {
   const [school_grade, setSchoolGrade] = useState('')
   const [student_level, setStudentLevel] = useState<1 | 2 | 3>(2)
   const [active, setActive] = useState(true)
+  const [password, setPassword] = useState('')
 
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -78,6 +80,7 @@ export function StudentForm({ docId, initial }: Props) {
       setSchoolGrade(FUNDAMENTAL_GRADES[0])
       setStudentLevel(2)
       setActive(true)
+      setPassword('')
       return
     }
 
@@ -138,6 +141,15 @@ export function StudentForm({ docId, initial }: Props) {
       setFormError('student_level deve ser 1, 2 ou 3.')
       return
     }
+    const trimmedPassword = password.trim()
+    if (!isEdit && trimmedPassword.length < 6) {
+      setFormError('Defina uma senha de acesso (mín. 6 caracteres) para o aluno.')
+      return
+    }
+    if (isEdit && trimmedPassword && trimmedPassword.length < 6) {
+      setFormError('Nova senha deve ter pelo menos 6 caracteres.')
+      return
+    }
 
     setSaving(true)
     setFormError(null)
@@ -153,9 +165,15 @@ export function StudentForm({ docId, initial }: Props) {
       }
       if (docId) {
         await updateStudent(docId, formData)
+        if (trimmedPassword) {
+          await updateStudentPassword(docId, trimmedPassword)
+        }
       } else {
         const newId = await createStudentSequential(formData)
-        if (newId) navigate(studentPath(newId))
+        if (newId) {
+          await updateStudentPassword(newId, trimmedPassword)
+          navigate(studentPath(newId))
+        }
       }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Erro ao salvar.')
@@ -225,6 +243,21 @@ export function StudentForm({ docId, initial }: Props) {
             }
             placeholder="+55 11 99999-0000"
             autoComplete="tel"
+          />
+        </label>
+
+        <label className="field">
+          <span>
+            Senha de acesso (app aluno)
+            {isEdit ? ' — deixe em branco para manter' : ''}
+          </span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={isEdit ? 'new-password' : 'off'}
+            minLength={isEdit ? undefined : 6}
+            placeholder={isEdit ? 'Nova senha (opcional)' : 'Mín. 6 caracteres'}
           />
         </label>
 

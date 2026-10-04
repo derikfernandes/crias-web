@@ -110,7 +110,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
         {!loadingTrails && trailRows.length === 0 ? (
           <p className="muted">
             Nenhuma trilha vinculada ainda. Use o formulário abaixo para vincular,
-            ou o chatbot pode criar e atualizar registros em{' '}
+            ou o player web pode criar e atualizar registros em{' '}
             <code>student_trails</code> automaticamente.
           </p>
         ) : null}
@@ -353,7 +353,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
           <p className="muted">
             {agentHistoryFilterLabel
               ? 'Nenhum log deste agente para este aluno no histórico.'
-              : 'Nenhum log de conversa encontrado para este aluno ainda. Cada mensagem trocada pelo chatbot gera um registro em conversation_logs.'}
+              : 'Nenhum log de sessão encontrado para este aluno ainda. Cada mensagem da sessão gera um registro em conversation_logs.'}
           </p>
         ) : null}
 

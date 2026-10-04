@@ -1,11 +1,13 @@
 import { TRAIL_AI_SPACING_RULES } from './formatAiAnswer'
+import { GERADOR_TRILHA_SYSTEM_PROMPT } from './geradorSystemPrompt'
 
 export type TrailAiPromptInput = {
   name: string
+  school_grade: string
   student_level: string | number
   prompt: string
   content: string
-  /** Conversas recentes tutor/trilha (mesmo SoT que o WA: conversation_logs). */
+  /** Conversas recentes tutor/trilha (conversation_logs). */
   context: string
   trail_title?: string | null
 }
@@ -15,12 +17,30 @@ export type BuiltTrailAiPrompt = {
   userText: string
 }
 
+function firstName(raw: string): string {
+  const t = String(raw ?? '').trim()
+  if (!t) return ''
+  return t.split(/\s+/)[0] ?? ''
+}
+
+function applyVars(
+  template: string,
+  vars: Record<string, string>,
+): string {
+  let out = template
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.split(`\${${key}}`).join(value)
+  }
+  return out
+}
+
 /**
- * Monta o pedido Gemini alinhado às variáveis Chatis:
- * NAME, STUDENT_LEVEL, PROMPT, CONTENT + CONTEXT + regras |||.
+ * Monta o pedido Gemini com o prompt gerador + variáveis:
+ * NAME, SCHOOL_GRADE, STUDENT_LEVEL, CONTEXT, PROMPT, CONTENT.
  */
 export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPrompt {
-  const name = String(input.name ?? '').trim() || 'Aluno'
+  const name = firstName(String(input.name ?? '').trim())
+  const schoolGrade = String(input.school_grade ?? '').trim()
   const level = String(input.student_level ?? '').trim() || '2'
   const prompt = String(input.prompt ?? '').trim()
   const content = String(input.content ?? '').trim()
@@ -28,9 +48,14 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
   const title = String(input.trail_title ?? '').trim()
 
   const systemInstruction = [
-    'És o gerador de conteúdo da trilha CRIAS (mesmo papel do agente de trilha no WhatsApp).',
-    'Gera a aula em português do Brasil, clara e adequada ao nível do aluno.',
-    'Usa formatação WhatsApp: *negrito* e _itálico_.',
+    applyVars(GERADOR_TRILHA_SYSTEM_PROMPT, {
+      NAME: name,
+      SCHOOL_GRADE: schoolGrade,
+      STUDENT_LEVEL: level,
+      CONTEXT: context || '(sem histórico recente)',
+      PROMPT: prompt || '(vazio)',
+      CONTENT: content || '(vazio)',
+    }),
     TRAIL_AI_SPACING_RULES,
     title ? `Título da etapa: ${title}` : '',
   ]
@@ -38,12 +63,14 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
     .join('\n\n')
 
   const userText = [
-    `NAME: ${name}`,
+    `NAME: ${name || '(vazio)'}`,
+    `SCHOOL_GRADE: ${schoolGrade || '(vazio)'}`,
     `STUDENT_LEVEL: ${level}`,
     `PROMPT: ${prompt || '(vazio)'}`,
     `CONTENT: ${content || '(vazio)'}`,
     'CONTEXT (conversas recentes tutor/trilha):',
     context || '(sem histórico recente)',
+    'Gere o conteúdo pedagógico deste bloco da trilha agora.',
   ].join('\n\n')
 
   return { systemInstruction, userText }

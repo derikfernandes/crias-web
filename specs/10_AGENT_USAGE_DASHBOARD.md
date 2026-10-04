@@ -127,7 +127,7 @@ vazio honesto, erro no gate do dashboard.
 ## 6. Fora de escopo desta spec
 
 - Inventar agentes sem `trail_id`.
-- Alterar motor Chatis / gravação de logs.
+- Alterar gravação de `conversation_logs` / motor de sessão.
 - Pré-agregação persistida em Firestore (pode entrar em hardening futuro).
 
 ## 7. Aceite

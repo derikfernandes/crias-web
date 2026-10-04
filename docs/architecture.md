@@ -2,13 +2,13 @@
 
 ## 1. Visao geral
 
-O projeto Crias Trilhas e um painel administrativo para criacao e gestao de trilhas educacionais.
+O projeto Crias Trilhas inclui um painel administrativo para criacao e gestao de trilhas educacionais e um app web do aluno para consumir o progresso.
 
 Arquitetura atual:
 
 ```text
 Painel Admin -> Firebase Client SDK -> Firestore
-Chatis -> API HTTP planejada -> Backend -> Firestore
+App aluno web -> API HTTP -> Backend -> Firestore
 ```
 
 ## 2. Stack
@@ -29,11 +29,14 @@ Estrutura principal:
 crias-trilhas/
   package.json
   frontend/trilha-admin/
+  frontend/cria-frontend/
+  api/
+  server/lib/
 ```
 
-O workspace principal e `frontend/trilha-admin`.
+Workspaces: `frontend/trilha-admin` e `frontend/cria-frontend`.
 
-## 4. Rotas principais
+## 4. Rotas principais (admin)
 
 - `/`: inicio e lista de instituicoes.
 - `/instituicoes/novo`: nova instituicao.
@@ -50,11 +53,15 @@ O workspace principal e `frontend/trilha-admin`.
 
 ### UI
 
-Paginas e componentes React.
+Paginas e componentes React (admin e player aluno).
 
 ### Libs Firestore
 
-Arquivos em `src/lib` que concentram nomes de collections, conversao de snapshots e funcoes auxiliares.
+Arquivos em `src/lib` (admin) que concentram nomes de collections, conversao de snapshots e funcoes auxiliares.
+
+### API / Server
+
+`api/*.ts` + `server/lib/*` — progresso canônico (`next-content` / `advance`), identify, logs.
 
 ### Types
 
@@ -62,7 +69,7 @@ Arquivos em `src/types` que definem os modelos TypeScript.
 
 ### Specs
 
-Pasta `specs/`, que passa a ser a fonte de verdade metodologica.
+Pasta `specs/`, fonte de verdade metodologica.
 
 ### Skills
 
@@ -72,11 +79,11 @@ Pasta `skills/`, que define como agentes devem trabalhar no projeto.
 
 O painel administrativo usa Firestore Client SDK.
 
-Integracoes externas, como Chatis, devem usar API HTTP.
+O app aluno usa apenas API HTTP (sem Firestore Client no player).
 
 ## 7. Riscos conhecidos
 
-- Endpoints documentados podem ainda nao estar implementados.
-- Chatis precisa de API real para nao depender de Firestore direto.
+- Endpoints documentados devem ser validados no deploy.
 - Regras de seguranca do Firestore devem ser revisadas se painel continuar usando Client SDK.
 - Toda mudanca no modelo precisa ser refletida em specs e docs.
+- Deploy do monorepo nao deve quebrar o admin ao incluir o app aluno.

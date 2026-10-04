@@ -6,7 +6,7 @@ Este arquivo define, para cada caso de uso, qual fonte de dados deve ser consult
 
 Ele responde à pergunta:
 
-> Quando o agente, painel ou Chatis precisa fazer uma ação, qual API ou collection deve consultar ou gravar?
+> Quando o agente, painel ou app aluno precisa fazer uma ação, qual API ou collection deve consultar ou gravar?
 
 ## 2. Modos de acesso
 
@@ -18,15 +18,15 @@ O frontend acessa Firestore diretamente via Firebase SDK.
 
 ### API HTTP Mode
 
-Usado por integrações externas, como Chatis e WhatsApp.
+Usado pelo app web do aluno e integrações externas.
 
-A integração chama endpoints HTTP. O backend acessa Firestore com camada segura.
+O cliente chama endpoints HTTP. O backend acessa Firestore com camada segura.
 
 ## 3. Regra geral
 
 ```text
 Painel Admin -> Firebase SDK -> Firestore
-Chatis / WhatsApp -> API HTTP -> Backend -> Firestore
+App aluno web -> API HTTP -> Backend -> Firestore
 Integrações externas -> API HTTP -> Backend -> Firestore
 ```
 
@@ -39,6 +39,7 @@ Integrações externas -> API HTTP -> Backend -> Firestore
 - `trails`
 - `trail_stages`
 - `trail_stage_questions`
+- `student_trails`
 - `counters`
 
 ### API base URL
@@ -135,9 +136,38 @@ Campos:
 - `created_at`
 - `updated_at`
 
+### Identificar aluno (login MVP)
+
+Origem: app web do aluno.
+
+Modo: API HTTP.
+
+Endpoint:
+
+```text
+POST /student/identify
+```
+
+Entrada:
+
+- `phone_number`
+- `institution_code` (institution_id)
+
+Saída:
+
+- `student_id`
+- `institution_id`
+- `name`
+- `active`
+
+Regra:
+
+- Se aluno não existir na instituição, retornar `not_found`.
+- Se aluno estiver inativo, retornar `inactive_student`.
+
 ### Buscar aluno pelo telefone
 
-Origem: Chatis.
+Origem: app web do aluno / API.
 
 Modo: API HTTP.
 
@@ -208,7 +238,7 @@ POST /trail_stage_questions/
 
 ### Buscar próximo conteúdo da trilha
 
-Origem: Chatis.
+Origem: app web do aluno.
 
 Modo: API HTTP.
 
@@ -244,7 +274,7 @@ Regra:
 
 ### Avançar aluno na trilha
 
-Origem: Chatis.
+Origem: app web do aluno.
 
 Modo: API HTTP.
 

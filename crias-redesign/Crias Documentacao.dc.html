@@ -188,7 +188,7 @@ class Component extends DCLogic {
         R('Distribuição por alternativa (A/B/C)', 'parcial', 'exercise_attempts.student_answer é gravado.', 'Agregar respostas por alternativa no summary.'),
         R('Exercício anulado e sem gabarito', 'ok', 'Tela Gabarito já salva e anula; correct_option nulo indica sem gabarito.', 'Só view, reaproveitando os callbacks do Gabarito.'),
         R('Oportunidades: mais erros e mais acertos', 'parcial', 'Dados em exercise_attempts.', 'Ranking por exercício no summary. Conflita com “dashboard pedagógico avançado” (spec 08).'),
-        R('Oportunidades: dúvidas com o tutor por tema', 'dev', 'Logs de agente não têm tema nem atividade (spec 10 proíbe inventar).', 'Classificar tema da mensagem (metadata.topic) no Chatis ou em job server-side.'),
+        R('Oportunidades: dúvidas com o tutor por tema', 'dev', 'Logs de agente não têm tema nem atividade (spec 10 proíbe inventar).', 'Classificar tema da mensagem (metadata.topic) no player ou em job server-side.'),
         R('Ranking de alunos com filtros', 'parcial', 'Os dados existem (progresso, acerto, mensagens).', '“Ranking de alunos” está fora de escopo na spec 08: registrar decisão antes.'),
         R('Alunos parados há 7+ dias', 'ok', 'student_trails.last_interaction_at.', 'Só view (o limite de 7 dias fica no container).')
       ] },
@@ -204,7 +204,7 @@ class Component extends DCLogic {
         R('Materiais de apoio (PDF, imagem)', 'dev', 'Sem Storage configurado para trilhas.', 'Firebase Storage + campo materials[] na atividade.'),
         R('Ordem dos blocos (entre, final, embaralhar, arrastar)', 'parcial', 'stage_number sequencial; TrailStructureEditor renumera.', 'Operação de reordenação em transação no container.'),
         R('Texto fixo, IA e exercício com gabarito', 'ok', 'stage_type, prompt, content, options, correct_option, explanation.', 'Só view (validações ficam no container).'),
-        R('Prévia da conversa no WhatsApp', 'parcial', 'Conteúdo fixo e exercícios existem; blocos de IA dependem do prompt.', 'Endpoint de prévia que gere o texto dos blocos de IA.'),
+        R('Prévia do conteúdo no player', 'parcial', 'Conteúdo fixo e exercícios existem; blocos de IA dependem do prompt.', 'Endpoint de prévia que gere o texto dos blocos de IA.'),
         R('Importar atividades por planilha', 'ok', 'loadXlsx + XLSX no TrailDetail.', 'Só view; colunas novas (habilidade, datas) dependem dos campos novos.'),
         R('Desempenho da trilha', 'ok', 'student_trails + exercise_attempts por trail_id.', 'Dúvidas por tema dependem do item de classificação de tema.'),
         R('Alunos da trilha e mover de atividade', 'ok', 'POST student_trails action=update_position / advance_*.', 'Só view.'),
@@ -225,7 +225,7 @@ class Component extends DCLogic {
         R('Ações em massa (vincular, exportar, desativar)', 'parcial', 'Operações existem uma a uma.', 'Batch no container.')
       ] },
       { name: 'Alunos · perfil', map: 'substitui /alunos/:id · StudentDetailPageView', href: 'Crias%20Alunos.dc.html?aluno=1', rows: [
-        R('Editar nome, WhatsApp, ano e nível', 'ok', 'students + StudentForm (formSlot).', 'Formulário protegido: redesenho do painel de edição via slot.'),
+        R('Editar nome, telefone, ano e nível', 'ok', 'students + StudentForm (formSlot).', 'Formulário protegido: redesenho do painel de edição via slot.'),
         R('Código do aluno (digitado pela escola)', 'dev', 'Sem campo.', 'Criar students.external_code.'),
         R('E-mail opcional', 'dev', 'Sem campo.', 'Criar students.email.'),
         R('Turma', 'dev', 'Sem campo.', 'students.class_name.'),
@@ -236,7 +236,7 @@ class Component extends DCLogic {
         R('Aprendizagem: mais errou e mais acertou', 'ok', 'exercise_attempts por student_id.', 'Expor como prop da view.'),
         R('Aprendizagem: dúvidas com o tutor', 'dev', 'Depende da classificação de tema.', 'Mesmo item da Visão geral.'),
         R('Outras trilhas e vincular nova', 'ok', 'linkableTrails, onLinkTrailSubmit já existem na view.', 'Só view.'),
-        R('Histórico do WhatsApp (Tudo, Trilha, Tutores de IA)', 'ok', 'conversation_logs + chatSlot + agentHistoryFilterLabel.', 'Só view.'),
+        R('Histórico de sessão (Tudo, Trilha, Tutores de IA)', 'ok', 'conversation_logs + chatSlot + agentHistoryFilterLabel.', 'Só view.'),
         R('Desativar aluno', 'ok', 'students.active.', 'Só view.')
       ] },
       { name: 'Configurações', map: 'substitui Início, Gerenciamento e /admin · HomePageView + AdminPageView', href: 'Crias%20Configuracoes.dc.html', rows: [

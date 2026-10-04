@@ -4,7 +4,7 @@
 
 ```text
 Painel Admin -> Firestore Client SDK
-Chatis -> API HTTP
+App aluno web -> API HTTP
 Integracoes externas -> API HTTP
 ```
 
@@ -19,17 +19,26 @@ Exemplos:
 - Trilhas: collection `trails`.
 - Stages: collection `trail_stages`.
 - Conteudos: collection `trail_stage_questions`.
+- Progresso: collection `student_trails` (authoring/vinculo no painel).
 
-## Chatis
+## Player web do aluno
 
-O Chatis deve usar API HTTP.
+O app aluno deve usar API HTTP.
 
 Endpoints necessarios:
 
-### Buscar aluno por telefone
+### Identificar aluno
 
 ```text
-GET /student/by-phone/{phone_number}
+POST /student/identify
+```
+
+Body: `phone_number`, `institution_code`.
+
+### Listar trilhas do aluno
+
+```text
+GET /student_trails?student_id={student_id}
 ```
 
 ### Buscar proximo conteudo
@@ -58,7 +67,7 @@ Nome sugerido para base URL:
 VITE_API_BASE_URL
 ```
 
-Header sugerido:
+Header sugerido (rotas administrativas):
 
 ```text
 Authorization: Bearer <token>
@@ -66,7 +75,7 @@ Authorization: Bearer <token>
 
 ## Observacao
 
-A existencia de um endpoint na documentacao nao significa que ele ja esteja implementado.
+A existencia de um endpoint na documentacao nao significa que ele ja esteja implementado em todos os ambientes.
 
 Antes de usar endpoint em producao, validar:
 

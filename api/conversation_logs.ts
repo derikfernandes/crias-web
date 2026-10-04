@@ -162,13 +162,16 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   // RT-H2: dumps de logs exigem service Bearer (sem IDOR anónimo).
-  try {
-    assertServiceBearer(request.headers)
-  } catch (e) {
-    if (isTrailEngineError(e)) {
-      return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+  // POST (gravação pelo player /aluno, sem service token) mantém-se aberto.
+  if (request.method.toUpperCase() !== 'POST') {
+    try {
+      assertServiceBearer(request.headers)
+    } catch (e) {
+      if (isTrailEngineError(e)) {
+        return respond(e.httpStatus, trailEngineErrorToJson(e) as Json)
+      }
+      throw e
     }
-    throw e
   }
 
   let db: ReturnType<typeof getFirestore>

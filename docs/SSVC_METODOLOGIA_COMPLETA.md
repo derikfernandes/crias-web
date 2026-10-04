@@ -106,7 +106,7 @@ Exemplos:
 - criar uma tela React;
 - verificar qualidade;
 - documentar um fluxo;
-- integrar com Chatis;
+- integrar o player web do aluno;
 - analisar uma base de dados;
 - criar importador XLSX.
 
@@ -589,7 +589,7 @@ scripts/generate_api_table.py
 scripts/compare_spec_vs_routes.py
 scripts/extract_routes_from_react.py
 scripts/normalize_phone_numbers.py
-scripts/validate_chatis_payload.py
+server/lib/studentTrailProgressService.ts
 scripts/check_action_routing_map.py
 ```
 
@@ -705,14 +705,14 @@ Exemplo:
 Pedido:
 
 ```text
-Crie um endpoint para o Chatis buscar o próximo conteúdo da trilha.
+Crie um endpoint para o player web buscar o próximo conteúdo da trilha.
 ```
 
 Skills escolhidas:
 
 ```text
 Skill principal:
-- chatis-integration-builder
+- frontend-react-builder
 
 Skills auxiliares:
 - api-contract-builder
@@ -738,7 +738,7 @@ Motivo da escolha: ...
 | Ideia nova | sdd-planner | doc-generator |
 | Nova entidade | firestore-modeler/data-modeler | sdd-planner, qa-verifier |
 | Novo endpoint | api-contract-builder | action-routing, qa-verifier, doc-generator |
-| Integração Chatis | chatis-integration-builder | api-contract-builder, trail-flow-builder |
+| Player web do aluno | frontend-react-builder | api-contract-builder, trail-flow-builder |
 | Nova tela | frontend-builder | data-modeler, qa-verifier |
 | Mudança em fluxo | flow-builder | integration-builder, qa-verifier |
 | Documentação | doc-generator | qa-verifier |
@@ -757,7 +757,7 @@ Tudo começa com uma ideia.
 Exemplo:
 
 ```text
-Quero que o Chatis consiga buscar o próximo conteúdo da trilha de um aluno.
+Quero que o app aluno consiga buscar o próximo conteúdo da trilha.
 ```
 
 Nessa etapa, ainda não se escreve código.
@@ -963,7 +963,7 @@ A separação operacional principal é:
 
 ```text
 Painel Admin -> Firestore Client SDK
-Chatis -> API HTTP -> Backend -> Firestore
+App aluno web -> API HTTP -> Backend -> Firestore
 ```
 
 As entidades principais são:
@@ -982,7 +982,7 @@ Os fluxos principais são:
 - criar stages;
 - criar conteúdos;
 - liberar conteúdos;
-- entregar conteúdo via Chatis;
+- entregar conteúdo via app web do aluno;
 - avançar aluno na trilha.
 
 ---

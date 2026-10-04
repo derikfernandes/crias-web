@@ -5,7 +5,7 @@
 O painel administrativo atual pode usar Firestore Client SDK.
 Integrações externas devem usar API HTTP.
 
-A API deve ser a camada segura para Chatis, WhatsApp e integrações que não devem acessar Firestore diretamente.
+A API deve ser a camada segura para o app web do aluno e integrações que não devem acessar Firestore diretamente.
 
 ## 2. Base URL
 
@@ -183,9 +183,22 @@ Atualiza conteúdo.
 
 Remove conteúdo.
 
-## 9. Student Trails / Conversational API
+## 9. Student Trails / Player API
 
-Rotas necessárias para Chatis.
+Rotas do app web do aluno (ver `06_STUDENT_WEB_PLAYER.md`).
+
+### `POST /student/identify`
+
+Identifica aluno por telefone + código da instituição (`institution_id`).
+
+Body:
+
+```json
+{
+  "phone_number": "5512999990000",
+  "institution_code": "inst_1"
+}
+```
 
 ### `GET /student_trails/next-content`
 
@@ -194,7 +207,7 @@ Retorna o próximo conteúdo que o aluno deve receber.
 Query params:
 
 - `student_id`
-- `trail_id` opcional quando houver uma trilha ativa única
+- `trail_id`
 
 Resposta esperada:
 
@@ -217,7 +230,7 @@ Resposta esperada:
 
 ### `POST /student_trails/advance`
 
-Avança o aluno para o próximo stage/question.
+Avança o aluno para o próximo stage/question (grade canônica).
 
 Body:
 

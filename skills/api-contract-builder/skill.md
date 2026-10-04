@@ -6,7 +6,7 @@ Use quando criar, alterar ou documentar endpoints.
 
 ## Objetivo
 
-Manter contrato de API consistente entre painel, backend, Chatis e documentacao.
+Manter contrato de API consistente entre painel, backend, app aluno e documentacao.
 
 ## Arquivos que deve ler
 
@@ -21,13 +21,13 @@ Manter contrato de API consistente entre painel, backend, Chatis e documentacao.
 2. Definir metodo, path, auth, params, body e responses.
 3. Atualizar Action Routing Map.
 4. Atualizar testes.
-5. Verificar compatibilidade com Chatis.
+5. Verificar compatibilidade com o player web do aluno.
 6. Registrar decisao se endpoint existente mudar.
 
 ## Restricoes
 
 - Nao mudar endpoint existente sem registrar decisao.
-- Nao remover campo consumido pelo Chatis.
+- Nao remover campo consumido pelo player web do aluno.
 - Nao documentar endpoint como implementado se ele for apenas planejado.
 
 ## Saida esperada

@@ -49,7 +49,7 @@ Exemplos:
 - importacao XLSX;
 - criacao de API;
 - validacao Firestore;
-- fluxo Chatis;
+- fluxo do player web do aluno;
 - QA adversarial.
 
 ## 6. Como pedir implementacao para agente

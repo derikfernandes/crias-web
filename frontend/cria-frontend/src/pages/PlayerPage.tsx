@@ -2259,6 +2259,8 @@ export default function PlayerPage() {
    * C2-R22 N01: busy no chrome durante o fetch — Continuar não fica liberado.
    * C2-R29 N01: em Maria sidechat settled, resync sem “Atualizando etapa…” —
    * Voltar (única saída) permanece; Continuar já está oculto no sidechat.
+   * C2-R30 N01/N02: se a posição divergiu sob Maria, eject com parity Voltar
+   * (limpa draft + resume “Continuando a trilha”) — não deixa Continuar refém.
    */
   async function resyncIfStale(
     prefetched?: NextContentOk | NextContentStatus,
@@ -2299,7 +2301,8 @@ export default function PlayerPage() {
         return 'same'
       }
       deliveredKeyRef.current = null
-      await loadNextAfterAdvance(data)
+      // C2-R30 N01/N02: posição mudou sob Maria → parity Voltar (draft + resume).
+      await loadNextAfterAdvance(data, { fromMariaEject: mariaActive })
       if (data.status === 'ok') {
         publishTrailProgress(trailId, {
           stage_number: data.stage_number,
@@ -2329,18 +2332,29 @@ export default function PlayerPage() {
    */
   async function loadNextAfterAdvance(
     prefetched?: NextContentOk | NextContentStatus,
+    options?: { fromMariaEject?: boolean },
   ): Promise<NextContentOk | NextContentStatus | null> {
+    const fromMariaEject = options?.fromMariaEject === true
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
     writeExerciseSelect(trailId, null)
     setMariaSidechat(false)
-    mariaCancelledRef.current = false
+    mariaSidechatRef.current = false
+    // C2-R30 N01: eject involuntário — limpa draft órfão (Continuar não fica refém).
+    if (fromMariaEject) {
+      setDraft('')
+      writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
+      mariaCancelledRef.current = true
+    } else {
+      mariaCancelledRef.current = false
+    }
     try {
       const data =
         prefetched ?? (await fetchNextContent(session.student_id, trailId))
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
+      contentRef.current = data
       if (data.status !== 'ok') {
         skipNextBlocoDeliveryRef.current = false
         const key = `status-${data.status}`
@@ -2354,6 +2368,45 @@ export default function PlayerPage() {
               text: statusToSystemText(data),
             }),
           ])
+        }
+        return data
+      }
+
+      /**
+       * C2-R30 N01/N02: resync stale sob Maria — entrega a etapa nova como
+       * parity Voltar (bolha “Continuando a trilha”), sem draft órfão.
+       * Evita flood: não cria bolha trail + resume duplicados.
+       * #7: exitMariaToTrailRef também zera mariaEntrance (chip/parceiro).
+       */
+      if (fromMariaEject) {
+        skipNextBlocoDeliveryRef.current = false
+        const key = trailCellKey(data.stage_number, data.question_number)
+        deliveredKeyRef.current = key
+        if (data.stage_type === 'exercise') {
+          setExerciseDone(false)
+        }
+        exitMariaToTrailRef.current()
+        const optionsNorm =
+          data.stage_type === 'exercise'
+            ? normalizeExerciseOptions(data.options)
+            : []
+        const persistText = contentToAssistantText(data, {
+          stripOptions: optionsNorm.length > 0,
+        })
+        if (persistText) {
+          void persistLog({
+            sender: 'system',
+            message_text: persistText,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message_type:
+              data.stage_type === 'exercise' ? 'exercise' : 'instruction',
+            metadata: {
+              source: 'next-content',
+              stage_type: data.stage_type,
+              maria_eject_resume: true,
+            },
+          })
         }
         return data
       }

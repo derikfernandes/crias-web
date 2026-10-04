@@ -1076,7 +1076,7 @@ export default function PlayerPage() {
     if (content?.status !== 'ok') return
     if (typeof window === 'undefined') return
     const landShort = window.matchMedia(
-      '(orientation: landscape) and (max-height: 500px)',
+      '(orientation: landscape) and (max-height: 600px)',
     )
     if (!landShort.matches) return
 

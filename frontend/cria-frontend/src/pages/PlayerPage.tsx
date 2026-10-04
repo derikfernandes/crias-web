@@ -851,6 +851,10 @@ export default function PlayerPage() {
   const submitInFlightRef = useRef(false)
   /** C2-R23 N05: race guard síncrono — double-submit Maria. */
   const mariaInFlightRef = useRef(false)
+  /** C2-R29 N01/N02: sidechat vivo para resync/pagehide (refs sync). */
+  const mariaSidechatRef = useRef(false)
+  /** C2-R29 N02: pagehide mid reusa Voltar (resume Continuando). */
+  const exitMariaToTrailRef = useRef<() => void>(() => {})
   /** advance OK mas next-content falhou — retry só resync (R18-N02). */
   const advanceCommittedRef = useRef(false)
   /** C2-R4 N02: invalida prefetch history stale (trail change / remount). */
@@ -1095,6 +1099,7 @@ export default function PlayerPage() {
   busyReasonRef.current = busyReason
   messagesRef.current = messages
   canRetryRef.current = canRetry
+  mariaSidechatRef.current = mariaSidechat
 
   const goLoginAuth = useCallback(
     (message?: string) => {
@@ -1221,6 +1226,7 @@ export default function PlayerPage() {
    * R08-M05: ao voltar da aba/popup de YT/Drive, reancora a bolha da mídia,
    * anuncia e destaca Continuar — sem inventar botão novo.
    * C2-R21 N02: no mesmo retorno, revalida next-content (aba stale / app switcher).
+   * C2-R29 N01: pageshow (bfcache) também revalida — sem trocar chrome da Maria.
    */
   useEffect(() => {
     let clearTimer: number | null = null
@@ -1253,9 +1259,11 @@ export default function PlayerPage() {
     }
     document.addEventListener('visibilitychange', onReturn)
     window.addEventListener('focus', onReturn)
+    window.addEventListener('pageshow', onReturn)
     return () => {
       document.removeEventListener('visibilitychange', onReturn)
       window.removeEventListener('focus', onReturn)
+      window.removeEventListener('pageshow', onReturn)
       if (clearTimer != null) window.clearTimeout(clearTimer)
     }
     // resyncIfStale é estável o bastante via refs; trailId muda remonta o player.
@@ -1269,10 +1277,12 @@ export default function PlayerPage() {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== key || !e.newValue) return
       // C2-R23 N03: trava chrome/opções no mesmo tick do storage — antes do fetch.
+      // C2-R29 N01: em Maria settled, não trocar Voltar por “Atualizando etapa…”.
       if (
         !resyncInFlightRef.current &&
         !advanceInFlightRef.current &&
-        busyReasonRef.current == null
+        busyReasonRef.current == null &&
+        !mariaSidechatRef.current
       ) {
         setBusy(true)
         setBusyReason('trail')
@@ -1936,14 +1946,15 @@ export default function PlayerPage() {
    * C2-R28 N01: bfcache/Back congela o React state — também sair do sidechat
    * (`setMariaSidechat(false)` + `setMariaEntrance(false)`, parity Voltar)
    * para Continuar voltar e não ficar Maria fantasma (Voltar sem Continuar).
+   * C2-R29 N02: parity completa com Voltar — resume “Continuando a trilha”
+   * (não só limpar sidechat/persist/entrance).
    */
   useEffect(() => {
     const clearMidMariaPersist = () => {
       if (!mariaInFlightRef.current) return
-      mariaCancelledRef.current = true
       writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
-      setMariaSidechat(false)
-      setMariaEntrance(false)
+      // onVoltarParaTrilha: sidechat + entrance + resume Continuando + Aguarde
+      exitMariaToTrailRef.current()
     }
     window.addEventListener('pagehide', clearMidMariaPersist)
     return () => window.removeEventListener('pagehide', clearMidMariaPersist)
@@ -2246,6 +2257,8 @@ export default function PlayerPage() {
    * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),
    * aplica next-content sem chamar advance.
    * C2-R22 N01: busy no chrome durante o fetch — Continuar não fica liberado.
+   * C2-R29 N01: em Maria sidechat settled, resync sem “Atualizando etapa…” —
+   * Voltar (única saída) permanece; Continuar já está oculto no sidechat.
    */
   async function resyncIfStale(
     prefetched?: NextContentOk | NextContentStatus,
@@ -2256,15 +2269,18 @@ export default function PlayerPage() {
     resyncInFlightRef.current = true
     // Lock chrome antes do await — fecha janela TOCTOU do Continuar / Enviar.
     // C2-R23 N03: storage pode pré-travar com busyReason trail; assume ownership.
+    // C2-R29 N01: Maria settled — não sequestrar chrome (Voltar some).
+    const mariaActive = mariaSidechatRef.current
     const prelockedTrail =
       busyReasonRef.current === 'trail' && !advanceInFlightRef.current
-    const ownChrome = busyReasonRef.current == null || prelockedTrail
-    if (busyReasonRef.current == null) {
+    const ownChrome =
+      !mariaActive && (busyReasonRef.current == null || prelockedTrail)
+    if (!mariaActive && busyReasonRef.current == null) {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
       setTrailBusyLabel('Atualizando etapa…')
-    } else if (prelockedTrail) {
+    } else if (!mariaActive && prelockedTrail) {
       setTrailBusyLabel('Atualizando etapa…')
     }
     try {
@@ -2944,6 +2960,8 @@ export default function PlayerPage() {
       }, 80)
     })
   }
+  // C2-R29 N02: pagehide mid chama o mesmo caminho (ref atualizada a cada render).
+  exitMariaToTrailRef.current = onVoltarParaTrilha
 
   /** D#2: toque só seleciona; Enviar confirma. */
   function onOptionSelect(option: ExerciseOption) {
@@ -3256,11 +3274,12 @@ export default function PlayerPage() {
   /**
    * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
    * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
+   * C2-R29 N01: permanece também durante resync de etapa (trail busy).
    */
   const showVoltarTrilha =
     content?.status === 'ok' &&
     mariaSidechat &&
-    (!busy || busyReason === 'maria')
+    (!busy || busyReason === 'maria' || busyReason === 'trail')
 
   /** D#10 / R14-L14 — UI Maria mantém seta. */
   const continuarLabel = 'Continuar trilha →'

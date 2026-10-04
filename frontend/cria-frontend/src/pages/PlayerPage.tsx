@@ -1929,6 +1929,21 @@ export default function PlayerPage() {
   }, [trailId])
 
   /**
+   * C2-R27 N01: reload / navegação documento mid-Maria — unmount React pode
+   * não rodar; pagehide limpa `crias:maria-draft` (parity Voltar/SPA leave)
+   * para reenter sem sidechat/parceiro.
+   */
+  useEffect(() => {
+    const clearMidMariaPersist = () => {
+      if (!mariaInFlightRef.current) return
+      mariaCancelledRef.current = true
+      writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
+    }
+    window.addEventListener('pagehide', clearMidMariaPersist)
+    return () => window.removeEventListener('pagehide', clearMidMariaPersist)
+  }, [trailId])
+
+  /**
    * C2-R21 N03: restaura seleção do exercício após reload mid-aula
    * (parity `crias:maria-draft`).
    */
@@ -2906,12 +2921,15 @@ export default function PlayerPage() {
       ]
     })
     // F08: pós-Voltar → foco no Continuar (ou composer).
+    // C2-R27 N02: mid-flight Continuar gated (“Aguarde…”) ainda é o alvo útil —
+    // não cair no composer disabled → BODY. holdFocus cobre o settle.
     window.requestAnimationFrame(() => {
       window.setTimeout(() => {
-        if (continuarBtnRef.current && !continuarBtnRef.current.disabled) {
-          continuarBtnRef.current.focus()
+        if (continuarBtnRef.current) {
+          continuarBtnRef.current.focus({ preventScroll: true })
+          holdFocusOnTrailBusy()
         } else {
-          inputRef.current?.focus()
+          inputRef.current?.focus({ preventScroll: true })
         }
       }, 80)
     })
@@ -3932,12 +3950,15 @@ export default function PlayerPage() {
                     : ''
                 }`}
                 disabled={
-                  busy ||
+                  // C2-R27 N02: mariaBusyPending usa aria-disabled (não :disabled)
+                  // para o CTA “Aguarde…” permanecer focável — :disabled joga BODY.
+                  (busy && !mariaBusyPending) ||
                   continuarLeaving ||
                   advanceInFlightRef.current ||
                   offline ||
                   hasMariaDraft
                 }
+                aria-disabled={mariaBusyPending || undefined}
                 aria-busy={trailBusy || mariaBusyPending || undefined}
                 title={
                   hasMariaDraft

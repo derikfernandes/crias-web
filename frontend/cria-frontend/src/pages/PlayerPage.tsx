@@ -2780,10 +2780,11 @@ export default function PlayerPage() {
     } catch (err) {
       // C2-R14 N02: falha rede/sistema — sem sidechat, sem bolha “enviada”.
       setMessages((prev) => prev.filter((m) => m.id !== userMsgId))
-      setDraft(askLine)
       // C2-R24 N01: Voltar mid-Maria — falha do mutate cancelado NÃO arma
       // canRetry/Tentar (sequestraria Continuar na trilha).
+      // C2-R25 N01: também NÃO restaura draft — hasMariaDraft pausaria Continuar.
       if (!mariaCancelledRef.current) {
+        setDraft(askLine)
         setMariaSidechat(false)
         reportError(err, 'Erro ao falar com Maria.', () => {
           void doMaria(askLine)

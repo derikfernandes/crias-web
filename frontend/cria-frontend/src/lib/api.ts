@@ -321,7 +321,7 @@ export async function listStudentTrails(
 export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
   const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
   url.searchParams.set('simple', '1')
-  const res = await fetch(url.pathname + url.search)
+  const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok || !Array.isArray(body)) return {}
   const map: Record<string, number> = {}
@@ -338,7 +338,7 @@ export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
 export async function fetchTrailNames(): Promise<Record<string, string>> {
   const url = new URL(`${API_BASE}/trails`, window.location.origin)
   url.searchParams.set('simple', '1')
-  const res = await fetch(url.pathname + url.search)
+  const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok || !Array.isArray(body)) return {}
   const map: Record<string, string> = {}

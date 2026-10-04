@@ -36,6 +36,17 @@
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
+
+  /* Chat aluno — tipografia expressiva (scoped em .trilha-chat) */
+  --trilha-chat-display: 'Fraunces', 'Source Serif 4', Georgia, serif;
+  --trilha-chat-body: 'Sora', 'Segoe UI', sans-serif;
+  --trilha-chat-night: #0c1f1a;
+  --trilha-chat-foam: #e8f6f0;
+  --trilha-chat-leaf: #00be85;
+  --trilha-chat-sun: #ffd500;
+  --trilha-chat-ink: #12352c;
+  --trilha-chat-bubble-in: #ffffff;
+  --trilha-chat-bubble-out: #12352c;
 }
 
 :root[data-theme='dark'] {

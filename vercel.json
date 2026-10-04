@@ -107,6 +107,42 @@
     { "source": "/student_trails/maria", "destination": "/api/student_trails?action=maria" },
     { "source": "/student_trails/", "destination": "/api/student_trails" },
     { "source": "/student_trails", "destination": "/api/student_trails" },
+    {
+      "source": "/student_trails/home",
+      "destination": "/api/student_trails?facade=home"
+    },
+    {
+      "source": "/student_trails/home/",
+      "destination": "/api/student_trails?facade=home"
+    },
+    {
+      "source": "/student_trails/submit-exercise",
+      "destination": "/api/student_trails?facade=submit-exercise"
+    },
+    {
+      "source": "/student_trails/submit-exercise/",
+      "destination": "/api/student_trails?facade=submit-exercise"
+    },
+    {
+      "source": "/trilha/auth",
+      "destination": "/api/trilha_auth"
+    },
+    {
+      "source": "/trilha/auth/",
+      "destination": "/api/trilha_auth"
+    },
+    {
+      "source": "/api/trilha/auth",
+      "destination": "/api/trilha_auth"
+    },
+    {
+      "source": "/student/by-phone/:phone([0-9]+)",
+      "destination": "/api/student?phone_number=:phone"
+    },
+    {
+      "source": "/student/by-phone/:phone([0-9]+)/",
+      "destination": "/api/student?phone_number=:phone"
+    },
     { "source": "/conversation_logs/", "destination": "/api/conversation_logs" },
     { "source": "/conversation_logs", "destination": "/api/conversation_logs" },
     {

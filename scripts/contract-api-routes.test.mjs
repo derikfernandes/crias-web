@@ -20,6 +20,7 @@ const EXPECTED_API_FILES = [
   'conversation_logs.ts',
   'exercise_attempts.ts',
   'dashboard_summary.ts',
+  'trilha_auth.ts',
 ]
 
 /** Pares source → destination que sistemas externos e o admin dependem. */
@@ -41,8 +42,32 @@ const CRITICAL_REWRITES = [
     destination: '/api/student_trails?action=advance',
   },
   {
+    source: '/student_trails/status',
+    destination: '/api/student_trails?action=status',
+  },
+  {
+    source: '/student_trails/history',
+    destination: '/api/student_trails?action=history',
+  },
+  {
     source: '/student/identify',
     destination: '/api/student?action=identify',
+  },
+  {
+    source: '/student_trails/home',
+    destination: '/api/student_trails?facade=home',
+  },
+  {
+    source: '/student_trails/submit-exercise',
+    destination: '/api/student_trails?facade=submit-exercise',
+  },
+  {
+    source: '/trilha/auth',
+    destination: '/api/trilha_auth',
+  },
+  {
+    source: '/student/by-phone/:phone([0-9]+)',
+    destination: '/api/student?phone_number=:phone',
   },
   { source: '/conversation_logs', destination: '/api/conversation_logs' },
 ]
@@ -150,4 +175,50 @@ test('dashboardSummaryApi mantém GET /api/dashboard_summary', () => {
     'utf8',
   )
   assert.match(src, /\/api\/dashboard_summary/)
+})
+
+test('Shared Trail Engine Wave A existe no servidor', () => {
+  const engineDir = join(root, 'server/lib/trail-engine')
+  for (const name of [
+    'index.ts',
+    'advance.ts',
+    'getNextContent.ts',
+    'phoneNormalize.ts',
+    'resolveStudent.ts',
+    'enrollment.ts',
+    'errors.ts',
+    'auth.ts',
+    'idempotencyKey.ts',
+  ]) {
+    assert.equal(
+      existsSync(join(engineDir, name)),
+      true,
+      `faltando server/lib/trail-engine/${name}`,
+    )
+  }
+  const studentTrailsApi = readFileSync(
+    join(root, 'api/student_trails.ts'),
+    'utf8',
+  )
+  assert.match(studentTrailsApi, /assertServiceBearer/)
+  // Ciclo 3 RT-C1: allowlist de facades; legado exige Bearer quando !isKnownFacade
+  assert.match(studentTrailsApi, /KNOWN_FACADES/)
+  assert.match(studentTrailsApi, /isKnownFacade/)
+  assert.match(
+    studentTrailsApi,
+    /isMutationMethod\(request\.method\)\s*&&\s*!isKnownFacade/,
+  )
+  assert.match(studentTrailsApi, /requireFacadeAuth/)
+  assert.doesNotMatch(
+    studentTrailsApi,
+    /isMutationMethod\(request\.method\)\s*&&\s*!facade\b/,
+  )
+  assert.match(
+    readFileSync(join(root, 'server/lib/studentTrailService.ts'), 'utf8'),
+    /buildStableIdempotencyKey/,
+  )
+  assert.doesNotMatch(
+    readFileSync(join(root, 'server/lib/studentTrailService.ts'), 'utf8'),
+    /randomUUID/,
+  )
 })

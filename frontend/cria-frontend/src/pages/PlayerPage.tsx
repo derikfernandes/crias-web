@@ -1197,6 +1197,25 @@ export default function PlayerPage() {
   // Layout effect: header + sidebar (ChatLayout) re-renderizam antes do paint
   // do conteúdo novo — sem 1 frame com etapa/percentual da etapa anterior.
   useLayoutEffect(() => {
+    if (content?.status === 'completed') {
+      // Concluída: header/sidebar seguem com a etapa final (progresso completo).
+      window.dispatchEvent(
+        new CustomEvent('crias:player-chrome', {
+          detail: {
+            trailId,
+            stageNumber:
+              typeof content.stage_number === 'number'
+                ? content.stage_number
+                : undefined,
+            questionNumber: content.question_number,
+            stageTitle: null,
+            mariaActive: false,
+            completed: true,
+          },
+        }),
+      )
+      return
+    }
     if (content?.status !== 'ok') return
     const title = content.stage_title?.trim() || null
     window.dispatchEvent(
@@ -1682,7 +1701,8 @@ export default function PlayerPage() {
           data.status === 'inactive_student'
         if (!shellEmpty) {
           const key = `status-${data.status}`
-          if (deliveredKeyRef.current !== key) {
+          // Concluída: o fim do thread é o card de conclusão (sem bolha Sistema).
+          if (deliveredKeyRef.current !== key && data.status !== 'completed') {
             deliveredKeyRef.current = key
             setMessages((prev) => [
               ...prev,
@@ -1692,9 +1712,44 @@ export default function PlayerPage() {
                 text: statusToSystemText(data),
               }),
             ])
+          } else {
+            deliveredKeyRef.current = key
           }
         }
         setHistoryReady(true)
+        if (shellEmpty) return
+        /**
+         * Trilha concluída / etapa bloqueada: o histórico continua sendo da
+         * trilha. Antes o return acima pulava o fetch — a tela ficava só com
+         * a bolha “Trilha concluída.” e todo o passado sumia.
+         */
+        const gen = historyFetchGenRef.current
+        historyIdleCancelRef.current = scheduleIdle(() => {
+          historyIdleCancelRef.current = null
+          void (async () => {
+            if (gen !== historyFetchGenRef.current) return
+            try {
+              const page = await fetchTrailHistoryPage(
+                session.student_id,
+                trailId,
+                { limit: HISTORY_PAGE_LIMIT },
+              )
+              if (gen !== historyFetchGenRef.current) return
+              const logs = page.logs
+              setHistoryHasMore(page.has_more)
+              historyBeforeRef.current = page.next_before
+              const oldest = logs[0]
+              oldestLogMsRef.current =
+                typeof oldest?.created_at_ms === 'number'
+                  ? oldest.created_at_ms
+                  : page.next_before
+              setMessages((prev) => mergeHistoryIntoMessages(logs, prev))
+            } catch {
+              if (gen !== historyFetchGenRef.current) return
+              setHistoryHasMore(false)
+            }
+          })()
+        })
         return
       }
 
@@ -2374,7 +2429,8 @@ export default function PlayerPage() {
           if (!scroller) return
           if (
             messages.length > 0 &&
-            contentRef.current?.status === 'ok' &&
+            (contentRef.current?.status === 'ok' ||
+              contentRef.current?.status === 'completed') &&
             isScrollNearBottom(scroller)
           ) {
             initialAnchorPendingRef.current = false
@@ -2530,7 +2586,10 @@ export default function PlayerPage() {
       if (data.status !== 'ok') {
         skipNextBlocoDeliveryRef.current = false
         const key = `status-${data.status}`
-        if (deliveredKeyRef.current !== key) {
+        if (data.status === 'completed') {
+          // Card de conclusão no fim do thread; histórico local fica.
+          deliveredKeyRef.current = key
+        } else if (deliveredKeyRef.current !== key) {
           deliveredKeyRef.current = key
           setMessages((prev) => [
             ...prev,
@@ -2609,17 +2668,13 @@ export default function PlayerPage() {
             status: 'completed',
             student_id: session.student_id,
             trail_id: trailId,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
             message: 'Trilha concluída.',
           }
+          // Histórico fica; o card de conclusão fecha o thread.
+          deliveredKeyRef.current = 'status-completed'
           setContent(completed)
-          setMessages((prev) => [
-            ...prev,
-            markAnimate({
-              id: `sys-${Date.now()}`,
-              role: 'system',
-              text: 'Parabéns! Você concluiu esta trilha.',
-            }),
-          ])
           return completed
         }
         if (advanceAgain.status === 'ok') {
@@ -2914,21 +2969,22 @@ export default function PlayerPage() {
       if (result.status === 'ok' && result.completed) {
         advanceCommittedRef.current = false
         advanceSucceeded = true
+        const lastStep = contentRef.current
         advancedContent = {
           status: 'completed',
           student_id: liveSession.student_id,
           trail_id: trailId,
+          ...(lastStep && typeof lastStep.stage_number === 'number'
+            ? {
+                stage_number: lastStep.stage_number,
+                question_number: lastStep.question_number,
+              }
+            : {}),
           message: 'Trilha concluída.',
         }
+        // Histórico fica; o card de conclusão fecha o thread.
+        deliveredKeyRef.current = 'status-completed'
         setContent(advancedContent)
-        setMessages((prev) => [
-          ...prev,
-          markAnimate({
-            id: `sys-${Date.now()}`,
-            role: 'system',
-            text: 'Parabéns! Você concluiu esta trilha.',
-          }),
-        ])
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
@@ -3690,9 +3746,11 @@ export default function PlayerPage() {
       ? historyReady
         ? 'Trilha indisponível no momento'
         : 'Carregando a trilha…'
-      : content.status !== 'ok'
-        ? 'Trilha indisponível no momento'
-        : 'Pergunte à Maria...'
+      : content.status === 'completed'
+        ? statusToSystemText(content)
+        : content.status !== 'ok'
+          ? 'Trilha indisponível no momento'
+          : 'Pergunte à Maria...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -3921,6 +3979,38 @@ export default function PlayerPage() {
       </section>
     ) : null
 
+  /**
+   * Trilha concluída: card final no FIM do thread (histórico fica acima).
+   * Texto vem do backend (`message`) ou do fallback já existente.
+   */
+  const trailCompletedNode =
+    !trailShellUnavailable && historyReady && content?.status === 'completed' ? (
+      <section
+        className="lesson-card trail-complete"
+        role="status"
+        tabIndex={-1}
+        data-current-step="true"
+        data-trail-completed="true"
+      >
+        <span className="lesson-card__icon trail-complete__icon" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M5 12.5l4.5 4.5L19 7.5"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <div className="lesson-card__copy">
+          <h2 className="lesson-card__title trail-complete__title">
+            {statusToSystemText(content)}
+          </h2>
+        </div>
+      </section>
+    ) : null
+
   const mariaEntranceNode =
     !trailShellUnavailable && showMariaEntrance ? (
       <div className="maria-entrance" aria-live="polite">
@@ -4126,6 +4216,7 @@ export default function PlayerPage() {
         })}
         {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
         {mariaEntranceSlot >= chatMessages.length ? mariaEntranceNode : null}
+        {trailCompletedNode}
 
         {showTypingBubble ? (
           <article
@@ -4401,7 +4492,8 @@ export default function PlayerPage() {
       </div>
 
       {/* C2-R12 N05: sem composer/Enviar competindo com skeleton no mount. */}
-      {!trailShellUnavailable && historyReady ? (
+      {/* Concluída: sem composer desabilitado — o card final fecha a trilha. */}
+      {!trailShellUnavailable && historyReady && content?.status !== 'completed' ? (
       <footer
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''

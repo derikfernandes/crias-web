@@ -2340,6 +2340,26 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   margin: 0 0 0.45rem;
 }
 
+/* Trilha concluída: card final do thread (mesma família do lesson-card). */
+.trail-complete {
+  align-items: center;
+  margin-top: 0.75rem;
+  margin-bottom: 1.25rem;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.trail-complete__icon {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, white);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.trail-complete__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
 .maria-entrance {
   max-width: 48rem;
   width: calc(100% - 2.5rem);

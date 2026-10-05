@@ -122,6 +122,8 @@ export default function ChatLayout() {
     stageTitle: string | null
     stageNumber: number | null
     mariaActive: boolean
+    /** Player mostra a trilha concluída (progresso completo). */
+    completed?: boolean
   }>({ trailId: null, stageTitle: null, stageNumber: null, mariaActive: false })
   const drawerAsModal = isNarrow && sidebarOpen
   const menuBtnRef = useRef<HTMLButtonElement>(null)
@@ -379,6 +381,7 @@ export default function ChatLayout() {
         stageTitle?: string | null
         stageNumber?: number
         mariaActive?: boolean
+        completed?: boolean
       }
       if (detail?.trailId && detail.trailId !== activeTrailId) return
       setPlayerChrome({
@@ -387,6 +390,7 @@ export default function ChatLayout() {
         stageNumber:
           typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
         mariaActive: Boolean(detail.mariaActive),
+        completed: Boolean(detail.completed),
       })
     }
     window.addEventListener('crias:player-chrome', onChrome)
@@ -415,6 +419,11 @@ export default function ChatLayout() {
     typeof playerChrome.stageNumber === 'number'
       ? playerChrome.stageNumber
       : null
+  /** Trilha ativa concluída no player (antes do GET /student_trails voltar). */
+  const playerCompleted =
+    Boolean(activeTrailId) &&
+    playerChrome.trailId === activeTrailId &&
+    Boolean(playerChrome.completed)
 
   const firstName = useMemo(
     () => session?.name.split(' ')[0] || 'Aluno',
@@ -502,7 +511,10 @@ export default function ChatLayout() {
               {rows.map((row) => {
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                 const active = location.pathname === href
-                const stageNumber =
+                const rowCompleted =
+                  row.status === 'completed' ||
+                  (row.trail_id === activeTrailId && playerCompleted)
+                const stageNumberRaw =
                   row.trail_id === activeTrailId &&
                   playerStageNumber != null &&
                   row.status !== 'completed'
@@ -512,17 +524,24 @@ export default function ChatLayout() {
                   stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
                     ? stageTotals[row.trail_id]
                     : null
+                // Concluída = progresso completo (N de N · 100 %).
+                const stageNumber =
+                  rowCompleted && totalRaw != null
+                    ? Math.max(totalRaw, stageNumberRaw)
+                    : stageNumberRaw
                 const total =
                   totalRaw != null
                     ? Math.max(totalRaw, stageNumber)
                     : null
-                const pct =
-                  total != null
+                const pct = rowCompleted
+                  ? 100
+                  : total != null
                     ? Math.min(
                         100,
                         Math.round((stageNumber / total) * 100),
                       )
                     : 0
+                const rowStatus = rowCompleted ? 'completed' : row.status
                 const label = trailNames[row.trail_id] || 'Trilha'
                 const etapaMeta =
                   total != null
@@ -542,10 +561,10 @@ export default function ChatLayout() {
                           <span className="trail-card__id">{label}</span>
                         </span>
                         <span
-                          className={`trail-card__status trail-card__status--${row.status}`}
+                          className={`trail-card__status trail-card__status--${rowStatus}`}
                         >
                           <span className="trail-card__dot" aria-hidden />
-                          {STATUS_LABEL[row.status]}
+                          {STATUS_LABEL[rowStatus]}
                         </span>
                       </span>
                       <span className="trail-card__meta">{etapaMeta}</span>
@@ -625,12 +644,16 @@ export default function ChatLayout() {
                     /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
                     trailNames[activeTrailId] || 'Trilha',
                     (() => {
-                      const n = playerStageNumber
-                      if (n == null) return null
                       const totalRaw =
                         stageTotals[activeTrailId] > 0
                           ? stageTotals[activeTrailId]
                           : null
+                      // Concluída: etapa final mesmo sem stage_number no status.
+                      const n =
+                        playerCompleted && totalRaw != null
+                          ? Math.max(totalRaw, playerStageNumber ?? 0)
+                          : playerStageNumber
+                      if (n == null) return null
                       // C2-R1 N01: sem fallback current→total (“N de N” / “5 de 4”).
                       if (totalRaw == null) return `Etapa ${n}`
                       return `Etapa ${n} de ${Math.max(totalRaw, n)}`

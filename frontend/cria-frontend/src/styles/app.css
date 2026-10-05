@@ -1884,6 +1884,24 @@ button[aria-disabled='true'] {
   );
 }
 
+/*
+ * Enunciado com mídia (Drive/YouTube/imagem + chip “Abrir no Drive”) fica no
+ * fluxo normal: sticky top:0 + z-index prendia o bloco alto (~frame 16:9) no
+ * topo do scroller e as alternativas passavam por baixo — no fim da rolagem
+ * A/B ficavam cobertas e o toque caía no iframe/chip. `:has` cobre o mesmo
+ * caso caso a classe não venha (bolhas antigas / outro renderer).
+ */
+.chat-exercise__prompt--media,
+.chat-exercise__prompt:has(
+    .chat-bubble__embed,
+    .chat-bubble__media,
+    .chat-bubble__link
+  ) {
+  position: static;
+  z-index: auto;
+  background: none;
+}
+
 .chat-exercise__retry {
   margin-top: 0.75rem;
   display: flex;

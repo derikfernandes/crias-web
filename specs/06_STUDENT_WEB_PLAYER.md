@@ -161,11 +161,12 @@ Durante a etapa de exercício (antes e depois do feedback, até o Continuar):
 - composer desabilitado; placeholder **"Escolha uma das opções"**
 - free-text / Maria bloqueados
 
-Ao clicar:
+Ao confirmar com **Enviar**:
 
 1. `POST /exercise_attempts` (registra attempt + `is_correct`)
-2. Mostra feedback (`explanation` / resultado)
-3. **Sempre** exibe botão **Continuar** → advance
+2. Mostra a resposta do aluno como bolha enviada
+3. Se houver feedback (`explanation` / IA da tentativa): exibe a bolha e o botão **Continuar** (pausa de leitura) → advance
+4. Se **não** houver feedback na thread: avança **automaticamente** para a próxima célula (em geral o BLOCO / feedback da trilha), sem exigir Continuar extra pós-Enviar. Continuar volta a aparecer na nova fase (leitura / próximo passo).
 
 ### Título da etapa
 

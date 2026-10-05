@@ -7,6 +7,7 @@ export function TrailNewPageView({
   institutionLabel,
   hasInstitution,
   formSlot,
+  modeSlot,
 }: TrailNewPageViewProps) {
   return (
     <>
@@ -22,7 +23,10 @@ export function TrailNewPageView({
         </div>
       </header>
       {hasInstitution ? (
-        formSlot
+        <>
+          {modeSlot}
+          {formSlot}
+        </>
       ) : (
         <section className="panel">
           <p className="banner banner--error" role="alert">

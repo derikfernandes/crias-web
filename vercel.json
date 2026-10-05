@@ -4,14 +4,32 @@
   "buildCommand": "npm run build",
   "outputDirectory": "frontend/trilha-admin/dist",
   "functions": {
-    "api/dashboard_summary.ts": { "maxDuration": 60 },
-    "api/student_trails.ts": { "maxDuration": 60 },
-    "api/exercise_attempts.ts": { "maxDuration": 60 }
+    "api/dashboard_summary.ts": {
+      "maxDuration": 60
+    },
+    "api/student_trails.ts": {
+      "maxDuration": 60
+    },
+    "api/exercise_attempts.ts": {
+      "maxDuration": 60
+    },
+    "api/ai_trail_generate.ts": {
+      "maxDuration": 300
+    }
   },
   "rewrites": [
-    { "source": "/institution/", "destination": "/api/institution" },
-    { "source": "/institution", "destination": "/api/institution" },
-    { "source": "/institution/simple", "destination": "/api/institution?simple=1" },
+    {
+      "source": "/institution/",
+      "destination": "/api/institution"
+    },
+    {
+      "source": "/institution",
+      "destination": "/api/institution"
+    },
+    {
+      "source": "/institution/simple",
+      "destination": "/api/institution?simple=1"
+    },
     {
       "source": "/institution/:id([A-Za-z0-9_-]+)",
       "destination": "/api/institution?id=:id"
@@ -20,9 +38,18 @@
       "source": "/institution/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/institution?id=:id"
     },
-    { "source": "/student/", "destination": "/api/student" },
-    { "source": "/student", "destination": "/api/student" },
-    { "source": "/student/simple", "destination": "/api/student?simple=1" },
+    {
+      "source": "/student/",
+      "destination": "/api/student"
+    },
+    {
+      "source": "/student",
+      "destination": "/api/student"
+    },
+    {
+      "source": "/student/simple",
+      "destination": "/api/student?simple=1"
+    },
     {
       "source": "/student/identify",
       "destination": "/api/student?action=identify"
@@ -39,9 +66,18 @@
       "source": "/student/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/student?id=:id"
     },
-    { "source": "/students/", "destination": "/api/student" },
-    { "source": "/students", "destination": "/api/student" },
-    { "source": "/students/simple", "destination": "/api/student?simple=1" },
+    {
+      "source": "/students/",
+      "destination": "/api/student"
+    },
+    {
+      "source": "/students",
+      "destination": "/api/student"
+    },
+    {
+      "source": "/students/simple",
+      "destination": "/api/student?simple=1"
+    },
     {
       "source": "/students/identify",
       "destination": "/api/student?action=identify"
@@ -58,9 +94,18 @@
       "source": "/students/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/student?id=:id"
     },
-    { "source": "/trails/", "destination": "/api/trails" },
-    { "source": "/trails", "destination": "/api/trails" },
-    { "source": "/trails/simple", "destination": "/api/trails?simple=1" },
+    {
+      "source": "/trails/",
+      "destination": "/api/trails"
+    },
+    {
+      "source": "/trails",
+      "destination": "/api/trails"
+    },
+    {
+      "source": "/trails/simple",
+      "destination": "/api/trails?simple=1"
+    },
     {
       "source": "/trails/:id([A-Za-z0-9_-]+)",
       "destination": "/api/trails?id=:id"
@@ -69,9 +114,18 @@
       "source": "/trails/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/trails?id=:id"
     },
-    { "source": "/trail_stages/", "destination": "/api/trail_stages" },
-    { "source": "/trail_stages", "destination": "/api/trail_stages" },
-    { "source": "/trail_stages/simple", "destination": "/api/trail_stages?simple=1" },
+    {
+      "source": "/trail_stages/",
+      "destination": "/api/trail_stages"
+    },
+    {
+      "source": "/trail_stages",
+      "destination": "/api/trail_stages"
+    },
+    {
+      "source": "/trail_stages/simple",
+      "destination": "/api/trail_stages?simple=1"
+    },
     {
       "source": "/trail_stages/:id([A-Za-z0-9_-]+)",
       "destination": "/api/trail_stages?id=:id"
@@ -100,14 +154,38 @@
       "source": "/trail_stage_questions/:id([A-Za-z0-9_.-]+)/",
       "destination": "/api/trail_stage_questions?id=:id"
     },
-    { "source": "/student_trails/next-content", "destination": "/api/student_trails?action=next-content" },
-    { "source": "/student_trails/advance", "destination": "/api/student_trails?action=advance" },
-    { "source": "/student_trails/status", "destination": "/api/student_trails?action=status" },
-    { "source": "/student_trails/history", "destination": "/api/student_trails?action=history" },
-    { "source": "/student_trails/ensure-ai", "destination": "/api/student_trails?action=ensure-ai" },
-    { "source": "/student_trails/maria", "destination": "/api/student_trails?action=maria" },
-    { "source": "/student_trails/", "destination": "/api/student_trails" },
-    { "source": "/student_trails", "destination": "/api/student_trails" },
+    {
+      "source": "/student_trails/next-content",
+      "destination": "/api/student_trails?action=next-content"
+    },
+    {
+      "source": "/student_trails/advance",
+      "destination": "/api/student_trails?action=advance"
+    },
+    {
+      "source": "/student_trails/status",
+      "destination": "/api/student_trails?action=status"
+    },
+    {
+      "source": "/student_trails/history",
+      "destination": "/api/student_trails?action=history"
+    },
+    {
+      "source": "/student_trails/ensure-ai",
+      "destination": "/api/student_trails?action=ensure-ai"
+    },
+    {
+      "source": "/student_trails/maria",
+      "destination": "/api/student_trails?action=maria"
+    },
+    {
+      "source": "/student_trails/",
+      "destination": "/api/student_trails"
+    },
+    {
+      "source": "/student_trails",
+      "destination": "/api/student_trails"
+    },
     {
       "source": "/student_trails/home",
       "destination": "/api/student_trails?facade=home"
@@ -144,8 +222,14 @@
       "source": "/student/by-phone/:phone([0-9]+)/",
       "destination": "/api/student?phone_number=:phone"
     },
-    { "source": "/conversation_logs/", "destination": "/api/conversation_logs" },
-    { "source": "/conversation_logs", "destination": "/api/conversation_logs" },
+    {
+      "source": "/conversation_logs/",
+      "destination": "/api/conversation_logs"
+    },
+    {
+      "source": "/conversation_logs",
+      "destination": "/api/conversation_logs"
+    },
     {
       "source": "/conversation_logs/:id([A-Za-z0-9_-]+)",
       "destination": "/api/conversation_logs?id=:id"
@@ -154,13 +238,33 @@
       "source": "/conversation_logs/:id([A-Za-z0-9_-]+)/",
       "destination": "/api/conversation_logs?id=:id"
     },
-    { "source": "/exercise_attempts/", "destination": "/api/exercise_attempts" },
-    { "source": "/exercise_attempts", "destination": "/api/exercise_attempts" },
-    { "source": "/aluno", "destination": "/aluno/index.html" },
-    { "source": "/aluno/", "destination": "/aluno/index.html" },
+    {
+      "source": "/exercise_attempts/",
+      "destination": "/api/exercise_attempts"
+    },
+    {
+      "source": "/exercise_attempts",
+      "destination": "/api/exercise_attempts"
+    },
+    {
+      "source": "/aluno",
+      "destination": "/aluno/index.html"
+    },
+    {
+      "source": "/aluno/",
+      "destination": "/aluno/index.html"
+    },
     {
       "source": "/aluno/((?!assets/).*)",
       "destination": "/aluno/index.html"
+    },
+    {
+      "source": "/ai_trail_generate/",
+      "destination": "/api/ai_trail_generate"
+    },
+    {
+      "source": "/ai_trail_generate",
+      "destination": "/api/ai_trail_generate"
     },
     {
       "source": "/((?!api(?:/|$)|aluno(?:/|$)).*)",

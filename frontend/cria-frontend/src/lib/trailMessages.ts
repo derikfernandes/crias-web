@@ -484,6 +484,17 @@ export function hasFeedbackBody(text: string): boolean {
 }
 
 /**
+ * Após Enviar no exercício: se o feedback já entrou na thread, pausa no
+ * Continuar para leitura; se não, avança sozinho para a próxima célula
+ * (em geral o BLOCO / feedback da trilha) — evita Continuar extra pós-Enviar.
+ */
+export function shouldAutoAdvanceAfterExerciseSubmit(
+  feedbackShown: boolean,
+): boolean {
+  return !feedbackShown
+}
+
+/**
  * Texto da bolha de feedback do exercício (D#3: só escola / IA, sem hardcode).
  * `pedagogical` é gerado pela IA PARA ESTA TENTATIVA (resposta + resultado no
  * contexto) → vem primeiro e não é podado. Fallbacks (explanation da questão /

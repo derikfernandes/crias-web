@@ -3559,6 +3559,16 @@ export default function PlayerPage() {
     content?.status === 'ok' && content.stage_type === 'exercise'
       ? exercisePromptFromContent(content)
       : ''
+  const exercisePromptParts = exercisePrompt
+    ? renderMessageLines(exercisePrompt)
+    : []
+  /**
+   * Enunciado com mídia (Drive/YouTube/imagem/link) não fica sticky: alto
+   * demais, cobria as alternativas ao rolar até o fim do card.
+   */
+  const exercisePromptHasMedia = exercisePromptParts.some(
+    (part) => part.kind !== 'text',
+  )
 
   /**
    * B5 / R18-N06: opções ficam visíveis em idle→error→submitting;
@@ -4212,11 +4222,13 @@ export default function PlayerPage() {
             }
           >
             <p className="chat-exercise__legend">{exerciseLegend}</p>
-            {exercisePrompt ? (
-              <div className="chat-exercise__prompt">
-                {renderMessageLines(exercisePrompt).map((part) =>
-                  renderMessagePart(part),
-                )}
+            {exercisePromptParts.length > 0 ? (
+              <div
+                className={`chat-exercise__prompt${
+                  exercisePromptHasMedia ? ' chat-exercise__prompt--media' : ''
+                }`}
+              >
+                {exercisePromptParts.map((part) => renderMessagePart(part))}
               </div>
             ) : null}
             <div

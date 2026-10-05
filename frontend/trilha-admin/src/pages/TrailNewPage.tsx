@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { TrailAiCreateWizard } from '../components/TrailAiCreateWizard'
 import { TrailForm } from '../components/TrailForm'
 import { TrailNewPageView } from '../design/views/TrailNewPageView'
 import { usePermissions } from '../hooks/usePermissions'
 import { db } from '../lib/firebase'
 import { INSTITUTIONS_COLLECTION } from '../lib/institutionFirestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 
 const LAST_INSTITUTION_ID_STORAGE_KEY = 'trilha_admin_selected_institution_id'
+
+type CreateMode = 'choose' | 'manual' | 'ai'
 
 export function TrailNewPage() {
   const { filterInstitutions } = usePermissions()
   const [searchParams] = useSearchParams()
-  const [institutions, setInstitutions] = useState<{ id: string; name: string }[]>([])
+  const [institutions, setInstitutions] = useState<{ id: string; name: string }[]>(
+    [],
+  )
+  const [mode, setMode] = useState<CreateMode>('choose')
 
   useEffect(() => {
     if (!db) return
@@ -46,7 +52,10 @@ export function TrailNewPage() {
 
   useEffect(() => {
     if (!effectiveInstitutionId) return
-    window.localStorage.setItem(LAST_INSTITUTION_ID_STORAGE_KEY, effectiveInstitutionId)
+    window.localStorage.setItem(
+      LAST_INSTITUTION_ID_STORAGE_KEY,
+      effectiveInstitutionId,
+    )
   }, [effectiveInstitutionId])
 
   const selectedInstitution = useMemo(
@@ -58,15 +67,72 @@ export function TrailNewPage() {
     ? `${selectedInstitution?.name?.trim() || 'Sem nome'} (${effectiveInstitutionId})`
     : 'não selecionada'
 
+  const modeSlot =
+    effectiveInstitutionId && mode === 'choose' ? (
+      <section className="panel trail-create-mode" data-testid="trail-create-mode">
+        <h2>Como deseja criar?</h2>
+        <p className="muted">
+          Escolha o fluxo manual (como hoje) ou gere uma trilha completa a partir
+          de documentos com IA.
+        </p>
+        <div className="trail-create-mode__cards">
+          <button
+            type="button"
+            className="trail-create-mode__card"
+            onClick={() => setMode('manual')}
+          >
+            <strong>Criar manualmente</strong>
+            <span className="muted">
+              Defina base, estrutura de fases e conteúdos passo a passo.
+            </span>
+          </button>
+          <button
+            type="button"
+            className="trail-create-mode__card trail-create-mode__card--ai"
+            onClick={() => setMode('ai')}
+            data-testid="trail-create-mode-ai"
+          >
+            <strong>Criar trilha com IA</strong>
+            <span className="muted">
+              Envie PDFs/DOCX/TXT, revise o prompt e confira a prévia antes de
+              salvar.
+            </span>
+          </button>
+        </div>
+      </section>
+    ) : null
+
+  let formSlot = null
+  if (effectiveInstitutionId && mode === 'manual') {
+    formSlot = (
+      <>
+        <p className="trail-create-mode__back">
+          <button
+            type="button"
+            className="btn btn--ghost btn--small"
+            onClick={() => setMode('choose')}
+          >
+            ← Outra forma de criar
+          </button>
+        </p>
+        <TrailForm fixedInstitutionId={effectiveInstitutionId} />
+      </>
+    )
+  } else if (effectiveInstitutionId && mode === 'ai') {
+    formSlot = (
+      <TrailAiCreateWizard
+        institutionId={effectiveInstitutionId}
+        onCancel={() => setMode('choose')}
+      />
+    )
+  }
+
   return (
     <TrailNewPageView
       institutionLabel={institutionLabel}
       hasInstitution={Boolean(effectiveInstitutionId)}
-      formSlot={
-        effectiveInstitutionId ? (
-          <TrailForm fixedInstitutionId={effectiveInstitutionId} />
-        ) : null
-      }
+      modeSlot={modeSlot}
+      formSlot={formSlot}
     />
   )
 }

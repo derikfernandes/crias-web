@@ -15,6 +15,8 @@
 export type GeminiGenerateInput = {
   systemInstruction: string
   userText: string
+  /** Overrides opcionais de generationConfig (ex.: JSON schema, maxOutputTokens). */
+  generationConfig?: Record<string, unknown>
 }
 
 export type GeminiGenerateResult = {
@@ -301,6 +303,7 @@ export async function generateContentWithGemini(
     ],
     generationConfig: {
       maxOutputTokens: 8000,
+      ...(input.generationConfig ?? {}),
     },
   }
 

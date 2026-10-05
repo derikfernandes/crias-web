@@ -7278,3 +7278,114 @@
     animation: none;
   }
 }
+
+/* --- Criar trilha com IA (feature teste) --- */
+.trail-create-mode__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.trail-create-mode__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 1.25rem;
+  border: 1px solid var(--border, #d8d6e2);
+  border-radius: 12px;
+  background: var(--panel, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trail-create-mode__card:hover {
+  border-color: var(--accent, #6c3ce1);
+  box-shadow: 0 4px 16px rgba(108, 60, 225, 0.12);
+}
+
+.trail-create-mode__card--ai {
+  border-color: #c4b0f5;
+  background: linear-gradient(160deg, #f7f3ff 0%, #fff 70%);
+}
+
+.trail-create-mode__back {
+  margin: 0 0 0.75rem;
+}
+
+.trail-ai-wizard__header h2 {
+  margin-bottom: 0.35rem;
+}
+
+.trail-ai-wizard__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.trail-ai-wizard__steps li {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: #f0eef6;
+  color: #5b5670;
+  font-size: 0.875rem;
+}
+
+.trail-ai-wizard__steps li.is-active {
+  background: #6c3ce1;
+  color: #fff;
+}
+
+.trail-ai-wizard__prompt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.trail-ai-wizard__phase-list {
+  margin: 0.5rem 0 1.25rem;
+  padding-left: 1.25rem;
+}
+
+.trail-ai-wizard__etapas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.trail-ai-wizard__etapa {
+  border: 1px solid var(--border, #d8d6e2);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.trail-ai-wizard__etapa h4 {
+  margin: 0 0 0.5rem;
+}
+
+.trail-ai-wizard__pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f7f6fb;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.trail-ai-wizard__meta-fields {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.trail-ai-wizard__raw {
+  margin-top: 1rem;
+}

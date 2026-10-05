@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  alignBlocoWithAttempt,
-  pickExerciseFeedbackText,
-  shouldAutoAdvanceAfterExerciseSubmit,
-} from './trailMessages'
+import { alignBlocoWithAttempt, pickExerciseFeedbackText } from './trailMessages'
 
 /** BLOCO em cache da célula t47 S10 q89 (gerado antes de o aluno responder). */
 const CACHED_GENERIC_BLOCO = [
@@ -62,15 +58,5 @@ describe('pickExerciseFeedbackText (bug t47: bolha só “🤔 Resposta” + �
     )
     expect(out).not.toContain('Parabéns pelo acerto')
     expect(out).toContain('A resposta correta é a letra A')
-  })
-})
-
-describe('shouldAutoAdvanceAfterExerciseSubmit (pós-Enviar sem Continuar extra)', () => {
-  it('avança sozinho quando ainda não há feedback na thread', () => {
-    expect(shouldAutoAdvanceAfterExerciseSubmit(false)).toBe(true)
-  })
-
-  it('mantém Continuar quando o feedback já foi surfado (pausa de leitura)', () => {
-    expect(shouldAutoAdvanceAfterExerciseSubmit(true)).toBe(false)
   })
 })

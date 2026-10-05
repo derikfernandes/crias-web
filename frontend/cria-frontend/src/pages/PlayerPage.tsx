@@ -45,7 +45,6 @@ import {
   normalizeTitleKey,
   parseInlineMarkdown,
   pickExerciseFeedbackText,
-  shouldAutoAdvanceAfterExerciseSubmit,
   renderMessageLines,
   stripDecorTitle,
   stripMidLessonConclusion,
@@ -2829,76 +2828,20 @@ export default function PlayerPage() {
   }
 
   /** Avança sem bolha "VOCÊ: Continuar". */
-  async function doAdvance(opts?: { bypassBusy?: boolean }) {
-    const bypassBusy = opts?.bypassBusy === true
-    if (content?.status !== 'ok') {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+  async function doAdvance() {
+    if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
-    // bypassBusy: encadeia pós-Enviar com chrome trail ainda busy (sem flash Continuar).
-    if (advanceInFlightRef.current || (!bypassBusy && busy)) return
+    if (advanceInFlightRef.current || busy) return
     // C2-R22 N01: resync silencioso em voo — não POST /advance em paralelo.
-    if (resyncInFlightRef.current) {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+    if (resyncInFlightRef.current) return
     // C2-R23 N04: Voltar mid-Maria não pode liberar advance enquanto askMaria voa.
-    if (mariaInFlightRef.current) {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+    if (mariaInFlightRef.current) return
     // C2-R9 N01: rascunho Maria compete com avanço — não avançar.
-    if (draft.trim()) {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+    if (draft.trim()) return
     // OM04: offline — não dispara advance fadado.
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const liveSession = ensureSessionOrRedirect()
-    if (!liveSession) {
-      if (bypassBusy) {
-        setBusy(false)
-        setBusyReason(null)
-        busyReasonRef.current = null
-        setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
-      }
-      return
-    }
+    if (!liveSession) return
     // R18-N02: se advance já commitou, só resync — não avança de novo.
     if (advanceCommittedRef.current) {
       advanceInFlightRef.current = true
@@ -3392,8 +3335,6 @@ export default function PlayerPage() {
     setMariaSidechat(false)
     const q = content.question_number
     let submitSucceeded = false
-    /** Sem feedback na thread → avança sozinho (sem Continuar extra pós-Enviar). */
-    let autoAdvanceAfterSubmit = false
     try {
       let attempt
       try {
@@ -3496,18 +3437,11 @@ export default function PlayerPage() {
       setPendingOptionKey(null)
       writeExerciseSelect(trailId, null)
       submitSucceeded = true
-      // Sem bolha de feedback: ir direto à próxima fase (em geral BLOCO / AI).
-      // Com feedback já na thread: Continuar permanece (pausa de leitura).
-      autoAdvanceAfterSubmit = shouldAutoAdvanceAfterExerciseSubmit(
-        Boolean(feedbackText),
-      )
       // R23-L02 / L07: anunciar feedback + focar Continuar (chrome, sem CTA novo).
       setSrAnnounce(
         feedbackText
           ? 'Resposta pronta. Pode continuar.'
-          : autoAdvanceAfterSubmit
-            ? 'Resposta enviada. Carregando próxima etapa…'
-            : 'Resposta enviada. Pode continuar.',
+          : 'Resposta enviada. Pode continuar.',
       )
     } catch (err) {
       skipNextBlocoDeliveryRef.current = false
@@ -3524,18 +3458,6 @@ export default function PlayerPage() {
         releaseTrailExerciseClaim(trailId, exerciseClaimId)
       }
       submitInFlightRef.current = false
-      if (submitSucceeded && autoAdvanceAfterSubmit) {
-        // Mantém chrome busy (trail) e esconde Continuar enquanto encadeia advance.
-        setBusy(true)
-        setBusyReason('trail')
-        busyReasonRef.current = 'trail'
-        setTrailBusyLabel('Carregando etapa…')
-        setContinuarLeaving(true)
-        window.requestAnimationFrame(() => {
-          void doAdvance({ bypassBusy: true })
-        })
-        return
-      }
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null

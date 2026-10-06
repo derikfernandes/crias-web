@@ -22,10 +22,15 @@ type DocRef = {
   get: () => Promise<DocSnap>
   set: (data: DocData, opts?: { merge?: boolean }) => Promise<void>
   update: (data: DocData) => Promise<void>
+  create: (data: DocData) => Promise<void>
+  delete: () => Promise<void>
 }
 
 type Query = {
   where: (field: string, op: string, value: unknown) => Query
+  orderBy: (field: string, dir?: string) => Query
+  limit: (n: number) => Query
+  select: (...fields: string[]) => Query
   get: () => Promise<QuerySnap>
 }
 
@@ -37,8 +42,10 @@ export function createMemoryFirestore(): {
   db: FirebaseFirestore.Firestore
   seed: (collection: string, id: string, data: DocData) => void
   getData: (collection: string, id: string) => DocData | undefined
+  list: (collection: string) => Array<{ id: string; data: DocData }>
 } {
   const store = new Map<string, DocData>()
+  let autoId = 0
 
   function makeSnap(collection: string, id: string): DocSnap {
     const key = pathKey(collection, id)
@@ -67,13 +74,37 @@ export function createMemoryFirestore(): {
         if (!store.has(path)) throw new Error(`No document to update: ${path}`)
         store.set(path, { ...store.get(path)!, ...data })
       },
+      create: async (data) => {
+        if (store.has(path)) {
+          const err = new Error(`ALREADY_EXISTS: ${path}`) as Error & { code?: number }
+          err.code = 6
+          throw err
+        }
+        store.set(path, { ...data })
+      },
+      delete: async () => {
+        store.delete(path)
+      },
     }
   }
 
-  function makeQuery(collection: string, filters: Array<[string, unknown]> = []): Query {
+  function makeQuery(
+    collection: string,
+    filters: Array<[string, unknown]> = [],
+    max = Number.POSITIVE_INFINITY,
+  ): Query {
     const self: Query = {
       where(field: string, _op: string, value: unknown) {
-        return makeQuery(collection, [...filters, [field, value]])
+        return makeQuery(collection, [...filters, [field, value]], max)
+      },
+      orderBy() {
+        return self
+      },
+      limit(n: number) {
+        return makeQuery(collection, filters, n)
+      },
+      select() {
+        return self
       },
       async get() {
         const prefix = `${collection}/`
@@ -82,7 +113,7 @@ export function createMemoryFirestore(): {
           if (!key.startsWith(prefix)) continue
           const id = key.slice(prefix.length)
           const match = filters.every(([field, value]) => data[field] === value)
-          if (match) {
+          if (match && docs.length < max) {
             docs.push({
               id,
               exists: true,
@@ -103,8 +134,8 @@ export function createMemoryFirestore(): {
   const db = {
     collection(collection: string) {
       return {
-        doc(id: string) {
-          return makeDocRef(collection, id)
+        doc(id?: string) {
+          return makeDocRef(collection, id ?? `auto_${++autoId}`)
         },
         where(field: string, op: string, value: unknown) {
           return makeQuery(collection, [[field, value]])
@@ -170,6 +201,12 @@ export function createMemoryFirestore(): {
     getData(collection, id) {
       const d = store.get(pathKey(collection, id))
       return d ? { ...d } : undefined
+    },
+    list(collection) {
+      const prefix = `${collection}/`
+      return [...store.entries()]
+        .filter(([k]) => k.startsWith(prefix))
+        .map(([k, data]) => ({ id: k.slice(prefix.length), data: { ...data } }))
     },
   }
 }

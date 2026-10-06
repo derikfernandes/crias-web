@@ -120,6 +120,15 @@ describe('computeLessonCardSlot — Maria sempre depois do bloco atual', () => {
     expect(computeMariaEntranceSlot(chat, 1, true)).toBe(1)
     expect(computeMariaEntranceSlot([step('1-1')], 1, true)).toBe(1)
   })
+
+  it('após reload (Maria do histórico, sem kind): entrada antes da pergunta, não no fim', () => {
+    const q: ChatMessage = { id: 'q', role: 'user', text: 'dúvida', contextCell: '4-1' }
+    const r: ChatMessage = { id: 'r', role: 'assistant', text: 'resposta', contextCell: '4-1' }
+    const chat = [step('1-1'), q, r]
+    expect(computeMariaEntranceSlot(chat, 1, true, '4-1')).toBe(1)
+    // Fala da Maria de outra célula não ancora a entrada da célula atual.
+    expect(computeMariaEntranceSlot(chat, 1, true, '5-1')).toBe(3)
+  })
 })
 
 describe('isFeedbackCellAlreadyShown — decisão estrutural', () => {

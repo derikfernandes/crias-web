@@ -3908,6 +3908,7 @@ export default function PlayerPage() {
     chatMessages,
     lessonCardSlot,
     mariaSidechat || mariaEntrance,
+    currentCell,
   )
 
   function renderBubbleParts(text: string, msgId?: string) {

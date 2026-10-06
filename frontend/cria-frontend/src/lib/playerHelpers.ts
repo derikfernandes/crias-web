@@ -118,9 +118,14 @@ export function computeMariaEntranceSlot(
   chat: ChatMessage[],
   lessonCardSlot: number,
   mariaActive: boolean,
+  currentCell: string | null = null,
 ): number {
+  // Maria do histórico (após reload) não tem `kind`: conta pela célula.
   const afterCard = chat.findIndex(
-    (m, idx) => idx >= lessonCardSlot && m.kind === 'sidechat',
+    (m, idx) =>
+      idx >= lessonCardSlot &&
+      (m.kind === 'sidechat' ||
+        (currentCell !== null && isSidechatAtCell(m, currentCell))),
   )
   if (afterCard >= 0) return afterCard
   if (mariaActive) return chat.length

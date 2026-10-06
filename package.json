@@ -15,6 +15,7 @@
     "lint": "npm run lint -w trilha-admin",
     "typecheck": "npm run typecheck -w trilha-admin && npm run typecheck -w cria-frontend",
     "test": "node --test scripts/contract-*.test.mjs scripts/check-design-boundaries.mjs scripts/agent-usage.test.mjs && vitest run",
+    "validate:chatis-flow": "node scripts/validate-chatis-flow.mjs",
     "check:design-boundaries": "node --test scripts/check-design-boundaries.mjs",
     "preview": "npm run preview -w trilha-admin",
     "audit:trilha-integrity": "node scripts/audit-trilha-integrity.js"

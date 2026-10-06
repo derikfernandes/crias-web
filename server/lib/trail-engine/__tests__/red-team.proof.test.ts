@@ -421,19 +421,21 @@ describe('RESIDUAL OPEN RT-M1 service: sem expected_version ainda double-advance
   })
 })
 
-describe('RESIDUAL OPEN RT-M5 / L1: parser Chatis / IR ausente (I5)', () => {
-  it('não existe packages/chatis-flow nem parseChatisExport', () => {
-    const src = readFileSync(join(ROOT, 'package.json'), 'utf8')
-    expect(src).not.toMatch(/chatis-flow|parseChatis/)
-    let missing = false
-    try {
-      readFileSync(
-        join(ROOT, 'server/lib/chatis-flow/parseChatisExport.ts'),
-        'utf8',
-      )
-    } catch {
-      missing = true
-    }
-    expect(missing).toBe(true)
+describe('CLOSED RT-M5 / L1: parser Chatis / IR presente (I5 / Wave C)', () => {
+  it('server/lib/chatis-flow expõe parseChatisExport + validate:chatis-flow', () => {
+    const pkg = readFileSync(join(ROOT, 'package.json'), 'utf8')
+    expect(pkg).toMatch(/validate:chatis-flow/)
+    const parser = readFileSync(
+      join(ROOT, 'server/lib/chatis-flow/parseChatisExport.ts'),
+      'utf8',
+    )
+    expect(parser).toMatch(/export function parseChatisExport/)
+    const index = readFileSync(
+      join(ROOT, 'server/lib/chatis-flow/index.ts'),
+      'utf8',
+    )
+    expect(index).toMatch(/parseChatisExport/)
+    expect(index).toMatch(/migrateFlow24To25/)
+    expect(index).toMatch(/decideStudentMigration/)
   })
 })

@@ -1,0 +1,170 @@
+{
+  "builder": {
+    "id": 284,
+    "name": "[ONLINE] Crias 2.4",
+    "type": "C",
+    "timeout": 1440
+  },
+  "scripts": [
+    {
+      "id": 37,
+      "name": "formatarRespostaIA",
+      "parameters": [
+        "IA_ANSWER"
+      ],
+      "body": "return String(IA_ANSWER||\"\").trim();"
+    }
+  ],
+  "variables": [
+    {
+      "id": 1,
+      "variable": "STUDENT_ID",
+      "value": "0",
+      "externalEdit": true
+    },
+    {
+      "id": 2,
+      "variable": "TRAIL_ID",
+      "value": "0",
+      "externalEdit": true
+    },
+    {
+      "id": 3,
+      "variable": "STATUS",
+      "value": "0",
+      "externalEdit": true
+    }
+  ],
+  "blocks": [
+    {
+      "id": 8221,
+      "name": "Início",
+      "variable": "B1",
+      "type": "S",
+      "actions": [
+        {
+          "id": 1,
+          "type": "R",
+          "tool": "action.redirect",
+          "config": {},
+          "next": {
+            "default": 8222
+          }
+        }
+      ]
+    },
+    {
+      "id": 8222,
+      "name": "1. Possui cadastro?",
+      "variable": "B3",
+      "type": "D",
+      "actions": [
+        {
+          "id": 10,
+          "type": "H",
+          "tool": "action.http",
+          "config": {
+            "url": "https://crias-trilhas.vercel.app/student?phone_number=${contact.phone}",
+            "httpType": "GE",
+            "body": ""
+          },
+          "next": {
+            "error": 8223
+          }
+        },
+        {
+          "id": 11,
+          "type": "V",
+          "tool": "action.validator",
+          "config": {
+            "type": "T",
+            "expression": "${B3.A1}"
+          },
+          "next": {
+            "false": 8217
+          }
+        }
+      ]
+    },
+    {
+      "id": 8217,
+      "name": "2. [CADASTRADO] Salvamento",
+      "variable": "B5",
+      "type": "D",
+      "actions": []
+    },
+    {
+      "id": 8223,
+      "name": "E1. Erro",
+      "variable": null,
+      "type": "D",
+      "actions": [
+        {
+          "id": 20,
+          "type": "E",
+          "tool": "action.email",
+          "config": {
+            "to": "derik@crias.ai"
+          }
+        }
+      ]
+    },
+    {
+      "id": 8173,
+      "name": "15. Avançar stage",
+      "variable": "B20",
+      "type": "D",
+      "actions": [
+        {
+          "id": 30,
+          "type": "H",
+          "tool": "action.http",
+          "config": {
+            "url": "https://crias-trilhas.vercel.app/student_trails/?action=advance_stage&student_id=${STUDENT_ID}&trail_id=${TRAIL_ID}",
+            "httpType": "PU",
+            "body": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": 8147,
+      "name": "12. texto fixo",
+      "variable": "B10",
+      "type": "D",
+      "actions": [
+        {
+          "id": 40,
+          "type": "W",
+          "tool": "action.content.wait",
+          "config": {
+            "text": "Conteúdo de exemplo"
+          }
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "source": {
+        "id": 8221,
+        "port": "R_1"
+      },
+      "target": {
+        "id": 8222
+      }
+    },
+    {
+      "source": {
+        "id": 8222,
+        "port": "false_11"
+      },
+      "target": {
+        "id": 8217
+      }
+    }
+  ],
+  "experimentalFlag": {
+    "enabled": true
+  }
+}

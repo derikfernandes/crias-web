@@ -2649,6 +2649,61 @@ export default function PlayerPage() {
     try {
       const data =
         prefetched ?? (await fetchNextContent(session.student_id, trailId))
+      
+      /**
+       * FIX Issue 2: Check skipNextBlocoDeliveryRef BEFORE setContent to prevent
+       * the BLOCO RESPOSTA from flashing in the UI during advance.
+       * Se já veio no feedback do exercício, pula sem renderizar.
+       */
+      if (
+        skipNextBlocoDeliveryRef.current &&
+        data.status === 'ok' &&
+        isBlocoRespostaContent({
+          stage_type: data.stage_type,
+          stage_title: data.stage_title,
+          prompt: data.prompt,
+        })
+      ) {
+        skipNextBlocoDeliveryRef.current = false
+        const blocoKey = trailCellKey(data.stage_number, data.question_number)
+        deliveredKeyRef.current = blocoKey
+        // Avança de novo, SEM atualizar content com o BLOCO
+        const advanceAgain = await advanceTrail(session.student_id, trailId, {
+          expectedVersion:
+            typeof data.progress_version === 'number'
+              ? data.progress_version
+              : 0,
+        })
+        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
+          const completed: NextContentStatus = {
+            status: 'completed',
+            student_id: session.student_id,
+            trail_id: trailId,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message: 'Trilha concluída.',
+          }
+          deliveredKeyRef.current = 'status-completed'
+          setContent(completed)
+          return completed
+        }
+        if (advanceAgain.status === 'ok') {
+          deliveredKeyRef.current = null
+          const nested = await loadNextAfterAdvance()
+          if (nested && nested.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: nested.stage_number,
+              question_number: nested.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
+          return nested
+        }
+        setContent(advanceAgain as NextContentStatus)
+        return advanceAgain as NextContentStatus
+      }
+      
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
       contentRef.current = data
@@ -2712,56 +2767,9 @@ export default function PlayerPage() {
       }
 
       /**
-       * B3: BLOCO RESPOSTA já veio no feedback do exercício — marca entregue,
-       * não cria 2ª bolha, e avança de novo para o próximo passo da trilha.
+       * FIX Issue 2: skipNextBlocoDeliveryRef check movido para ANTES de setContent
+       * (acima, linhas ~2660). Este bloco duplicado foi removido.
        */
-      if (
-        skipNextBlocoDeliveryRef.current &&
-        isBlocoRespostaContent({
-          stage_type: data.stage_type,
-          stage_title: data.stage_title,
-          prompt: data.prompt,
-        })
-      ) {
-        skipNextBlocoDeliveryRef.current = false
-        const blocoKey = trailCellKey(data.stage_number, data.question_number)
-        deliveredKeyRef.current = blocoKey
-        const advanceAgain = await advanceTrail(session.student_id, trailId, {
-          expectedVersion:
-            typeof data.progress_version === 'number'
-              ? data.progress_version
-              : 0,
-        })
-        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
-          const completed: NextContentStatus = {
-            status: 'completed',
-            student_id: session.student_id,
-            trail_id: trailId,
-            stage_number: data.stage_number,
-            question_number: data.question_number,
-            message: 'Trilha concluída.',
-          }
-          // Histórico fica; o card de conclusão fecha o thread.
-          deliveredKeyRef.current = 'status-completed'
-          setContent(completed)
-          return completed
-        }
-        if (advanceAgain.status === 'ok') {
-          deliveredKeyRef.current = null
-          const nested = await loadNextAfterAdvance()
-          if (nested && nested.status === 'ok') {
-            publishTrailProgress(trailId, {
-              stage_number: nested.stage_number,
-              question_number: nested.question_number,
-            })
-          } else {
-            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
-          }
-          return nested
-        }
-        setContent(advanceAgain as NextContentStatus)
-        return advanceAgain as NextContentStatus
-      }
       skipNextBlocoDeliveryRef.current = false
 
       const key = trailCellKey(data.stage_number, data.question_number)

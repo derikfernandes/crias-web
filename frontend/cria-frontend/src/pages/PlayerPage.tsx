@@ -105,6 +105,8 @@ function scheduleIdle(fn: () => void, timeout = HISTORY_IDLE_TIMEOUT_MS): () => 
 /**
  * C2-R4 N02: aplica history sem clobber de advance/Maria locais.
  * History vira prefixo; extras locais (animate/sidechat/células novas) ficam.
+ * FIX: Maria messages (sidechat) são inseridas na posição cronológica correta
+ * dentro do contexto da sua question, não no final absoluto.
  */
 function mergeHistoryIntoMessages(
   logs: ConversationLogRow[],
@@ -112,6 +114,7 @@ function mergeHistoryIntoMessages(
 ): ChatMessage[] {
   const fromHistory = logsToMessages(logs)
   if (prev.length === 0) return fromHistory
+  
   const extras = prev.filter((m) => {
     if (fromHistory.some((h) => h.id === m.id)) return false
     if (
@@ -128,7 +131,73 @@ function mergeHistoryIntoMessages(
     }
     return true
   })
-  return extras.length ? [...fromHistory, ...extras] : fromHistory
+  
+  if (!extras.length) return fromHistory
+  
+  // Agrupa extras por questionNumber para inserção contextual
+  const extrasByQuestion = new Map<number | undefined, ChatMessage[]>()
+  const extrasWithoutQuestion: ChatMessage[] = []
+  
+  for (const msg of extras) {
+    if (typeof msg.questionNumber === 'number') {
+      const list = extrasByQuestion.get(msg.questionNumber) || []
+      list.push(msg)
+      extrasByQuestion.set(msg.questionNumber, list)
+    } else {
+      extrasWithoutQuestion.push(msg)
+    }
+  }
+  
+  // Insere extras dentro do contexto da sua question
+  const result: ChatMessage[] = []
+  let currentQ: number | undefined = undefined
+  
+  for (const msg of fromHistory) {
+    result.push(msg)
+    
+    // Quando mudamos de question ou é a última mensagem dessa question no history,
+    // insere os extras (Maria, etc.) daquela question
+    if (typeof msg.questionNumber === 'number' && msg.questionNumber !== currentQ) {
+      currentQ = msg.questionNumber
+    }
+  }
+  
+  // Estratégia: inserir extras logo após a última mensagem da sua question no history
+  const finalResult: ChatMessage[] = []
+  const insertedQuestions = new Set<number>()
+  
+  for (let i = 0; i < result.length; i++) {
+    finalResult.push(result[i])
+    const q = result[i].questionNumber
+    
+    // Se esta mensagem tem questionNumber e ainda não inserimos extras desta question
+    if (typeof q === 'number' && !insertedQuestions.has(q)) {
+      // Verifica se é a última mensagem desta question antes de mudar para outra
+      const nextQ = result[i + 1]?.questionNumber
+      if (nextQ !== q) {
+        // É a última desta question, insere extras dela aqui
+        const extrasForQ = extrasByQuestion.get(q)
+        if (extrasForQ) {
+          finalResult.push(...extrasForQ)
+          insertedQuestions.add(q)
+        }
+      }
+    }
+  }
+  
+  // Adiciona extras sem questionNumber no final
+  if (extrasWithoutQuestion.length) {
+    finalResult.push(...extrasWithoutQuestion)
+  }
+  
+  // Adiciona extras de questions que não apareceram no history (células novas)
+  for (const [q, msgs] of extrasByQuestion.entries()) {
+    if (typeof q === 'number' && !insertedQuestions.has(q)) {
+      finalResult.push(...msgs)
+    }
+  }
+  
+  return finalResult
 }
 
 function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {

@@ -74,12 +74,18 @@ export async function askMariaTutor(
   const logsCollection =
     process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 
-  const [studentSnap, progressSnap] = await Promise.all([
+  // Aluno, matrícula e CONTEXT em paralelo (antes: em série antes do Gemini).
+  const [studentSnap, progressSnap, recent] = await Promise.all([
     db.collection(studentsCollection).doc(studentId).get(),
     db
       .collection(studentTrailsCollection)
-      .doc(`${studentId}_${trailId}`)
+      .doc(`${studentId}_trail_${trailId}`)
       .get(),
+    listRecentContextLogs(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      limit: contextLimit(env),
+    }),
   ])
 
   if (!studentSnap.exists) {
@@ -122,11 +128,6 @@ export async function askMariaTutor(
         ? progressData.institution_id
         : null
 
-  const recent = await listRecentContextLogs(db, {
-    student_id: studentId,
-    trail_id: trailId,
-    limit: contextLimit(env),
-  })
   const context = formatContextFromLogs(recent, contextLimit(env))
 
   const systemInstruction = applyVars(MARIA_TUTORA_SYSTEM_PROMPT, {
@@ -146,7 +147,8 @@ export async function askMariaTutor(
     message,
   ].join('\n\n')
 
-  await createConversationLog(db, logsCollection, {
+  // Pergunta gravada enquanto o Gemini responde (termina bem antes dele).
+  const studentLog = createConversationLog(db, logsCollection, {
     student_id: studentId,
     trail_id: trailId,
     stage_number,
@@ -157,11 +159,14 @@ export async function askMariaTutor(
     message_type: 'text',
     metadata: { source: 'maria-tutor', channel: 'app' },
   })
+  // Sem unhandled rejection enquanto o Gemini roda; o erro sobe no await abaixo.
+  studentLog.catch(() => {})
 
   const gen = await generateImpl(
     { systemInstruction, userText },
     env,
   )
+  await studentLog
   const reply = formatAiAnswer(gen.text)
   if (!reply) {
     throw new Error('Resposta da Maria vazia.')

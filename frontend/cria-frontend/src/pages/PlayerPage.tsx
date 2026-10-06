@@ -36,7 +36,6 @@ import {
   formatBubbleTime,
   type InlineSeg,
   type MessagePart,
-  isBlocoRespostaContent,
   isContinuarText,
   isTrailDeliveryLog,
   logsToMessages,
@@ -53,6 +52,13 @@ import {
   trailMessageId,
 } from '../lib/trailMessages'
 import { bindVisualViewport } from '../lib/visualViewport'
+import {
+  computeLessonCardSlot,
+  computeMariaEntranceSlot,
+  isFeedbackCellAlreadyShown,
+  mainButtonState,
+  mergeHistoryIntoMessages,
+} from '../lib/playerHelpers'
 
 /** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
@@ -100,35 +106,6 @@ function scheduleIdle(fn: () => void, timeout = HISTORY_IDLE_TIMEOUT_MS): () => 
   return () => {
     window.clearTimeout(t)
   }
-}
-
-/**
- * C2-R4 N02: aplica history sem clobber de advance/Maria locais.
- * History vira prefixo; extras locais (animate/sidechat/células novas) ficam.
- */
-function mergeHistoryIntoMessages(
-  logs: ConversationLogRow[],
-  prev: ChatMessage[],
-): ChatMessage[] {
-  const fromHistory = logsToMessages(logs)
-  if (prev.length === 0) return fromHistory
-  const extras = prev.filter((m) => {
-    if (fromHistory.some((h) => h.id === m.id)) return false
-    if (
-      m.cellKey &&
-      m.kind !== 'sidechat' &&
-      fromHistory.some(
-        (h) =>
-          h.cellKey === m.cellKey &&
-          h.role === m.role &&
-          h.kind !== 'sidechat',
-      )
-    ) {
-      return false
-    }
-    return true
-  })
-  return extras.length ? [...fromHistory, ...extras] : fromHistory
 }
 
 function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {
@@ -834,7 +811,6 @@ export default function PlayerPage() {
   } | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesRef = useRef<ChatMessage[]>([])
-  const voltarBtnRef = useRef<HTMLButtonElement>(null)
   const deliveredKeyRef = useRef<string | null>(null)
   /** C2-R21 N01/N02: evita refetch paralelo (visibility / storage / Continuar). */
   const resyncInFlightRef = useRef(false)
@@ -878,7 +854,6 @@ export default function PlayerPage() {
    * B3: após surfacer BLOCO RESPOSTA no feedback do exercício, o próximo
    * Continuar não deve reexibir a mesma célula como 2ª bolha de feedback.
    */
-  const skipNextBlocoDeliveryRef = useRef(false)
   /** Race guard síncrono — double-tap Continuar (R04-L01 / R06-E02). */
   const advanceInFlightRef = useRef(false)
   /** C2-R23 N01: race guard síncrono — double-submit Enviar exercício. */
@@ -1031,7 +1006,8 @@ export default function PlayerPage() {
   const focusAfterMariaAck = useCallback(() => {
     const tryFocus = (allowComposerFallback: boolean) => {
       if (mariaCancelledRef.current) return true
-      const voltar = voltarBtnRef.current
+      // Botão principal (Continuar trilha) é o alvo estável pós-resposta.
+      const voltar = continuarBtnRef.current
       // CTA display:none sob KB → offsetParent null; espera settle.
       if (voltar && voltar.offsetParent !== null) {
         voltar.focus({ preventScroll: true })
@@ -1067,7 +1043,7 @@ export default function PlayerPage() {
             active &&
             active !== document.body &&
             active !== document.documentElement &&
-            (active === voltarBtnRef.current ||
+            (active === continuarBtnRef.current ||
               active === inputRef.current ||
               (active as HTMLElement).closest?.('[data-msg-id]'))
           ) {
@@ -1770,7 +1746,14 @@ export default function PlayerPage() {
       // Persist só depois do history (evita log duplicado no remount).
       deliveredKeyRef.current = key
       const msgId = trailMessageId(data.stage_number, data.question_number)
-      if (text || data.stage_type !== 'ai') {
+      /**
+       * Fase IA cujo texto já foi o feedback do exercício (servidor marca
+       * `exercise_feedback`): o feedback vem do histórico (bolha do exercício).
+       * Sem bolha da célula — senão, ao avançar, ela reaparecia como 2º feedback.
+       */
+      const cellIsExerciseFeedback =
+        data.stage_type === 'ai' && data.exercise_feedback === true
+      if ((text || data.stage_type !== 'ai') && !cellIsExerciseFeedback) {
         setMessages((prev) =>
           appendTrailMessage(prev, {
             id: msgId,
@@ -1853,7 +1836,11 @@ export default function PlayerPage() {
                   return next
                 })
               }
-            } else if (data.stage_type === 'ai' && text) {
+            } else if (
+              data.stage_type === 'ai' &&
+              text &&
+              !cellIsExerciseFeedback
+            ) {
               const alignId = trailMessageId(
                 data.stage_number,
                 data.question_number,
@@ -2580,11 +2567,56 @@ export default function PlayerPage() {
     try {
       const data =
         prefetched ?? (await fetchNextContent(session.student_id, trailId))
+
+      /**
+       * Fase IA logo após o exercício cujo texto o servidor já entregou como
+       * feedback da tentativa (`exercise_feedback`) e que está no chat:
+       * não renderiza de novo (nem o card por um frame) — avança direto para
+       * o próximo passo. Decisão estrutural (sem título/comando do stage).
+       */
+      if (
+        !fromMariaEject &&
+        data.status === 'ok' &&
+        isFeedbackCellAlreadyShown(data, messagesRef.current)
+      ) {
+        deliveredKeyRef.current = trailCellKey(
+          data.stage_number,
+          data.question_number,
+        )
+        const advanceAgain = await advanceTrail(session.student_id, trailId, {
+          expectedVersion:
+            typeof data.progress_version === 'number'
+              ? data.progress_version
+              : 0,
+        })
+        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
+          const completed: NextContentStatus = {
+            status: 'completed',
+            student_id: session.student_id,
+            trail_id: trailId,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message: 'Trilha concluída.',
+          }
+          // Histórico fica; o card de conclusão fecha o thread.
+          deliveredKeyRef.current = 'status-completed'
+          setContent(completed)
+          contentRef.current = completed
+          return completed
+        }
+        if (advanceAgain.status === 'ok') {
+          deliveredKeyRef.current = null
+          return await loadNextAfterAdvance()
+        }
+        setContent(advanceAgain as NextContentStatus)
+        contentRef.current = advanceAgain as NextContentStatus
+        return advanceAgain as NextContentStatus
+      }
+
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
       contentRef.current = data
       if (data.status !== 'ok') {
-        skipNextBlocoDeliveryRef.current = false
         const key = `status-${data.status}`
         if (data.status === 'completed') {
           // Card de conclusão no fim do thread; histórico local fica.
@@ -2610,7 +2642,6 @@ export default function PlayerPage() {
        * #7: exitMariaToTrailRef também zera mariaEntrance (chip/parceiro).
        */
       if (fromMariaEject) {
-        skipNextBlocoDeliveryRef.current = false
         const key = trailCellKey(data.stage_number, data.question_number)
         deliveredKeyRef.current = key
         if (data.stage_type === 'exercise') {
@@ -2642,59 +2673,6 @@ export default function PlayerPage() {
         return data
       }
 
-      /**
-       * B3: BLOCO RESPOSTA já veio no feedback do exercício — marca entregue,
-       * não cria 2ª bolha, e avança de novo para o próximo passo da trilha.
-       */
-      if (
-        skipNextBlocoDeliveryRef.current &&
-        isBlocoRespostaContent({
-          stage_type: data.stage_type,
-          stage_title: data.stage_title,
-          prompt: data.prompt,
-        })
-      ) {
-        skipNextBlocoDeliveryRef.current = false
-        const blocoKey = trailCellKey(data.stage_number, data.question_number)
-        deliveredKeyRef.current = blocoKey
-        const advanceAgain = await advanceTrail(session.student_id, trailId, {
-          expectedVersion:
-            typeof data.progress_version === 'number'
-              ? data.progress_version
-              : 0,
-        })
-        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
-          const completed: NextContentStatus = {
-            status: 'completed',
-            student_id: session.student_id,
-            trail_id: trailId,
-            stage_number: data.stage_number,
-            question_number: data.question_number,
-            message: 'Trilha concluída.',
-          }
-          // Histórico fica; o card de conclusão fecha o thread.
-          deliveredKeyRef.current = 'status-completed'
-          setContent(completed)
-          return completed
-        }
-        if (advanceAgain.status === 'ok') {
-          deliveredKeyRef.current = null
-          const nested = await loadNextAfterAdvance()
-          if (nested && nested.status === 'ok') {
-            publishTrailProgress(trailId, {
-              stage_number: nested.stage_number,
-              question_number: nested.question_number,
-            })
-          } else {
-            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
-          }
-          return nested
-        }
-        setContent(advanceAgain as NextContentStatus)
-        return advanceAgain as NextContentStatus
-      }
-      skipNextBlocoDeliveryRef.current = false
-
       const key = trailCellKey(data.stage_number, data.question_number)
       const options =
         data.stage_type === 'exercise'
@@ -2706,22 +2684,29 @@ export default function PlayerPage() {
       deliveredKeyRef.current = key
       const msgId = trailMessageId(data.stage_number, data.question_number)
 
+      /**
+       * Entrega nova = célula ainda não está no chat. Decidido ANTES do
+       * setMessages: o updater roda depois (batching do React 18), e o
+       * `isNew` lido dentro dele ficava false — exercício/texto fixo não era
+       * gravado e sumia (ou mudava de lugar) no histórico após reload.
+       */
+      const isNewCell = !messagesRef.current.some(
+        (m) => m.cellKey === key || m.id === msgId,
+      )
+
       if (data.stage_type === 'exercise') {
         setExerciseDone(false)
-        let isNew = false
-        setMessages((prev) => {
-          const result = appendTrailMessage(prev, {
+        setMessages((prev) =>
+          appendTrailMessage(prev, {
             id: msgId,
             role: 'assistant',
             text,
             stageType: 'exercise',
             cellKey: key,
             questionNumber: data.question_number,
-          })
-          isNew = result.isNew
-          return result.messages
-        })
-        if (isNew) {
+          }).messages,
+        )
+        if (isNewCell) {
           void persistLog({
             sender: 'system',
             message_text: text,
@@ -2751,20 +2736,17 @@ export default function PlayerPage() {
       }
 
       // fixed
-      let isNewFixed = false
-      setMessages((prev) => {
-        const result = appendTrailMessage(prev, {
+      setMessages((prev) =>
+        appendTrailMessage(prev, {
           id: msgId,
           role: 'assistant',
           text,
           stageType: data.stage_type,
           cellKey: key,
           questionNumber: data.question_number,
-        })
-        isNewFixed = result.isNew
-        return result.messages
-      })
-      if (isNewFixed) {
+        }).messages,
+      )
+      if (isNewCell) {
         void persistLog({
           sender: 'system',
           message_text: text,
@@ -2776,7 +2758,6 @@ export default function PlayerPage() {
       }
       return data
     } catch (err) {
-      skipNextBlocoDeliveryRef.current = false
       // C2-R12 N01: tentar reconciliar antes do banner — evita erro+busy no mesmo frame.
       try {
         const reconciled = await fetchNextContent(session.student_id, trailId)
@@ -2861,7 +2842,10 @@ export default function PlayerPage() {
     busyReasonRef.current = 'trail'
     setTrailBusyLabel('Salvando progresso…')
     clearError()
+    // Modo Maria: o mesmo Continuar fecha a conversa e avança (um clique).
     setMariaSidechat(false)
+    mariaSidechatRef.current = false
+    setMariaEntrance(false)
     mariaCancelledRef.current = false
     // Reafirma no mesmo frame do disable — Chromium mobile joga BODY no :disabled.
     window.requestAnimationFrame(() => {
@@ -3078,8 +3062,15 @@ export default function PlayerPage() {
     busyReasonRef.current = 'maria'
     clearError()
     const q = content.question_number
+    const askCell = trailCellKey(content.stage_number, content.question_number)
     const askLine = userLine
     const userMsgId = `u-${Date.now()}`
+    // Pergunta enviada do fim do chat: segue a conversa até a resposta
+    // (se o aluno rolar para cima durante a espera, o pin dele vale).
+    pinnedAwayRef.current = false
+    userScrollUpGestureRef.current = false
+    nearBottomRef.current = true
+    clearJumpChip()
     setMessages((prev) => [
       ...prev,
       markAnimate({
@@ -3088,6 +3079,7 @@ export default function PlayerPage() {
         text: askLine,
         questionNumber: q,
         kind: 'sidechat',
+        contextCell: askCell,
         timeLabel: formatBubbleTime(null, true),
       }),
     ])
@@ -3112,6 +3104,7 @@ export default function PlayerPage() {
             text: result.reply,
             questionNumber: q,
             kind: 'sidechat',
+            contextCell: askCell,
             timeLabel: formatBubbleTime(null, true),
           }),
         ])
@@ -3375,8 +3368,6 @@ export default function PlayerPage() {
         isCorrect: attempt.is_correct,
         scored: attempt.score !== null,
       })
-      // B3: se o BLOCO seguinte já entrou neste feedback, pular reentrega.
-      skipNextBlocoDeliveryRef.current = Boolean(feedbackText)
       // B5: opção escolhida vira banner no histórico (não some).
       setMessages((prev) => {
         const next = [
@@ -3388,6 +3379,7 @@ export default function PlayerPage() {
             stageType: 'exercise' as const,
             kind: 'exercise-answer' as const,
             questionNumber: q,
+            contextCell: cellKey,
           }),
         ]
         if (feedbackText) {
@@ -3399,38 +3391,46 @@ export default function PlayerPage() {
               stageType: 'exercise',
               kind: 'feedback',
               questionNumber: q,
+              contextCell: cellKey,
             }),
           )
         }
         return next
       })
-      await persistLog({
-        sender: 'student',
-        message_text: option.text,
-        stage_number: content.stage_number,
-        question_number: content.question_number,
-        message_type: 'exercise',
-        metadata: {
-          source: 'exercise_attempt',
-          option_key: option.key,
-          is_correct: attempt.is_correct,
-          attempt_number: attempt.attempt_number,
-        },
-      })
-      if (feedbackText) {
+      // Libera o Continuar já com o feedback na tela; a gravação (resposta →
+      // feedback, nessa ordem) segue em background — antes eram 2 POSTs em
+      // série antes do botão aparecer.
+      const stageNumber = content.stage_number
+      const questionNumber = content.question_number
+      void (async () => {
         await persistLog({
-          sender: 'system',
-          message_text: feedbackText,
-          stage_number: content.stage_number,
-          question_number: content.question_number,
-          message_type: 'feedback',
+          sender: 'student',
+          message_text: option.text,
+          stage_number: stageNumber,
+          question_number: questionNumber,
+          message_type: 'exercise',
           metadata: {
-            source: 'exercise_feedback',
+            source: 'exercise_attempt',
+            option_key: option.key,
             is_correct: attempt.is_correct,
-            score: attempt.score,
+            attempt_number: attempt.attempt_number,
           },
         })
-      }
+        if (feedbackText) {
+          await persistLog({
+            sender: 'system',
+            message_text: feedbackText,
+            stage_number: stageNumber,
+            question_number: questionNumber,
+            message_type: 'feedback',
+            metadata: {
+              source: 'exercise_feedback',
+              is_correct: attempt.is_correct,
+              score: attempt.score,
+            },
+          })
+        }
+      })()
       setExerciseDone(true)
       setExercisePhase('done')
       setSelectedOptionKey(null)
@@ -3444,7 +3444,6 @@ export default function PlayerPage() {
           : 'Resposta enviada. Pode continuar.',
       )
     } catch (err) {
-      skipNextBlocoDeliveryRef.current = false
       // R18-N06: falha → error; mantém card + seleção.
       // OM02: um recovery — Enviar (não 2× “Tentar de novo” banner+card).
       // OM03: limpa ACK stale de Continuar no fail de envio.
@@ -3563,7 +3562,6 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
-    !mariaSidechat &&
     !advanceInFlightRef.current &&
     !mariaInFlightRef.current &&
     !canRetry &&
@@ -3572,18 +3570,6 @@ export default function PlayerPage() {
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
 
-  /**
-   * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
-   * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
-   * C2-R29 N01: permanece também durante resync de etapa (trail busy).
-   */
-  const showVoltarTrilha =
-    content?.status === 'ok' &&
-    mariaSidechat &&
-    (!busy || busyReason === 'maria' || busyReason === 'trail')
-
-  /** D#10 / R14-L14 — UI Maria mantém seta. */
-  const continuarLabel = 'Continuar trilha →'
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -3606,10 +3592,10 @@ export default function PlayerPage() {
     exercisePhase === 'submitting'
       ? 'Enviando resposta…'
       : exercisePhase === 'error'
-        ? 'Falha ao enviar — toque em Enviar para tentar de novo'
+        ? 'Falha ao enviar — toque em Enviar resposta de novo'
         : selectedOptionKey
-          ? 'Toque em Enviar para confirmar'
-          : 'Escolha uma opção e toque em Enviar'
+          ? 'Toque em Enviar resposta para confirmar'
+          : 'Escolha uma opção e toque em Enviar resposta'
 
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -3799,13 +3785,25 @@ export default function PlayerPage() {
       busyReason === 'exercise' ||
       busyReason === 'trail') &&
     exercisePhase !== 'submitting'
-  const showCtaSlot =
-    content?.status === 'ok' &&
-    (showContinuar ||
-      showVoltarTrilha ||
-      continuarLeaving ||
-      (busy && busyReason === 'trail') ||
-      (busy && busyReason === 'maria'))
+  /** Botão principal único: Enviar resposta (exercício) ou Continuar trilha. */
+  const mainButton = mainButtonState({
+    contentOk: content?.status === 'ok',
+    stageType: content?.status === 'ok' ? content.stage_type : null,
+    exerciseDone,
+    exerciseOptionsMissing,
+    hasSelection: Boolean(selectedOptionKey),
+    submitting: exercisePhase === 'submitting',
+    busy,
+    busyReason,
+    trailBusyLabel,
+    continuarLeaving,
+    advanceInFlight: advanceInFlightRef.current,
+    mariaInFlight: mariaInFlightRef.current,
+    hasMariaDraft,
+    offline,
+    canRetry,
+  })
+  const showCtaSlot = content?.status === 'ok' && mainButton.visible
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
@@ -3821,9 +3819,7 @@ export default function PlayerPage() {
    */
   const sendDisabledHard =
     exercisePhase === 'submitting' ||
-    (exerciseLockedComposer
-      ? !!selectedOptionKey && !canSubmitExercise
-      : !canSend)
+    (exerciseLockedComposer ? true : !canSend)
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
     content?.status === 'ok' &&
@@ -3859,8 +3855,15 @@ export default function PlayerPage() {
         )
       : ''
 
+  /** Fase IA pós-exercício já mostrada como feedback (servidor) → sem 2ª cópia. */
+  const currentCellShownAsFeedback = isFeedbackCellAlreadyShown(
+    content?.status === 'ok' ? content : null,
+    messages,
+  )
   const showLessonCard =
-    content?.status === 'ok' && Boolean(lessonTitle || lessonBody)
+    content?.status === 'ok' &&
+    !currentCellShownAsFeedback &&
+    Boolean(lessonTitle || lessonBody)
 
   const showMariaEntrance =
     mariaEntrance ||
@@ -3877,7 +3880,7 @@ export default function PlayerPage() {
     // Mantém a bolha do enunciado ativo para o cue "Questão abaixo…".
     if (promptMovedToCard) return true
     if (
-      showLessonCard &&
+      (showLessonCard || currentCellShownAsFeedback) &&
       currentCell &&
       msg.cellKey === currentCell &&
       msg.role === 'assistant' &&
@@ -3896,36 +3899,17 @@ export default function PlayerPage() {
    * e cada etapa nova (aula/exercício) “aparecia em cima”. Sem bolha da
    * célula no tail (ainda gerando / fora do recorte), vai para o fim.
    */
-  const currentCellVisibleIdx = currentCell
-    ? visibleMessages.findIndex(
-        (m) =>
-          m.role === 'assistant' &&
-          m.cellKey === currentCell &&
-          m.kind !== 'feedback' &&
-          m.kind !== 'sidechat',
-      )
-    : -1
-  const lessonCardSlot = (() => {
-    if (currentCellVisibleIdx < 0) return chatMessages.length
-    const before = new Set(
-      visibleMessages.slice(0, currentCellVisibleIdx).map((m) => m.id),
-    )
-    const idx = chatMessages.findIndex((m) => !before.has(m.id))
-    return idx < 0 ? chatMessages.length : idx
-  })()
-  /**
-   * Entrada da Maria: logo antes da 1ª bolha sidechat do passo corrente; se a
-   * Maria acabou de ser chamada (sem bolhas ainda), no fim — nunca no topo.
-   */
-  const mariaEntranceSlot = (() => {
-    const afterCard = chatMessages.findIndex(
-      (m, idx) => idx >= lessonCardSlot && m.kind === 'sidechat',
-    )
-    if (afterCard >= 0) return afterCard
-    if (mariaSidechat || mariaEntrance) return chatMessages.length
-    const anySidechat = chatMessages.findIndex((m) => m.kind === 'sidechat')
-    return anySidechat >= 0 ? anySidechat : chatMessages.length
-  })()
+  const lessonCardSlot = computeLessonCardSlot(
+    visibleMessages,
+    chatMessages,
+    currentCell,
+  )
+  const mariaEntranceSlot = computeMariaEntranceSlot(
+    chatMessages,
+    lessonCardSlot,
+    mariaSidechat || mariaEntrance,
+    currentCell,
+  )
 
   function renderBubbleParts(text: string, msgId?: string) {
     return renderMessageLines(text).map((part) =>
@@ -4400,32 +4384,23 @@ export default function PlayerPage() {
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
             </button>
           ) : null}
-          {showVoltarTrilha ? (
-            <div className="chat-continue chat-continue--sidechat chat-continue--enter">
-              <button
-                ref={voltarBtnRef}
-                type="button"
-                className="chat-continue__btn"
-                onClick={onVoltarParaTrilha}
-              >
-                Voltar à trilha
-              </button>
-            </div>
-          ) : null}
-
-          {showContinuar || trailBusy || mariaBusyPending ? (
+          {mainButton.visible ? (
             <div
               className={`chat-continue${
-                trailBusy || mariaBusyPending
+                mainButton.busy && mainButton.action !== 'advance'
                   ? ' chat-continue--leaving'
                   : ' chat-continue--enter'
               }${
-                currentStageHasEmbed && !trailBusy && !mariaBusyPending
+                mainButton.action === 'advance' &&
+                currentStageHasEmbed &&
+                !mainButton.busy
                   ? ' chat-continue--with-media'
                   : ''
               }`}
             >
-              {currentStageMediaHint && !trailBusy && !mariaBusyPending ? (
+              {mainButton.action === 'advance' &&
+              currentStageMediaHint &&
+              !mainButton.busy ? (
                 <p className="chat-cta-slot__media-hint">
                   {currentStageMediaHint}
                 </p>
@@ -4434,35 +4409,31 @@ export default function PlayerPage() {
                 ref={continuarBtnRef}
                 type="button"
                 className={`chat-continue__btn${
-                  currentStageHasEmbed && !trailBusy && !mariaBusyPending
+                  mainButton.action === 'advance' &&
+                  currentStageHasEmbed &&
+                  !mainButton.busy
                     ? ' chat-continue__btn--secondary'
                     : ''
                 }`}
-                disabled={
-                  // C2-R27 N02: mariaBusyPending usa aria-disabled (não :disabled)
-                  // para o CTA “Aguarde…” permanecer focável — :disabled joga BODY.
-                  (busy && !mariaBusyPending) ||
-                  continuarLeaving ||
-                  advanceInFlightRef.current ||
-                  offline ||
-                  hasMariaDraft
-                }
-                aria-disabled={mariaBusyPending || undefined}
-                aria-busy={trailBusy || mariaBusyPending || undefined}
+                data-action={mainButton.action}
+                disabled={mainButton.disabled}
+                aria-busy={mainButton.busy || undefined}
                 title={
-                  hasMariaDraft
+                  mainButton.action === 'advance' && hasMariaDraft
                     ? 'Envie a dúvida à Maria antes de avançar'
-                    : mariaBusyPending
-                      ? 'Aguarde — finalizando conversa com Maria'
+                    : mainButton.action === 'submit' && !selectedOptionKey
+                      ? 'Escolha uma opção primeiro'
                       : undefined
                 }
-                onClick={() => void doAdvance()}
+                onClick={() => {
+                  if (mainButton.action === 'submit') {
+                    void submitSelectedOption()
+                  } else if (mainButton.action === 'advance') {
+                    void doAdvance()
+                  }
+                }}
               >
-                {trailBusy
-                  ? trailBusyLabel
-                  : mariaBusyPending
-                    ? 'Aguarde…'
-                    : continuarLabel}
+                {mainButton.label}
               </button>
             </div>
           ) : null}
@@ -4501,7 +4472,7 @@ export default function PlayerPage() {
           (showContinuar && !hasMariaDraft) || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
-        }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
+        }`}
       >
 <form
           className="chat-composer__form"
@@ -4574,15 +4545,9 @@ export default function PlayerPage() {
             disabled={sendDisabledHard}
             aria-disabled={sendAriaDisabled || undefined}
             aria-label={
-              exerciseSubmitting
-                ? 'Enviando resposta…'
-                : canSubmitExercise
-                  ? 'Enviar resposta'
-                  : sendAriaDisabled
-                    ? 'Enviar — escolha uma opção primeiro'
-                    : exerciseLockedComposer && !!selectedOptionKey
-                      ? 'Enviar — conecte-se para enviar'
-                      : 'Enviar pergunta à Maria'
+              exerciseLockedComposer
+                ? 'Maria disponível após o feedback do exercício'
+                : 'Enviar pergunta à Maria'
             }
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -4615,7 +4580,7 @@ export default function PlayerPage() {
                       ? 'Pergunte à Maria · Continuar trilha avança'
                       : 'Pergunte à Maria'
                     : mariaSidechat
-                      ? 'Voltar à trilha reexibe o passo atual'
+                      ? 'Continue a conversa com a Maria · Continuar trilha avança'
                       : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
                         showContinuar
                         ? 'Enviar fala com Maria · Continuar trilha avança'

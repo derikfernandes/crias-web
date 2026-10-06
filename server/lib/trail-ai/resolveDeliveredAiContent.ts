@@ -1,6 +1,10 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
-import { conversationLogCreatedAtMillis } from '../conversationLogService'
+import {
+  conversationLogPreciseMillis,
+  conversationLogSortMillis,
+} from '../conversationLogService'
+import { formatDateTimeBrasilia } from '../brasiliaDateTime'
 
 function conversationLogsCollection(): string {
   return process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
@@ -23,6 +27,142 @@ export function trailAiDeliveryDocId(
 export type DeliveredAiContent = {
   message_text: string
   log_id: string
+  /** 'trail-ai' (geração da célula) ou 'exercise_feedback' (feedback da tentativa). */
+  source?: string | null
+  /** Texto já mostrado ao aluno como feedback do exercício anterior. */
+  shown_as_exercise_feedback?: boolean
+  /** Momento em que o aluno chegou à célula (ordem do histórico). */
+  delivered_at_brasilia?: string | null
+}
+
+function deliveryExtras(
+  data: Record<string, unknown>,
+): Pick<
+  DeliveredAiContent,
+  'source' | 'shown_as_exercise_feedback' | 'delivered_at_brasilia'
+> {
+  return {
+    source: typeof data.source === 'string' ? data.source : null,
+    shown_as_exercise_feedback: data.shown_as_exercise_feedback === true,
+    delivered_at_brasilia:
+      typeof data.delivered_at_brasilia === 'string'
+        ? data.delivered_at_brasilia
+        : null,
+  }
+}
+
+type DeliveryCell = {
+  student_id: string
+  trail_id: string
+  stage_number: number
+  question_number: number
+}
+
+function deliveryRef(db: Firestore, cell: DeliveryCell) {
+  return db
+    .collection(trailAiDeliveriesCollection())
+    .doc(
+      trailAiDeliveryDocId(
+        cell.student_id.trim(),
+        cell.trail_id.trim(),
+        cell.stage_number,
+        cell.question_number,
+      ),
+    )
+}
+
+/**
+ * Feedback da tentativa vira a entrega da célula de feedback (stage AI logo
+ * após o exercício). O Continuar reusa este texto (sem 2ª chamada à IA) e o
+ * player sabe que já o mostrou. Sem log trail-ai: o player grava o mesmo
+ * texto como `exercise_feedback` no exercício — no histórico aparece uma vez.
+ */
+export async function persistExerciseFeedbackDelivery(
+  db: Firestore,
+  input: DeliveryCell & {
+    message_text: string
+    content_fingerprint?: string | null
+    model?: string | null
+    attempt_stage_number: number
+    attempt_question_number: number
+  },
+): Promise<void> {
+  const text = input.message_text.trim()
+  if (!text || input.stage_number < 1 || input.question_number < 1) return
+  const now = Date.now()
+  await deliveryRef(db, input).set({
+    student_id: input.student_id.trim(),
+    trail_id: input.trail_id.trim(),
+    stage_number: input.stage_number,
+    question_number: input.question_number,
+    message_text: text,
+    log_id: null,
+    status: 'ready',
+    source: 'exercise_feedback',
+    shown_as_exercise_feedback: true,
+    attempt_stage_number: input.attempt_stage_number,
+    attempt_question_number: input.attempt_question_number,
+    model: input.model ?? null,
+    claimed_at_ms: now,
+    updated_at_ms: now,
+    ...(input.content_fingerprint
+      ? { content_fingerprint: input.content_fingerprint }
+      : {}),
+  })
+}
+
+/** Fallback (texto da célula usado como feedback): marca como já mostrado. */
+export async function markDeliveryShownAsExerciseFeedback(
+  db: Firestore,
+  cell: DeliveryCell,
+): Promise<void> {
+  await deliveryRef(db, cell).set(
+    { shown_as_exercise_feedback: true, updated_at_ms: Date.now() },
+    { merge: true },
+  )
+}
+
+/** Feedback já persistido para a célula (replay do envio / explanation). */
+export async function readExerciseFeedbackDelivery(
+  db: Firestore,
+  cell: DeliveryCell,
+): Promise<string | null> {
+  const snap = await deliveryRef(db, cell).get()
+  if (!snap.exists) return null
+  const data = (snap.data() ?? {}) as Record<string, unknown>
+  if (data.shown_as_exercise_feedback !== true) return null
+  const text =
+    typeof data.message_text === 'string' ? data.message_text.trim() : ''
+  const status = typeof data.status === 'string' ? data.status : ''
+  if (!text || (status && status !== 'ready')) return null
+  return text
+}
+
+/**
+ * Marca a entrega trail-ai como vista pelo aluno (uma vez). A geração costuma
+ * acontecer antes (prefetch na célula anterior); sem isto o histórico pós-reload
+ * punha a etapa acima das conversas com a Maria que vieram antes dela.
+ */
+export async function markTrailAiDelivered(
+  db: Firestore,
+  cell: DeliveryCell & { log_id?: string | null },
+): Promise<void> {
+  const stamp = {
+    delivered_at_brasilia: formatDateTimeBrasilia(),
+    delivered_at_ms: Date.now(),
+  }
+  const writes: Array<Promise<unknown>> = [
+    deliveryRef(db, cell).set(stamp, { merge: true }),
+  ]
+  const logId = typeof cell.log_id === 'string' ? cell.log_id.trim() : ''
+  if (logId && logId !== deliveryRef(db, cell).id) {
+    writes.push(
+      db.collection(conversationLogsCollection()).doc(logId).set(stamp, {
+        merge: true,
+      }),
+    )
+  }
+  await Promise.all(writes)
 }
 
 const PENDING_STALE_MS = 45_000
@@ -191,6 +331,7 @@ export async function claimTrailAiGeneration(
       content: {
         message_text: text,
         log_id: typeof data.log_id === 'string' ? data.log_id : id,
+        ...deliveryExtras(data),
       },
     }
   }
@@ -378,6 +519,7 @@ export async function resolveDeliveredAiContent(
       return {
         message_text: text,
         log_id: typeof data.log_id === 'string' ? data.log_id : cacheId,
+        ...deliveryExtras(data),
       }
     }
   }
@@ -400,7 +542,7 @@ export async function resolveDeliveredAiContent(
     const text =
       typeof data.message_text === 'string' ? data.message_text.trim() : ''
     if (!text) continue
-    const rank = conversationLogCreatedAtMillis(data)
+    const rank = conversationLogSortMillis(data)
     // Prefere a entrega mais recente (force_regenerate / cache alinhado).
     if (!best || rank > best.rank) {
       best = { rank, message_text: text, log_id: doc.id }
@@ -452,7 +594,8 @@ export async function listRecentContextLogs(
     .map((doc) => {
       const data = (doc.data() ?? {}) as Record<string, unknown>
       return {
-        rank: conversationLogCreatedAtMillis(data),
+        rank: conversationLogSortMillis(data),
+        precise: conversationLogPreciseMillis(data),
         sender: typeof data.sender === 'string' ? data.sender : 'system',
         message_text:
           typeof data.message_text === 'string' ? data.message_text : '',
@@ -462,7 +605,7 @@ export async function listRecentContextLogs(
           asPositiveInt(data.question_number) ?? undefined,
       }
     })
-    .sort((a, b) => b.rank - a.rank)
+    .sort((a, b) => b.rank - a.rank || b.precise - a.precise)
     .slice(0, limit)
 
   return ranked
@@ -532,8 +675,15 @@ export async function listTrailConversationLogsSafe(
           typeof data.created_at_brasilia === 'string'
             ? data.created_at_brasilia
             : null,
-        created_at_ms: conversationLogCreatedAtMillis(data),
+        created_at_ms: conversationLogSortMillis(data),
+        precise_ms: conversationLogPreciseMillis(data),
       }
     })
-    .sort((a, b) => a.created_at_ms - b.created_at_ms)
+    // Mesmo segundo (resposta + feedback gravados em sequência): desempata
+    // pelo timestamp do Firestore (ms) — antes a ordem dependia do doc id.
+    .sort(
+      (a, b) =>
+        a.created_at_ms - b.created_at_ms || a.precise_ms - b.precise_ms,
+    )
+    .map(({ precise_ms: _precise, ...row }) => row)
 }

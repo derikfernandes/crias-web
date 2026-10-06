@@ -29,6 +29,7 @@ import {
   releaseTrailAiClaim,
   resolveDeliveredAiContent,
   trailAiDeliveryDocId,
+  type DeliveredAiContent,
   upsertTrailAiDeliveryCache,
   waitForTrailAiDelivery,
 } from './resolveDeliveredAiContent'
@@ -41,6 +42,15 @@ export type EnsureTrailAiResult = {
   stage_number: number
   question_number: number
   title: string | null
+  /**
+   * true quando o texto desta célula já foi mostrado ao aluno como o feedback
+   * do exercício anterior (gerado no envio com a resposta dele).
+   */
+  shown_as_exercise_feedback: boolean
+  /** Log trail-ai da entrega (quando existe). */
+  log_id: string | null
+  /** Entrega já marcada como vista pelo aluno (ordem do histórico). */
+  delivered_marked: boolean
 }
 
 function contextLimit(env: NodeJS.ProcessEnv = process.env): number {
@@ -60,6 +70,7 @@ function asResult(
   stageNumber: number,
   questionNumber: number,
   title: string | null,
+  delivery?: Partial<DeliveredAiContent> | null,
 ): EnsureTrailAiResult {
   return {
     content,
@@ -69,6 +80,9 @@ function asResult(
     stage_number: stageNumber,
     question_number: questionNumber,
     title,
+    shown_as_exercise_feedback: delivery?.shown_as_exercise_feedback === true,
+    log_id: typeof delivery?.log_id === 'string' ? delivery.log_id : null,
+    delivered_marked: Boolean(delivery?.delivered_at_brasilia),
   }
 }
 
@@ -80,6 +94,24 @@ type CellMeta = {
   fingerprint: string
   subjectSource: string
   isBloco: boolean
+  /** Stage anterior (mesma aula) é exercício → esta célula é o feedback dele. */
+  followsExercise: boolean
+}
+
+type DocData = Record<string, unknown>
+
+/** Docs já lidos pelo caller (evita reler no caminho quente do feedback). */
+export type CellMetaPreload = {
+  stage?: DocData | null
+  question?: DocData | null
+  prevStage?: DocData | null
+  prevQuestion?: DocData | null
+}
+
+function readStageType(data: DocData | null | undefined): string {
+  return typeof data?.stage_type === 'string'
+    ? data.stage_type.trim().toLowerCase()
+    : ''
 }
 
 async function loadPreviousExercise(
@@ -137,36 +169,54 @@ async function loadCellMeta(
   trailId: string,
   stageNumber: number,
   questionNumber: number,
+  preload?: CellMetaPreload,
 ): Promise<CellMeta & { stageType: string }> {
   const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
   const questionsCollection =
     process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
 
-  const [stageSnap, questionSnap] = await Promise.all([
-    db.collection(stagesCollection).doc(stageDocId(trailId, stageNumber)).get(),
-    db
-      .collection(questionsCollection)
-      .doc(trailStageQuestionDocId(trailId, stageNumber, questionNumber))
-      .get(),
+  const readDoc = async (
+    collection: string,
+    id: string,
+    known: DocData | null | undefined,
+  ): Promise<DocData | null> => {
+    if (known !== undefined) return known
+    const snap = await db.collection(collection).doc(id).get()
+    return snap.exists ? ((snap.data() ?? {}) as DocData) : null
+  }
+
+  // Stage + questão + stage anterior em paralelo (estrutura, não título).
+  const [stageData, questionData, prevStageData] = await Promise.all([
+    readDoc(stagesCollection, stageDocId(trailId, stageNumber), preload?.stage),
+    readDoc(
+      questionsCollection,
+      trailStageQuestionDocId(trailId, stageNumber, questionNumber),
+      preload?.question,
+    ),
+    stageNumber > 1
+      ? readDoc(
+          stagesCollection,
+          stageDocId(trailId, stageNumber - 1),
+          preload?.prevStage,
+        )
+      : Promise.resolve(null),
   ])
 
-  const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
-  const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
-  const stageType =
-    typeof stageData.stage_type === 'string'
-      ? stageData.stage_type.trim().toLowerCase()
-      : ''
-  const prompt = typeof stageData.prompt === 'string' ? stageData.prompt : ''
+  const stageType = readStageType(stageData)
+  const prompt = typeof stageData?.prompt === 'string' ? stageData.prompt : ''
   const baseContent =
-    typeof questionData.content === 'string' ? questionData.content : ''
+    typeof questionData?.content === 'string' ? questionData.content : ''
   const title =
-    typeof stageData.title === 'string'
+    typeof stageData?.title === 'string'
       ? stageData.title
-      : typeof questionData.title === 'string'
+      : typeof questionData?.title === 'string'
         ? questionData.title
         : null
 
-  const isBloco = isBlocoRespostaPrompt(prompt, title)
+  // Fase AI logo após um exercício = feedback desse exercício (estrutural).
+  // Marcadores no comando seguem valendo para BLOCO legado mais distante.
+  const followsExercise = readStageType(prevStageData) === 'exercise'
+  const isBloco = followsExercise || isBlocoRespostaPrompt(prompt, title)
   let enrichedContent = baseContent
   let subjectSource = baseContent
   let prevContent = ''
@@ -174,12 +224,42 @@ async function loadCellMeta(
   let prevTitle: string | null = null
 
   if (isBloco) {
-    const prev = await loadPreviousExercise(
-      db,
-      trailId,
-      stageNumber,
-      questionNumber,
-    )
+    let prev: {
+      content: string
+      title: string | null
+      correct_option: string | null
+    } | null = null
+    if (followsExercise) {
+      const prevQuestion = await readDoc(
+        questionsCollection,
+        trailStageQuestionDocId(trailId, stageNumber - 1, questionNumber),
+        preload?.prevQuestion,
+      )
+      const content =
+        typeof prevQuestion?.content === 'string' ? prevQuestion.content : ''
+      if (content.trim()) {
+        prev = {
+          content,
+          title:
+            typeof prevStageData?.title === 'string'
+              ? prevStageData.title
+              : typeof prevQuestion?.title === 'string'
+                ? prevQuestion.title
+                : null,
+          correct_option:
+            typeof prevQuestion?.correct_option === 'string'
+              ? prevQuestion.correct_option
+              : null,
+        }
+      }
+    } else {
+      prev = await loadPreviousExercise(
+        db,
+        trailId,
+        stageNumber,
+        questionNumber,
+      )
+    }
     if (prev) {
       prevContent = prev.content
       prevCorrect = prev.correct_option
@@ -219,6 +299,7 @@ async function loadCellMeta(
     fingerprint,
     subjectSource,
     isBloco,
+    followsExercise,
     stageType,
   }
 }
@@ -361,6 +442,7 @@ export async function ensureTrailAiContent(
             stageNumber,
             questionNumber,
             meta.title,
+            claim.content,
           )
         }
         await invalidateTrailAiDelivery(db, cell)
@@ -385,6 +467,7 @@ export async function ensureTrailAiContent(
               stageNumber,
               questionNumber,
               meta.title,
+              waited,
             )
           }
           await invalidateTrailAiDelivery(db, cell)
@@ -427,6 +510,7 @@ export async function ensureTrailAiContent(
             stageNumber,
             questionNumber,
             meta.title,
+            existingLog,
           )
         }
         // log legado inválido (matéria errada): não reusa — gera de novo
@@ -438,8 +522,23 @@ export async function ensureTrailAiContent(
       throw new Error('ensure-ai só aplica a stages do tipo "ai".')
     }
 
+    if (isTrailAiDisabled(env)) {
+      await releaseTrailAiClaim(db, cell)
+      throw new Error(
+        'Geração IA desligada (TRAIL_AI_DISABLED). Sem delivery prévio nesta célula.',
+      )
+    }
+
     const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
-    const studentSnap = await db.collection(studentsCollection).doc(studentId).get()
+    // Aluno + CONTEXT em paralelo (antes: leituras em série antes do Gemini).
+    const [studentSnap, recent] = await Promise.all([
+      db.collection(studentsCollection).doc(studentId).get(),
+      listRecentContextLogs(db, {
+        student_id: studentId,
+        trail_id: trailId,
+        limit: contextLimit(env),
+      }),
+    ])
     const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
 
     const name = typeof studentData.name === 'string' ? studentData.name : ''
@@ -460,18 +559,6 @@ export async function ensureTrailAiContent(
           ? progress.institution_id
           : null
 
-    if (isTrailAiDisabled(env)) {
-      await releaseTrailAiClaim(db, cell)
-      throw new Error(
-        'Geração IA desligada (TRAIL_AI_DISABLED). Sem delivery prévio nesta célula.',
-      )
-    }
-
-    const recent = await listRecentContextLogs(db, {
-      student_id: studentId,
-      trail_id: trailId,
-      limit: contextLimit(env),
-    })
     let context = formatContextFromLogs(recent, contextLimit(env))
     if (meta.isBloco) {
       context = filterContextForBloco(context, {
@@ -550,6 +637,7 @@ export async function ensureTrailAiContent(
             stageNumber,
             questionNumber,
             meta.title,
+            raced,
           )
         }
       }
@@ -588,6 +676,7 @@ export async function ensureTrailAiContent(
       stageNumber,
       questionNumber,
       meta.title,
+      { log_id: typeof created?.id === 'string' ? created.id : undefined },
     )
   } catch (e) {
     await releaseTrailAiClaim(db, cell).catch(() => {
@@ -643,27 +732,41 @@ function feedbackTimeoutMs(env: NodeJS.ProcessEnv): number {
   return Number.isFinite(n) && n > 0 ? n : 30_000
 }
 
+/** Leituras do feedback já feitas em paralelo pelo caller (ex.: durante o insert do attempt). */
+export type AttemptFeedbackPreload = {
+  /** Stage/questão da célula de feedback (stage AI logo após o exercício). */
+  feedbackStage?: DocData | null
+  feedbackQuestion?: DocData | null
+  /** Stage/questão do exercício respondido. */
+  exerciseStage?: DocData | null
+  exerciseQuestion?: DocData | null
+  student?: DocData | null
+  recentLogs?: Awaited<ReturnType<typeof listRecentContextLogs>>
+}
+
 /**
- * Feedback do exercício para UMA tentativa: BLOCO RESPOSTA (comando + conteúdo
- * da escola + exercício/gabarito) + a resposta do aluno e o resultado.
+ * Feedback do exercício para UMA tentativa: comando + conteúdo da fase de
+ * feedback (stage AI logo após o exercício) + exercício/gabarito + a resposta
+ * do aluno e o resultado. O texto vem só do que a escola configurou + IA.
  *
- * O cache de célula (`ensureTrailAiContent`) do BLOCO é gerado no prefetch,
- * antes de o aluno responder — por isso não serve como correção da tentativa.
- * Aqui não grava cache nem log: o player persiste como `exercise_feedback`.
+ * O caller persiste o resultado como entrega da célula de feedback
+ * (`persistExerciseFeedbackDelivery`), então o Continuar reusa este texto em
+ * vez de gerar um segundo feedback.
  */
 export async function generateExerciseAttemptFeedback(
   db: Firestore,
   input: {
     student_id: string
     trail_id: string
-    /** Célula BLOCO RESPOSTA (stage AI seguinte ao exercício). */
+    /** Célula de feedback (stage AI seguinte ao exercício). */
     stage_number: number
     question_number: number
     attempt: ExerciseAttemptForFeedback
   },
   env: NodeJS.ProcessEnv = process.env,
   generateImpl: typeof generateContentWithGemini = generateContentWithGemini,
-): Promise<{ content: string; model: string }> {
+  preload?: AttemptFeedbackPreload,
+): Promise<{ content: string; model: string; fingerprint: string }> {
   const studentId = input.student_id.trim()
   const trailId = input.trail_id.trim()
   if (!studentId || !trailId) {
@@ -673,46 +776,70 @@ export async function generateExerciseAttemptFeedback(
     throw new Error('Geração IA desligada (TRAIL_AI_DISABLED).')
   }
 
-  const meta = await loadCellMeta(
-    db,
-    trailId,
-    input.stage_number,
-    input.question_number,
-  )
-  if (meta.stageType !== 'ai' || !meta.isBloco) {
-    throw new Error('Célula seguinte não é BLOCO RESPOSTA.')
-  }
-
   const questionsCollection =
     process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
   const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
-  const [exerciseSnap, studentSnap] = await Promise.all([
-    db
-      .collection(questionsCollection)
-      .doc(
-        trailStageQuestionDocId(
-          trailId,
-          input.attempt.stage_number,
-          input.attempt.question_number,
-        ),
-      )
-      .get(),
-    db.collection(studentsCollection).doc(studentId).get(),
+  const exerciseIsPrevStage =
+    input.attempt.stage_number === input.stage_number - 1 &&
+    input.attempt.question_number === input.question_number
+
+  const readDoc = async (
+    collection: string,
+    id: string,
+    known: DocData | null | undefined,
+  ): Promise<DocData | null> => {
+    if (known !== undefined) return known
+    const snap = await db.collection(collection).doc(id).get()
+    return snap.exists ? ((snap.data() ?? {}) as DocData) : null
+  }
+
+  // Tudo que não depende de nada roda junto (antes: 4–6 idas em série).
+  const [meta, exerciseData, studentData, recent] = await Promise.all([
+    loadCellMeta(db, trailId, input.stage_number, input.question_number, {
+      stage: preload?.feedbackStage,
+      question: preload?.feedbackQuestion,
+      ...(exerciseIsPrevStage
+        ? {
+            prevStage: preload?.exerciseStage,
+            prevQuestion: preload?.exerciseQuestion,
+          }
+        : {}),
+    }),
+    readDoc(
+      questionsCollection,
+      trailStageQuestionDocId(
+        trailId,
+        input.attempt.stage_number,
+        input.attempt.question_number,
+      ),
+      preload?.exerciseQuestion,
+    ),
+    readDoc(studentsCollection, studentId, preload?.student),
+    preload?.recentLogs
+      ? Promise.resolve(preload.recentLogs)
+      : listRecentContextLogs(db, {
+          student_id: studentId,
+          trail_id: trailId,
+          limit: contextLimit(env),
+        }),
   ])
-  const exerciseData = (exerciseSnap.data() ?? {}) as Record<string, unknown>
+  if (meta.stageType !== 'ai') {
+    throw new Error('Célula seguinte ao exercício não é uma fase de IA.')
+  }
+
   const exerciseContent =
-    typeof exerciseData.content === 'string' ? exerciseData.content : ''
-  const options = resolveExerciseOptions(exerciseData.options, exerciseContent)
+    typeof exerciseData?.content === 'string' ? exerciseData.content : ''
+  const options = resolveExerciseOptions(exerciseData?.options, exerciseContent)
 
   let content = meta.enrichedContent
   let subjectSource = meta.subjectSource
-  // Sem exercício anterior encontrado pelo BLOCO: usa o da própria tentativa.
+  // Sem exercício anterior encontrado pela célula: usa o da própria tentativa.
   if (content === meta.baseContent && exerciseContent.trim()) {
     content = enrichBlocoContent({
       blocoContent: meta.baseContent,
       exerciseContent,
       correctOption:
-        typeof exerciseData.correct_option === 'string'
+        typeof exerciseData?.correct_option === 'string'
           ? exerciseData.correct_option
           : null,
       correctLetter: extractCorrectLetterFromText(meta.baseContent),
@@ -730,21 +857,15 @@ export async function generateExerciseAttemptFeedback(
     .filter((p) => p.trim())
     .join('\n\n')
 
-  const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
-  const name = typeof studentData.name === 'string' ? studentData.name : ''
+  const name = typeof studentData?.name === 'string' ? studentData.name : ''
   const school_grade =
-    typeof studentData.school_grade === 'string' ? studentData.school_grade : ''
+    typeof studentData?.school_grade === 'string' ? studentData.school_grade : ''
   const student_level =
-    typeof studentData.student_level === 'number' ||
-    typeof studentData.student_level === 'string'
+    typeof studentData?.student_level === 'number' ||
+    typeof studentData?.student_level === 'string'
       ? studentData.student_level
       : 2
 
-  const recent = await listRecentContextLogs(db, {
-    student_id: studentId,
-    trail_id: trailId,
-    limit: contextLimit(env),
-  })
   const context = filterContextForBloco(
     formatContextFromLogs(recent, contextLimit(env)),
     {
@@ -796,7 +917,7 @@ export async function generateExerciseAttemptFeedback(
       'Feedback do exercício incoerente com o exercício (matéria divergente).',
     )
   }
-  return { content: formatted, model: gen.model }
+  return { content: formatted, model: gen.model, fingerprint: meta.fingerprint }
 }
 
 function logsCollectionName(): string {

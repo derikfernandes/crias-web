@@ -345,6 +345,21 @@ async function handleRequest(request: Request): Promise<Response> {
           headerIdem || validated.data.idempotency_key || null,
       }
 
+      // Leituras do feedback (fase IA seguinte, exercício, aluno, contexto)
+      // em paralelo com a gravação da tentativa — antes eram em série depois.
+      const feedbackPreload = import(
+        '../server/lib/studentTrailProgressService.js'
+      )
+        .then(({ loadExerciseFeedbackPreload }) =>
+          loadExerciseFeedbackPreload(db, {
+            student_id: validated.data.student_id,
+            trail_id: validated.data.trail_id,
+            stage_number: validated.data.stage_number,
+            question_number: validated.data.question_number,
+          }),
+        )
+        .catch(() => null)
+
       let result: Awaited<
         ReturnType<typeof createExerciseAttemptWithQuestionLookup>
       >
@@ -366,26 +381,36 @@ async function handleRequest(request: Request): Promise<Response> {
         throw err
       }
 
-      // Feedback rico: gera/recupera BLOCO RESPOSTA do próximo stage AI (se houver).
+      // Feedback da tentativa = conteúdo da fase IA seguinte ao exercício,
+      // gerado com a resposta do aluno e persistido como a entrega dessa
+      // célula (o Continuar reusa; não há 2ª geração).
       let pedagogical_feedback: string | null = null
-      if (!result.replay) {
-        try {
-          const { ensureNextBlocoRespostaFeedback } = await import(
-            '../server/lib/studentTrailProgressService.js'
-          )
-          pedagogical_feedback = await ensureNextBlocoRespostaFeedback(db, {
-            student_id: validated.data.student_id,
-            trail_id: validated.data.trail_id,
-            stage_number: validated.data.stage_number,
-            question_number: validated.data.question_number,
-            is_correct: result.is_correct,
-            // Resposta + resultado no contexto da IA (antes só o gabarito).
-            student_answer: validated.data.student_answer,
-            has_gabarito: result.score !== null,
-          })
-        } catch {
-          pedagogical_feedback = null
+      try {
+        const {
+          ensureNextBlocoRespostaFeedback,
+          peekNextBlocoRespostaCached,
+        } = await import('../server/lib/studentTrailProgressService.js')
+        const cellInput = {
+          student_id: validated.data.student_id,
+          trail_id: validated.data.trail_id,
+          stage_number: validated.data.stage_number,
+          question_number: validated.data.question_number,
         }
+        pedagogical_feedback = result.replay
+          ? // Replay (retry/idempotência): devolve o feedback já persistido.
+            await peekNextBlocoRespostaCached(db, cellInput)
+          : await ensureNextBlocoRespostaFeedback(
+              db,
+              {
+                ...cellInput,
+                is_correct: result.is_correct,
+                student_answer: validated.data.student_answer,
+                has_gabarito: result.score !== null,
+              },
+              { preload: feedbackPreload },
+            )
+      } catch {
+        pedagogical_feedback = null
       }
 
       return jsonResponse(

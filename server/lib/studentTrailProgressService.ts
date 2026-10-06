@@ -50,6 +50,11 @@ export type NextContentOk = {
   next_action: 'deliver_content'
   /** Optimistic lock p/ POST advance (C2-R22 N02). */
   progress_version: number
+  /**
+   * true = o conteúdo desta célula (fase IA após um exercício) já foi
+   * mostrado ao aluno como o feedback da tentativa. O player não reexibe.
+   */
+  exercise_feedback?: boolean
 }
 
 export type NextContentStatusBody = {
@@ -77,20 +82,6 @@ export type IdentifyOk = {
   name: string
   active: true
   phone_number: string
-}
-
-/** Detecta stage AI pedagógico de feedback (BLOCO RESPOSTA). */
-export function isBlocoRespostaStage(
-  prompt: string | null | undefined,
-  title?: string | null,
-): boolean {
-  const p = (prompt ?? '').toUpperCase()
-  const t = (title ?? '').toUpperCase()
-  return (
-    p.includes('BLOCO RESPOSTA') ||
-    p.includes('OBJETIVO - BLOCO RESPOSTA') ||
-    (t.includes('RESPOSTA') && !t.includes('PERGUNTA'))
-  )
 }
 
 // "A resposta correta é a letra X" é gabarito/explicação, não celebração —
@@ -143,9 +134,138 @@ export function hasFeedbackBody(text: string): boolean {
     })
 }
 
+type DocData = Record<string, unknown>
+
 /**
- * Garante/recupera o texto do próximo stage se for BLOCO RESPOSTA (AI).
- * Usado no feedback pós-exercício — não avança o progresso do aluno.
+ * Célula de feedback de um exercício = a fase IA logo a seguir na mesma aula
+ * (stage + 1, mesma questão). Estrutural: não depende do título nem de
+ * marcadores no comando — cada escola nomeia as fases como quiser.
+ */
+export type ExerciseFeedbackCell = {
+  stage_number: number
+  question_number: number
+}
+
+/**
+ * Leituras do feedback que não dependem do attempt — disparadas em paralelo
+ * com a gravação da tentativa (POST /exercise_attempts).
+ */
+export type ExerciseFeedbackPreload = {
+  feedbackStage: DocData | null
+  feedbackQuestion: DocData | null
+  exerciseStage: DocData | null
+  exerciseQuestion: DocData | null
+  student: DocData | null
+  recentLogs: Array<{
+    sender: string
+    message_text: string
+    stage_number?: number
+    question_number?: number
+  }>
+}
+
+function contextLimitFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.TRAIL_AI_CONTEXT_LIMIT
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? Math.min(50, n) : 20
+}
+
+export async function loadExerciseFeedbackPreload(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<ExerciseFeedbackPreload> {
+  const stagesCollection = process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const read = async (collection: string, id: string) => {
+    const snap = await db.collection(collection).doc(id).get()
+    return snap.exists ? ((snap.data() ?? {}) as DocData) : null
+  }
+  const { listRecentContextLogs } = await import(
+    './trail-ai/resolveDeliveredAiContent.js'
+  )
+  const next = input.stage_number + 1
+  const [
+    feedbackStage,
+    feedbackQuestion,
+    exerciseStage,
+    exerciseQuestion,
+    student,
+    recentLogs,
+  ] = await Promise.all([
+    read(stagesCollection, stageDocId(input.trail_id, next)),
+    read(
+      questionsCollection,
+      trailStageQuestionDocId(input.trail_id, next, input.question_number),
+    ),
+    read(stagesCollection, stageDocId(input.trail_id, input.stage_number)),
+    read(
+      questionsCollection,
+      trailStageQuestionDocId(
+        input.trail_id,
+        input.stage_number,
+        input.question_number,
+      ),
+    ),
+    read(studentsCollection, input.student_id),
+    listRecentContextLogs(db, {
+      student_id: input.student_id,
+      trail_id: input.trail_id,
+      limit: contextLimitFromEnv(),
+    }),
+  ])
+  return {
+    feedbackStage,
+    feedbackQuestion,
+    exerciseStage,
+    exerciseQuestion,
+    student,
+    recentLogs,
+  }
+}
+
+/** Célula de feedback do exercício (ou null se a fase seguinte não é IA). */
+export function exerciseFeedbackCellFrom(
+  input: { stage_number: number; question_number: number },
+  preload: Pick<
+    ExerciseFeedbackPreload,
+    'feedbackStage' | 'feedbackQuestion' | 'exerciseStage'
+  >,
+): ExerciseFeedbackCell | null {
+  if (preload.exerciseStage && asStageType(preload.exerciseStage.stage_type) !== 'exercise') {
+    return null
+  }
+  const stage = preload.feedbackStage
+  const question = preload.feedbackQuestion
+  if (!stage || !question) return null
+  if (asStageType(stage.stage_type) !== 'ai') return null
+  if (
+    evaluateContentAvailability({
+      is_released: asBool(question.is_released, false),
+      active_stage: asBool(stage.active, true),
+      active_question: asBool(question.active, true),
+    }) === 'blocked'
+  ) {
+    return null
+  }
+  return {
+    stage_number: input.stage_number + 1,
+    question_number: input.question_number,
+  }
+}
+
+/**
+ * Feedback pós-exercício: gera o texto da fase de feedback (stage AI logo
+ * após o exercício) COM a resposta do aluno e persiste como a entrega dessa
+ * célula. No Continuar, next-content devolve o mesmo texto (sem 2ª chamada à
+ * IA) marcado `exercise_feedback`, e o player não o mostra de novo.
+ * Não avança o progresso do aluno.
  */
 export async function ensureNextBlocoRespostaFeedback(
   db: Firestore,
@@ -158,76 +278,79 @@ export async function ensureNextBlocoRespostaFeedback(
     is_correct?: boolean | null
     /**
      * Alternativa escolhida nesta tentativa. Quando presente, o feedback é
-     * gerado pela IA com a resposta do aluno + resultado no contexto (o cache
-     * da célula BLOCO é gerado no prefetch, antes de o aluno responder).
+     * gerado pela IA com a resposta do aluno + resultado no contexto.
      */
     student_answer?: string | null
     /** false = questão sem gabarito (attempt unscored). */
     has_gabarito?: boolean
   },
+  opts?: {
+    /** Leituras já disparadas pelo caller (em paralelo com o insert do attempt). */
+    preload?: Promise<ExerciseFeedbackPreload | null> | ExerciseFeedbackPreload | null
+    env?: NodeJS.ProcessEnv
+  },
 ): Promise<string | null> {
   try {
-    const { totalStages, maxQuestion } = await loadTrailCounts(
-      db,
-      input.trail_id,
-    )
-    if (totalStages < 1 || maxQuestion < 1) return null
-    const next = computeNextPosition({
-      current_stage_number: input.stage_number,
-      current_question_number: input.question_number,
-      total_stages: totalStages,
-      total_questions: maxQuestion,
-    })
-    if (next.completed) return null
-
-    const stagesCollection =
-      process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
-    const stageSnap = await db
-      .collection(stagesCollection)
-      .doc(stageDocId(input.trail_id, next.next_stage_number))
-      .get()
-    if (!stageSnap.exists) return null
-    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
-    if (asStageType(stageData.stage_type) !== 'ai') return null
-    const prompt =
-      typeof stageData.prompt === 'string' ? stageData.prompt : null
-    const title =
-      typeof stageData.title === 'string' ? stageData.title : null
-    if (!isBlocoRespostaStage(prompt, title)) return null
+    const preload =
+      (opts?.preload ? await opts.preload : null) ??
+      (await loadExerciseFeedbackPreload(db, input))
+    const feedbackCell = exerciseFeedbackCellFrom(input, preload)
+    if (!feedbackCell) return null
 
     const cell = {
       student_id: input.student_id,
       trail_id: input.trail_id,
-      stage_number: next.next_stage_number,
-      question_number: next.next_question_number,
+      ...feedbackCell,
     }
 
-    const { ensureTrailAiContent, generateExerciseAttemptFeedback } =
-      await import('./trail-ai/ensureTrailAiContent.js')
+    const [
+      { ensureTrailAiContent, generateExerciseAttemptFeedback },
+      { persistExerciseFeedbackDelivery, markDeliveryShownAsExerciseFeedback },
+    ] = await Promise.all([
+      import('./trail-ai/ensureTrailAiContent.js'),
+      import('./trail-ai/resolveDeliveredAiContent.js'),
+    ])
 
     const studentAnswer =
       typeof input.student_answer === 'string' ? input.student_answer.trim() : ''
     if (studentAnswer) {
       try {
-        const gen = await generateExerciseAttemptFeedback(db, {
-          ...cell,
-          attempt: {
-            stage_number: input.stage_number,
-            question_number: input.question_number,
-            student_answer: studentAnswer,
-            is_correct:
-              input.has_gabarito === false
-                ? null
-                : typeof input.is_correct === 'boolean'
-                  ? input.is_correct
-                  : null,
+        const gen = await generateExerciseAttemptFeedback(
+          db,
+          {
+            ...cell,
+            attempt: {
+              stage_number: input.stage_number,
+              question_number: input.question_number,
+              student_answer: studentAnswer,
+              is_correct:
+                input.has_gabarito === false
+                  ? null
+                  : typeof input.is_correct === 'boolean'
+                    ? input.is_correct
+                    : null,
+            },
           },
-        })
+          opts?.env,
+          undefined,
+          preload,
+        )
         const tailored = gen.content.trim()
-        if (tailored) return tailored
+        if (tailored) {
+          // Vira a entrega da célula de feedback: o Continuar reusa (sem 2ª IA).
+          await persistExerciseFeedbackDelivery(db, {
+            ...cell,
+            message_text: tailored,
+            content_fingerprint: gen.fingerprint,
+            model: gen.model,
+            attempt_stage_number: input.stage_number,
+            attempt_question_number: input.question_number,
+          })
+          return tailored
+        }
       } catch (e) {
         console.error(
-          '[exercise-feedback] geração com a resposta do aluno falhou; usando BLOCO da célula',
+          '[exercise-feedback] geração com a resposta do aluno falhou; usando o texto da célula',
           {
             trail_id: input.trail_id,
             stage_number: cell.stage_number,
@@ -238,7 +361,7 @@ export async function ensureNextBlocoRespostaFeedback(
       }
     }
 
-    let ensured = await ensureTrailAiContent(db, cell)
+    const ensured = await ensureTrailAiContent(db, cell)
     let text = ensured.content?.trim() || null
     if (!text) return null
 
@@ -246,15 +369,17 @@ export async function ensureNextBlocoRespostaFeedback(
       typeof input.is_correct === 'boolean' &&
       blocoConflictsWithAttempt(text, input.is_correct)
     ) {
-      // Não regrava o cache da célula com texto “podado” (a etapa BLOCO
-      // ainda pode celebrar o gabarito quando o aluno chega nela via Continuar).
-      // Só alinha o feedback do attempt atual; force_regenerate fica p/ QA.
+      // Não regrava o cache da célula com texto “podado”; só alinha o feedback
+      // do attempt atual. force_regenerate fica p/ QA.
       text = alignBlocoWithAttempt(text, input.is_correct) || null
     }
-
+    if (text) {
+      // Já mostrado como feedback → o Continuar não reexibe a célula.
+      await markDeliveryShownAsExerciseFeedback(db, cell).catch(() => {})
+    }
     return text
   } catch (e) {
-    console.error('[exercise-feedback] BLOCO RESPOSTA indisponível', {
+    console.error('[exercise-feedback] feedback do exercício indisponível', {
       trail_id: input.trail_id,
       stage_number: input.stage_number,
       question_number: input.question_number,
@@ -264,7 +389,10 @@ export async function ensureNextBlocoRespostaFeedback(
   }
 }
 
-/** Peek cache-only do próximo BLOCO RESPOSTA (sem Gemini). */
+/**
+ * Feedback já persistido para o exercício (sem IA): replay do envio e
+ * `explanation` do exercício após a tentativa.
+ */
 export async function peekNextBlocoRespostaCached(
   db: Firestore,
   input: {
@@ -275,67 +403,15 @@ export async function peekNextBlocoRespostaCached(
   },
 ): Promise<string | null> {
   try {
-    const { totalStages, maxQuestion } = await loadTrailCounts(
-      db,
-      input.trail_id,
-    )
-    if (totalStages < 1 || maxQuestion < 1) return null
-    const next = computeNextPosition({
-      current_stage_number: input.stage_number,
-      current_question_number: input.question_number,
-      total_stages: totalStages,
-      total_questions: maxQuestion,
-    })
-    if (next.completed) return null
-
-    const stagesCollection =
-      process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
-    const stageSnap = await db
-      .collection(stagesCollection)
-      .doc(stageDocId(input.trail_id, next.next_stage_number))
-      .get()
-    if (!stageSnap.exists) return null
-    const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
-    if (asStageType(stageData.stage_type) !== 'ai') return null
-    const prompt =
-      typeof stageData.prompt === 'string' ? stageData.prompt : null
-    const title =
-      typeof stageData.title === 'string' ? stageData.title : null
-    if (!isBlocoRespostaStage(prompt, title)) return null
-
-    const { resolveDeliveredAiContent } = await import(
+    const { readExerciseFeedbackDelivery } = await import(
       './trail-ai/resolveDeliveredAiContent.js'
     )
-    const { blocoMismatchesSubject } = await import(
-      './trail-ai/blocoSubjectGuard.js'
-    )
-    const hit = await resolveDeliveredAiContent(db, {
+    return await readExerciseFeedbackDelivery(db, {
       student_id: input.student_id,
       trail_id: input.trail_id,
-      stage_number: next.next_stage_number,
-      question_number: next.next_question_number,
+      stage_number: input.stage_number + 1,
+      question_number: input.question_number,
     })
-    const text = hit?.message_text?.trim() || null
-    if (!text) return null
-    // Não surfacer BLOCO de outra matéria no feedback do exercício atual.
-    const questionsCollection =
-      process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
-    const exSnap = await db
-      .collection(questionsCollection)
-      .doc(
-        trailStageQuestionDocId(
-          input.trail_id,
-          input.stage_number,
-          input.question_number,
-        ),
-      )
-      .get()
-    const exContent =
-      typeof exSnap.data()?.content === 'string'
-        ? String(exSnap.data()?.content)
-        : ''
-    if (exContent && blocoMismatchesSubject(text, exContent)) return null
-    return text
   } catch {
     return null
   }
@@ -775,19 +851,33 @@ export async function getNextContent(
   const stageTitle =
     typeof stageData.title === 'string' ? stageData.title : null
 
+  let exerciseFeedback = false
+  const backgroundTasks: Array<Promise<void>> = []
   // stage_type=ai → gera/recupera conteúdo via Gemini (Vertex gemini-3.7-flash).
   if (stageType === 'ai') {
     try {
       const { ensureTrailAiContent } = await import(
         './trail-ai/ensureTrailAiContent.js'
       )
-      const ensured = await ensureTrailAiContent(db, {
+      const cell = {
         student_id: studentId,
         trail_id: trailId,
         stage_number: pos.current_stage_number,
         question_number: pos.current_question_number,
-      })
+      }
+      const ensured = await ensureTrailAiContent(db, cell)
       content = ensured.content
+      exerciseFeedback = ensured.shown_as_exercise_feedback
+      if (!ensured.delivered_marked && !exerciseFeedback) {
+        backgroundTasks.push(
+          (async () => {
+            const { markTrailAiDelivered } = await import(
+              './trail-ai/resolveDeliveredAiContent.js'
+            )
+            await markTrailAiDelivered(db, { ...cell, log_id: ensured.log_id })
+          })().catch(() => {}),
+        )
+      }
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : 'Falha ao gerar conteúdo de IA.'
@@ -813,7 +903,7 @@ export async function getNextContent(
     content = stripLetteredChoicesFromContent(content) ?? content
   }
 
-  // Se explanation null e o próximo stage (cache) é BLOCO RESPOSTA, superficie na UI.
+  // Se explanation null e o feedback desta tentativa já foi persistido, superficie na UI.
   if (stageType === 'exercise' && !explanation?.trim()) {
     const cachedBloco = await peekNextBlocoRespostaCached(db, {
       student_id: studentId,
@@ -825,12 +915,16 @@ export async function getNextContent(
   }
 
   // Prefetch da próxima célula AI — caller deve waitUntil(background) no Vercel.
-  const background = schedulePrefetchNextAiStage(db, {
-    student_id: studentId,
-    trail_id: trailId,
-    current_stage_number: pos.current_stage_number,
-    current_question_number: pos.current_question_number,
-  })
+  backgroundTasks.push(
+    schedulePrefetchNextAiStage(db, {
+      student_id: studentId,
+      trail_id: trailId,
+      current_stage_number: pos.current_stage_number,
+      current_question_number: pos.current_question_number,
+      current_stage_type: stageType,
+    }),
+  )
+  const background = Promise.all(backgroundTasks).then(() => undefined)
 
   return {
     ok: true,
@@ -849,6 +943,7 @@ export async function getNextContent(
       is_released: true,
       next_action: 'deliver_content',
       progress_version: pos.progress_version,
+      ...(stageType === 'ai' ? { exercise_feedback: exerciseFeedback } : {}),
     },
     background,
   }
@@ -1042,6 +1137,11 @@ export function schedulePrefetchNextAiStage(
     trail_id: string
     current_stage_number: number
     current_question_number: number
+    /**
+     * Tipo da célula atual. Exercício → a fase IA seguinte é o feedback da
+     * tentativa, gerado no envio com a resposta do aluno: não pré-gerar.
+     */
+    current_stage_type?: StageType
   },
 ): Promise<void> {
   return (async () => {
@@ -1058,6 +1158,13 @@ export function schedulePrefetchNextAiStage(
         total_questions: maxQuestion,
       })
       if (next.completed) return
+      if (
+        input.current_stage_type === 'exercise' &&
+        next.next_question_number === input.current_question_number &&
+        next.next_stage_number === input.current_stage_number + 1
+      ) {
+        return
+      }
 
       const stagesCollection =
         process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
@@ -1582,6 +1689,7 @@ export async function advanceStudentTrailProgress(
       trail_id: trailId,
       current_stage_number: next.next_stage_number,
       current_question_number: next.next_question_number,
+      current_stage_type: 'ai',
     })
   } else {
     // Prefetch da célula seguinte (após o destino) em background best-effort.
@@ -1590,6 +1698,7 @@ export async function advanceStudentTrailProgress(
       trail_id: trailId,
       current_stage_number: next.next_stage_number,
       current_question_number: next.next_question_number,
+      current_stage_type: asStageType(destStageData.stage_type),
     })
   }
 

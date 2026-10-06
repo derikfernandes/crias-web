@@ -1746,7 +1746,14 @@ export default function PlayerPage() {
       // Persist só depois do history (evita log duplicado no remount).
       deliveredKeyRef.current = key
       const msgId = trailMessageId(data.stage_number, data.question_number)
-      if (text || data.stage_type !== 'ai') {
+      /**
+       * Fase IA cujo texto já foi o feedback do exercício (servidor marca
+       * `exercise_feedback`): o feedback vem do histórico (bolha do exercício).
+       * Sem bolha da célula — senão, ao avançar, ela reaparecia como 2º feedback.
+       */
+      const cellIsExerciseFeedback =
+        data.stage_type === 'ai' && data.exercise_feedback === true
+      if ((text || data.stage_type !== 'ai') && !cellIsExerciseFeedback) {
         setMessages((prev) =>
           appendTrailMessage(prev, {
             id: msgId,
@@ -1829,7 +1836,11 @@ export default function PlayerPage() {
                   return next
                 })
               }
-            } else if (data.stage_type === 'ai' && text) {
+            } else if (
+              data.stage_type === 'ai' &&
+              text &&
+              !cellIsExerciseFeedback
+            ) {
               const alignId = trailMessageId(
                 data.stage_number,
                 data.question_number,

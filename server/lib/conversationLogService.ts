@@ -51,6 +51,50 @@ export function conversationLogCreatedAtMillis(
   return 0
 }
 
+function timestampMillis(value: unknown): number {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'toDate' in value &&
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+  ) {
+    try {
+      return (value as { toDate: () => Date }).toDate().getTime()
+    } catch {
+      return 0
+    }
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  return 0
+}
+
+/**
+ * Ordem do histórico do player: quando o aluno viu a mensagem.
+ * Entrega trail-ai gerada antes (prefetch) e marcada com `delivered_at_*`
+ * ao chegar na célula conta a partir da entrega, não da geração.
+ * Mesma base (string Brasília) de `conversationLogCreatedAtMillis`.
+ */
+export function conversationLogSortMillis(data: Record<string, unknown>): number {
+  const created = conversationLogCreatedAtMillis(data)
+  const deliveredRaw =
+    typeof data.delivered_at_brasilia === 'string'
+      ? data.delivered_at_brasilia
+      : ''
+  if (!deliveredRaw) return created
+  const delivered = Date.parse(deliveredRaw.replace(' ', 'T'))
+  return Number.isFinite(delivered) && delivered > created ? delivered : created
+}
+
+/** Desempate em ms (Timestamp do Firestore) para logs do mesmo segundo. */
+export function conversationLogPreciseMillis(
+  data: Record<string, unknown>,
+): number {
+  const delivered =
+    typeof data.delivered_at_ms === 'number' ? data.delivered_at_ms : 0
+  const created = timestampMillis(data.created_at)
+  return Math.max(delivered, created)
+}
+
 export type ConversationLogRuntime = {
   id: string
   student_id: string

@@ -2890,11 +2890,6 @@ export default function PlayerPage() {
       } else {
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       }
-      
-      // FIX Issue 4: Log advance latency
-      const advanceEndTime = performance.now()
-      const advanceDuration = advanceEndTime - advanceStartTime
-      console.log(`[Latency] doAdvance completed in ${advanceDuration.toFixed(0)}ms`)
     } catch (err) {
       reportError(err, 'Etapa salva. Recarregando…', () => {
         void resyncAfterAdvance()
@@ -3089,6 +3084,11 @@ export default function PlayerPage() {
       } else {
         setContent(result as NextContentStatus)
       }
+      
+      // FIX Issue 4: Log advance latency
+      const advanceEndTime = performance.now()
+      const advanceDuration = advanceEndTime - advanceStartTime
+      console.log(`[Latency] doAdvance completed in ${advanceDuration.toFixed(0)}ms`)
     } catch (err) {
       // C2-R12 N01: dropar busy/Salvando antes do banner — sem erro+Salvando no mesmo frame.
       advanceInFlightRef.current = false
@@ -4565,7 +4565,7 @@ export default function PlayerPage() {
                 onClick={() => {
                   // FIX Issue 3: Botão unificado - submit ou advance
                   if (mainButtonAction === 'submit') {
-                    void submitExercise()
+                    void submitSelectedOption()
                   } else {
                     void doAdvance()
                   }

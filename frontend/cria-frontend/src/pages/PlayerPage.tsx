@@ -3655,6 +3655,21 @@ export default function PlayerPage() {
 
   /** D#10 / R14-L14 — UI Maria mantém seta. */
   const continuarLabel = 'Continuar trilha →'
+  
+  /**
+   * FIX Issue 3: Botão principal unificado.
+   * - Em exercício COM opção selecionada: "Enviar resposta"
+   * - Caso contrário: "Continuar trilha →"
+   */
+  const mainButtonLabel = 
+    onExerciseStep && !exerciseDone && selectedOptionKey
+      ? 'Enviar resposta'
+      : continuarLabel
+  
+  /**
+   * FIX Issue 3: Botão principal unificado - ação depende do contexto.
+   */
+  const mainButtonAction = canSubmitExercise ? 'submit' : 'advance'
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -4516,7 +4531,9 @@ export default function PlayerPage() {
                   continuarLeaving ||
                   advanceInFlightRef.current ||
                   offline ||
-                  hasMariaDraft
+                  hasMariaDraft ||
+                  // FIX Issue 3: Desabilita se em exercício sem opção selecionada
+                  (onExerciseStep && !exerciseDone && !selectedOptionKey)
                 }
                 aria-disabled={mariaBusyPending || undefined}
                 aria-busy={trailBusy || mariaBusyPending || undefined}
@@ -4525,15 +4542,26 @@ export default function PlayerPage() {
                     ? 'Envie a dúvida à Maria antes de avançar'
                     : mariaBusyPending
                       ? 'Aguarde — finalizando conversa com Maria'
-                      : undefined
+                      : onExerciseStep && !exerciseDone && !selectedOptionKey
+                        ? 'Escolha uma opção primeiro'
+                        : undefined
                 }
-                onClick={() => void doAdvance()}
+                onClick={() => {
+                  // FIX Issue 3: Botão unificado - submit ou advance
+                  if (mainButtonAction === 'submit') {
+                    void submitExercise()
+                  } else {
+                    void doAdvance()
+                  }
+                }}
               >
                 {trailBusy
                   ? trailBusyLabel
                   : mariaBusyPending
                     ? 'Aguarde…'
-                    : continuarLabel}
+                    : exercisePhase === 'submitting'
+                      ? 'Enviando…'
+                      : mainButtonLabel}
               </button>
             </div>
           ) : null}

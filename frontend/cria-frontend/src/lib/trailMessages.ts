@@ -14,6 +14,11 @@ export type ChatMessage = {
   kind?: 'resume' | 'feedback' | 'sidechat' | 'exercise-answer'
   /** Timestamp HH:MM exibido sob a bolha (mockup Maria). */
   timeLabel?: string
+  /**
+   * Célula (stage-question) em que a fala aconteceu — Maria, resposta e
+   * feedback do exercício. Ordena o lesson-card antes da conversa da célula.
+   */
+  contextCell?: string
 }
 
 /** Formata HH:MM a partir de ms / ISO / agora. */
@@ -44,24 +49,6 @@ export function formatBubbleTime(
     const m = String(d.getMinutes()).padStart(2, '0')
     return `${h}:${m}`
   }
-}
-
-/** Detecta stage AI de feedback pedagógico (BLOCO RESPOSTA / FINAL). */
-export function isBlocoRespostaContent(input: {
-  stage_type?: string | null
-  stage_title?: string | null
-  prompt?: string | null
-}): boolean {
-  if (input.stage_type && input.stage_type !== 'ai') return false
-  const p = (input.prompt ?? '').toUpperCase()
-  const t = (input.stage_title ?? '').toUpperCase()
-  return (
-    p.includes('BLOCO RESPOSTA') ||
-    p.includes('OBJETIVO - BLOCO RESPOSTA') ||
-    p.includes('BLOCO FINAL') ||
-    p.includes('OBJETIVO - BLOCO FINAL') ||
-    (t.includes('RESPOSTA') && !t.includes('PERGUNTA'))
-  )
 }
 
 /** Remove *markdown* / # headings soltos usados como título. */
@@ -307,6 +294,11 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
           ? 'feedback'
           : undefined,
       stageType: isExerciseAnswer || isFeedback ? 'exercise' : undefined,
+      contextCell:
+        typeof l.stage_number === 'number' &&
+        typeof l.question_number === 'number'
+          ? `${l.stage_number}-${l.question_number}`
+          : undefined,
       timeLabel: formatBubbleTime(
         l.created_at_ms ?? l.created_at ?? l.created_at_brasilia,
       ),

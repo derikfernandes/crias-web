@@ -107,6 +107,11 @@ export type NextContentOk = {
   next_action: string
   /** Optimistic lock p/ advance (C2-R22 N02); legado pode omitir. */
   progress_version?: number
+  /**
+   * true = esta fase IA (logo após um exercício) já foi mostrada como o
+   * feedback da tentativa — o player não reexibe.
+   */
+  exercise_feedback?: boolean
 }
 
 /** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */

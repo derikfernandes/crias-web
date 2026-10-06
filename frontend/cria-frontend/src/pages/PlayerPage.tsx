@@ -105,8 +105,6 @@ function scheduleIdle(fn: () => void, timeout = HISTORY_IDLE_TIMEOUT_MS): () => 
 /**
  * C2-R4 N02: aplica history sem clobber de advance/Maria locais.
  * History vira prefixo; extras locais (animate/sidechat/células novas) ficam.
- * FIX: Maria messages (sidechat) são inseridas na posição cronológica correta
- * dentro do contexto da sua question, não no final absoluto.
  */
 function mergeHistoryIntoMessages(
   logs: ConversationLogRow[],
@@ -114,7 +112,6 @@ function mergeHistoryIntoMessages(
 ): ChatMessage[] {
   const fromHistory = logsToMessages(logs)
   if (prev.length === 0) return fromHistory
-  
   const extras = prev.filter((m) => {
     if (fromHistory.some((h) => h.id === m.id)) return false
     if (
@@ -131,73 +128,7 @@ function mergeHistoryIntoMessages(
     }
     return true
   })
-  
-  if (!extras.length) return fromHistory
-  
-  // Agrupa extras por questionNumber para inserção contextual
-  const extrasByQuestion = new Map<number | undefined, ChatMessage[]>()
-  const extrasWithoutQuestion: ChatMessage[] = []
-  
-  for (const msg of extras) {
-    if (typeof msg.questionNumber === 'number') {
-      const list = extrasByQuestion.get(msg.questionNumber) || []
-      list.push(msg)
-      extrasByQuestion.set(msg.questionNumber, list)
-    } else {
-      extrasWithoutQuestion.push(msg)
-    }
-  }
-  
-  // Insere extras dentro do contexto da sua question
-  const result: ChatMessage[] = []
-  let currentQ: number | undefined = undefined
-  
-  for (const msg of fromHistory) {
-    result.push(msg)
-    
-    // Quando mudamos de question ou é a última mensagem dessa question no history,
-    // insere os extras (Maria, etc.) daquela question
-    if (typeof msg.questionNumber === 'number' && msg.questionNumber !== currentQ) {
-      currentQ = msg.questionNumber
-    }
-  }
-  
-  // Estratégia: inserir extras logo após a última mensagem da sua question no history
-  const finalResult: ChatMessage[] = []
-  const insertedQuestions = new Set<number>()
-  
-  for (let i = 0; i < result.length; i++) {
-    finalResult.push(result[i])
-    const q = result[i].questionNumber
-    
-    // Se esta mensagem tem questionNumber e ainda não inserimos extras desta question
-    if (typeof q === 'number' && !insertedQuestions.has(q)) {
-      // Verifica se é a última mensagem desta question antes de mudar para outra
-      const nextQ = result[i + 1]?.questionNumber
-      if (nextQ !== q) {
-        // É a última desta question, insere extras dela aqui
-        const extrasForQ = extrasByQuestion.get(q)
-        if (extrasForQ) {
-          finalResult.push(...extrasForQ)
-          insertedQuestions.add(q)
-        }
-      }
-    }
-  }
-  
-  // Adiciona extras sem questionNumber no final
-  if (extrasWithoutQuestion.length) {
-    finalResult.push(...extrasWithoutQuestion)
-  }
-  
-  // Adiciona extras de questions que não apareceram no history (células novas)
-  for (const [q, msgs] of extrasByQuestion.entries()) {
-    if (typeof q === 'number' && !insertedQuestions.has(q)) {
-      finalResult.push(...msgs)
-    }
-  }
-  
-  return finalResult
+  return extras.length ? [...fromHistory, ...extras] : fromHistory
 }
 
 function isScrollNearBottom(el: HTMLElement, px = STICKY_BOTTOM_PX): boolean {
@@ -2649,61 +2580,6 @@ export default function PlayerPage() {
     try {
       const data =
         prefetched ?? (await fetchNextContent(session.student_id, trailId))
-      
-      /**
-       * FIX Issue 2: Check skipNextBlocoDeliveryRef BEFORE setContent to prevent
-       * the BLOCO RESPOSTA from flashing in the UI during advance.
-       * Se já veio no feedback do exercício, pula sem renderizar.
-       */
-      if (
-        skipNextBlocoDeliveryRef.current &&
-        data.status === 'ok' &&
-        isBlocoRespostaContent({
-          stage_type: data.stage_type,
-          stage_title: data.stage_title,
-          prompt: data.prompt,
-        })
-      ) {
-        skipNextBlocoDeliveryRef.current = false
-        const blocoKey = trailCellKey(data.stage_number, data.question_number)
-        deliveredKeyRef.current = blocoKey
-        // Avança de novo, SEM atualizar content com o BLOCO
-        const advanceAgain = await advanceTrail(session.student_id, trailId, {
-          expectedVersion:
-            typeof data.progress_version === 'number'
-              ? data.progress_version
-              : 0,
-        })
-        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
-          const completed: NextContentStatus = {
-            status: 'completed',
-            student_id: session.student_id,
-            trail_id: trailId,
-            stage_number: data.stage_number,
-            question_number: data.question_number,
-            message: 'Trilha concluída.',
-          }
-          deliveredKeyRef.current = 'status-completed'
-          setContent(completed)
-          return completed
-        }
-        if (advanceAgain.status === 'ok') {
-          deliveredKeyRef.current = null
-          const nested = await loadNextAfterAdvance()
-          if (nested && nested.status === 'ok') {
-            publishTrailProgress(trailId, {
-              stage_number: nested.stage_number,
-              question_number: nested.question_number,
-            })
-          } else {
-            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
-          }
-          return nested
-        }
-        setContent(advanceAgain as NextContentStatus)
-        return advanceAgain as NextContentStatus
-      }
-      
       // Atualiza content ANTES de liberar composer (evita exercício fantasma).
       setContent(data)
       contentRef.current = data
@@ -2767,9 +2643,56 @@ export default function PlayerPage() {
       }
 
       /**
-       * FIX Issue 2: skipNextBlocoDeliveryRef check movido para ANTES de setContent
-       * (acima, linhas ~2660). Este bloco duplicado foi removido.
+       * B3: BLOCO RESPOSTA já veio no feedback do exercício — marca entregue,
+       * não cria 2ª bolha, e avança de novo para o próximo passo da trilha.
        */
+      if (
+        skipNextBlocoDeliveryRef.current &&
+        isBlocoRespostaContent({
+          stage_type: data.stage_type,
+          stage_title: data.stage_title,
+          prompt: data.prompt,
+        })
+      ) {
+        skipNextBlocoDeliveryRef.current = false
+        const blocoKey = trailCellKey(data.stage_number, data.question_number)
+        deliveredKeyRef.current = blocoKey
+        const advanceAgain = await advanceTrail(session.student_id, trailId, {
+          expectedVersion:
+            typeof data.progress_version === 'number'
+              ? data.progress_version
+              : 0,
+        })
+        if (advanceAgain.status === 'ok' && advanceAgain.completed) {
+          const completed: NextContentStatus = {
+            status: 'completed',
+            student_id: session.student_id,
+            trail_id: trailId,
+            stage_number: data.stage_number,
+            question_number: data.question_number,
+            message: 'Trilha concluída.',
+          }
+          // Histórico fica; o card de conclusão fecha o thread.
+          deliveredKeyRef.current = 'status-completed'
+          setContent(completed)
+          return completed
+        }
+        if (advanceAgain.status === 'ok') {
+          deliveredKeyRef.current = null
+          const nested = await loadNextAfterAdvance()
+          if (nested && nested.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: nested.stage_number,
+              question_number: nested.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
+          return nested
+        }
+        setContent(advanceAgain as NextContentStatus)
+        return advanceAgain as NextContentStatus
+      }
       skipNextBlocoDeliveryRef.current = false
 
       const key = trailCellKey(data.stage_number, data.question_number)
@@ -2906,9 +2829,6 @@ export default function PlayerPage() {
 
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
-    // FIX Issue 4: Add timing measurement
-    const advanceStartTime = performance.now()
-    
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
@@ -3084,11 +3004,6 @@ export default function PlayerPage() {
       } else {
         setContent(result as NextContentStatus)
       }
-      
-      // FIX Issue 4: Log advance latency
-      const advanceEndTime = performance.now()
-      const advanceDuration = advanceEndTime - advanceStartTime
-      console.log(`[Latency] doAdvance completed in ${advanceDuration.toFixed(0)}ms`)
     } catch (err) {
       // C2-R12 N01: dropar busy/Salvando antes do banner — sem erro+Salvando no mesmo frame.
       advanceInFlightRef.current = false
@@ -3144,9 +3059,6 @@ export default function PlayerPage() {
   }
 
   async function doMaria(userLine: string) {
-    // FIX Issue 4: Add timing measurement
-    const mariaStartTime = performance.now()
-    
     if (content?.status !== 'ok') return
     // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
@@ -3249,11 +3161,6 @@ export default function PlayerPage() {
           })
         }
       }
-      
-      // FIX Issue 4: Log Maria latency
-      const mariaEndTime = performance.now()
-      const mariaDuration = mariaEndTime - mariaStartTime
-      console.log(`[Latency] doMaria completed in ${mariaDuration.toFixed(0)}ms`)
     }
   }
 
@@ -3656,6 +3563,7 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
+    !mariaSidechat &&
     !advanceInFlightRef.current &&
     !mariaInFlightRef.current &&
     !canRetry &&
@@ -3665,27 +3573,17 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   /**
-   * FIX Issue 1b: Botão "Voltar à trilha" removido. Continuar faz tudo em um clique.
+   * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
+   * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
+   * C2-R29 N01: permanece também durante resync de etapa (trail busy).
    */
-  const showVoltarTrilha = false
+  const showVoltarTrilha =
+    content?.status === 'ok' &&
+    mariaSidechat &&
+    (!busy || busyReason === 'maria' || busyReason === 'trail')
 
   /** D#10 / R14-L14 — UI Maria mantém seta. */
   const continuarLabel = 'Continuar trilha →'
-  
-  /**
-   * FIX Issue 3: Botão principal unificado.
-   * - Em exercício COM opção selecionada: "Enviar resposta"
-   * - Caso contrário: "Continuar trilha →"
-   */
-  const mainButtonLabel = 
-    onExerciseStep && !exerciseDone && selectedOptionKey
-      ? 'Enviar resposta'
-      : continuarLabel
-  
-  /**
-   * FIX Issue 3: Botão principal unificado - ação depende do contexto.
-   */
-  const mainButtonAction = canSubmitExercise ? 'submit' : 'advance'
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -4547,9 +4445,7 @@ export default function PlayerPage() {
                   continuarLeaving ||
                   advanceInFlightRef.current ||
                   offline ||
-                  hasMariaDraft ||
-                  // FIX Issue 3: Desabilita se em exercício sem opção selecionada
-                  (onExerciseStep && !exerciseDone && !selectedOptionKey)
+                  hasMariaDraft
                 }
                 aria-disabled={mariaBusyPending || undefined}
                 aria-busy={trailBusy || mariaBusyPending || undefined}
@@ -4558,26 +4454,15 @@ export default function PlayerPage() {
                     ? 'Envie a dúvida à Maria antes de avançar'
                     : mariaBusyPending
                       ? 'Aguarde — finalizando conversa com Maria'
-                      : onExerciseStep && !exerciseDone && !selectedOptionKey
-                        ? 'Escolha uma opção primeiro'
-                        : undefined
+                      : undefined
                 }
-                onClick={() => {
-                  // FIX Issue 3: Botão unificado - submit ou advance
-                  if (mainButtonAction === 'submit') {
-                    void submitSelectedOption()
-                  } else {
-                    void doAdvance()
-                  }
-                }}
+                onClick={() => void doAdvance()}
               >
                 {trailBusy
                   ? trailBusyLabel
                   : mariaBusyPending
                     ? 'Aguarde…'
-                    : exercisePhase === 'submitting'
-                      ? 'Enviando…'
-                      : mainButtonLabel}
+                    : continuarLabel}
               </button>
             </div>
           ) : null}

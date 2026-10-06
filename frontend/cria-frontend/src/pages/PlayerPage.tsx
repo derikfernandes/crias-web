@@ -3632,7 +3632,6 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
-    !mariaSidechat &&
     !advanceInFlightRef.current &&
     !mariaInFlightRef.current &&
     !canRetry &&
@@ -3642,14 +3641,9 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   /**
-   * PR02 / R30: Voltar só no sidechat ativo (paridade #6).
-   * Nunca empilhar com Continuar após exit — hist sidechat/entrance não bastam.
-   * C2-R29 N01: permanece também durante resync de etapa (trail busy).
+   * FIX Issue 1b: Botão "Voltar à trilha" removido. Continuar faz tudo em um clique.
    */
-  const showVoltarTrilha =
-    content?.status === 'ok' &&
-    mariaSidechat &&
-    (!busy || busyReason === 'maria' || busyReason === 'trail')
+  const showVoltarTrilha = false
 
   /** D#10 / R14-L14 — UI Maria mantém seta. */
   const continuarLabel = 'Continuar trilha →'

@@ -2890,6 +2890,11 @@ export default function PlayerPage() {
       } else {
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       }
+      
+      // FIX Issue 4: Log advance latency
+      const advanceEndTime = performance.now()
+      const advanceDuration = advanceEndTime - advanceStartTime
+      console.log(`[Latency] doAdvance completed in ${advanceDuration.toFixed(0)}ms`)
     } catch (err) {
       reportError(err, 'Etapa salva. Recarregando…', () => {
         void resyncAfterAdvance()
@@ -2906,6 +2911,9 @@ export default function PlayerPage() {
 
   /** Avança sem bolha "VOCÊ: Continuar". */
   async function doAdvance() {
+    // FIX Issue 4: Add timing measurement
+    const advanceStartTime = performance.now()
+    
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
@@ -3136,6 +3144,9 @@ export default function PlayerPage() {
   }
 
   async function doMaria(userLine: string) {
+    // FIX Issue 4: Add timing measurement
+    const mariaStartTime = performance.now()
+    
     if (content?.status !== 'ok') return
     // Exercício: Maria bloqueada até o feedback (depois libera — B3 / D#6).
     if (content.stage_type === 'exercise' && !exerciseDone) return
@@ -3238,6 +3249,11 @@ export default function PlayerPage() {
           })
         }
       }
+      
+      // FIX Issue 4: Log Maria latency
+      const mariaEndTime = performance.now()
+      const mariaDuration = mariaEndTime - mariaStartTime
+      console.log(`[Latency] doMaria completed in ${mariaDuration.toFixed(0)}ms`)
     }
   }
 

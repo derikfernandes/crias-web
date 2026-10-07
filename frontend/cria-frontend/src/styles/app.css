@@ -2198,12 +2198,13 @@ button[aria-disabled='true'] {
  * R18-N01 / P28: Continuar disabled offline (não-busy) — cinza morto como Enviar,
  * não o mesmo verde fill só com opacity:.55 (verde fantasma).
  * Exclui --leaving para não vencer R06-E10 (busy mid-flight).
+ * C3-R11 N01: texto 16px precisa AA ≥4.5:1 (0.48 → ~3.48; 0.65 → ~5.0).
  */
 .chat-continue:not(.chat-continue--leaving)
   .chat-continue__btn:disabled:not(.chat-continue__btn--secondary):not([aria-busy='true']) {
   opacity: 1;
   background: #3a3b48;
-  color: rgba(236, 236, 241, 0.48);
+  color: rgba(236, 236, 241, 0.65);
   box-shadow: none;
   filter: none;
   border: 1px solid rgba(255, 255, 255, 0.08);

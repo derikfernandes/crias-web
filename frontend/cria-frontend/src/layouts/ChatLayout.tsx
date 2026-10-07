@@ -660,17 +660,17 @@ export default function ChatLayout() {
           </button>
           <div className="chat-topbar__titles">
             <span className="chat-topbar__brand">Crias</span>
-            <span className="chat-topbar__title">
-              {activeTrailId
+            {(() => {
+              /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
+              /* C3-R11 N02: title nativo com nome+etapa completo (ellipsis). */
+              const topbarTitle = activeTrailId
                 ? [
-                    /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
                     trailNames[activeTrailId] || 'Trilha',
                     (() => {
                       const totalRaw =
                         stageTotals[activeTrailId] > 0
                           ? stageTotals[activeTrailId]
                           : null
-                      // Concluída: etapa final mesmo sem stage_number no status.
                       const n =
                         playerCompleted && totalRaw != null
                           ? Math.max(totalRaw, playerStageNumber ?? 0)
@@ -683,8 +683,13 @@ export default function ChatLayout() {
                   ]
                     .filter(Boolean)
                     .join(' · ')
-                : 'Suas trilhas'}
-            </span>
+                : 'Suas trilhas'
+              return (
+                <span className="chat-topbar__title" title={topbarTitle}>
+                  {topbarTitle}
+                </span>
+              )
+            })()}
             {/* C2-R5 N02: chip MARIA só na sessão sidechat — não no chrome da aula. */}
             {activeTrailId && playerChrome.mariaActive ? (
               <span className="chat-topbar__maria">MARIA</span>

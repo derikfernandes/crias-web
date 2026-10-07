@@ -125,20 +125,22 @@ h1 {
 
 .login-page {
   min-height: 100%;
+  /* C3-R9 N01: shell = --vv-height (resizes-content). NÃO somar --keyboard-inset
+   * no padding — double-count encolhia contentBox e Entrar overlapava o KB. */
   height: var(--vv-height, 100dvh);
   display: grid;
   align-content: start;
   justify-items: center;
   padding: 1.5rem;
   padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
-  padding-bottom: calc(
-    1.5rem + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)
-  );
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
   position: relative;
   background: var(--main);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* C3-R9 N02: paridade com .chat-shell — ios-pan não corta o brand. */
+  transform: translateY(var(--vv-offset-top, 0px));
 }
 
 .login-atmosphere {
@@ -296,9 +298,8 @@ textarea::placeholder {
   .login-page {
     padding: 0.5rem 0.85rem;
     padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
-    padding-bottom: calc(
-      0.5rem + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)
-    );
+    /* C3-R9 N01: sem --keyboard-inset (já no --vv-height). */
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
     align-content: center;
   }
 

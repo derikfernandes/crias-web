@@ -60,6 +60,23 @@ export default function LoginPage() {
 
   useEffect(() => bindVisualViewport(), [])
 
+  /**
+   * C3-R9 N01: após o soft-KB abrir (vv resize), reancora o campo focado
+   * para Entrar ficar acima do teclado — o onFocus sozinho corre antes do inset.
+   */
+  useEffect(() => {
+    const onVvResize = () => {
+      const el = document.activeElement
+      if (!(el instanceof HTMLElement)) return
+      if (!el.closest('.login-page')) return
+      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return
+      scrollFocusedIntoView(el)
+    }
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', onVvResize)
+    return () => vv?.removeEventListener('resize', onVvResize)
+  }, [])
+
   useEffect(() => {
     const goOffline = () => setOffline(true)
     const goOnline = () => setOffline(false)

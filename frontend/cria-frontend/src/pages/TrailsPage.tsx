@@ -2,6 +2,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { getSession } from '../lib/session'
 import type { StudentTrailRow } from '../lib/api'
+import { pickHomeTrail } from '../lib/trailFocus'
 
 type LayoutOutlet = {
   trailRows: StudentTrailRow[] | null
@@ -9,18 +10,7 @@ type LayoutOutlet = {
   trailsLoading: boolean
   retryTrails: () => void
   trailNames?: Record<string, string>
-}
-
-function pickHomeTrail(
-  rows: StudentTrailRow[] | null,
-): StudentTrailRow | null {
-  if (!rows || rows.length === 0) return null
-  return (
-    rows.find((r) => r.status === 'in_progress') ||
-    rows.find((r) => r.status === 'not_started') ||
-    rows.find((r) => r.status !== 'blocked') ||
-    rows[0]
-  )
+  stageTotals?: Record<string, number>
 }
 
 function homeCtaLabel(row: StudentTrailRow): string {
@@ -31,8 +21,14 @@ function homeCtaLabel(row: StudentTrailRow): string {
 
 export default function TrailsPage() {
   const session = getSession()!
-  const { trailRows, trailsError, trailsLoading, retryTrails, trailNames } =
-    useOutletContext<LayoutOutlet>()
+  const {
+    trailRows,
+    trailsError,
+    trailsLoading,
+    retryTrails,
+    trailNames,
+    stageTotals,
+  } = useOutletContext<LayoutOutlet>()
   const ctaRef = useRef<HTMLAnchorElement>(null)
 
   const empty =
@@ -44,6 +40,16 @@ export default function TrailsPage() {
       : primary
         ? 'Trilha'
         : null
+  const primaryTotal =
+    primary && stageTotals?.[primary.trail_id] && stageTotals[primary.trail_id] > 0
+      ? stageTotals[primary.trail_id]
+      : null
+  const primaryEtapa =
+    primary && primary.status === 'in_progress'
+      ? primaryTotal != null
+        ? `Etapa ${primary.current_stage_number} de ${Math.max(primaryTotal, primary.current_stage_number)}`
+        : `Etapa ${primary.current_stage_number}`
+      : null
 
   const homeLoading = trailsLoading && !primary && !trailsError && !empty
 
@@ -110,9 +116,7 @@ export default function TrailsPage() {
               </Link>
               <p className="muted chat-home__hint">
                 {primaryLabel}
-                {primary.status === 'in_progress'
-                  ? ` · Etapa ${primary.current_stage_number}`
-                  : ''}
+                {primaryEtapa ? ` · ${primaryEtapa}` : ''}
                 {trailRows && trailRows.length > 1
                   ? ' · outras trilhas no menu'
                   : ''}

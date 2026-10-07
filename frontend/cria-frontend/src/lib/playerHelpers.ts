@@ -198,6 +198,11 @@ export type MainButtonInput = {
   offline: boolean
   /** “Tentar de novo” (erro de rede/sistema) vivo — recovery único. */
   canRetry: boolean
+  /**
+   * Sidechat Maria: Continuar some — saída = “Voltar à trilha” (D#11).
+   * Não avança etapa; cancela stream/drafts no handler do Voltar.
+   */
+  mariaSidechat?: boolean
 }
 
 export type MainButtonState = {
@@ -219,8 +224,8 @@ const HIDDEN: MainButtonState = {
 /**
  * Um único botão principal:
  * - exercício sem resposta → “Enviar resposta” (desabilitado sem opção);
- * - depois do feedback, aula, texto fixo e conversa com a Maria →
- *   “Continuar trilha →” (no modo Maria, um clique fecha a Maria e avança);
+ * - depois do feedback, aula, texto fixo → “Continuar trilha →”;
+ * - sidechat Maria → escondido (Voltar à trilha é o chrome de saída, D#11);
  * - enquanto a Maria responde ou com rascunho no composer: desabilitado.
  * Nunca avança sozinho; “Tentar de novo” só em erro de rede/sistema.
  */
@@ -251,6 +256,9 @@ export function mainButtonState(i: MainButtonInput): MainButtonState {
       busy: false,
     }
   }
+
+  // D#11 / C3-N01: na Maria o Continuar some — Voltar sai sem avançar.
+  if (i.mariaSidechat) return HIDDEN
 
   if (trailBusy) {
     return { visible: true, action: 'none', label: i.trailBusyLabel, disabled: true, busy: true }

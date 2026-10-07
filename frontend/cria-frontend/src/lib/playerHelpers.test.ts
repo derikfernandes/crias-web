@@ -193,11 +193,14 @@ describe('mainButtonState — um botão principal', () => {
     expect(mainButtonState({ ...idle, stageType: 'fixed' }).label).toBe(MAIN_BUTTON_CONTINUE_LABEL)
     expect(mainButtonState(idle).action).toBe('advance')
   })
-  it('Maria respondendo: Continuar desabilitado; depois habilita (1 clique fecha e avança)', () => {
+  it('Maria respondendo: Continuar desabilitado; depois habilita', () => {
     expect(mainButtonState({ ...idle, busy: true, busyReason: 'maria', mariaInFlight: true })).toMatchObject({
       action: 'advance', label: MAIN_BUTTON_CONTINUE_LABEL, disabled: true,
     })
     expect(mainButtonState(idle)).toMatchObject({ action: 'advance', disabled: false })
+  })
+  it('sidechat Maria: Continuar oculto (Voltar à trilha é a saída)', () => {
+    expect(mainButtonState({ ...idle, mariaSidechat: true }).visible).toBe(false)
   })
   it('rascunho para a Maria pausa o Continuar', () => {
     expect(mainButtonState({ ...idle, hasMariaDraft: true }).disabled).toBe(true)

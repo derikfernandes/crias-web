@@ -59,6 +59,7 @@ import {
   mainButtonState,
   mergeHistoryIntoMessages,
 } from '../lib/playerHelpers'
+import { writeFocusedTrailId } from '../lib/trailFocus'
 
 /** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
@@ -885,6 +886,8 @@ export default function PlayerPage() {
     | null
   >(null)
   const continuarBtnRef = useRef<HTMLButtonElement>(null)
+  /** D#11 / C3-N01: Voltar à trilha — sai da Maria sem avançar etapa. */
+  const voltarBtnRef = useRef<HTMLButtonElement>(null)
   /** C2-R16 N01/N03: “Tentar de novo” — recovery único pós-erro rede. */
   const retryBtnRef = useRef<HTMLButtonElement>(null)
   const canRetryRef = useRef(false)
@@ -1006,8 +1009,8 @@ export default function PlayerPage() {
   const focusAfterMariaAck = useCallback(() => {
     const tryFocus = (allowComposerFallback: boolean) => {
       if (mariaCancelledRef.current) return true
-      // Botão principal (Continuar trilha) é o alvo estável pós-resposta.
-      const voltar = continuarBtnRef.current
+      // D#11: Voltar à trilha é o alvo estável pós-resposta na Maria.
+      const voltar = voltarBtnRef.current
       // CTA display:none sob KB → offsetParent null; espera settle.
       if (voltar && voltar.offsetParent !== null) {
         voltar.focus({ preventScroll: true })
@@ -1043,7 +1046,7 @@ export default function PlayerPage() {
             active &&
             active !== document.body &&
             active !== document.documentElement &&
-            (active === continuarBtnRef.current ||
+            (active === voltarBtnRef.current ||
               active === inputRef.current ||
               (active as HTMLElement).closest?.('[data-msg-id]'))
           ) {
@@ -2058,6 +2061,11 @@ export default function PlayerPage() {
     setContinuarLeaving(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
+
+  /** C3-N02: home CTA retoma a trilha aberta por último (não a 1ª in_progress). */
+  useEffect(() => {
+    if (trailId) writeFocusedTrailId(trailId)
+  }, [trailId])
 
   /** R10-Z07: persiste draft + modo Maria (reload mid-dúvida). */
   useEffect(() => {
@@ -3161,6 +3169,9 @@ export default function PlayerPage() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
     setMariaEntrance(false)
+    // C3-N01: cancela rascunho — Continuar não fica pausado pós-Voltar.
+    setDraft('')
+    writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
     // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
     // até o finally do doMaria (Voltar só sai do sidechat).
@@ -3562,6 +3573,7 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
+    !mariaSidechat &&
     !advanceInFlightRef.current &&
     !mariaInFlightRef.current &&
     !canRetry &&
@@ -3570,6 +3582,14 @@ export default function PlayerPage() {
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
 
+  /**
+   * D#11 / C3-N01: Voltar só no sidechat — sai da Maria sem rebobinar etapa.
+   * Continuar fica oculto (N04: hierarquia clara enquanto Maria pede escolha).
+   */
+  const showVoltarTrilha =
+    content?.status === 'ok' &&
+    mariaSidechat &&
+    (!busy || busyReason === 'maria' || busyReason === 'trail')
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -3802,8 +3822,10 @@ export default function PlayerPage() {
     hasMariaDraft,
     offline,
     canRetry,
+    mariaSidechat,
   })
-  const showCtaSlot = content?.status === 'ok' && mainButton.visible
+  const showCtaSlot =
+    content?.status === 'ok' && (mainButton.visible || showVoltarTrilha)
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
@@ -4384,6 +4406,18 @@ export default function PlayerPage() {
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
             </button>
           ) : null}
+          {showVoltarTrilha ? (
+            <div className="chat-continue chat-continue--sidechat chat-continue--enter">
+              <button
+                ref={voltarBtnRef}
+                type="button"
+                className="chat-continue__btn"
+                onClick={onVoltarParaTrilha}
+              >
+                Voltar à trilha
+              </button>
+            </div>
+          ) : null}
           {mainButton.visible ? (
             <div
               className={`chat-continue${
@@ -4472,7 +4506,7 @@ export default function PlayerPage() {
           (showContinuar && !hasMariaDraft) || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
-        }`}
+        }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
       >
 <form
           className="chat-composer__form"
@@ -4580,7 +4614,8 @@ export default function PlayerPage() {
                       ? 'Pergunte à Maria · Continuar trilha avança'
                       : 'Pergunte à Maria'
                     : mariaSidechat
-                      ? 'Continue a conversa com a Maria · Continuar trilha avança'
+                      ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
+                        'Responda no composer · Voltar à trilha sai da Maria'
                       : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
                         showContinuar
                         ? 'Enviar fala com Maria · Continuar trilha avança'

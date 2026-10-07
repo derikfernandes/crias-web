@@ -20,6 +20,7 @@ import {
   getSession,
   SESSION_CLEARED_EVENT,
 } from '../lib/session'
+import { pickHomeTrail, writeFocusedTrailId } from '../lib/trailFocus'
 
 const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   not_started: 'Não iniciada',
@@ -356,12 +357,9 @@ export default function ChatLayout() {
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
 
-  /** R14-L11: trilha em andamento (ou a ativa) para “Continuar aula”. */
+  /** R14-L11 / C3-N02: Continuar aula = trilha ativa ou foco recente. */
   const continueAulaRow =
-    activeRow ||
-    rows?.find((r) => r.status === 'in_progress') ||
-    rows?.find((r) => r.status === 'not_started') ||
-    null
+    activeRow || pickHomeTrail(rows) || null
   const continueAulaHref = continueAulaRow
     ? `/trilha/${encodeURIComponent(continueAulaRow.trail_id)}`
     : null
@@ -533,14 +531,16 @@ export default function ChatLayout() {
                   totalRaw != null
                     ? Math.max(totalRaw, stageNumber)
                     : null
-                const pct = rowCompleted
-                  ? 100
-                  : total != null
-                    ? Math.min(
-                        100,
-                        Math.round((stageNumber / total) * 100),
-                      )
-                    : 0
+                // C3-N05: % só com total conhecido — sem “0 %” mentiroso.
+                const pct =
+                  total != null
+                    ? rowCompleted
+                      ? 100
+                      : Math.min(
+                          100,
+                          Math.round((stageNumber / total) * 100),
+                        )
+                    : null
                 const rowStatus = rowCompleted ? 'completed' : row.status
                 const label = trailNames[row.trail_id] || 'Trilha'
                 const etapaMeta =
@@ -553,7 +553,10 @@ export default function ChatLayout() {
                       to={href}
                       className={`trail-card${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
-                      onClick={() => closeDrawer(false)}
+                      onClick={() => {
+                        writeFocusedTrailId(row.trail_id)
+                        closeDrawer(false)
+                      }}
                     >
                       <span className="trail-card__top">
                         <span className="trail-card__head">
@@ -568,19 +571,21 @@ export default function ChatLayout() {
                         </span>
                       </span>
                       <span className="trail-card__meta">{etapaMeta}</span>
-                      <span className="trail-card__progress" aria-hidden>
-                        <span className="trail-card__progress-track">
-                          <span
-                            className="trail-card__progress-fill"
-                            style={{ width: `${pct}%` }}
-                          />
+                      {pct != null ? (
+                        <span className="trail-card__progress" aria-hidden>
+                          <span className="trail-card__progress-track">
+                            <span
+                              className="trail-card__progress-fill"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </span>
+                          {/* R28-I02: espaço fino pt-BR antes do % */}
+                          <span className="trail-card__pct">
+                            {pct}
+                            {'\u00a0'}%
+                          </span>
                         </span>
-                        {/* R28-I02: espaço fino pt-BR antes do % */}
-                        <span className="trail-card__pct">
-                          {pct}
-                          {'\u00a0'}%
-                        </span>
-                      </span>
+                      ) : null}
                     </Link>
                   </li>
                 )
@@ -678,6 +683,7 @@ export default function ChatLayout() {
               retryTrails: () => void reloadTrails(),
               activeTrailRow: activeRow,
               trailNames,
+              stageTotals,
             }}
           />
         </div>

@@ -731,7 +731,7 @@ export default function ChatLayout() {
                   ]
                     .filter(Boolean)
                     .join(' · ')
-                : 'Suas trilhas'
+                : 'Minhas trilhas'
               return (
                 <span className="chat-topbar__title" title={topbarTitle}>
                   {topbarTitle}

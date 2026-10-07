@@ -4205,7 +4205,7 @@ export default function PlayerPage() {
         ? statusToSystemText(content)
         : content.status !== 'ok'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte à Maria...'
+          : 'Pergunte à Maria…'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -4674,7 +4674,10 @@ export default function PlayerPage() {
                       {msg.timeLabel || formatBubbleTime(null, true) || ''}
                     </span>
                     {msg.role === 'user' ? (
-                      <span className="chat-bubble__checks" aria-label="Enviada">
+                      <span
+                        className="chat-bubble__checks"
+                        aria-label="Mensagem enviada"
+                      >
                         ✓✓
                       </span>
                     ) : null}
@@ -5028,7 +5031,7 @@ export default function PlayerPage() {
             tabIndex={exerciseLockedComposer ? -1 : undefined}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
-              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria'
+              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
             }
             enterKeyHint={canSubmitExercise ? 'send' : 'send'}
             inputMode="text"
@@ -5082,15 +5085,16 @@ export default function PlayerPage() {
                       'Enviar a dúvida à Maria — Continuar pausado'
                     : content.stage_type === 'exercise'
                       ? showContinuar
-                        ? 'Pergunte à Maria · Continuar trilha avança'
+                        ? // C3-R17 N03: microcopy clara (não “Continuar trilha avança”)
+                          'Pergunte à Maria · toque Continuar para avançar'
                         : 'Pergunte à Maria'
                       : mariaSidechat
                         ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
                           'Responda no composer · Voltar à trilha sai da Maria'
-                        : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                        : // R01-F06 / R01-F09 / R14-L01 / C3-R17 N03: hierarquia Continuar × Enviar
                           showContinuar
-                          ? 'Enviar fala com Maria · Continuar trilha avança'
-                          : 'Enviar fala com Maria'}
+                          ? 'Envie à Maria · toque Continuar para avançar'
+                          : 'Envie à Maria'}
           </p>
         ) : null}
       </footer>

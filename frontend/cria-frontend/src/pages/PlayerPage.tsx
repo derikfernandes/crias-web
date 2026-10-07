@@ -169,12 +169,14 @@ function messagesForCollapsedTail(
 /**
  * C2-R1 N02: no tail colapsado (fora do sidechat Maria), só passo da trilha —
  * entrega/feedback/opção/resume. Histórico livre da Maria fica no expand.
+ * C2-R32 N03: linhas `system` de chrome (ex. cancel stale) ficam no foco.
  */
 function isTrailStepMessage(m: ChatMessage): boolean {
   if (m.kind === 'feedback' || m.kind === 'exercise-answer' || m.kind === 'resume') {
     return true
   }
   if (m.kind === 'sidechat') return false
+  if (m.role === 'system') return true
   return Boolean(m.cellKey)
 }
 
@@ -885,7 +887,9 @@ export default function PlayerPage() {
   /** C2-R29 N01/N02: sidechat vivo para resync/pagehide (refs sync). */
   const mariaSidechatRef = useRef(false)
   /** C2-R29 N02: pagehide mid reusa Voltar (resume Continuando). */
-  const exitMariaToTrailRef = useRef<() => void>(() => {})
+  const exitMariaToTrailRef = useRef<
+    (opts?: { preserveReadingScroll?: boolean }) => void
+  >(() => {})
   /** advance OK mas next-content falhou — retry só resync (R18-N02). */
   const advanceCommittedRef = useRef(false)
   /** C2-R4 N02: invalida prefetch history stale (trail change / remount). */
@@ -2516,6 +2520,33 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
+        // C2-R32 N02: se o aluno lia acima, não yankar scroll no eject.
+        const scroller = threadRef.current
+        const readingAway =
+          pinnedAwayRef.current ||
+          userScrollUpGestureRef.current ||
+          (scroller != null &&
+            !isScrollNearBottom(scroller, RESUME_FOLLOW_PX))
+        if (readingAway) {
+          pinnedAwayRef.current = true
+          nearBottomRef.current = false
+          userScrollUpGestureRef.current = true
+          initialAnchorPendingRef.current = false
+          if (scroller) {
+            pinnedScrollTopRef.current = scroller.scrollTop
+          }
+          showJumpChip({ unseen: true })
+          startPinLock(2500)
+        }
+        // C2-R32 N03: feedback de shell — conversa mid cancelada por posição stale.
+        setMessages((prev) => [
+          ...prev,
+          markAnimate({
+            id: `sys-maria-cancel-${Date.now()}`,
+            role: 'system',
+            text: 'Conversa com Maria cancelada — a trilha avançou.',
+          }),
+        ])
       }
     } else {
       mariaCancelledRef.current = false
@@ -2555,7 +2586,10 @@ export default function PlayerPage() {
         if (data.stage_type === 'exercise') {
           setExerciseDone(false)
         }
-        exitMariaToTrailRef.current()
+        // C2-R32 N02: mid-stale com leitura acima → preserva scrollTop + chip.
+        exitMariaToTrailRef.current({
+          preserveReadingScroll: pinnedAwayRef.current,
+        })
         const optionsNorm =
           data.stage_type === 'exercise'
             ? normalizeExerciseOptions(data.options)
@@ -3103,7 +3137,7 @@ export default function PlayerPage() {
     }
   }
 
-  function onVoltarParaTrilha() {
+  function onVoltarParaTrilha(opts?: { preserveReadingScroll?: boolean }) {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
@@ -3134,8 +3168,21 @@ export default function PlayerPage() {
     })
     const text = `Continuando a trilha:\n\n${body}`
     // C3-VOLTAR: se o usuário não pinou de propósito, ancora no passo/CTA.
-    const wasPinned = pinnedAwayRef.current && !initialAnchorPendingRef.current
-    if (!wasPinned) {
+    // C2-R32 N02: eject stale com leitura acima — preserva scroll + chip.
+    const preserveReading = Boolean(opts?.preserveReadingScroll)
+    const wasPinned =
+      preserveReading ||
+      (pinnedAwayRef.current && !initialAnchorPendingRef.current)
+    if (preserveReading) {
+      pinnedAwayRef.current = true
+      nearBottomRef.current = false
+      userScrollUpGestureRef.current = true
+      initialAnchorPendingRef.current = false
+      const el = threadRef.current
+      if (el) pinnedScrollTopRef.current = el.scrollTop
+      showJumpChip({ unseen: true })
+      startPinLock(2500)
+    } else if (!wasPinned) {
       pinnedAwayRef.current = false
       nearBottomRef.current = true
       userScrollUpGestureRef.current = false
@@ -3181,7 +3228,9 @@ export default function PlayerPage() {
     })
   }
   // C2-R29 N02: pagehide mid chama o mesmo caminho (ref atualizada a cada render).
-  exitMariaToTrailRef.current = onVoltarParaTrilha
+  exitMariaToTrailRef.current = (opts?: { preserveReadingScroll?: boolean }) => {
+    onVoltarParaTrilha(opts)
+  }
 
   /** D#2: toque só seleciona; Enviar confirma. */
   function onOptionSelect(option: ExerciseOption) {
@@ -3549,10 +3598,18 @@ export default function PlayerPage() {
 
   const currentQuestion =
     content?.status === 'ok' ? content.question_number : null
+  /**
+   * C2-R26 N01 / C2-R32 N01: após Voltar mid, busy/maria ficam até settle mas
+   * sidechat já sumiu — pergunta in-flight + typing precisam ficar no fio
+   * (não colapsar em “Ver mensagens anteriores” durante Aguarde).
+   */
+  const mariaBusyPending = Boolean(
+    busy && busyReason === 'maria' && !mariaSidechat,
+  )
   const collapsedTail = messagesForCollapsedTail(messages, currentQuestion)
   /** Fora do sidechat: tail focado na aula (N02) — Maria hist só no expand. */
   const focusedCollapsedTail =
-    mariaSidechat || historyExpanded
+    mariaSidechat || historyExpanded || mariaBusyPending
       ? collapsedTail
       : collapsedTail.filter(isTrailStepMessage)
   const hiddenHistoryCount = Math.max(
@@ -3623,6 +3680,34 @@ export default function PlayerPage() {
   })
 
   async function onExpandHistory() {
+    // C2-R32 N01: durante Aguarde pós-Voltar mid, não ancorar no card da aula —
+    // preserva o ponto da conversa que está finalizando (pergunta + typing).
+    if (mariaBusyPending) {
+      const el = threadRef.current
+      const prevHeight = el?.scrollHeight ?? 0
+      const prevTop = el?.scrollTop ?? 0
+      pendingScrollAnchorRef.current = {
+        kind: 'prepend',
+        prevHeight,
+        prevTop,
+      }
+      setHistoryExpanded(true)
+      if (historyHasMore) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve())
+        })
+        await loadOlderHistory()
+        const scroller = threadRef.current
+        if (scroller) {
+          pinnedAwayRef.current = true
+          nearBottomRef.current = false
+          userScrollUpGestureRef.current = true
+          pinnedScrollTopRef.current = scroller.scrollTop
+          showJumpChip({ unseen: true })
+        }
+      }
+      return
+    }
     // C2-R6 N03: expand local primeiro → âncora na etapa; older page sem roubar scroll.
     pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
@@ -3698,13 +3783,6 @@ export default function PlayerPage() {
         : 'Pergunte à Maria…'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
-  /**
-   * C2-R26 N01: após Voltar mid-Maria, busy/maria ficam até settle mas
-   * sidechat já sumiu — Continuar gated + typing (sem limbo sem CTA).
-   */
-  const mariaBusyPending = Boolean(
-    busy && busyReason === 'maria' && !mariaSidechat,
-  )
   /** C2-R23 N03: exercício stale sob resync — trava card/opções como pending. */
   const exerciseResyncLock = trailBusy && optionsVisible
   const hintKey =
@@ -4197,7 +4275,7 @@ export default function PlayerPage() {
                 ref={voltarBtnRef}
                 type="button"
                 className="chat-continue__btn"
-                onClick={onVoltarParaTrilha}
+                onClick={() => onVoltarParaTrilha()}
               >
                 Voltar à trilha
               </button>

@@ -131,6 +131,12 @@ export default function ChatLayout() {
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
   const restoreFocusRef = useRef(false)
+  /**
+   * C3-R13 N01: entry de history do drawer modal — back do SO fecha o dialog
+   * sem sair da trilha; Esc/Fechar dá history.back() para limpar a entry.
+   */
+  const drawerHistoryPushedRef = useRef(false)
+  const drawerClosingFromPopRef = useRef(false)
   /** Só a resposta mais recente de /student_trails aplica (sem stale fora de ordem). */
   const trailsReqSeqRef = useRef(0)
 
@@ -254,6 +260,38 @@ export default function ChatLayout() {
     restoreFocusRef.current = restoreFocus
     setSidebarOpen(false)
   }, [])
+
+  /**
+   * C3-R13 N01: drawer modal empurra history; Android/browser back fecha o
+   * dialog (popstate) em vez de ir para home. Esc/Fechar limpa a entry.
+   */
+  useEffect(() => {
+    if (!drawerAsModal) {
+      if (
+        drawerHistoryPushedRef.current &&
+        !drawerClosingFromPopRef.current
+      ) {
+        drawerHistoryPushedRef.current = false
+        window.history.back()
+      }
+      drawerClosingFromPopRef.current = false
+      return
+    }
+    if (!drawerHistoryPushedRef.current) {
+      window.history.pushState({ criasDrawer: true }, '')
+      drawerHistoryPushedRef.current = true
+    }
+    const onPop = () => {
+      drawerClosingFromPopRef.current = true
+      drawerHistoryPushedRef.current = false
+      restoreFocusRef.current = true
+      setSidebarOpen(false)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+    }
+  }, [drawerAsModal])
 
   // R03-A02 / A07 / F05: Escape + trap de foco + retorno ao ☰.
   useEffect(() => {

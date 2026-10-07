@@ -2790,14 +2790,20 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
    * C2-R17 N01: z-index:40 no ☰ (position:relative) ficava preso no stacking do
    * .chat-topbar (flex item z-index:2) — abaixo da sidebar fixed z:30.
    * Com drawer aberto, eleva o topbar inteiro acima da sidebar/backdrop.
-   * padding-top na sidebar evita “Minhas trilhas” sob a faixa do topbar.
+   * C3-R13 N02: pointer-events none no topbar (☰ auto) — taps na faixa do
+   * Fechar não caem no brand/título; padding maior tira overlap visual.
    */
   .chat-shell--drawer-open .chat-topbar {
     z-index: 40;
+    pointer-events: none;
+  }
+
+  .chat-shell--drawer-open .chat-topbar__menu {
+    pointer-events: auto;
   }
 
   .chat-shell--drawer-open .chat-sidebar--open {
-    padding-top: max(3.5rem, calc(env(safe-area-inset-top, 0px) + 3rem));
+    padding-top: max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4rem));
   }
 
   .chat-sidebar {

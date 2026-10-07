@@ -9,7 +9,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router-dom'
 import {
   advanceTrail,
   ApiRequestError,
@@ -726,6 +732,7 @@ function typingCopy(
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { trailNames } = useOutletContext<{
     trailNames?: Record<string, string>
   }>()
@@ -1215,12 +1222,13 @@ export default function PlayerPage() {
   const goLoginAuth = useCallback(
     (message?: string) => {
       clearSession('auth')
+      // C3-R15 N01: preservar deep-link (não sobrescrever from do ChatLayout).
       navigate('/login', {
         replace: true,
-        state: { reason: 'auth', message },
+        state: { reason: 'auth', message, from: location },
       })
     },
-    [navigate],
+    [navigate, location],
   )
 
   const reportError = useCallback(
@@ -1253,11 +1261,13 @@ export default function PlayerPage() {
     const s = requireSession()
     if (!s) {
       clearSession('missing')
+      // C3-R15 N01: from = trilha atual — re-login volta a /trilha/:id.
       navigate('/login', {
         replace: true,
         state: {
           reason: 'missing',
           message: 'Entre de novo para continuar.',
+          from: location,
         },
       })
       return null

@@ -95,6 +95,20 @@ export default function LoginPage() {
     }
   }, [])
 
+  /**
+   * C3-R15 N02: login na aba A seta LS — aba B em /login deve sair do form
+   * (storage dispara só cross-tab; clear já era tratado no ChatLayout).
+   */
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'crias_student_session' || !e.newValue) return
+      if (!getSession()) return
+      navigate(resolvePostLoginPath(loginState), { replace: true })
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [navigate, loginState])
+
   /** C2-R16 N02: alert + Tentar montaram → foco no recovery único. */
   useEffect(() => {
     if (!canRetry || !error) return

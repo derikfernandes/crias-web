@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDefaultAiTrailPrompt,
@@ -22,10 +22,38 @@ type Props = {
 const ACCEPTED =
   '.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown'
 
+const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.docx', '.txt', '.md'])
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileKey(file: File): string {
+  return `${file.name}::${file.size}::${file.lastModified}`
+}
+
+function isAcceptedDocument(file: File): boolean {
+  const name = file.name.toLowerCase()
+  const ext = name.includes('.') ? `.${name.split('.').pop() ?? ''}` : ''
+  if (ACCEPTED_EXTENSIONS.has(ext)) return true
+  return (
+    file.type === 'application/pdf' ||
+    file.type ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    file.type === 'text/plain' ||
+    file.type === 'text/markdown'
+  )
+}
+
 export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
   const navigate = useNavigate()
+  const fileInputId = useId()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('upload')
   const [files, setFiles] = useState<File[]>([])
+  const [dragging, setDragging] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [promptLoading, setPromptLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -66,15 +94,43 @@ export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
 
   const fileSummary = useMemo(
     () =>
-      files.map((f) => `${f.name} (${Math.round(f.size / 1024)} KB)`).join(', '),
+      files.map((f) => `${f.name} (${formatFileSize(f.size)})`).join(', '),
     [files],
   )
 
+  function mergeFiles(incoming: File[]) {
+    const accepted = incoming.filter(isAcceptedDocument)
+    if (accepted.length === 0) {
+      setError('Envie arquivos PDF, DOCX, TXT ou MD.')
+      return
+    }
+    setFiles((prev) => {
+      const seen = new Set(prev.map(fileKey))
+      const next = [...prev]
+      for (const file of accepted) {
+        const key = fileKey(file)
+        if (seen.has(key)) continue
+        seen.add(key)
+        next.push(file)
+      }
+      return next
+    })
+    setError(null)
+  }
+
   function onPickFiles(list: FileList | null) {
     if (!list) return
-    const next = Array.from(list)
-    setFiles(next)
-    setError(null)
+    mergeFiles(Array.from(list))
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function clearFiles() {
+    setFiles([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function goPrompt() {
@@ -202,23 +258,137 @@ export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
 
       {step === 'upload' ? (
         <div className="trail-ai-wizard__body" data-testid="trail-ai-upload">
-          <label className="field">
-            <span>Documentos (PDF, DOCX, TXT ou MD)</span>
-            <input
-              type="file"
-              multiple
-              accept={ACCEPTED}
-              onChange={(e) => onPickFiles(e.target.files)}
-            />
-          </label>
+          <div className="field">
+            <span id={`${fileInputId}-label`}>
+              Documentos (PDF, DOCX, TXT ou MD)
+            </span>
+            <div
+              className={[
+                'trail-ai-dropzone',
+                dragging ? 'is-dragging' : '',
+                files.length > 0 ? 'has-files' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return
+                fileInputRef.current?.click()
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragging(true)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragging(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                setDragging(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDragging(false)
+                onPickFiles(e.dataTransfer.files)
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                id={fileInputId}
+                className="trail-ai-dropzone__input"
+                type="file"
+                multiple
+                accept={ACCEPTED}
+                aria-labelledby={`${fileInputId}-label`}
+                onChange={(e) => {
+                  onPickFiles(e.target.files)
+                  e.currentTarget.value = ''
+                }}
+              />
+              <div className="trail-ai-dropzone__icon" aria-hidden="true">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 3v5h5" />
+                  <path d="M12 17V11" />
+                  <path d="M9.5 13.5 12 11l2.5 2.5" />
+                </svg>
+              </div>
+              <p className="trail-ai-dropzone__title">
+                Arraste os documentos aqui
+              </p>
+              <p className="trail-ai-dropzone__hint muted">
+                ou escolha no computador — PDF, DOCX, TXT ou MD
+              </p>
+              <button
+                type="button"
+                className="btn btn--ghost trail-ai-dropzone__browse"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fileInputRef.current?.click()
+                }}
+              >
+                Escolher arquivos
+              </button>
+            </div>
+          </div>
+
           {files.length > 0 ? (
-            <p className="muted">Selecionados: {fileSummary}</p>
+            <div className="trail-ai-file-list">
+              <div className="trail-ai-file-list__head">
+                <strong>
+                  {files.length}{' '}
+                  {files.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}
+                </strong>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--small"
+                  onClick={clearFiles}
+                >
+                  Limpar
+                </button>
+              </div>
+              <ul className="trail-ai-file-list__items">
+                {files.map((file, index) => (
+                  <li key={fileKey(file)} className="trail-ai-file-list__item">
+                    <span className="trail-ai-file-list__name" title={file.name}>
+                      {file.name}
+                    </span>
+                    <span className="trail-ai-file-list__size muted">
+                      {formatFileSize(file.size)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--small trail-ai-file-list__remove"
+                      onClick={() => removeFile(index)}
+                      aria-label={`Remover ${file.name}`}
+                    >
+                      Remover
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
-            <p className="muted">
+            <p className="muted trail-ai-wizard__upload-note">
               Limite sugerido: até 8 arquivos, 4&nbsp;MB cada. Textos muito longos
               são truncados no servidor.
             </p>
           )}
+
           <div className="panel__actions">
             <button type="button" className="btn btn--ghost" onClick={onCancel}>
               Voltar

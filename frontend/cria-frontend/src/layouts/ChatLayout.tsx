@@ -14,6 +14,7 @@ import {
   listStudentTrails,
   type StudentTrailRow,
 } from '../lib/api'
+import { confirmOnline } from '../lib/connectivity'
 import { toUserFacingError } from '../lib/networkError'
 import {
   clearSession,
@@ -210,11 +211,19 @@ export default function ChatLayout() {
   reloadTrailsRef.current = reloadTrails
 
   // R12-O01: indicador offline (não silencioso).
+  // C3-R12 N02: evento `online` com rede morta — banner/CTA só após probe ok.
   useEffect(() => {
     const goOffline = () => setOffline(true)
     const goOnline = () => {
-      setOffline(false)
-      void reloadTrailsRef.current()
+      void (async () => {
+        const ok = await confirmOnline()
+        if (!ok) {
+          setOffline(true)
+          return
+        }
+        setOffline(false)
+        void reloadTrailsRef.current()
+      })()
     }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
@@ -638,7 +647,8 @@ export default function ChatLayout() {
         {/* C2-R6 N01: faixa in-flow — empurra topbar; não tapa brand/☰. */}
         {offline ? (
           <div className="chat-offline-banner" role="status" aria-live="polite">
-            Você está offline. Algumas ações podem falhar até a conexão voltar.
+            {/* C3-R12 N03: CTAs já hard-disabled — copy alinhada ao login OM04. */}
+            Sem conexão. Reconecte para continuar.
           </div>
         ) : null}
         <header className="chat-topbar">

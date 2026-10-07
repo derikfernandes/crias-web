@@ -59,6 +59,7 @@ import {
   mergeHistoryIntoMessages,
 } from '../lib/playerHelpers'
 import { writeFocusedTrailId } from '../lib/trailFocus'
+import { confirmOnline } from '../lib/connectivity'
 
 /** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
@@ -797,6 +798,10 @@ export default function PlayerPage() {
   const deliveredKeyRef = useRef<string | null>(null)
   /** C2-R21 N01/N02: evita refetch paralelo (visibility / storage / Continuar). */
   const resyncInFlightRef = useRef(false)
+  /** C3-R12 N01: online handler (effect []) chama resync via ref. */
+  const resyncIfStaleRef = useRef<
+    () => Promise<'same' | 'updated' | 'busy' | 'error'>
+  >(async () => 'busy')
   const contentRef = useRef(content)
   const nearBottomRef = useRef(true)
   /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
@@ -1312,34 +1317,45 @@ export default function PlayerPage() {
   // OM01: NÃO zerar advanceInFlight mid-flight — finally do fetch libera o lock.
   // C2-R24 N02: idem para submit/Maria em voo — não pintar erro falso mid-POST.
   // OM04: sincroniza flag offline com o banner do shell.
+  // C3-R12 N01/N02: probe real antes de limpar offline; resync next-content.
   useEffect(() => {
     const goOffline = () => setOffline(true)
     const onOnline = () => {
-      setOffline(false)
-      // C2-R24 N02 / OM01: mutate ainda em voo — busy/UI ficam até settle.
-      if (
-        advanceInFlightRef.current ||
-        submitInFlightRef.current ||
-        mariaInFlightRef.current
-      ) {
-        return
-      }
-      // R18-N06: seleção pendente sem mutate vivo → error (card + seleção ficam).
-      setPendingOptionKey((pending) => {
-        if (pending) {
-          window.setTimeout(() => {
-            setExercisePhase('error')
-            // OM03: não deixar ACK de Continuar stale no fail de exercício.
-            setSrAnnounce('')
-          }, 0)
+      void (async () => {
+        const ok = await confirmOnline()
+        if (!ok) {
+          setOffline(true)
+          return
         }
-        return null
-      })
-      setBusy(false)
-      setBusyReason(null)
-      busyReasonRef.current = null
-      setContinuarLeaving(false)
-      setTrailBusyLabel('Preparando etapa…')
+        // C2-R24 N02 / OM01: mutate ainda em voo — busy/UI ficam até settle.
+        if (
+          advanceInFlightRef.current ||
+          submitInFlightRef.current ||
+          mariaInFlightRef.current
+        ) {
+          setOffline(false)
+          return
+        }
+        // C3-R12 N01: alinha chrome/conteúdo à etapa servidor antes do CTA verde.
+        await resyncIfStaleRef.current()
+        setOffline(false)
+        // R18-N06: seleção pendente sem mutate vivo → error (card + seleção ficam).
+        setPendingOptionKey((pending) => {
+          if (pending) {
+            window.setTimeout(() => {
+              setExercisePhase('error')
+              // OM03: não deixar ACK de Continuar stale no fail de exercício.
+              setSrAnnounce('')
+            }, 0)
+          }
+          return null
+        })
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+        setContinuarLeaving(false)
+        setTrailBusyLabel('Preparando etapa…')
+      })()
     }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', onOnline)
@@ -2889,6 +2905,7 @@ export default function PlayerPage() {
       }
     }
   }
+  resyncIfStaleRef.current = () => resyncIfStale()
 
   /**
    * Após Continuar: só busca next-content (não recarrega 700+ logs).

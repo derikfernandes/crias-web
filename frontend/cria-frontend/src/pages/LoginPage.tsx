@@ -13,6 +13,7 @@ import {
 } from '../lib/networkError'
 import { canonicalizeStudentPhone } from '../lib/phone'
 import { getSession, setSession } from '../lib/session'
+import { confirmOnline } from '../lib/connectivity'
 import {
   bindVisualViewport,
   scrollFocusedIntoView,
@@ -79,7 +80,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     const goOffline = () => setOffline(true)
-    const goOnline = () => setOffline(false)
+    // C3-R12 N02: não limpar banner só com evento `online` mentiroso.
+    const goOnline = () => {
+      void (async () => {
+        const ok = await confirmOnline()
+        setOffline(!ok)
+      })()
+    }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     return () => {

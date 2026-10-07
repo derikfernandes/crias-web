@@ -915,17 +915,56 @@ export default function PlayerPage() {
   }, [])
 
   /**
-   * C2-R8 N01: âncora pós-advance — lesson-card / opção do exercício /
-   * bolha; nunca limbo BODY enquanto Continuar some no busy.
+   * C2-R8 N01 / C3-R3 N01: âncora pós-advance — foco no passo corrente
+   * DENTRO da 1ª vista. preventScroll sozinho deixava lesson-card em y&lt;0.
    */
   const focusCurrentLessonOrExercise = useCallback(() => {
+    const scroller = threadRef.current
+    const inScrollerView = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect()
+      if (!scroller) {
+        return r.bottom > 0 && r.top < window.innerHeight
+      }
+      const s = scroller.getBoundingClientRect()
+      return r.bottom > s.top + 4 && r.top < s.bottom - 4
+    }
+    const focusInView = (el: HTMLElement) => {
+      if (!inScrollerView(el)) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      }
+      el.focus({ preventScroll: true })
+      if (document.activeElement === el && inScrollerView(el)) return true
+      // Ainda fora: permite scroll nativo do focus.
+      el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      el.focus()
+      return document.activeElement === el && inScrollerView(el)
+    }
+
+    const current = contentRef.current
+    // Exercício: opções na tela — preferir radio (não card acima da dobra).
+    if (current?.status === 'ok' && current.stage_type === 'exercise') {
+      const radio =
+        (document.querySelector(
+          '.chat-exercise__option.is-selected, .chat-exercise__option[tabindex="0"]',
+        ) as HTMLButtonElement | null) ||
+        (document.querySelector(
+          '.chat-exercise__option',
+        ) as HTMLButtonElement | null)
+      if (radio && !radio.disabled && focusInView(radio)) return true
+      const exercise = document.querySelector(
+        '.chat-exercise',
+      ) as HTMLElement | null
+      if (exercise) {
+        if (!exercise.hasAttribute('tabindex')) exercise.tabIndex = -1
+        if (focusInView(exercise)) return true
+      }
+    }
+
     const lesson =
       lessonCardRef.current ??
       (document.querySelector('.lesson-card') as HTMLElement | null)
-    if (lesson) {
-      lesson.focus({ preventScroll: true })
-      if (document.activeElement === lesson) return true
-    }
+    if (lesson && focusInView(lesson)) return true
+
     const radio =
       (document.querySelector(
         '.chat-exercise__option.is-selected, .chat-exercise__option[tabindex="0"]',
@@ -933,15 +972,11 @@ export default function PlayerPage() {
       (document.querySelector(
         '.chat-exercise__option',
       ) as HTMLButtonElement | null)
-    if (radio && !radio.disabled) {
-      radio.focus({ preventScroll: true })
-      if (document.activeElement === radio) return true
-    }
+    if (radio && !radio.disabled && focusInView(radio)) return true
     const exercise = document.querySelector('.chat-exercise') as HTMLElement | null
     if (exercise) {
       if (!exercise.hasAttribute('tabindex')) exercise.tabIndex = -1
-      exercise.focus({ preventScroll: true })
-      if (document.activeElement === exercise) return true
+      if (focusInView(exercise)) return true
     }
     return false
   }, [])
@@ -979,19 +1014,30 @@ export default function PlayerPage() {
         tryFocus()
         for (const ms of [16, 50, 120, 300, 800, 1600] as const) {
           window.setTimeout(() => {
-            const active = document.activeElement
+            const active = document.activeElement as HTMLElement | null
             if (
               active &&
               active !== document.body &&
-              active !== document.documentElement &&
-              (active === lessonCardRef.current ||
-                active === continuarBtnRef.current ||
-                active === inputRef.current ||
-                (active as HTMLElement).closest?.(
-                  '.lesson-card, .chat-exercise, [data-msg-id]',
-                ))
+              active !== document.documentElement
             ) {
-              return
+              const scroller = threadRef.current
+              const r = active.getBoundingClientRect()
+              const s = scroller?.getBoundingClientRect()
+              const inView = s
+                ? r.bottom > s.top + 4 && r.top < s.bottom - 4
+                : r.bottom > 0 && r.top < window.innerHeight
+              // C3-R3 N01: lesson-card focada fora da vista ≠ settle — retenta.
+              if (
+                inView &&
+                (active === lessonCardRef.current ||
+                  active === continuarBtnRef.current ||
+                  active === inputRef.current ||
+                  active.closest?.(
+                    '.lesson-card, .chat-exercise, .chat-exercise__option, [data-msg-id]',
+                  ))
+              ) {
+                return
+              }
             }
             tryFocus()
           }, ms)
@@ -1933,9 +1979,56 @@ export default function PlayerPage() {
     }
   }, [content, exerciseDone, loadHistoryAndContent])
 
+  /**
+   * C3-R2 N03: em viewport baixa, stick-to-bottom pode cortar a opção A.
+   * Só sobe o mínimo para A ficar inteira — não troca a âncora do fim.
+   * Pin leve evita ResizeObserver re-empurrar ao fundo e re-cortar A.
+   */
+  const ensureFirstExerciseOptionVisible = useCallback(
+    (scroller: HTMLElement) => {
+      const first = scroller.querySelector(
+        '.chat-exercise__option',
+      ) as HTMLElement | null
+      if (!first) return false
+      const sRect = scroller.getBoundingClientRect()
+      const oRect = first.getBoundingClientRect()
+      if (oRect.top >= sRect.top - 1) return false
+      const delta = sRect.top - oRect.top + 8
+      programmaticScrollRef.current = true
+      scroller.scrollTop = Math.max(0, scroller.scrollTop - delta)
+      pinnedAwayRef.current = true
+      nearBottomRef.current = isScrollNearBottom(scroller)
+      pinnedScrollTopRef.current = scroller.scrollTop
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false
+      }, 320)
+      return true
+    },
+    [],
+  )
+
   const scrollToCurrentStep = useCallback(
     (scroller: HTMLElement) => {
       const current = contentRef.current
+      /**
+       * C3-R2 N03: no exercício, block:start no lesson-card deixa as opções
+       * abaixo da dobra (A invisível) em viewport baixa. Âncora no fim +
+       * nudge se A ficou com topo cortado.
+       */
+      if (current?.status === 'ok' && current.stage_type === 'exercise') {
+        programmaticScrollRef.current = true
+        scroller.scrollTop = scroller.scrollHeight
+        ensureFirstExerciseOptionVisible(scroller)
+        nearBottomRef.current = isScrollNearBottom(scroller)
+        pinnedAwayRef.current = !nearBottomRef.current
+        pinnedScrollTopRef.current = scroller.scrollTop
+        if (!nearBottomRef.current) showJumpChip()
+        else clearJumpChip()
+        window.setTimeout(() => {
+          programmaticScrollRef.current = false
+        }, 320)
+        return true
+      }
       // C2-R6 N03: lesson-card é a âncora quando a bolha da célula some do DOM.
       const lesson = scroller.querySelector(
         '[data-current-step="true"], .lesson-card',
@@ -1966,7 +2059,7 @@ export default function PlayerPage() {
       }
       return false
     },
-    [showJumpChip],
+    [showJumpChip, clearJumpChip, ensureFirstExerciseOptionVisible],
   )
 
   const loadOlderHistory = useCallback(
@@ -2422,6 +2515,11 @@ export default function PlayerPage() {
         requestAnimationFrame(() => {
           const scroller = threadRef.current
           if (!scroller) return
+          // C3-R2 N03: após near-bottom, sobe se a opção A ficou cortada.
+          const cur = contentRef.current
+          if (cur?.status === 'ok' && cur.stage_type === 'exercise') {
+            ensureFirstExerciseOptionVisible(scroller)
+          }
           if (
             messages.length > 0 &&
             (contentRef.current?.status === 'ok' ||
@@ -2453,6 +2551,18 @@ export default function PlayerPage() {
     // Sem pin do usuário: sempre stick-to-bottom (auto) — gap de append ≠ chip.
     nearBottomRef.current = true
     scrollToBottom('auto')
+    // C3-R2 N03: stick-to-bottom no exercício não pode deixar A cortada.
+    const cur = contentRef.current
+    if (
+      cur?.status === 'ok' &&
+      cur.stage_type === 'exercise' &&
+      !exerciseDone
+    ) {
+      requestAnimationFrame(() => {
+        const scroller = threadRef.current
+        if (scroller) ensureFirstExerciseOptionVisible(scroller)
+      })
+    }
     // messages/busy/content drive presence; intentional deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
@@ -2464,6 +2574,32 @@ export default function PlayerPage() {
     // preventScroll: focus no composer não pode puxar .chat-thread__scroll (C2-40).
     inputRef.current?.focus({ preventScroll: true })
   }, [content, exerciseDone])
+
+  /**
+   * C3-R2 N03: ao entrar no exercício (esp. 360×640), stick-to-bottom pode
+   * deixar a opção A com topo cortado — corrige após o paint das opções.
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
+    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'submitting') {
+      return
+    }
+    const scroller = threadRef.current
+    if (!scroller) return
+    const pass = () => {
+      ensureFirstExerciseOptionVisible(scroller)
+    }
+    const t0 = window.requestAnimationFrame(pass)
+    const t1 = window.setTimeout(pass, 80)
+    const t2 = window.setTimeout(pass, 200)
+    const t3 = window.setTimeout(pass, 450)
+    return () => {
+      window.cancelAnimationFrame(t0)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
+  }, [content, exerciseDone, exercisePhase, ensureFirstExerciseOptionVisible])
 
   /**
    * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),
@@ -3701,12 +3837,24 @@ export default function PlayerPage() {
   /**
    * F06 / C2-R8 N02: radiogroup APG — setas movem seleção+foco;
    * nunca vazam para iframe. Tab stop único via tabIndex roving.
+   * C3-R3 N03: sem escolha, Tab fica no grupo (não some para textarea/chrome).
    */
   function onOptionKeyDown(
     e: KeyboardEvent<HTMLButtonElement>,
     optIndex: number,
     opts: ExerciseOption[],
   ) {
+    if (e.key === 'Tab' && !selectedOptionKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      const delta = e.shiftKey ? -1 : 1
+      const next = (optIndex + delta + opts.length) % opts.length
+      const el = document.querySelectorAll(
+        '.chat-exercise__option',
+      )[next] as HTMLButtonElement | null
+      el?.focus({ preventScroll: true })
+      return
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft') {
       return
     }
@@ -4231,8 +4379,9 @@ export default function PlayerPage() {
                 ? ' chat-bubble--typing-long'
                 : ''
             }`}
+            role="status"
             aria-live="polite"
-            aria-label={typing.aria}
+            aria-atomic="true"
             data-busy-reason={busyReason || undefined}
             data-long-wait={
               mariaLongWait && busyReason === 'maria' ? 'true' : undefined
@@ -4243,7 +4392,10 @@ export default function PlayerPage() {
                 M
               </span>
               <div className="chat-bubble__stack">
-                <p className="chat-bubble__label">{typing.label}</p>
+                {/* C3-R3 N02: label visual; live anuncia o status real (reduced). */}
+                <p className="chat-bubble__label" aria-hidden="true">
+                  {typing.label}
+                </p>
                 <div className="chat-bubble__text">
                   <span className="typing-dots" aria-hidden="true">
                     <span />
@@ -4559,6 +4711,8 @@ export default function PlayerPage() {
             value={draft}
             disabled={composerBlocked && !exerciseLockedComposer}
             readOnly={exerciseLockedComposer}
+            /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
+            tabIndex={exerciseLockedComposer ? -1 : undefined}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
               exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria'
@@ -4571,29 +4725,28 @@ export default function PlayerPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
-          <button
-            type="submit"
-            className={`chat-composer__send${
-              sendAriaDisabled ? ' is-aria-disabled' : ''
-            }`}
-            disabled={sendDisabledHard}
-            aria-disabled={sendAriaDisabled || undefined}
-            aria-label={
-              exerciseLockedComposer
-                ? 'Maria disponível após o feedback do exercício'
-                : 'Enviar pergunta à Maria'
-            }
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          {/* C3-R2 N01: avião oculto no exercício — affordance = Enviar resposta. */}
+          {!exerciseLockedComposer ? (
+            <button
+              type="submit"
+              className={`chat-composer__send${
+                sendAriaDisabled ? ' is-aria-disabled' : ''
+              }`}
+              disabled={sendDisabledHard}
+              aria-disabled={sendAriaDisabled || undefined}
+              aria-label="Enviar pergunta à Maria"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">

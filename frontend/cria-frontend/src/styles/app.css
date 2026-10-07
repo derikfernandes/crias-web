@@ -639,7 +639,8 @@ a.ghost:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  /* C3-R2 N02: gap ≥8px entre cards tocáveis (antes 0.45rem ≈7px). */
+  gap: 0.5rem;
   overflow-y: auto;
   flex: 1;
 }
@@ -1427,8 +1428,21 @@ button[aria-disabled='true'] {
   animation-delay: 0.36s;
 }
 
+/*
+ * C3-R3 N02: status real sempre no DOM acessível (aria-live lê conteúdo).
+ * display:none quebrava o anúncio — só “Aula” do label chegava ao SR.
+ * Visual: oculto (clip); com prefers-reduced-motion vira texto inline.
+ */
 .typing-dots__reduced {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
   color: var(--muted);
   font-size: 0.95rem;
 }
@@ -1638,6 +1652,11 @@ button[aria-disabled='true'] {
 .chat-composer--locked .chat-composer button {
   flex-shrink: 1;
   min-width: 4.5rem;
+}
+
+/* C3-R2 N01: no exercício o CTA é “Enviar resposta” — some o avião decoy. */
+.chat-composer--locked .chat-composer__send {
+  display: none;
 }
 
 .chat-composer--locked .chat-composer__input {
@@ -2518,6 +2537,13 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   .typing-dots__reduced {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
     display: inline;
   }
 }

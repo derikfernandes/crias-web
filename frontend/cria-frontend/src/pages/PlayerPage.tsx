@@ -20,7 +20,6 @@ import {
   isAuthError,
   normalizeExerciseOptions,
   submitExerciseAttempt,
-  type ConversationLogRow,
   type ExerciseOption,
   type NextContentOk,
   type NextContentStatus,
@@ -1037,46 +1036,52 @@ export default function PlayerPage() {
   )
 
   /**
-   * C2-R7 N01 / R23-L04: pós-Enviar Maria o soft-KB fecha e o browser
-   * joga activeElement → BODY em <16 ms. Reafirma Voltar (ou bolha/
-   * composer) enquanto o vv assenta; nunca deixar BODY.
+   * C3-R6 N01: pós-ack Maria — foco em continuar a conversa (composer),
+   * ou Voltar à trilha (D#11). Nunca Continuar (avanço da etapa).
+   * C2-R7 N01 / R23-L04: soft-KB → BODY; reafirma enquanto o vv assenta.
    */
   const focusAfterMariaAck = useCallback(() => {
-    const tryFocus = (allowComposerFallback: boolean) => {
+    const tryFocus = (allowComposer: boolean) => {
       if (mariaCancelledRef.current) return true
-      // D#11: Voltar à trilha é o alvo estável pós-resposta na Maria.
+      if (
+        !allowComposer &&
+        document.documentElement.dataset.keyboard === 'open'
+      ) {
+        // KB ainda aberto — tenta Voltar; composer no próximo tick.
+        const voltarEarly = voltarBtnRef.current
+        if (voltarEarly && voltarEarly.offsetParent !== null) {
+          voltarEarly.focus({ preventScroll: true })
+          if (document.activeElement === voltarEarly) return true
+        }
+        return false
+      }
+      // Preferência: composer (continuar conversa).
+      const input = inputRef.current
+      if (input && !input.readOnly && !input.disabled) {
+        input.focus({ preventScroll: true })
+        if (document.activeElement === input) return true
+      }
+      // D#11: Voltar sai da Maria sem avançar.
       const voltar = voltarBtnRef.current
-      // CTA display:none sob KB → offsetParent null; espera settle.
       if (voltar && voltar.offsetParent !== null) {
         voltar.focus({ preventScroll: true })
         if (document.activeElement === voltar) return true
-      }
-      if (
-        !allowComposerFallback &&
-        document.documentElement.dataset.keyboard === 'open'
-      ) {
-        return false
       }
       const lastMaria = [...messagesRef.current]
         .reverse()
         .find((m) => m.role === 'assistant' && m.kind === 'sidechat')
       if (focusMessageById(lastMaria?.id)) return true
-      const input = inputRef.current
-      if (input && !input.readOnly && !input.disabled) {
-        input.focus({ preventScroll: true })
-        return document.activeElement === input
-      }
       return false
     }
 
-    const settleMs = [16, 50, 120, 300] as const
+    const settleMs = [16, 50, 120, 300, 800] as const
     window.requestAnimationFrame(() => {
-      tryFocus(false)
+      tryFocus(true)
       for (const ms of settleMs) {
         window.setTimeout(() => {
           if (mariaCancelledRef.current) return
           const active = document.activeElement
-          // Aluno já está em Voltar / composer / bolha — não roubar.
+          // Aluno já está em composer / Voltar / bolha — não roubar.
           if (
             active &&
             active !== document.body &&
@@ -1087,12 +1092,47 @@ export default function PlayerPage() {
           ) {
             return
           }
-          // BODY ou alvo inútil → reafirma (composer só após vv assentar).
-          tryFocus(ms >= 120)
+          // BODY ou Continuar/alvo inútil → reafirma (nunca avanço).
+          tryFocus(true)
         }, ms)
       }
     })
   }, [focusMessageById])
+
+  /**
+   * C3-R6 N03: mid-flight Maria — soft-KB fecha e activeElement vira BODY.
+   * Mantém âncora útil (Voltar gated ou composer) até o ack.
+   */
+  const holdFocusDuringMariaFlight = useCallback(() => {
+    const hold = () => {
+      if (!mariaInFlightRef.current) return
+      const active = document.activeElement
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        (active === voltarBtnRef.current ||
+          active === inputRef.current ||
+          (active as HTMLElement).closest?.('[data-msg-id]'))
+      ) {
+        return
+      }
+      const voltar = voltarBtnRef.current
+      if (voltar && voltar.offsetParent !== null) {
+        voltar.focus({ preventScroll: true })
+        return
+      }
+      const input = inputRef.current
+      if (input) {
+        // disabled mid-busy ainda aceita focus programático na maioria dos engines
+        input.focus({ preventScroll: true })
+      }
+    }
+    hold()
+    for (const ms of [16, 50, 100, 200, 400, 800, 1600, 3200] as const) {
+      window.setTimeout(hold, ms)
+    }
+  }, [])
 
   /**
    * C2-R16 N01/N03: ao montar alert + Tentar, mover foco para o recovery —
@@ -3240,6 +3280,10 @@ export default function PlayerPage() {
     ])
     // R12-O05 / R18-N04: só limpa draft no ack; falha restaura.
     setDraft('')
+    // C3-R6 N03: soft-KB → BODY; ancora foco até o ack.
+    window.requestAnimationFrame(() => {
+      holdFocusDuringMariaFlight()
+    })
     let mariaAcked = false
     try {
       const result = await askMaria({
@@ -3925,6 +3969,8 @@ export default function PlayerPage() {
   const mariaBusyPending = Boolean(
     busy && busyReason === 'maria' && !mariaSidechat,
   )
+  /** C3-R6 N02: mid-flight no sidechat também é espera — não “Continue a conversa”. */
+  const mariaBusyWaiting = Boolean(busy && busyReason === 'maria')
   /** C2-R23 N03: exercício stale sob resync — trava card/opções como pending. */
   const exerciseResyncLock = trailBusy && optionsVisible
   const hintKey =
@@ -3934,25 +3980,25 @@ export default function PlayerPage() {
         ? trailBusyLabel.startsWith('Salvando')
           ? 'busy-save'
           : 'busy-load'
-        : mariaBusyPending
-          ? 'maria-pending'
-          : content.stage_type === 'exercise'
-            ? exerciseDone
-              ? 'ex-done'
-              : exerciseComposerOpen
-                ? 'ex-locked'
-                : 'ex-pending'
-            : mariaSidechat
-              ? 'maria'
-              : 'trail'
+        : mariaBusyWaiting
+          ? 'maria-waiting'
+          : mariaBusyPending
+            ? 'maria-pending'
+            : content.stage_type === 'exercise'
+              ? exerciseDone
+                ? 'ex-done'
+                : exerciseComposerOpen
+                  ? 'ex-locked'
+                  : 'ex-pending'
+              : mariaSidechat
+                ? 'maria'
+                : 'trail'
 
   // C2-R4 N01/N03: typing alinhado ao CTA (trail) e estágio longo (Maria).
   const typing = typingCopy(busyReason, {
     trailLabel: trailBusyLabel,
     mariaLongWait,
   })
-  /** C2-R4 N04: bob infinito só fora da espera da resposta. */
-  const mariaBusyWaiting = Boolean(busy && busyReason === 'maria')
   /**
    * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
    * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
@@ -4780,23 +4826,26 @@ export default function PlayerPage() {
                 trailBusyLabel.startsWith('Salvando')
                 ? 'Aguarde — salvando progresso'
                 : 'Aguarde — carregando a próxima etapa'
-              : mariaBusyPending
-                ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
-                  'Aguarde — finalizando conversa com Maria'
-                : hasMariaDraft && showContinuar
-                  ? // C2-R9 N01: draft pausa Continuar
-                    'Enviar a dúvida à Maria — Continuar pausado'
-                  : content.stage_type === 'exercise'
-                    ? showContinuar
-                      ? 'Pergunte à Maria · Continuar trilha avança'
-                      : 'Pergunte à Maria'
-                    : mariaSidechat
-                      ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
-                        'Responda no composer · Voltar à trilha sai da Maria'
-                      : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
-                        showContinuar
-                        ? 'Enviar fala com Maria · Continuar trilha avança'
-                        : 'Enviar fala com Maria'}
+              : mariaBusyWaiting
+                ? // C3-R6 N02: mid-flight / long-wait — não “Continue a conversa” com CTA off
+                  'Aguarde — Maria está respondendo'
+                : mariaBusyPending
+                  ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
+                    'Aguarde — finalizando conversa com Maria'
+                  : hasMariaDraft && showContinuar
+                    ? // C2-R9 N01: draft pausa Continuar
+                      'Enviar a dúvida à Maria — Continuar pausado'
+                    : content.stage_type === 'exercise'
+                      ? showContinuar
+                        ? 'Pergunte à Maria · Continuar trilha avança'
+                        : 'Pergunte à Maria'
+                      : mariaSidechat
+                        ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
+                          'Responda no composer · Voltar à trilha sai da Maria'
+                        : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
+                          showContinuar
+                          ? 'Enviar fala com Maria · Continuar trilha avança'
+                          : 'Enviar fala com Maria'}
           </p>
         ) : null}
       </footer>

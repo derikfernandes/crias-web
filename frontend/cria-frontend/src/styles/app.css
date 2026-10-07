@@ -125,20 +125,22 @@ h1 {
 
 .login-page {
   min-height: 100%;
+  /* C3-R9 N01: shell = --vv-height (resizes-content). NÃO somar --keyboard-inset
+   * no padding — double-count encolhia contentBox e Entrar overlapava o KB. */
   height: var(--vv-height, 100dvh);
   display: grid;
   align-content: start;
   justify-items: center;
   padding: 1.5rem;
   padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
-  padding-bottom: calc(
-    1.5rem + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)
-  );
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
   position: relative;
   background: var(--main);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* C3-R9 N02: paridade com .chat-shell — ios-pan não corta o brand. */
+  transform: translateY(var(--vv-offset-top, 0px));
 }
 
 .login-atmosphere {
@@ -296,9 +298,8 @@ textarea::placeholder {
   .login-page {
     padding: 0.5rem 0.85rem;
     padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
-    padding-bottom: calc(
-      0.5rem + env(safe-area-inset-bottom, 0px) + var(--keyboard-inset, 0px)
-    );
+    /* C3-R9 N01: sem --keyboard-inset (já no --vv-height). */
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
     align-content: center;
   }
 
@@ -528,7 +529,8 @@ a.ghost:hover {
   background: rgba(25, 195, 125, 0.1);
 }
 
-.chat-sidebar__new {
+/* C3-R7 N04: home/lista (antes chat-sidebar__new com “+”). */
+.chat-sidebar__home {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -548,14 +550,14 @@ a.ghost:hover {
     box-shadow 0.2s ease;
 }
 
-.chat-sidebar__new-plus {
+.chat-sidebar__home-icon {
   color: var(--accent);
-  font-weight: 700;
-  font-size: 1.05rem;
+  display: inline-flex;
   line-height: 1;
+  flex-shrink: 0;
 }
 
-.chat-sidebar__new:hover {
+.chat-sidebar__home:hover {
   border-color: var(--accent);
   background: rgba(23, 234, 157, 0.08);
   box-shadow: 0 0 0 1px rgba(23, 234, 157, 0.12);
@@ -639,7 +641,8 @@ a.ghost:hover {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  /* C3-R2 N02: gap ≥8px entre cards tocáveis (antes 0.45rem ≈7px). */
+  gap: 0.5rem;
   overflow-y: auto;
   flex: 1;
 }
@@ -692,13 +695,20 @@ a.ghost:hover {
   flex-shrink: 0;
 }
 
+/* C3-R7 N01: até 2 linhas + title no Link — sem esmagar em ~102px. */
 .trail-card__id {
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--ink);
-  white-space: nowrap;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .trail-card__status {
@@ -1001,6 +1011,8 @@ button[aria-disabled='true'] {
   /* Impede o browser de “ancorar” o scroll quando typing/CTA mudam o layout. */
   overflow-anchor: none;
   overscroll-behavior: contain;
+  /* C3-R10 N01: scrollIntoView/âncora abaixo do sticky .chat-exercise__prompt. */
+  scroll-padding-top: 4.25rem;
   scroll-padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px));
 }
 
@@ -1118,6 +1130,12 @@ button[aria-disabled='true'] {
 /* B5: opção escolhida no histórico — banner destacado (ref). */
 .chat-bubble--exercise-answer .chat-bubble__text {
   font-weight: 500;
+}
+
+/* C3-R5 N02: answer offscreen com content-visibility:auto virava retângulo
+ * verde vazio (innerText skip). Sempre pintar o texto da opção. */
+.chat-bubble--exercise-answer {
+  content-visibility: visible;
 }
 
 .chat-bubble__row {
@@ -1427,8 +1445,21 @@ button[aria-disabled='true'] {
   animation-delay: 0.36s;
 }
 
+/*
+ * C3-R3 N02: status real sempre no DOM acessível (aria-live lê conteúdo).
+ * display:none quebrava o anúncio — só “Aula” do label chegava ao SR.
+ * Visual: oculto (clip); com prefers-reduced-motion vira texto inline.
+ */
 .typing-dots__reduced {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
   color: var(--muted);
   font-size: 0.95rem;
 }
@@ -1638,6 +1669,11 @@ button[aria-disabled='true'] {
 .chat-composer--locked .chat-composer button {
   flex-shrink: 1;
   min-width: 4.5rem;
+}
+
+/* C3-R2 N01: no exercício o CTA é “Enviar resposta” — some o avião decoy. */
+.chat-composer--locked .chat-composer__send {
+  display: none;
 }
 
 .chat-composer--locked .chat-composer__input {
@@ -1902,6 +1938,21 @@ button[aria-disabled='true'] {
   background: none;
 }
 
+/*
+ * C3-R10 N03: split/viewport curto — sticky prompt engolia a única opção
+ * na faixa útil. Sem sticky, enunciado rola e A/B/C ficam tocáveis.
+ */
+@media (max-height: 420px) {
+  .chat-exercise__prompt {
+    position: static;
+    z-index: auto;
+    background: none;
+    padding-top: 0.15rem;
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.45rem;
+  }
+}
+
 .chat-exercise__retry {
   margin-top: 0.75rem;
   display: flex;
@@ -2147,12 +2198,13 @@ button[aria-disabled='true'] {
  * R18-N01 / P28: Continuar disabled offline (não-busy) — cinza morto como Enviar,
  * não o mesmo verde fill só com opacity:.55 (verde fantasma).
  * Exclui --leaving para não vencer R06-E10 (busy mid-flight).
+ * C3-R11 N01: texto 16px precisa AA ≥4.5:1 (0.48 → ~3.48; 0.65 → ~5.0).
  */
 .chat-continue:not(.chat-continue--leaving)
   .chat-continue__btn:disabled:not(.chat-continue__btn--secondary):not([aria-busy='true']) {
   opacity: 1;
   background: #3a3b48;
-  color: rgba(236, 236, 241, 0.48);
+  color: rgba(236, 236, 241, 0.65);
   box-shadow: none;
   filter: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2518,6 +2570,13 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   .typing-dots__reduced {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
     display: inline;
   }
 }
@@ -2731,14 +2790,20 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
    * C2-R17 N01: z-index:40 no ☰ (position:relative) ficava preso no stacking do
    * .chat-topbar (flex item z-index:2) — abaixo da sidebar fixed z:30.
    * Com drawer aberto, eleva o topbar inteiro acima da sidebar/backdrop.
-   * padding-top na sidebar evita “+ Minhas trilhas” sob a faixa do topbar.
+   * C3-R13 N02: pointer-events none no topbar (☰ auto) — taps na faixa do
+   * Fechar não caem no brand/título; padding maior tira overlap visual.
    */
   .chat-shell--drawer-open .chat-topbar {
     z-index: 40;
+    pointer-events: none;
+  }
+
+  .chat-shell--drawer-open .chat-topbar__menu {
+    pointer-events: auto;
   }
 
   .chat-shell--drawer-open .chat-sidebar--open {
-    padding-top: max(3.5rem, calc(env(safe-area-inset-top, 0px) + 3rem));
+    padding-top: max(4.5rem, calc(env(safe-area-inset-top, 0px) + 4rem));
   }
 
   .chat-sidebar {
@@ -2776,6 +2841,9 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
 
   .chat-thread__scroll {
     padding: 0.35rem 0 0.4rem;
+    /* C3-R10 N01/N02 + C3-R14 N02: faixa útil — pad top cobre topbar/prompt. */
+    scroll-padding-top: 3.75rem;
+    scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-cta-slot {
@@ -2823,18 +2891,34 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   /* R24-LS06: embed/mídia cabem no VH curto sem engolir o fio. */
+  /* C3-R14 N01: teto de altura + width:auto — aspect-ratio não estica. */
   .chat-bubble__embed {
     max-width: min(100%, 22rem);
   }
 
   .chat-bubble__embed-frame {
+    width: auto;
+    max-width: 100%;
+    height: min(36vh, 180px);
     max-height: min(36vh, 180px);
     aspect-ratio: 16 / 9;
+    /* C3-R14 N02: scrollIntoView respeita faixa abaixo do topbar. */
+    scroll-margin-top: 0.5rem;
+    scroll-margin-bottom: 4.5rem;
+  }
+
+  .chat-bubble__embed[data-embed-kind='youtube-shorts'] {
+    max-width: min(100%, 10rem);
   }
 
   .chat-bubble__embed[data-embed-kind='youtube-shorts'] .chat-bubble__embed-frame {
+    width: auto;
+    max-width: 100%;
+    height: min(48vh, 160px);
     max-height: min(48vh, 160px);
     aspect-ratio: 9 / 16;
+    scroll-margin-top: 0.5rem;
+    scroll-margin-bottom: 4.5rem;
   }
 
   .chat-bubble__media img {

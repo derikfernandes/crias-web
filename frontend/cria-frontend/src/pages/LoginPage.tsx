@@ -13,6 +13,7 @@ import {
 } from '../lib/networkError'
 import { canonicalizeStudentPhone } from '../lib/phone'
 import { getSession, setSession } from '../lib/session'
+import { confirmOnline } from '../lib/connectivity'
 import {
   bindVisualViewport,
   scrollFocusedIntoView,
@@ -60,9 +61,32 @@ export default function LoginPage() {
 
   useEffect(() => bindVisualViewport(), [])
 
+  /**
+   * C3-R9 N01: após o soft-KB abrir (vv resize), reancora o campo focado
+   * para Entrar ficar acima do teclado — o onFocus sozinho corre antes do inset.
+   */
+  useEffect(() => {
+    const onVvResize = () => {
+      const el = document.activeElement
+      if (!(el instanceof HTMLElement)) return
+      if (!el.closest('.login-page')) return
+      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return
+      scrollFocusedIntoView(el)
+    }
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', onVvResize)
+    return () => vv?.removeEventListener('resize', onVvResize)
+  }, [])
+
   useEffect(() => {
     const goOffline = () => setOffline(true)
-    const goOnline = () => setOffline(false)
+    // C3-R12 N02: não limpar banner só com evento `online` mentiroso.
+    const goOnline = () => {
+      void (async () => {
+        const ok = await confirmOnline()
+        setOffline(!ok)
+      })()
+    }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     return () => {
@@ -70,6 +94,20 @@ export default function LoginPage() {
       window.removeEventListener('online', goOnline)
     }
   }, [])
+
+  /**
+   * C3-R15 N02: login na aba A seta LS — aba B em /login deve sair do form
+   * (storage dispara só cross-tab; clear já era tratado no ChatLayout).
+   */
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'crias_student_session' || !e.newValue) return
+      if (!getSession()) return
+      navigate(resolvePostLoginPath(loginState), { replace: true })
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [navigate, loginState])
 
   /** C2-R16 N02: alert + Tentar montaram → foco no recovery único. */
   useEffect(() => {

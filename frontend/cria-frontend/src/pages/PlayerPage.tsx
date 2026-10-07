@@ -9,7 +9,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router-dom'
 import {
   advanceTrail,
   ApiRequestError,
@@ -20,7 +26,6 @@ import {
   isAuthError,
   normalizeExerciseOptions,
   submitExerciseAttempt,
-  type ConversationLogRow,
   type ExerciseOption,
   type NextContentOk,
   type NextContentStatus,
@@ -59,6 +64,8 @@ import {
   mainButtonState,
   mergeHistoryIntoMessages,
 } from '../lib/playerHelpers'
+import { writeFocusedTrailId } from '../lib/trailFocus'
+import { confirmOnline } from '../lib/connectivity'
 
 /** Fallback de bolhas se não houver question corrente (status). */
 const HISTORY_VISIBLE_TAIL = 28
@@ -609,23 +616,6 @@ function statusToSystemText(content: NextContentStatus): string {
   return content.message || `Indisponível (${content.status}).`
 }
 
-function cellHasExerciseFeedback(
-  logs: ConversationLogRow[],
-  stageNumber: number,
-  questionNumber: number,
-): boolean {
-  return logs.some(
-    (l) =>
-      l.sender === 'system' &&
-      l.stage_number === stageNumber &&
-      l.question_number === questionNumber &&
-      (l.message_type === 'feedback' ||
-        (l.metadata &&
-          typeof l.metadata === 'object' &&
-          (l.metadata as { source?: string }).source === 'exercise_feedback')),
-  )
-}
-
 function markAnimate(msg: ChatMessage, extra?: Partial<ChatMessage>): ChatMessage {
   return { ...msg, animate: true, ...extra }
 }
@@ -742,6 +732,7 @@ function typingCopy(
 export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { trailNames } = useOutletContext<{
     trailNames?: Record<string, string>
   }>()
@@ -814,6 +805,10 @@ export default function PlayerPage() {
   const deliveredKeyRef = useRef<string | null>(null)
   /** C2-R21 N01/N02: evita refetch paralelo (visibility / storage / Continuar). */
   const resyncInFlightRef = useRef(false)
+  /** C3-R12 N01: online handler (effect []) chama resync via ref. */
+  const resyncIfStaleRef = useRef<
+    () => Promise<'same' | 'updated' | 'busy' | 'error'>
+  >(async () => 'busy')
   const contentRef = useRef(content)
   const nearBottomRef = useRef(true)
   /** Usuário leu histórico acima: não auto-scroll até chip/click ou voltar ao fim. */
@@ -829,6 +824,11 @@ export default function PlayerPage() {
    * Enquanto true, scrollTop=0 NÃO vira pin (evita chip fantasma + regência).
    */
   const initialAnchorPendingRef = useRef(true)
+  /**
+   * C3-R8 N03: janela pós-mount para reancorar aula longa no título depois
+   * que o card cresce (fonts/imagens). Independent de initialAnchorPending.
+   */
+  const longLessonAnchorUntilRef = useRef(0)
   /** Ignora onScroll gerado por scroll programático. */
   const programmaticScrollRef = useRef(false)
   /** Timeout que libera programmaticScrollRef (smooth pode durar >2 frames). */
@@ -845,6 +845,13 @@ export default function PlayerPage() {
   const lastUserInputAtRef = useRef(0)
   /** scrollTop do último onScroll — direção do movimento. */
   const lastScrollTopRef = useRef(0)
+  /** C3-R8 N01: id da última bolha — “Nova mensagem” só se o fim cresceu. */
+  const tailMsgIdRef = useRef<string | null>(null)
+  /**
+   * C3-R8 N01: após mount/expand, hidratação muda o tail — não rotular
+   * “Nova mensagem” até a janela passar (reply real ainda marca unseen).
+   */
+  const chipUnseenSuppressUntilRef = useRef(0)
   /** Smooth programático em voo (Ir para o fim) — gesto do aluno cancela. */
   const smoothScrollUntilRef = useRef(0)
   const reduceMotionRef = useRef(false)
@@ -885,6 +892,8 @@ export default function PlayerPage() {
     | null
   >(null)
   const continuarBtnRef = useRef<HTMLButtonElement>(null)
+  /** D#11 / C3-N01: Voltar à trilha — sai da Maria sem avançar etapa. */
+  const voltarBtnRef = useRef<HTMLButtonElement>(null)
   /** C2-R16 N01/N03: “Tentar de novo” — recovery único pós-erro rede. */
   const retryBtnRef = useRef<HTMLButtonElement>(null)
   const canRetryRef = useRef(false)
@@ -897,7 +906,8 @@ export default function PlayerPage() {
   }, [])
 
   const showJumpChip = useCallback((opts?: { unseen?: boolean }) => {
-    if (opts?.unseen) setUnseenBelow(true)
+    // C3-R8 N01: sem unseen explícito → “Ir para o fim” (não preservar stale).
+    setUnseenBelow(opts?.unseen === true)
     setJumpChip(true)
   }, [])
 
@@ -912,17 +922,56 @@ export default function PlayerPage() {
   }, [])
 
   /**
-   * C2-R8 N01: âncora pós-advance — lesson-card / opção do exercício /
-   * bolha; nunca limbo BODY enquanto Continuar some no busy.
+   * C2-R8 N01 / C3-R3 N01: âncora pós-advance — foco no passo corrente
+   * DENTRO da 1ª vista. preventScroll sozinho deixava lesson-card em y&lt;0.
    */
   const focusCurrentLessonOrExercise = useCallback(() => {
+    const scroller = threadRef.current
+    const inScrollerView = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect()
+      if (!scroller) {
+        return r.bottom > 0 && r.top < window.innerHeight
+      }
+      const s = scroller.getBoundingClientRect()
+      return r.bottom > s.top + 4 && r.top < s.bottom - 4
+    }
+    const focusInView = (el: HTMLElement) => {
+      if (!inScrollerView(el)) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      }
+      el.focus({ preventScroll: true })
+      if (document.activeElement === el && inScrollerView(el)) return true
+      // Ainda fora: permite scroll nativo do focus.
+      el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      el.focus()
+      return document.activeElement === el && inScrollerView(el)
+    }
+
+    const current = contentRef.current
+    // Exercício: opções na tela — preferir radio (não card acima da dobra).
+    if (current?.status === 'ok' && current.stage_type === 'exercise') {
+      const radio =
+        (document.querySelector(
+          '.chat-exercise__option.is-selected, .chat-exercise__option[tabindex="0"]',
+        ) as HTMLButtonElement | null) ||
+        (document.querySelector(
+          '.chat-exercise__option',
+        ) as HTMLButtonElement | null)
+      if (radio && !radio.disabled && focusInView(radio)) return true
+      const exercise = document.querySelector(
+        '.chat-exercise',
+      ) as HTMLElement | null
+      if (exercise) {
+        if (!exercise.hasAttribute('tabindex')) exercise.tabIndex = -1
+        if (focusInView(exercise)) return true
+      }
+    }
+
     const lesson =
       lessonCardRef.current ??
       (document.querySelector('.lesson-card') as HTMLElement | null)
-    if (lesson) {
-      lesson.focus({ preventScroll: true })
-      if (document.activeElement === lesson) return true
-    }
+    if (lesson && focusInView(lesson)) return true
+
     const radio =
       (document.querySelector(
         '.chat-exercise__option.is-selected, .chat-exercise__option[tabindex="0"]',
@@ -930,29 +979,31 @@ export default function PlayerPage() {
       (document.querySelector(
         '.chat-exercise__option',
       ) as HTMLButtonElement | null)
-    if (radio && !radio.disabled) {
-      radio.focus({ preventScroll: true })
-      if (document.activeElement === radio) return true
-    }
+    if (radio && !radio.disabled && focusInView(radio)) return true
     const exercise = document.querySelector('.chat-exercise') as HTMLElement | null
     if (exercise) {
       if (!exercise.hasAttribute('tabindex')) exercise.tabIndex = -1
-      exercise.focus({ preventScroll: true })
-      if (document.activeElement === exercise) return true
+      if (focusInView(exercise)) return true
     }
     return false
   }, [])
 
   const focusAfterAdvance = useCallback(
-    (next: NextContentOk | NextContentStatus | null | undefined) => {
-      const title =
-        next && next.status === 'ok' && next.stage_title
-          ? stripDecorTitle(next.stage_title)
-          : ''
-      const stageBit = title
-        ? `Nova etapa: ${title}`
-        : 'Nova etapa da trilha disponível'
-      setSrAnnounce(`Progresso salvo. ${stageBit}`)
+    (
+      next: NextContentOk | NextContentStatus | null | undefined,
+      opts?: { announce?: boolean },
+    ) => {
+      // C3-R4 N02: só ACK “Progresso salvo…” quando a célula realmente avançou.
+      if (opts?.announce !== false) {
+        const title =
+          next && next.status === 'ok' && next.stage_title
+            ? stripDecorTitle(next.stage_title)
+            : ''
+        const stageBit = title
+          ? `Nova etapa: ${title}`
+          : 'Nova etapa da trilha disponível'
+        setSrAnnounce(`Progresso salvo. ${stageBit}`)
+      }
 
       const tryFocus = () => {
         if (focusCurrentLessonOrExercise()) return true
@@ -976,19 +1027,30 @@ export default function PlayerPage() {
         tryFocus()
         for (const ms of [16, 50, 120, 300, 800, 1600] as const) {
           window.setTimeout(() => {
-            const active = document.activeElement
+            const active = document.activeElement as HTMLElement | null
             if (
               active &&
               active !== document.body &&
-              active !== document.documentElement &&
-              (active === lessonCardRef.current ||
-                active === continuarBtnRef.current ||
-                active === inputRef.current ||
-                (active as HTMLElement).closest?.(
-                  '.lesson-card, .chat-exercise, [data-msg-id]',
-                ))
+              active !== document.documentElement
             ) {
-              return
+              const scroller = threadRef.current
+              const r = active.getBoundingClientRect()
+              const s = scroller?.getBoundingClientRect()
+              const inView = s
+                ? r.bottom > s.top + 4 && r.top < s.bottom - 4
+                : r.bottom > 0 && r.top < window.innerHeight
+              // C3-R3 N01: lesson-card focada fora da vista ≠ settle — retenta.
+              if (
+                inView &&
+                (active === lessonCardRef.current ||
+                  active === continuarBtnRef.current ||
+                  active === inputRef.current ||
+                  active.closest?.(
+                    '.lesson-card, .chat-exercise, .chat-exercise__option, [data-msg-id]',
+                  ))
+              ) {
+                return
+              }
             }
             tryFocus()
           }, ms)
@@ -999,62 +1061,103 @@ export default function PlayerPage() {
   )
 
   /**
-   * C2-R7 N01 / R23-L04: pós-Enviar Maria o soft-KB fecha e o browser
-   * joga activeElement → BODY em <16 ms. Reafirma Voltar (ou bolha/
-   * composer) enquanto o vv assenta; nunca deixar BODY.
+   * C3-R6 N01: pós-ack Maria — foco em continuar a conversa (composer),
+   * ou Voltar à trilha (D#11). Nunca Continuar (avanço da etapa).
+   * C2-R7 N01 / R23-L04: soft-KB → BODY; reafirma enquanto o vv assenta.
    */
   const focusAfterMariaAck = useCallback(() => {
-    const tryFocus = (allowComposerFallback: boolean) => {
+    const tryFocus = (allowComposer: boolean) => {
       if (mariaCancelledRef.current) return true
-      // Botão principal (Continuar trilha) é o alvo estável pós-resposta.
-      const voltar = continuarBtnRef.current
-      // CTA display:none sob KB → offsetParent null; espera settle.
+      if (
+        !allowComposer &&
+        document.documentElement.dataset.keyboard === 'open'
+      ) {
+        // KB ainda aberto — tenta Voltar; composer no próximo tick.
+        const voltarEarly = voltarBtnRef.current
+        if (voltarEarly && voltarEarly.offsetParent !== null) {
+          voltarEarly.focus({ preventScroll: true })
+          if (document.activeElement === voltarEarly) return true
+        }
+        return false
+      }
+      // Preferência: composer (continuar conversa).
+      const input = inputRef.current
+      if (input && !input.readOnly && !input.disabled) {
+        input.focus({ preventScroll: true })
+        if (document.activeElement === input) return true
+      }
+      // D#11: Voltar sai da Maria sem avançar.
+      const voltar = voltarBtnRef.current
       if (voltar && voltar.offsetParent !== null) {
         voltar.focus({ preventScroll: true })
         if (document.activeElement === voltar) return true
-      }
-      if (
-        !allowComposerFallback &&
-        document.documentElement.dataset.keyboard === 'open'
-      ) {
-        return false
       }
       const lastMaria = [...messagesRef.current]
         .reverse()
         .find((m) => m.role === 'assistant' && m.kind === 'sidechat')
       if (focusMessageById(lastMaria?.id)) return true
-      const input = inputRef.current
-      if (input && !input.readOnly && !input.disabled) {
-        input.focus({ preventScroll: true })
-        return document.activeElement === input
-      }
       return false
     }
 
-    const settleMs = [16, 50, 120, 300] as const
+    const settleMs = [16, 50, 120, 300, 800] as const
     window.requestAnimationFrame(() => {
-      tryFocus(false)
+      tryFocus(true)
       for (const ms of settleMs) {
         window.setTimeout(() => {
           if (mariaCancelledRef.current) return
           const active = document.activeElement
-          // Aluno já está em Voltar / composer / bolha — não roubar.
+          // Aluno já está em composer / Voltar / bolha — não roubar.
           if (
             active &&
             active !== document.body &&
             active !== document.documentElement &&
-            (active === continuarBtnRef.current ||
+            (active === voltarBtnRef.current ||
               active === inputRef.current ||
               (active as HTMLElement).closest?.('[data-msg-id]'))
           ) {
             return
           }
-          // BODY ou alvo inútil → reafirma (composer só após vv assentar).
-          tryFocus(ms >= 120)
+          // BODY ou Continuar/alvo inútil → reafirma (nunca avanço).
+          tryFocus(true)
         }, ms)
       }
     })
   }, [focusMessageById])
+
+  /**
+   * C3-R6 N03: mid-flight Maria — soft-KB fecha e activeElement vira BODY.
+   * Mantém âncora útil (Voltar gated ou composer) até o ack.
+   */
+  const holdFocusDuringMariaFlight = useCallback(() => {
+    const hold = () => {
+      if (!mariaInFlightRef.current) return
+      const active = document.activeElement
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        (active === voltarBtnRef.current ||
+          active === inputRef.current ||
+          (active as HTMLElement).closest?.('[data-msg-id]'))
+      ) {
+        return
+      }
+      const voltar = voltarBtnRef.current
+      if (voltar && voltar.offsetParent !== null) {
+        voltar.focus({ preventScroll: true })
+        return
+      }
+      const input = inputRef.current
+      if (input) {
+        // disabled mid-busy ainda aceita focus programático na maioria dos engines
+        input.focus({ preventScroll: true })
+      }
+    }
+    hold()
+    for (const ms of [16, 50, 100, 200, 400, 800, 1600, 3200] as const) {
+      window.setTimeout(hold, ms)
+    }
+  }, [])
 
   /**
    * C2-R16 N01/N03: ao montar alert + Tentar, mover foco para o recovery —
@@ -1119,12 +1222,13 @@ export default function PlayerPage() {
   const goLoginAuth = useCallback(
     (message?: string) => {
       clearSession('auth')
+      // C3-R15 N01: preservar deep-link (não sobrescrever from do ChatLayout).
       navigate('/login', {
         replace: true,
-        state: { reason: 'auth', message },
+        state: { reason: 'auth', message, from: location },
       })
     },
-    [navigate],
+    [navigate, location],
   )
 
   const reportError = useCallback(
@@ -1157,11 +1261,13 @@ export default function PlayerPage() {
     const s = requireSession()
     if (!s) {
       clearSession('missing')
+      // C3-R15 N01: from = trilha atual — re-login volta a /trilha/:id.
       navigate('/login', {
         replace: true,
         state: {
           reason: 'missing',
           message: 'Entre de novo para continuar.',
+          from: location,
         },
       })
       return null
@@ -1221,34 +1327,45 @@ export default function PlayerPage() {
   // OM01: NÃO zerar advanceInFlight mid-flight — finally do fetch libera o lock.
   // C2-R24 N02: idem para submit/Maria em voo — não pintar erro falso mid-POST.
   // OM04: sincroniza flag offline com o banner do shell.
+  // C3-R12 N01/N02: probe real antes de limpar offline; resync next-content.
   useEffect(() => {
     const goOffline = () => setOffline(true)
     const onOnline = () => {
-      setOffline(false)
-      // C2-R24 N02 / OM01: mutate ainda em voo — busy/UI ficam até settle.
-      if (
-        advanceInFlightRef.current ||
-        submitInFlightRef.current ||
-        mariaInFlightRef.current
-      ) {
-        return
-      }
-      // R18-N06: seleção pendente sem mutate vivo → error (card + seleção ficam).
-      setPendingOptionKey((pending) => {
-        if (pending) {
-          window.setTimeout(() => {
-            setExercisePhase('error')
-            // OM03: não deixar ACK de Continuar stale no fail de exercício.
-            setSrAnnounce('')
-          }, 0)
+      void (async () => {
+        const ok = await confirmOnline()
+        if (!ok) {
+          setOffline(true)
+          return
         }
-        return null
-      })
-      setBusy(false)
-      setBusyReason(null)
-      busyReasonRef.current = null
-      setContinuarLeaving(false)
-      setTrailBusyLabel('Preparando etapa…')
+        // C2-R24 N02 / OM01: mutate ainda em voo — busy/UI ficam até settle.
+        if (
+          advanceInFlightRef.current ||
+          submitInFlightRef.current ||
+          mariaInFlightRef.current
+        ) {
+          setOffline(false)
+          return
+        }
+        // C3-R12 N01: alinha chrome/conteúdo à etapa servidor antes do CTA verde.
+        await resyncIfStaleRef.current()
+        setOffline(false)
+        // R18-N06: seleção pendente sem mutate vivo → error (card + seleção ficam).
+        setPendingOptionKey((pending) => {
+          if (pending) {
+            window.setTimeout(() => {
+              setExercisePhase('error')
+              // OM03: não deixar ACK de Continuar stale no fail de exercício.
+              setSrAnnounce('')
+            }, 0)
+          }
+          return null
+        })
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+        setContinuarLeaving(false)
+        setTrailBusyLabel('Preparando etapa…')
+      })()
     }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', onOnline)
@@ -1332,20 +1449,6 @@ export default function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ver resyncIfStale abaixo
   }, [trailId])
 
-  /** R24-LS03: pós-rotate, reancora enunciado/opções na viewport. */
-  useEffect(() => {
-    const reanchor = () => {
-      if (exercisePhase === 'done' || exercisePhase === 'idle') return
-      window.requestAnimationFrame(() => {
-        document
-          .querySelector('.chat-exercise')
-          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      })
-    }
-    window.addEventListener('orientationchange', reanchor)
-    return () => window.removeEventListener('orientationchange', reanchor)
-  }, [exercisePhase])
-
   /**
    * R24-LS06 / C2-R11 N02: em landscape curto, ancora o frame da etapa
    * atual na faixa útil (lesson-card primeiro — não embed antigo do hist).
@@ -1363,6 +1466,8 @@ export default function PlayerPage() {
       if (userScrollUpGestureRef.current) return
       const scroller = threadRef.current
       if (!scroller) return
+      // Exercício: reancora em efeito C3-R10 (após ensureFirstExerciseOptionVisible).
+      if (content.stage_type === 'exercise') return
       const key = trailCellKey(content.stage_number, content.question_number)
       const cell = scroller.querySelector(
         `[data-cell-key="${key}"]`,
@@ -1380,7 +1485,23 @@ export default function PlayerPage() {
           '.chat-bubble__embed, .chat-bubble__media',
         ) as HTMLElement | null)
       if (media) {
+        // C3-R14 N02: centra e corrige se o topo/centro ficou sob o topbar.
         media.scrollIntoView({ block: 'center', inline: 'nearest' })
+        const clearTopbar = () => {
+          const sRect = scroller.getBoundingClientRect()
+          const mRect = media.getBoundingClientRect()
+          const pad = 6
+          if (mRect.top < sRect.top + pad) {
+            scroller.scrollTop += mRect.top - sRect.top - pad
+          }
+          const mid = media.getBoundingClientRect()
+          const cy = (mid.top + mid.bottom) / 2
+          if (cy < sRect.top + pad) {
+            scroller.scrollTop += cy - sRect.top - Math.min(mid.height / 2, 40)
+          }
+        }
+        clearTopbar()
+        requestAnimationFrame(clearTopbar)
         pinnedAwayRef.current = false
         nearBottomRef.current = isScrollNearBottom(scroller)
         return
@@ -1635,7 +1756,8 @@ export default function PlayerPage() {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
-    writeExerciseSelect(trailId, null)
+    // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
+    // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
     setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
@@ -1660,6 +1782,8 @@ export default function PlayerPage() {
     oldestLogMsRef.current = null
     skipSmoothScrollRef.current = true
     initialAnchorPendingRef.current = true
+    longLessonAnchorUntilRef.current = Date.now() + 900
+    chipUnseenSuppressUntilRef.current = Date.now() + 1200
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     userScrollUpGestureRef.current = false
@@ -1798,13 +1922,11 @@ export default function PlayerPage() {
             )
 
             if (data.stage_type === 'exercise') {
-              const done = cellHasExerciseFeedback(
-                logs,
-                data.stage_number,
-                data.question_number,
-              )
-              setExerciseDone(done)
-              setExercisePhase(done ? 'done' : 'idle')
+              // C3-R5 N01: next-content ainda é exercise → passagem atual NÃO
+              // está done. Feedback/attempts antigos no histórico não marcam
+              // done (reload mid-select / reset com logs da célula).
+              setExerciseDone(false)
+              setExercisePhase('idle')
               if (text.trim()) {
                 const alignId = trailMessageId(
                   data.stage_number,
@@ -1930,9 +2052,122 @@ export default function PlayerPage() {
     }
   }, [content, exerciseDone, loadHistoryAndContent])
 
+  /**
+   * C3-R2 N03 / C3-R10 N01–N03: opções na faixa útil entre sticky prompt
+   * (topo do scroller) e dock CTA/composer — hit-testável sem engolir toque.
+   */
+  const ensureFirstExerciseOptionVisible = useCallback(
+    (scroller: HTMLElement) => {
+      const opts = [
+        ...scroller.querySelectorAll('.chat-exercise__option'),
+      ] as HTMLElement[]
+      if (!opts.length) return false
+      const first = opts[0]!
+      const sRect = scroller.getBoundingClientRect()
+      const prompt = scroller.querySelector(
+        '.chat-exercise__prompt',
+      ) as HTMLElement | null
+      const promptSticky =
+        prompt && getComputedStyle(prompt).position === 'sticky'
+      const promptBottom = promptSticky
+        ? Math.max(sRect.top, prompt.getBoundingClientRect().bottom)
+        : sRect.top
+      const usefulTop = promptBottom + 6
+
+      let dockTop = sRect.bottom
+      for (const sel of ['.chat-cta-slot', '.chat-composer'] as const) {
+        const el = document.querySelector(sel) as HTMLElement | null
+        if (!el) continue
+        const cs = getComputedStyle(el)
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue
+        const r = el.getBoundingClientRect()
+        if (r.height < 8) continue
+        if (r.top < dockTop) dockTop = r.top
+      }
+      const usefulBottom = Math.min(sRect.bottom, dockTop) - 6
+      if (usefulBottom - usefulTop < 40) {
+        // Faixa mínima: ao menos o topo da 1ª opção abaixo do prompt.
+        const oRect = first.getBoundingClientRect()
+        if (oRect.top >= usefulTop - 1 && oRect.top < sRect.bottom) return false
+      }
+
+      const fRect = first.getBoundingClientRect()
+      // Alvo: 1ª opção logo abaixo do prompt/topo do scroller.
+      let delta = fRect.top - usefulTop
+      const hitAt = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect()
+        const cx = (r.left + r.right) / 2
+        const cy = (r.top + r.bottom) / 2
+        if (cy < usefulTop || cy > usefulBottom) return false
+        const hit = document.elementFromPoint(cx, cy)
+        return Boolean(hit?.closest?.('.chat-exercise__option'))
+      }
+      const firstHit = hitAt(first)
+      const anyHit = opts.some((o) => hitAt(o))
+      // A tocável e na faixa → ok (mesmo se C ficar sob o dock).
+      if (Math.abs(delta) < 4 && firstHit) return false
+      if (Math.abs(delta) < 4 && anyHit && !firstHit) {
+        // A coberta (topbar/prompt); ainda há hit — puxa A para a faixa.
+        delta = fRect.top - usefulTop
+      } else if (Math.abs(delta) < 4 && !anyHit) {
+        // Tudo sob o dock: sobe até caber o máximo possível.
+        const lastInBand = opts.find((o) => {
+          const r = o.getBoundingClientRect()
+          return r.top < usefulBottom
+        })
+        const target = lastInBand ?? first
+        const tRect = target.getBoundingClientRect()
+        delta = tRect.bottom - usefulBottom
+      }
+
+      programmaticScrollRef.current = true
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + delta)
+      pinnedAwayRef.current = true
+      nearBottomRef.current = isScrollNearBottom(scroller)
+      pinnedScrollTopRef.current = scroller.scrollTop
+      if (!nearBottomRef.current) showJumpChip()
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false
+      }, 320)
+      return true
+    },
+    [showJumpChip],
+  )
+
   const scrollToCurrentStep = useCallback(
     (scroller: HTMLElement) => {
       const current = contentRef.current
+      /**
+       * C3-R2 N03 / C3-R8 N02: no exercício, âncora no bloco `.chat-exercise`
+       * (opções na vista) — não no título do lesson-card após prepend histórico.
+       */
+      if (current?.status === 'ok' && current.stage_type === 'exercise') {
+        programmaticScrollRef.current = true
+        const exerciseRoot = scroller.querySelector(
+          '.chat-exercise',
+        ) as HTMLElement | null
+        const lastOpt = scroller.querySelector(
+          '.chat-exercise__option:last-of-type',
+        ) as HTMLElement | null
+        if (lastOpt) {
+          lastOpt.scrollIntoView({ block: 'end', behavior: 'auto' })
+        } else if (exerciseRoot) {
+          exerciseRoot.scrollIntoView({ block: 'end', behavior: 'auto' })
+        } else {
+          scroller.scrollTop = scroller.scrollHeight
+        }
+        ensureFirstExerciseOptionVisible(scroller)
+        nearBottomRef.current = isScrollNearBottom(scroller)
+        pinnedAwayRef.current = !nearBottomRef.current
+        pinnedScrollTopRef.current = scroller.scrollTop
+        // C3-R8 N01: expand/âncora ≠ mensagem nova — “Ir para o fim”.
+        if (!nearBottomRef.current) showJumpChip()
+        else clearJumpChip()
+        window.setTimeout(() => {
+          programmaticScrollRef.current = false
+        }, 320)
+        return true
+      }
       // C2-R6 N03: lesson-card é a âncora quando a bolha da célula some do DOM.
       const lesson = scroller.querySelector(
         '[data-current-step="true"], .lesson-card',
@@ -1963,7 +2198,7 @@ export default function PlayerPage() {
       }
       return false
     },
-    [showJumpChip],
+    [showJumpChip, clearJumpChip, ensureFirstExerciseOptionVisible],
   )
 
   const loadOlderHistory = useCallback(
@@ -2058,6 +2293,11 @@ export default function PlayerPage() {
     setContinuarLeaving(false)
     void loadHistoryAndContent()
   }, [trailId, loadHistoryAndContent])
+
+  /** C3-N02: home CTA retoma a trilha aberta por último (não a 1ª in_progress). */
+  useEffect(() => {
+    if (trailId) writeFocusedTrailId(trailId)
+  }, [trailId])
 
   /** R10-Z07: persiste draft + modo Maria (reload mid-dúvida). */
   useEffect(() => {
@@ -2350,9 +2590,52 @@ export default function PlayerPage() {
   }
 
   /**
+   * C3-R8 N03: aula longa — título (+ lead) na 1ª vista; chip “Ir para o fim”.
+   * Retorna true se ancorou no topo da lição.
+   */
+  function anchorLongLessonAtTitle(el: HTMLElement): boolean {
+    const current = contentRef.current
+    if (!current || current.status !== 'ok') return false
+    if (current.stage_type === 'exercise') return false
+    const lesson = el.querySelector(
+      '[data-current-step="true"], .lesson-card',
+    ) as HTMLElement | null
+    if (!lesson) return false
+    const title = lesson.querySelector(
+      '.lesson-card__title',
+    ) as HTMLElement | null
+    const longByCard = lesson.offsetHeight > el.clientHeight * 0.85
+    const longByThread = el.scrollHeight > el.clientHeight * 1.35
+    if (!longByCard && !longByThread) return false
+    const sRect = el.getBoundingClientRect()
+    const tRect = (title ?? lesson).getBoundingClientRect()
+    const titleVisible =
+      tRect.bottom > sRect.top + 8 && tRect.top < sRect.bottom - 8
+    // Já legível no topo — não remexe (exceto se ainda no rodapé).
+    if (titleVisible && el.scrollTop < 48) {
+      nearBottomRef.current = false
+      pinnedAwayRef.current = true
+      pinnedScrollTopRef.current = el.scrollTop
+      showJumpChip()
+      return true
+    }
+    runProgrammaticScroll(() => {
+      ;(title ?? lesson).scrollIntoView({ block: 'start', behavior: 'auto' })
+      // scrollIntoView em nested pode falhar se o pai clipa — força topo.
+      if (el.scrollTop > 24) el.scrollTop = 0
+    })
+    nearBottomRef.current = false
+    pinnedAwayRef.current = true
+    pinnedScrollTopRef.current = el.scrollTop
+    showJumpChip()
+    return true
+  }
+
+  /**
    * C3-10 / C2-10: ancora no passo corrente.
    * Preferência: fim do thread (math + CTA) — block:nearest falhava no mount
    * com scrollTop colado em 0 e conteúdo ainda crescendo.
+   * C3-R8 N03: aula longa no mount → título na 1ª vista (não rodapé).
    */
   function scrollCurrentStepIntoView(behavior: ScrollBehavior = 'smooth') {
     const el = threadRef.current
@@ -2366,8 +2649,9 @@ export default function PlayerPage() {
     const bubble = el.querySelector(
       `[data-cell-key="${key}"]`,
     ) as HTMLElement | null
-    // No mount/âncora inicial: força near-bottom (aula atual + Continuar).
+    // Mount/âncora inicial.
     if (initialAnchorPendingRef.current || skipSmoothScrollRef.current) {
+      if (anchorLongLessonAtTitle(el)) return
       scrollToBottom(behavior === 'smooth' ? 'auto' : behavior)
       return
     }
@@ -2414,12 +2698,34 @@ export default function PlayerPage() {
         requestAnimationFrame(() => {
           const scroller = threadRef.current
           if (!scroller) return
-          if (
-            messages.length > 0 &&
-            (contentRef.current?.status === 'ok' ||
-              contentRef.current?.status === 'completed') &&
-            isScrollNearBottom(scroller)
-          ) {
+          // C3-R2 N03: após near-bottom, sobe se a opção A ficou cortada.
+          const cur = contentRef.current
+          if (cur?.status === 'ok' && cur.stage_type === 'exercise') {
+            ensureFirstExerciseOptionVisible(scroller)
+          }
+          const contentOk =
+            contentRef.current?.status === 'ok' ||
+            contentRef.current?.status === 'completed'
+          if (!messages.length || !contentOk) return
+          // C3-R8 N03: revalida após layout crescer — não liberar pending no
+          // rodapé se a aula longa ainda esconde o título.
+          if (anchorLongLessonAtTitle(scroller)) {
+            initialAnchorPendingRef.current = false
+            longLessonAnchorUntilRef.current = 0
+            return
+          }
+          if (pinnedAwayRef.current && !isScrollNearBottom(scroller)) {
+            initialAnchorPendingRef.current = false
+            return
+          }
+          if (isScrollNearBottom(scroller)) {
+            // Aula: espere a janela de crescimento antes de liberar no fundo.
+            const isEx =
+              contentRef.current?.status === 'ok' &&
+              contentRef.current.stage_type === 'exercise'
+            if (!isEx && Date.now() < longLessonAnchorUntilRef.current) {
+              return
+            }
             initialAnchorPendingRef.current = false
             pinnedAwayRef.current = false
             nearBottomRef.current = true
@@ -2428,23 +2734,66 @@ export default function PlayerPage() {
         })
       }
       requestAnimationFrame(settle)
-      // Segundo passe: history/images podem crescer o scrollHeight.
-      const t = window.setTimeout(settle, 120)
-      return () => window.clearTimeout(t)
+      // Passes tardios: history/images/fontes crescem o scrollHeight.
+      const t1 = window.setTimeout(settle, 120)
+      const t2 = window.setTimeout(settle, 420)
+      const t3 = window.setTimeout(settle, 750)
+      return () => {
+        window.clearTimeout(t1)
+        window.clearTimeout(t2)
+        window.clearTimeout(t3)
+      }
+    }
+
+    // C3-R8 N03: effect re-correu após pending cair cedo — ainda corrige aula longa.
+    if (
+      Date.now() < longLessonAnchorUntilRef.current &&
+      el &&
+      !userScrollUpGestureRef.current
+    ) {
+      if (anchorLongLessonAtTitle(el)) {
+        longLessonAnchorUntilRef.current = 0
+        return
+      }
     }
 
     // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     if (isPinLocked() || pinnedAwayRef.current) {
       if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
-      showJumpChip({ unseen: true })
+      // C3-R8 N01: “Nova mensagem” só se o fim cresceu DEPOIS da janela de
+      // mount/expand (hidratação/prepend ≠ reply da Maria).
+      const tailId = messages.length ? messages[messages.length - 1]!.id : null
+      const grewAtEnd =
+        tailId != null &&
+        tailMsgIdRef.current != null &&
+        tailId !== tailMsgIdRef.current
+      tailMsgIdRef.current = tailId
+      const suppressUnseen = Date.now() < chipUnseenSuppressUntilRef.current
+      if (grewAtEnd && !suppressUnseen) showJumpChip({ unseen: true })
+      else showJumpChip()
       return
     }
+    tailMsgIdRef.current = messages.length
+      ? messages[messages.length - 1]!.id
+      : null
     // Dedo no scroller: não arrancar a tela da mão do aluno (o stick do
     // ResizeObserver assume quando ele soltar, se ainda estiver no fim).
     if (userScrollUpGestureRef.current || touchActiveRef.current) return
     // Sem pin do usuário: sempre stick-to-bottom (auto) — gap de append ≠ chip.
     nearBottomRef.current = true
     scrollToBottom('auto')
+    // C3-R2 N03: stick-to-bottom no exercício não pode deixar A cortada.
+    const cur = contentRef.current
+    if (
+      cur?.status === 'ok' &&
+      cur.stage_type === 'exercise' &&
+      !exerciseDone
+    ) {
+      requestAnimationFrame(() => {
+        const scroller = threadRef.current
+        if (scroller) ensureFirstExerciseOptionVisible(scroller)
+      })
+    }
     // messages/busy/content drive presence; intentional deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, content, exerciseDone, mariaSidechat, showTyping, historyReady])
@@ -2456,6 +2805,60 @@ export default function PlayerPage() {
     // preventScroll: focus no composer não pode puxar .chat-thread__scroll (C2-40).
     inputRef.current?.focus({ preventScroll: true })
   }, [content, exerciseDone])
+
+  /**
+   * C3-R2 N03 / C3-R10 N01–N03: ao entrar no exercício (360/landscape/split),
+   * stick-to-bottom pode deixar opções sob prompt sticky ou dock — corrige.
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
+    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'submitting') {
+      return
+    }
+    const scroller = threadRef.current
+    if (!scroller) return
+    const pass = () => {
+      ensureFirstExerciseOptionVisible(scroller)
+    }
+    const t0 = window.requestAnimationFrame(pass)
+    const t1 = window.setTimeout(pass, 80)
+    const t2 = window.setTimeout(pass, 200)
+    const t3 = window.setTimeout(pass, 450)
+    return () => {
+      window.cancelAnimationFrame(t0)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
+  }, [content, exerciseDone, exercisePhase, ensureFirstExerciseOptionVisible])
+
+  /**
+   * C3-R10 N01/N02: pós-rotate/resize curto — reancora opções na faixa útil.
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
+    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'idle') {
+      return
+    }
+    const reanchor = () => {
+      if (userScrollUpGestureRef.current) return
+      window.requestAnimationFrame(() => {
+        const scroller = threadRef.current
+        if (scroller) ensureFirstExerciseOptionVisible(scroller)
+      })
+    }
+    window.addEventListener('orientationchange', reanchor)
+    window.addEventListener('resize', reanchor)
+    return () => {
+      window.removeEventListener('orientationchange', reanchor)
+      window.removeEventListener('resize', reanchor)
+    }
+  }, [
+    content,
+    exerciseDone,
+    exercisePhase,
+    ensureFirstExerciseOptionVisible,
+  ])
 
   /**
    * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),
@@ -2528,6 +2931,7 @@ export default function PlayerPage() {
       }
     }
   }
+  resyncIfStaleRef.current = () => resyncIfStale()
 
   /**
    * Após Continuar: só busca next-content (não recarrega 700+ logs).
@@ -2840,7 +3244,8 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setTrailBusyLabel('Salvando progresso…')
+    // C3-R16 N01: GET de revalidação ≠ mutate — “Salvando…” só no POST advance.
+    setTrailBusyLabel('Conferindo etapa…')
     clearError()
     // Modo Maria: o mesmo Continuar fecha a conversa e avança (um clique).
     setMariaSidechat(false)
@@ -2854,6 +3259,12 @@ export default function PlayerPage() {
     let advanceSucceeded = false
     let advancedContent: NextContentOk | NextContentStatus | null = null
     let advanceClaimId: string | null = null
+    // C3-R4 N02: baseline da célula — ACK só se a posição mudar de verdade.
+    const startSnap = contentRef.current
+    const startCellKey =
+      startSnap?.status === 'ok'
+        ? trailCellKey(startSnap.stage_number, startSnap.question_number)
+        : null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       // C2-R21 N01/N02: revalida posição antes do advance — UI stale não pula etapa.
@@ -2909,13 +3320,18 @@ export default function PlayerPage() {
         )
         advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
         if (!advanceClaimId) {
+          // Outra aba pode ter avançado — re-fetch fresco (não reusar livePos stale).
           setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
-          advancedContent = await loadNextAfterAdvance(livePos)
-          publishTrailProgress(trailId, {
-            stage_number: livePos.stage_number,
-            question_number: livePos.question_number,
-          })
+          advancedContent = await loadNextAfterAdvance()
+          if (advancedContent && advancedContent.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: advancedContent.stage_number,
+              question_number: advancedContent.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
           advanceSucceeded = true
           return
         }
@@ -2923,6 +3339,8 @@ export default function PlayerPage() {
 
       let result
       try {
+        // C3-R16 N01: mutate real — agora sim “Salvando progresso…”.
+        setTrailBusyLabel('Salvando progresso…')
         result = await advanceTrail(liveSession.student_id, trailId, {
           expectedVersion:
             livePos.status === 'ok' &&
@@ -3001,14 +3419,14 @@ export default function PlayerPage() {
         if (advanceCommittedRef.current) void resyncAfterAdvance()
         else void doAdvance()
       })
-      // Reconcile silencioso (sem chrome busy). Se ok → um path (Continuar); senão Tentar.
+      // C3-R4 N01: reconcile next-content NÃO apaga recovery se advance não commitou.
+      // Banner + Tentar de novo ficam até recovery real (retry/sucesso).
       if (!advanceCommittedRef.current) {
         try {
           const s = requireSession()
           if (s) {
             const reconciled = await fetchNextContent(s.student_id, trailId)
             setContent(reconciled)
-            clearError()
           }
         } catch {
           /* ignore — Tentar de novo permanece */
@@ -3035,9 +3453,21 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // C2-R8 N01 / R15-Y04: ACK + foco na nova etapa (nunca BODY limbo).
+      // C2-R8 N01 / R15-Y04: foco pós-sucesso; ACK só se a célula mudou (C3-R4 N02).
       if (advanceSucceeded) {
-        focusAfterAdvance(advancedContent)
+        const afterKey =
+          advancedContent?.status === 'ok'
+            ? trailCellKey(
+                advancedContent.stage_number,
+                advancedContent.question_number,
+              )
+            : null
+        const didAdvance =
+          advancedContent?.status === 'completed' ||
+          (startCellKey != null &&
+            afterKey != null &&
+            startCellKey !== afterKey)
+        focusAfterAdvance(advancedContent, { announce: didAdvance })
       }
     }
   }
@@ -3085,6 +3515,10 @@ export default function PlayerPage() {
     ])
     // R12-O05 / R18-N04: só limpa draft no ack; falha restaura.
     setDraft('')
+    // C3-R6 N03: soft-KB → BODY; ancora foco até o ack.
+    window.requestAnimationFrame(() => {
+      holdFocusDuringMariaFlight()
+    })
     let mariaAcked = false
     try {
       const result = await askMaria({
@@ -3161,6 +3595,9 @@ export default function PlayerPage() {
     mariaCancelledRef.current = true
     setMariaSidechat(false)
     setMariaEntrance(false)
+    // C3-N01: cancela rascunho — Continuar não fica pausado pós-Voltar.
+    setDraft('')
+    writeMariaPersist(trailId, { draft: '', mariaSidechat: false })
     // PR01 / R30: sai da Maria no mesmo frame — não esperar settle do askMaria.
     // C2-R23 N04: se askMaria ainda voa, NÃO zerar busy — Continuar fica gated
     // até o finally do doMaria (Voltar só sai do sidechat).
@@ -3562,6 +3999,7 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !busy &&
     !continuarLeaving &&
+    !mariaSidechat &&
     !advanceInFlightRef.current &&
     !mariaInFlightRef.current &&
     !canRetry &&
@@ -3570,6 +4008,14 @@ export default function PlayerPage() {
       content.stage_type === 'ai' ||
       (content.stage_type === 'exercise' && exerciseDone))
 
+  /**
+   * D#11 / C3-N01: Voltar só no sidechat — sai da Maria sem rebobinar etapa.
+   * Continuar fica oculto (N04: hierarquia clara enquanto Maria pede escolha).
+   */
+  const showVoltarTrilha =
+    content?.status === 'ok' &&
+    mariaSidechat &&
+    (!busy || busyReason === 'maria' || busyReason === 'trail')
 
   /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
@@ -3588,9 +4034,13 @@ export default function PlayerPage() {
     externalMediaOpenRef.current = { msgId, href, at: Date.now() }
   }, [])
 
+  /**
+   * C3-R16 N02: busy “Enviando resposta…” só no CTA (fonte de verdade).
+   * Lock do composer usa reforço curto distinto — não 4× a mesma string.
+   */
   const exerciseLockLabel =
     exercisePhase === 'submitting'
-      ? 'Enviando resposta…'
+      ? 'Aguarde…'
       : exercisePhase === 'error'
         ? 'Falha ao enviar — toque em Enviar resposta de novo'
         : selectedOptionKey
@@ -3663,6 +4113,10 @@ export default function PlayerPage() {
 
   async function onExpandHistory() {
     // C2-R6 N03: expand local primeiro → âncora na etapa; older page sem roubar scroll.
+    // C3-R8 N01/N02: solta pin-lock stale para a âncora do expand valer.
+    stopPinLock()
+    pinHoldUntilRef.current = 0
+    chipUnseenSuppressUntilRef.current = Date.now() + 1000
     pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
     if (historyHasMore) {
@@ -3675,18 +4129,33 @@ export default function PlayerPage() {
       pendingScrollAnchorRef.current = { kind: 'current-step' }
       const scroller = threadRef.current
       if (scroller) scrollToCurrentStep(scroller)
+    } else {
+      const scroller = threadRef.current
+      if (scroller) scrollToCurrentStep(scroller)
     }
   }
 
   /**
    * F06 / C2-R8 N02: radiogroup APG — setas movem seleção+foco;
    * nunca vazam para iframe. Tab stop único via tabIndex roving.
+   * C3-R3 N03: sem escolha, Tab fica no grupo (não some para textarea/chrome).
    */
   function onOptionKeyDown(
     e: KeyboardEvent<HTMLButtonElement>,
     optIndex: number,
     opts: ExerciseOption[],
   ) {
+    if (e.key === 'Tab' && !selectedOptionKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      const delta = e.shiftKey ? -1 : 1
+      const next = (optIndex + delta + opts.length) % opts.length
+      const el = document.querySelectorAll(
+        '.chat-exercise__option',
+      )[next] as HTMLButtonElement | null
+      el?.focus({ preventScroll: true })
+      return
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowLeft') {
       return
     }
@@ -3736,7 +4205,7 @@ export default function PlayerPage() {
         ? statusToSystemText(content)
         : content.status !== 'ok'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte à Maria...'
+          : 'Pergunte à Maria…'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -3746,6 +4215,8 @@ export default function PlayerPage() {
   const mariaBusyPending = Boolean(
     busy && busyReason === 'maria' && !mariaSidechat,
   )
+  /** C3-R6 N02: mid-flight no sidechat também é espera — não “Continue a conversa”. */
+  const mariaBusyWaiting = Boolean(busy && busyReason === 'maria')
   /** C2-R23 N03: exercício stale sob resync — trava card/opções como pending. */
   const exerciseResyncLock = trailBusy && optionsVisible
   const hintKey =
@@ -3754,26 +4225,28 @@ export default function PlayerPage() {
       : trailBusy
         ? trailBusyLabel.startsWith('Salvando')
           ? 'busy-save'
-          : 'busy-load'
-        : mariaBusyPending
-          ? 'maria-pending'
-          : content.stage_type === 'exercise'
-            ? exerciseDone
-              ? 'ex-done'
-              : exerciseComposerOpen
-                ? 'ex-locked'
-                : 'ex-pending'
-            : mariaSidechat
-              ? 'maria'
-              : 'trail'
+          : trailBusyLabel.startsWith('Conferindo')
+            ? 'busy-check'
+            : 'busy-load'
+        : mariaBusyWaiting
+          ? 'maria-waiting'
+          : mariaBusyPending
+            ? 'maria-pending'
+            : content.stage_type === 'exercise'
+              ? exerciseDone
+                ? 'ex-done'
+                : exerciseComposerOpen
+                  ? 'ex-locked'
+                  : 'ex-pending'
+              : mariaSidechat
+                ? 'maria'
+                : 'trail'
 
   // C2-R4 N01/N03: typing alinhado ao CTA (trail) e estágio longo (Maria).
   const typing = typingCopy(busyReason, {
     trailLabel: trailBusyLabel,
     mariaLongWait,
   })
-  /** C2-R4 N04: bob infinito só fora da espera da resposta. */
-  const mariaBusyWaiting = Boolean(busy && busyReason === 'maria')
   /**
    * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
    * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
@@ -3802,8 +4275,10 @@ export default function PlayerPage() {
     hasMariaDraft,
     offline,
     canRetry,
+    mariaSidechat,
   })
-  const showCtaSlot = content?.status === 'ok' && mainButton.visible
+  const showCtaSlot =
+    content?.status === 'ok' && (mainButton.visible || showVoltarTrilha)
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
@@ -3827,14 +4302,13 @@ export default function PlayerPage() {
     !exerciseDone
       ? trailCellKey(content.stage_number, content.question_number)
       : null
+  // C3-R16 N02: legend estável no submit — busy fica no CTA.
   const exerciseLegend =
     exerciseResyncLock
       ? trailBusyLabel
-      : exerciseSubmitting
-        ? 'Enviando resposta…'
-        : exercisePhase === 'error'
-          ? 'Não foi possível enviar'
-          : 'Responda a questão'
+      : exercisePhase === 'error'
+        ? 'Não foi possível enviar'
+        : 'Responda a questão'
 
   const currentCell =
     content?.status === 'ok'
@@ -3872,6 +4346,19 @@ export default function PlayerPage() {
 
   const chatMessages = visibleMessages.filter((msg) => {
     if (!String(msg.text ?? '').trim()) return false
+    // C3-R5 N02: na passagem atual (ainda sem Enviar), não renderizar
+    // answer/feedback históricos da célula — retângulos vazios (content-
+    // visibility) e poluição entre tentativas antigas.
+    if (
+      content?.status === 'ok' &&
+      content.stage_type === 'exercise' &&
+      !exerciseDone &&
+      currentCell &&
+      (msg.kind === 'exercise-answer' || msg.kind === 'feedback') &&
+      msg.contextCell === currentCell
+    ) {
+      return false
+    }
     const promptMovedToCard =
       Boolean(activeExerciseCellKey) &&
       msg.role === 'assistant' &&
@@ -4187,7 +4674,10 @@ export default function PlayerPage() {
                       {msg.timeLabel || formatBubbleTime(null, true) || ''}
                     </span>
                     {msg.role === 'user' ? (
-                      <span className="chat-bubble__checks" aria-label="Enviada">
+                      <span
+                        className="chat-bubble__checks"
+                        aria-label="Mensagem enviada"
+                      >
                         ✓✓
                       </span>
                     ) : null}
@@ -4209,8 +4699,9 @@ export default function PlayerPage() {
                 ? ' chat-bubble--typing-long'
                 : ''
             }`}
+            role="status"
             aria-live="polite"
-            aria-label={typing.aria}
+            aria-atomic="true"
             data-busy-reason={busyReason || undefined}
             data-long-wait={
               mariaLongWait && busyReason === 'maria' ? 'true' : undefined
@@ -4221,7 +4712,10 @@ export default function PlayerPage() {
                 M
               </span>
               <div className="chat-bubble__stack">
-                <p className="chat-bubble__label">{typing.label}</p>
+                {/* C3-R3 N02: label visual; live anuncia o status real (reduced). */}
+                <p className="chat-bubble__label" aria-hidden="true">
+                  {typing.label}
+                </p>
                 <div className="chat-bubble__text">
                   <span className="typing-dots" aria-hidden="true">
                     <span />
@@ -4354,11 +4848,7 @@ export default function PlayerPage() {
                 </p>
               </div>
             ) : null}
-            {exerciseSubmitting ? (
-              <p className="chat-exercise__pending-label" aria-live="polite">
-                Enviando resposta…
-              </p>
-            ) : null}
+            {/* C3-R16 N02: sem pending-label “Enviando…” — CTA já anuncia busy. */}
             {exerciseResyncLock ? (
               <p className="chat-exercise__pending-label" aria-live="polite">
                 {trailBusyLabel}
@@ -4383,6 +4873,18 @@ export default function PlayerPage() {
             >
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
             </button>
+          ) : null}
+          {showVoltarTrilha ? (
+            <div className="chat-continue chat-continue--sidechat chat-continue--enter">
+              <button
+                ref={voltarBtnRef}
+                type="button"
+                className="chat-continue__btn"
+                onClick={onVoltarParaTrilha}
+              >
+                Voltar à trilha
+              </button>
+            </div>
           ) : null}
           {mainButton.visible ? (
             <div
@@ -4472,7 +4974,7 @@ export default function PlayerPage() {
           (showContinuar && !hasMariaDraft) || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
-        }`}
+        }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
       >
 <form
           className="chat-composer__form"
@@ -4525,9 +5027,11 @@ export default function PlayerPage() {
             value={draft}
             disabled={composerBlocked && !exerciseLockedComposer}
             readOnly={exerciseLockedComposer}
+            /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
+            tabIndex={exerciseLockedComposer ? -1 : undefined}
             placeholder={exerciseLockedComposer ? '' : placeholder}
             aria-label={
-              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria'
+              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
             }
             enterKeyHint={canSubmitExercise ? 'send' : 'send'}
             inputMode="text"
@@ -4537,54 +5041,60 @@ export default function PlayerPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
-          <button
-            type="submit"
-            className={`chat-composer__send${
-              sendAriaDisabled ? ' is-aria-disabled' : ''
-            }`}
-            disabled={sendDisabledHard}
-            aria-disabled={sendAriaDisabled || undefined}
-            aria-label={
-              exerciseLockedComposer
-                ? 'Maria disponível após o feedback do exercício'
-                : 'Enviar pergunta à Maria'
-            }
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          {/* C3-R2 N01: avião oculto no exercício — affordance = Enviar resposta. */}
+          {!exerciseLockedComposer ? (
+            <button
+              type="submit"
+              className={`chat-composer__send${
+                sendAriaDisabled ? ' is-aria-disabled' : ''
+              }`}
+              disabled={sendDisabledHard}
+              aria-disabled={sendAriaDisabled || undefined}
+              aria-label="Enviar pergunta à Maria"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
             {trailBusy
-              ? // C2-R4 N01: rodapé na mesma fase do CTA/typing
+              ? // C2-R4 N01 / C3-R16 N01: rodapé na mesma fase do CTA/typing
                 trailBusyLabel.startsWith('Salvando')
                 ? 'Aguarde — salvando progresso'
-                : 'Aguarde — carregando a próxima etapa'
-              : mariaBusyPending
-                ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
-                  'Aguarde — finalizando conversa com Maria'
-                : hasMariaDraft && showContinuar
-                  ? // C2-R9 N01: draft pausa Continuar
-                    'Enviar a dúvida à Maria — Continuar pausado'
-                  : content.stage_type === 'exercise'
-                    ? showContinuar
-                      ? 'Pergunte à Maria · Continuar trilha avança'
-                      : 'Pergunte à Maria'
-                    : mariaSidechat
-                      ? 'Continue a conversa com a Maria · Continuar trilha avança'
-                      : // R01-F06 / R01-F09 / R14-L01: hierarquia Continuar × Enviar
-                        showContinuar
-                        ? 'Enviar fala com Maria · Continuar trilha avança'
-                        : 'Enviar fala com Maria'}
+                : trailBusyLabel.startsWith('Conferindo')
+                  ? 'Aguarde — conferindo a etapa'
+                  : 'Aguarde — carregando a próxima etapa'
+              : mariaBusyWaiting
+                ? // C3-R6 N02: mid-flight / long-wait — não “Continue a conversa” com CTA off
+                  'Aguarde — Maria está respondendo'
+                : mariaBusyPending
+                  ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
+                    'Aguarde — finalizando conversa com Maria'
+                  : hasMariaDraft && showContinuar
+                    ? // C2-R9 N01: draft pausa Continuar
+                      'Enviar a dúvida à Maria — Continuar pausado'
+                    : content.stage_type === 'exercise'
+                      ? showContinuar
+                        ? // C3-R17 N03: microcopy clara (não “Continuar trilha avança”)
+                          'Pergunte à Maria · toque Continuar para avançar'
+                        : 'Pergunte à Maria'
+                      : mariaSidechat
+                        ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
+                          'Responda no composer · Voltar à trilha sai da Maria'
+                        : // R01-F06 / R01-F09 / R14-L01 / C3-R17 N03: hierarquia Continuar × Enviar
+                          showContinuar
+                          ? 'Envie à Maria · toque Continuar para avançar'
+                          : 'Envie à Maria'}
           </p>
         ) : null}
       </footer>

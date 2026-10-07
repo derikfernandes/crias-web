@@ -57,6 +57,7 @@ export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
   const [prompt, setPrompt] = useState('')
   const [promptLoading, setPromptLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [promptLoadError, setPromptLoadError] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
   const [draft, setDraft] = useState<AiTrailDraft | null>(null)
   const [rawTrail, setRawTrail] = useState<unknown>(null)
@@ -77,7 +78,7 @@ export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(
+          setPromptLoadError(
             err instanceof Error
               ? err.message
               : 'Falha ao carregar prompt padrão.',
@@ -407,6 +408,11 @@ export function TrailAiCreateWizard({ institutionId, onCancel }: Props) {
 
       {step === 'prompt' || step === 'generating' ? (
         <div className="trail-ai-wizard__body" data-testid="trail-ai-prompt">
+          {promptLoadError ? (
+            <p className="banner banner--error" role="alert">
+              {promptLoadError}
+            </p>
+          ) : null}
           <label className="field">
             <span>Prompt (editável)</span>
             <textarea

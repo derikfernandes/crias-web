@@ -1423,20 +1423,6 @@ export default function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ver resyncIfStale abaixo
   }, [trailId])
 
-  /** R24-LS03: pós-rotate, reancora enunciado/opções na viewport. */
-  useEffect(() => {
-    const reanchor = () => {
-      if (exercisePhase === 'done' || exercisePhase === 'idle') return
-      window.requestAnimationFrame(() => {
-        document
-          .querySelector('.chat-exercise')
-          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      })
-    }
-    window.addEventListener('orientationchange', reanchor)
-    return () => window.removeEventListener('orientationchange', reanchor)
-  }, [exercisePhase])
-
   /**
    * R24-LS06 / C2-R11 N02: em landscape curto, ancora o frame da etapa
    * atual na faixa útil (lesson-card primeiro — não embed antigo do hist).
@@ -1454,6 +1440,8 @@ export default function PlayerPage() {
       if (userScrollUpGestureRef.current) return
       const scroller = threadRef.current
       if (!scroller) return
+      // Exercício: reancora em efeito C3-R10 (após ensureFirstExerciseOptionVisible).
+      if (content.stage_type === 'exercise') return
       const key = trailCellKey(content.stage_number, content.question_number)
       const cell = scroller.querySelector(
         `[data-cell-key="${key}"]`,
@@ -2023,31 +2011,85 @@ export default function PlayerPage() {
   }, [content, exerciseDone, loadHistoryAndContent])
 
   /**
-   * C3-R2 N03: em viewport baixa, stick-to-bottom pode cortar a opção A.
-   * Só sobe o mínimo para A ficar inteira — não troca a âncora do fim.
-   * Pin leve evita ResizeObserver re-empurrar ao fundo e re-cortar A.
+   * C3-R2 N03 / C3-R10 N01–N03: opções na faixa útil entre sticky prompt
+   * (topo do scroller) e dock CTA/composer — hit-testável sem engolir toque.
    */
   const ensureFirstExerciseOptionVisible = useCallback(
     (scroller: HTMLElement) => {
-      const first = scroller.querySelector(
-        '.chat-exercise__option',
-      ) as HTMLElement | null
-      if (!first) return false
+      const opts = [
+        ...scroller.querySelectorAll('.chat-exercise__option'),
+      ] as HTMLElement[]
+      if (!opts.length) return false
+      const first = opts[0]!
       const sRect = scroller.getBoundingClientRect()
-      const oRect = first.getBoundingClientRect()
-      if (oRect.top >= sRect.top - 1) return false
-      const delta = sRect.top - oRect.top + 8
+      const prompt = scroller.querySelector(
+        '.chat-exercise__prompt',
+      ) as HTMLElement | null
+      const promptSticky =
+        prompt && getComputedStyle(prompt).position === 'sticky'
+      const promptBottom = promptSticky
+        ? Math.max(sRect.top, prompt.getBoundingClientRect().bottom)
+        : sRect.top
+      const usefulTop = promptBottom + 6
+
+      let dockTop = sRect.bottom
+      for (const sel of ['.chat-cta-slot', '.chat-composer'] as const) {
+        const el = document.querySelector(sel) as HTMLElement | null
+        if (!el) continue
+        const cs = getComputedStyle(el)
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue
+        const r = el.getBoundingClientRect()
+        if (r.height < 8) continue
+        if (r.top < dockTop) dockTop = r.top
+      }
+      const usefulBottom = Math.min(sRect.bottom, dockTop) - 6
+      if (usefulBottom - usefulTop < 40) {
+        // Faixa mínima: ao menos o topo da 1ª opção abaixo do prompt.
+        const oRect = first.getBoundingClientRect()
+        if (oRect.top >= usefulTop - 1 && oRect.top < sRect.bottom) return false
+      }
+
+      const fRect = first.getBoundingClientRect()
+      // Alvo: 1ª opção logo abaixo do prompt/topo do scroller.
+      let delta = fRect.top - usefulTop
+      const hitAt = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect()
+        const cx = (r.left + r.right) / 2
+        const cy = (r.top + r.bottom) / 2
+        if (cy < usefulTop || cy > usefulBottom) return false
+        const hit = document.elementFromPoint(cx, cy)
+        return Boolean(hit?.closest?.('.chat-exercise__option'))
+      }
+      const firstHit = hitAt(first)
+      const anyHit = opts.some((o) => hitAt(o))
+      // A tocável e na faixa → ok (mesmo se C ficar sob o dock).
+      if (Math.abs(delta) < 4 && firstHit) return false
+      if (Math.abs(delta) < 4 && anyHit && !firstHit) {
+        // A coberta (topbar/prompt); ainda há hit — puxa A para a faixa.
+        delta = fRect.top - usefulTop
+      } else if (Math.abs(delta) < 4 && !anyHit) {
+        // Tudo sob o dock: sobe até caber o máximo possível.
+        const lastInBand = opts.find((o) => {
+          const r = o.getBoundingClientRect()
+          return r.top < usefulBottom
+        })
+        const target = lastInBand ?? first
+        const tRect = target.getBoundingClientRect()
+        delta = tRect.bottom - usefulBottom
+      }
+
       programmaticScrollRef.current = true
-      scroller.scrollTop = Math.max(0, scroller.scrollTop - delta)
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + delta)
       pinnedAwayRef.current = true
       nearBottomRef.current = isScrollNearBottom(scroller)
       pinnedScrollTopRef.current = scroller.scrollTop
+      if (!nearBottomRef.current) showJumpChip()
       window.setTimeout(() => {
         programmaticScrollRef.current = false
       }, 320)
       return true
     },
-    [],
+    [showJumpChip],
   )
 
   const scrollToCurrentStep = useCallback(
@@ -2723,8 +2765,8 @@ export default function PlayerPage() {
   }, [content, exerciseDone])
 
   /**
-   * C3-R2 N03: ao entrar no exercício (esp. 360×640), stick-to-bottom pode
-   * deixar a opção A com topo cortado — corrige após o paint das opções.
+   * C3-R2 N03 / C3-R10 N01–N03: ao entrar no exercício (360/landscape/split),
+   * stick-to-bottom pode deixar opções sob prompt sticky ou dock — corrige.
    */
   useEffect(() => {
     if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
@@ -2747,6 +2789,34 @@ export default function PlayerPage() {
       window.clearTimeout(t3)
     }
   }, [content, exerciseDone, exercisePhase, ensureFirstExerciseOptionVisible])
+
+  /**
+   * C3-R10 N01/N02: pós-rotate/resize curto — reancora opções na faixa útil.
+   */
+  useEffect(() => {
+    if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
+    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'idle') {
+      return
+    }
+    const reanchor = () => {
+      if (userScrollUpGestureRef.current) return
+      window.requestAnimationFrame(() => {
+        const scroller = threadRef.current
+        if (scroller) ensureFirstExerciseOptionVisible(scroller)
+      })
+    }
+    window.addEventListener('orientationchange', reanchor)
+    window.addEventListener('resize', reanchor)
+    return () => {
+      window.removeEventListener('orientationchange', reanchor)
+      window.removeEventListener('resize', reanchor)
+    }
+  }, [
+    content,
+    exerciseDone,
+    exercisePhase,
+    ensureFirstExerciseOptionVisible,
+  ])
 
   /**
    * C2-R21 N01/N02: se a UI ficou atrás do servidor (outra aba / background),

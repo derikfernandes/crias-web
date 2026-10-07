@@ -1011,6 +1011,8 @@ button[aria-disabled='true'] {
   /* Impede o browser de “ancorar” o scroll quando typing/CTA mudam o layout. */
   overflow-anchor: none;
   overscroll-behavior: contain;
+  /* C3-R10 N01: scrollIntoView/âncora abaixo do sticky .chat-exercise__prompt. */
+  scroll-padding-top: 4.25rem;
   scroll-padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px));
 }
 
@@ -1936,6 +1938,21 @@ button[aria-disabled='true'] {
   background: none;
 }
 
+/*
+ * C3-R10 N03: split/viewport curto — sticky prompt engolia a única opção
+ * na faixa útil. Sem sticky, enunciado rola e A/B/C ficam tocáveis.
+ */
+@media (max-height: 420px) {
+  .chat-exercise__prompt {
+    position: static;
+    z-index: auto;
+    background: none;
+    padding-top: 0.15rem;
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.45rem;
+  }
+}
+
 .chat-exercise__retry {
   margin-top: 0.75rem;
   display: flex;
@@ -2817,6 +2834,9 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
 
   .chat-thread__scroll {
     padding: 0.35rem 0 0.4rem;
+    /* C3-R10 N01/N02: faixa útil curta — pad top = prompt sticky; bottom = dock. */
+    scroll-padding-top: 3.5rem;
+    scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-cta-slot {

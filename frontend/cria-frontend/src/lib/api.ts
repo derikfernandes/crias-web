@@ -124,9 +124,17 @@ export function normalizeExerciseOptions(
     if (typeof item === 'string') {
       const s = item.trim()
       if (!s) continue
-      // A) / A. / A: / (A) …
+      // A) / A. / (A) … ou 1) / 1. / (1) …
       const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
-      out.push({ key: letter ? letter[1].toUpperCase() : s, text: s })
+      if (letter) {
+        out.push({ key: letter[1].toUpperCase(), text: s })
+        continue
+      }
+      const numbered = s.match(/^\(?(\d{1,2})\)?\s*[\)\.\:]/)
+      out.push({
+        key: numbered ? String(Number(numbered[1])) : s,
+        text: s,
+      })
       continue
     }
     if (item && typeof item === 'object') {

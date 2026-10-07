@@ -61,16 +61,46 @@ export function normalizeOptions(raw: unknown): TrilhaOption[] | null {
 }
 
 function parseSingleOptionLine(line: string): TrilhaOption | null {
-  const m = line.match(/^([A-Da-d])\s*[\)\.\:\-–—]\s*(.+)$/)
-  if (!m) return null
-  const key = m[1]!.toUpperCase()
-  const text = m[2]!.trim()
-  if (!text) return null
-  return { key, label: optionLabel(key, text) }
+  const letter = line.match(/^([A-Da-d])\s*[\)\.\:\-–—]\s*(.+)$/)
+  if (letter) {
+    const key = letter[1]!.toUpperCase()
+    const text = letter[2]!.trim()
+    if (!text) return null
+    return { key, label: optionLabel(key, text) }
+  }
+  const numbered = line.match(/^(\d{1,2})\s*[\)\.\:\-–—]\s*(.+)$/)
+  if (numbered) {
+    const key = String(Number(numbered[1]))
+    const text = numbered[2]!.trim()
+    if (!text || Number(key) < 1) return null
+    return { key, label: optionLabel(key, text) }
+  }
+  const parenNum = line.match(/^\((\d{1,2})\)\s+(.+)$/)
+  if (parenNum) {
+    const key = String(Number(parenNum[1]))
+    const text = parenNum[2]!.trim()
+    if (!text || Number(key) < 1) return null
+    return { key, label: optionLabel(key, text) }
+  }
+  return null
+}
+
+function isConsecutiveLetterKeys(opts: TrilhaOption[]): boolean {
+  for (let i = 0; i < opts.length; i++) {
+    if (opts[i]!.key !== String.fromCodePoint(65 + i)) return false
+  }
+  return true
+}
+
+function isConsecutiveNumberKeys(opts: TrilhaOption[]): boolean {
+  for (let i = 0; i < opts.length; i++) {
+    if (opts[i]!.key !== String(i + 1)) return false
+  }
+  return true
 }
 
 /**
- * Extrai A)/B)/C)… do enunciado quando `options` estruturado está vazio.
+ * Extrai A)/B)/C)… ou 1)/2)/3)… do enunciado quando `options` estruturado está vazio.
  * Suporta linhas e texto inline ("A) Lado B) Diagonal C) Ângulo").
  */
 export function parseMcqFromContent(text: string): TrilhaOption[] | null {
@@ -86,7 +116,12 @@ export function parseMcqFromContent(text: string): TrilhaOption[] | null {
   }
   if (lineHits.length >= 2) {
     const keys = new Set(lineHits.map((o) => o.key))
-    if (keys.size === lineHits.length) return lineHits
+    if (
+      keys.size === lineHits.length &&
+      (isConsecutiveLetterKeys(lineHits) || isConsecutiveNumberKeys(lineHits))
+    ) {
+      return lineHits
+    }
   }
 
   const inline: TrilhaOption[] = []
@@ -101,7 +136,9 @@ export function parseMcqFromContent(text: string): TrilhaOption[] | null {
   }
   if (inline.length >= 2) {
     const keys = new Set(inline.map((o) => o.key))
-    if (keys.size === inline.length) return inline
+    if (keys.size === inline.length && isConsecutiveLetterKeys(inline)) {
+      return inline
+    }
   }
   return null
 }

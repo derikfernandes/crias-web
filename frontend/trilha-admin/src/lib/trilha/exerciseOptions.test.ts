@@ -38,6 +38,14 @@ describe('parseMcqFromContent', () => {
     expect(opts).toHaveLength(3)
     expect(opts?.[1]?.key).toBe('B')
   })
+
+  it('parseia alternativas numeradas 1) 2) 3)', () => {
+    const opts = parseMcqFromContent(
+      'Por quê?\n1) Apoio material sem núcleo político.\n2) Cargos privativos de concursados.\n3) Sem exigência de nível superior.',
+    )
+    expect(opts?.map((o) => o.key)).toEqual(['1', '2', '3'])
+    expect(opts?.[0]?.label).toMatch(/Apoio material/)
+  })
 })
 
 describe('resolveExerciseOptions', () => {

@@ -1,7 +1,7 @@
 /**
  * Opções de exercício para o player e scoring.
  * Firestore costuma ter `options: null` e as alternativas só no `content`
- * (`A)`, `A.`, `(A)`, etc.).
+ * (`A)`, `A.`, `(A)`, `1)`, `1.`, etc.).
  * `correct_option` no gabarito desta base costuma ser "1"|"2"|"3" (índice 1-based).
  */
 
@@ -11,10 +11,22 @@ export type ExerciseOption = { key: string; text: string }
 const LETTERED_OPTION_LINE =
   /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+(.+?)\s*$/
 
+/** Linha de opção numerada: 1) / 1. / 1: / (1) texto */
+const NUMBERED_OPTION_LINE =
+  /^\s*\(?(\d{1,2})\)?\s*[\)\.\:]\s+(.+?)\s*$/
+
 function sanitizeOptionText(v: unknown): string | null {
   if (typeof v !== 'string') return null
   const s = v.trim()
   return s.length ? s : null
+}
+
+function parseChoiceKeyFromString(s: string): string {
+  const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
+  if (letter) return letter[1].toUpperCase()
+  const numbered = s.match(/^\(?(\d{1,2})\)?\s*[\)\.\:]/)
+  if (numbered) return String(Number(numbered[1]))
+  return s
 }
 
 /** Normaliza options estruturados do doc Firestore. */
@@ -25,9 +37,8 @@ export function coerceStructuredOptions(raw: unknown): ExerciseOption[] | null {
     if (typeof item === 'string') {
       const s = item.trim()
       if (!s) return null
-      const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
       out.push({
-        key: letter ? letter[1].toUpperCase() : s,
+        key: parseChoiceKeyFromString(s),
         text: s,
       })
       continue
@@ -76,8 +87,42 @@ export function parseLetteredChoicesFromContent(
 }
 
 /**
- * Remove linhas de opções lettered do enunciado quando há botões clicáveis.
- * Evita duplicar "(A) …" como texto estático + botão.
+ * Extrai alternativas numeradas do texto da questão (ex.: t62).
+ * Aceita: "1) foo", "1. bar", "1: baz", "(1) qux".
+ */
+export function parseNumberedChoicesFromContent(
+  content: string | null | undefined,
+): ExerciseOption[] | null {
+  if (typeof content !== 'string' || !content.trim()) return null
+
+  const found: ExerciseOption[] = []
+  const seen = new Set<string>()
+
+  for (const line of content.split(/\r?\n/)) {
+    const m = line.match(NUMBERED_OPTION_LINE)
+    if (!m) continue
+    const key = String(Number(m[1]))
+    const body = m[2].trim()
+    if (!body || seen.has(key)) continue
+    // Evita capturar "A) …" como numerado (letra já tratada no outro parser).
+    if (!/^\d+$/.test(key) || Number(key) < 1) continue
+    seen.add(key)
+    found.push({ key, text: `${key}) ${body}` })
+  }
+
+  if (found.length < 2) return null
+
+  // Exige sequência a partir de 1 (evita falso positivo no enunciado).
+  for (let i = 0; i < found.length; i++) {
+    if (found[i].key !== String(i + 1)) return null
+  }
+
+  return found
+}
+
+/**
+ * Remove linhas de opções (lettered ou numeradas) do enunciado quando há botões.
+ * Evita duplicar "(A) …" / "1) …" como texto estático + botão.
  */
 export function stripLetteredChoicesFromContent(
   content: string | null | undefined,
@@ -85,21 +130,26 @@ export function stripLetteredChoicesFromContent(
   if (typeof content !== 'string') return null
   const kept: string[] = []
   for (const line of content.split(/\r?\n/)) {
-    if (LETTERED_OPTION_LINE.test(line)) continue
+    if (LETTERED_OPTION_LINE.test(line) || NUMBERED_OPTION_LINE.test(line)) {
+      continue
+    }
     kept.push(line)
   }
   const out = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
   return out.length ? out : null
 }
 
-/** Prefere options do doc; se vazias, parseia A/B/C do content. */
+/** Prefere options do doc; se vazias, parseia A/B/C ou 1/2/3 do content. */
 export function resolveExerciseOptions(
   optionsRaw: unknown,
   content: string | null | undefined,
 ): ExerciseOption[] | null {
   const structured = coerceStructuredOptions(optionsRaw)
   if (structured) return structured
-  return parseLetteredChoicesFromContent(content)
+  return (
+    parseLetteredChoicesFromContent(content) ??
+    parseNumberedChoicesFromContent(content)
+  )
 }
 
 /**

@@ -1,5 +1,9 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
+import {
+  resolveExerciseOptions,
+  stripLetteredChoicesFromContent,
+} from '../exerciseOptions'
 import { questionDocId, requireEnrollment, stageDocId } from './enrollment'
 import { TrailEngineError } from './errors'
 import {
@@ -164,8 +168,15 @@ export async function getNextContent(
     curriculum_content: curriculumContent,
     persisted_delivery: persistedDelivery,
   })
-  const content = resolvedBody.body
-  const options = questionData?.options ?? null
+  let content = resolvedBody.body
+  // Exercise: options do doc, ou parse A/B/C / 1/2/3 do content quando Firestore vem null.
+  const options =
+    stage_type === 'exercise'
+      ? resolveExerciseOptions(questionData?.options, content)
+      : (questionData?.options ?? null)
+  if (stage_type === 'exercise' && options && options.length > 0) {
+    content = stripLetteredChoicesFromContent(content) ?? content
+  }
   const explanation =
     typeof questionData?.explanation === 'string'
       ? questionData.explanation

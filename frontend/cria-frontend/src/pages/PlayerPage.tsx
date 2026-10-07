@@ -812,6 +812,11 @@ export default function PlayerPage() {
    * Enquanto true, scrollTop=0 NÃO vira pin (evita chip fantasma + regência).
    */
   const initialAnchorPendingRef = useRef(true)
+  /**
+   * C3-R8 N03: janela pós-mount para reancorar aula longa no título depois
+   * que o card cresce (fonts/imagens). Independent de initialAnchorPending.
+   */
+  const longLessonAnchorUntilRef = useRef(0)
   /** Ignora onScroll gerado por scroll programático. */
   const programmaticScrollRef = useRef(false)
   /** Timeout que libera programmaticScrollRef (smooth pode durar >2 frames). */
@@ -830,6 +835,11 @@ export default function PlayerPage() {
   const lastScrollTopRef = useRef(0)
   /** C3-R8 N01: id da última bolha — “Nova mensagem” só se o fim cresceu. */
   const tailMsgIdRef = useRef<string | null>(null)
+  /**
+   * C3-R8 N01: após mount/expand, hidratação muda o tail — não rotular
+   * “Nova mensagem” até a janela passar (reply real ainda marca unseen).
+   */
+  const chipUnseenSuppressUntilRef = useRef(0)
   /** Smooth programático em voo (Ir para o fim) — gesto do aluno cancela. */
   const smoothScrollUntilRef = useRef(0)
   const reduceMotionRef = useRef(false)
@@ -884,7 +894,8 @@ export default function PlayerPage() {
   }, [])
 
   const showJumpChip = useCallback((opts?: { unseen?: boolean }) => {
-    if (opts?.unseen) setUnseenBelow(true)
+    // C3-R8 N01: sem unseen explícito → “Ir para o fim” (não preservar stale).
+    setUnseenBelow(opts?.unseen === true)
     setJumpChip(true)
   }, [])
 
@@ -1741,6 +1752,8 @@ export default function PlayerPage() {
     oldestLogMsRef.current = null
     skipSmoothScrollRef.current = true
     initialAnchorPendingRef.current = true
+    longLessonAnchorUntilRef.current = Date.now() + 900
+    chipUnseenSuppressUntilRef.current = Date.now() + 1200
     pinnedAwayRef.current = false
     nearBottomRef.current = true
     userScrollUpGestureRef.current = false
@@ -2493,6 +2506,48 @@ export default function PlayerPage() {
   }
 
   /**
+   * C3-R8 N03: aula longa — título (+ lead) na 1ª vista; chip “Ir para o fim”.
+   * Retorna true se ancorou no topo da lição.
+   */
+  function anchorLongLessonAtTitle(el: HTMLElement): boolean {
+    const current = contentRef.current
+    if (!current || current.status !== 'ok') return false
+    if (current.stage_type === 'exercise') return false
+    const lesson = el.querySelector(
+      '[data-current-step="true"], .lesson-card',
+    ) as HTMLElement | null
+    if (!lesson) return false
+    const title = lesson.querySelector(
+      '.lesson-card__title',
+    ) as HTMLElement | null
+    const longByCard = lesson.offsetHeight > el.clientHeight * 0.85
+    const longByThread = el.scrollHeight > el.clientHeight * 1.35
+    if (!longByCard && !longByThread) return false
+    const sRect = el.getBoundingClientRect()
+    const tRect = (title ?? lesson).getBoundingClientRect()
+    const titleVisible =
+      tRect.bottom > sRect.top + 8 && tRect.top < sRect.bottom - 8
+    // Já legível no topo — não remexe (exceto se ainda no rodapé).
+    if (titleVisible && el.scrollTop < 48) {
+      nearBottomRef.current = false
+      pinnedAwayRef.current = true
+      pinnedScrollTopRef.current = el.scrollTop
+      showJumpChip()
+      return true
+    }
+    runProgrammaticScroll(() => {
+      ;(title ?? lesson).scrollIntoView({ block: 'start', behavior: 'auto' })
+      // scrollIntoView em nested pode falhar se o pai clipa — força topo.
+      if (el.scrollTop > 24) el.scrollTop = 0
+    })
+    nearBottomRef.current = false
+    pinnedAwayRef.current = true
+    pinnedScrollTopRef.current = el.scrollTop
+    showJumpChip()
+    return true
+  }
+
+  /**
    * C3-10 / C2-10: ancora no passo corrente.
    * Preferência: fim do thread (math + CTA) — block:nearest falhava no mount
    * com scrollTop colado em 0 e conteúdo ainda crescendo.
@@ -2512,24 +2567,7 @@ export default function PlayerPage() {
     ) as HTMLElement | null
     // Mount/âncora inicial.
     if (initialAnchorPendingRef.current || skipSmoothScrollRef.current) {
-      const lesson = el.querySelector(
-        '[data-current-step="true"], .lesson-card',
-      ) as HTMLElement | null
-      const longLesson =
-        lesson &&
-        current.stage_type !== 'exercise' &&
-        lesson.offsetHeight > el.clientHeight * 0.85
-      if (longLesson && lesson) {
-        runProgrammaticScroll(() => {
-          lesson.scrollIntoView({ block: 'start', behavior: 'auto' })
-        })
-        nearBottomRef.current = isScrollNearBottom(el)
-        pinnedAwayRef.current = !nearBottomRef.current
-        pinnedScrollTopRef.current = el.scrollTop
-        if (!nearBottomRef.current) showJumpChip()
-        else clearJumpChip()
-        return
-      }
+      if (anchorLongLessonAtTitle(el)) return
       scrollToBottom(behavior === 'smooth' ? 'auto' : behavior)
       return
     }
@@ -2585,12 +2623,25 @@ export default function PlayerPage() {
             contentRef.current?.status === 'ok' ||
             contentRef.current?.status === 'completed'
           if (!messages.length || !contentOk) return
-          // C3-R8 N03: aula longa ancorada no título — libera pending sem exigir fundo.
+          // C3-R8 N03: revalida após layout crescer — não liberar pending no
+          // rodapé se a aula longa ainda esconde o título.
+          if (anchorLongLessonAtTitle(scroller)) {
+            initialAnchorPendingRef.current = false
+            longLessonAnchorUntilRef.current = 0
+            return
+          }
           if (pinnedAwayRef.current && !isScrollNearBottom(scroller)) {
             initialAnchorPendingRef.current = false
             return
           }
           if (isScrollNearBottom(scroller)) {
+            // Aula: espere a janela de crescimento antes de liberar no fundo.
+            const isEx =
+              contentRef.current?.status === 'ok' &&
+              contentRef.current.stage_type === 'exercise'
+            if (!isEx && Date.now() < longLessonAnchorUntilRef.current) {
+              return
+            }
             initialAnchorPendingRef.current = false
             pinnedAwayRef.current = false
             nearBottomRef.current = true
@@ -2599,23 +2650,42 @@ export default function PlayerPage() {
         })
       }
       requestAnimationFrame(settle)
-      // Segundo passe: history/images podem crescer o scrollHeight.
-      const t = window.setTimeout(settle, 120)
-      return () => window.clearTimeout(t)
+      // Passes tardios: history/images/fontes crescem o scrollHeight.
+      const t1 = window.setTimeout(settle, 120)
+      const t2 = window.setTimeout(settle, 420)
+      const t3 = window.setTimeout(settle, 750)
+      return () => {
+        window.clearTimeout(t1)
+        window.clearTimeout(t2)
+        window.clearTimeout(t3)
+      }
+    }
+
+    // C3-R8 N03: effect re-correu após pending cair cedo — ainda corrige aula longa.
+    if (
+      Date.now() < longLessonAnchorUntilRef.current &&
+      el &&
+      !userScrollUpGestureRef.current
+    ) {
+      if (anchorLongLessonAtTitle(el)) {
+        longLessonAnchorUntilRef.current = 0
+        return
+      }
     }
 
     // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     if (isPinLocked() || pinnedAwayRef.current) {
       if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
-      // C3-R8 N01: “Nova mensagem” só se o fim do thread cresceu (reply/advance).
-      // Expand/prepend histórico muda o prefixo — label = “Ir para o fim”.
+      // C3-R8 N01: “Nova mensagem” só se o fim cresceu DEPOIS da janela de
+      // mount/expand (hidratação/prepend ≠ reply da Maria).
       const tailId = messages.length ? messages[messages.length - 1]!.id : null
       const grewAtEnd =
         tailId != null &&
         tailMsgIdRef.current != null &&
         tailId !== tailMsgIdRef.current
       tailMsgIdRef.current = tailId
-      if (grewAtEnd) showJumpChip({ unseen: true })
+      const suppressUnseen = Date.now() < chipUnseenSuppressUntilRef.current
+      if (grewAtEnd && !suppressUnseen) showJumpChip({ unseen: true })
       else showJumpChip()
       return
     }
@@ -3926,6 +3996,7 @@ export default function PlayerPage() {
     // C3-R8 N01/N02: solta pin-lock stale para a âncora do expand valer.
     stopPinLock()
     pinHoldUntilRef.current = 0
+    chipUnseenSuppressUntilRef.current = Date.now() + 1000
     pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
     if (historyHasMore) {

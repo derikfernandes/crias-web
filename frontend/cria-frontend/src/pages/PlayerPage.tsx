@@ -610,23 +610,6 @@ function statusToSystemText(content: NextContentStatus): string {
   return content.message || `Indisponível (${content.status}).`
 }
 
-function cellHasExerciseFeedback(
-  logs: ConversationLogRow[],
-  stageNumber: number,
-  questionNumber: number,
-): boolean {
-  return logs.some(
-    (l) =>
-      l.sender === 'system' &&
-      l.stage_number === stageNumber &&
-      l.question_number === questionNumber &&
-      (l.message_type === 'feedback' ||
-        (l.metadata &&
-          typeof l.metadata === 'object' &&
-          (l.metadata as { source?: string }).source === 'exercise_feedback')),
-  )
-}
-
 function markAnimate(msg: ChatMessage, extra?: Partial<ChatMessage>): ChatMessage {
   return { ...msg, animate: true, ...extra }
 }
@@ -1690,7 +1673,8 @@ export default function PlayerPage() {
     setExerciseDone(false)
     setSelectedOptionKey(null)
     setPendingOptionKey(null)
-    writeExerciseSelect(trailId, null)
+    // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
+    // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
     setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
@@ -1853,13 +1837,11 @@ export default function PlayerPage() {
             )
 
             if (data.stage_type === 'exercise') {
-              const done = cellHasExerciseFeedback(
-                logs,
-                data.stage_number,
-                data.question_number,
-              )
-              setExerciseDone(done)
-              setExercisePhase(done ? 'done' : 'idle')
+              // C3-R5 N01: next-content ainda é exercise → passagem atual NÃO
+              // está done. Feedback/attempts antigos no histórico não marcam
+              // done (reload mid-select / reset com logs da célula).
+              setExerciseDone(false)
+              setExercisePhase('idle')
               if (text.trim()) {
                 const alignId = trailMessageId(
                   data.stage_number,
@@ -4071,6 +4053,19 @@ export default function PlayerPage() {
 
   const chatMessages = visibleMessages.filter((msg) => {
     if (!String(msg.text ?? '').trim()) return false
+    // C3-R5 N02: na passagem atual (ainda sem Enviar), não renderizar
+    // answer/feedback históricos da célula — retângulos vazios (content-
+    // visibility) e poluição entre tentativas antigas.
+    if (
+      content?.status === 'ok' &&
+      content.stage_type === 'exercise' &&
+      !exerciseDone &&
+      currentCell &&
+      (msg.kind === 'exercise-answer' || msg.kind === 'feedback') &&
+      msg.contextCell === currentCell
+    ) {
+      return false
+    }
     const promptMovedToCard =
       Boolean(activeExerciseCellKey) &&
       msg.role === 'assistant' &&

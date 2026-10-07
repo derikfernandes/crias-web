@@ -1121,6 +1121,12 @@ button[aria-disabled='true'] {
   font-weight: 500;
 }
 
+/* C3-R5 N02: answer offscreen com content-visibility:auto virava retângulo
+ * verde vazio (innerText skip). Sempre pintar o texto da opção. */
+.chat-bubble--exercise-answer {
+  content-visibility: visible;
+}
+
 .chat-bubble__row {
   max-width: 48rem;
   margin: 0 auto;

@@ -1475,7 +1475,23 @@ export default function PlayerPage() {
           '.chat-bubble__embed, .chat-bubble__media',
         ) as HTMLElement | null)
       if (media) {
+        // C3-R14 N02: centra e corrige se o topo/centro ficou sob o topbar.
         media.scrollIntoView({ block: 'center', inline: 'nearest' })
+        const clearTopbar = () => {
+          const sRect = scroller.getBoundingClientRect()
+          const mRect = media.getBoundingClientRect()
+          const pad = 6
+          if (mRect.top < sRect.top + pad) {
+            scroller.scrollTop += mRect.top - sRect.top - pad
+          }
+          const mid = media.getBoundingClientRect()
+          const cy = (mid.top + mid.bottom) / 2
+          if (cy < sRect.top + pad) {
+            scroller.scrollTop += cy - sRect.top - Math.min(mid.height / 2, 40)
+          }
+        }
+        clearTopbar()
+        requestAnimationFrame(clearTopbar)
         pinnedAwayRef.current = false
         nearBottomRef.current = isScrollNearBottom(scroller)
         return

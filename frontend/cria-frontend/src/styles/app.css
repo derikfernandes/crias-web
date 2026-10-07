@@ -2841,8 +2841,8 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
 
   .chat-thread__scroll {
     padding: 0.35rem 0 0.4rem;
-    /* C3-R10 N01/N02: faixa útil curta — pad top = prompt sticky; bottom = dock. */
-    scroll-padding-top: 3.5rem;
+    /* C3-R10 N01/N02 + C3-R14 N02: faixa útil — pad top cobre topbar/prompt. */
+    scroll-padding-top: 3.75rem;
     scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
 
@@ -2891,18 +2891,34 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
   }
 
   /* R24-LS06: embed/mídia cabem no VH curto sem engolir o fio. */
+  /* C3-R14 N01: teto de altura + width:auto — aspect-ratio não estica. */
   .chat-bubble__embed {
     max-width: min(100%, 22rem);
   }
 
   .chat-bubble__embed-frame {
+    width: auto;
+    max-width: 100%;
+    height: min(36vh, 180px);
     max-height: min(36vh, 180px);
     aspect-ratio: 16 / 9;
+    /* C3-R14 N02: scrollIntoView respeita faixa abaixo do topbar. */
+    scroll-margin-top: 0.5rem;
+    scroll-margin-bottom: 4.5rem;
+  }
+
+  .chat-bubble__embed[data-embed-kind='youtube-shorts'] {
+    max-width: min(100%, 10rem);
   }
 
   .chat-bubble__embed[data-embed-kind='youtube-shorts'] .chat-bubble__embed-frame {
+    width: auto;
+    max-width: 100%;
+    height: min(48vh, 160px);
     max-height: min(48vh, 160px);
     aspect-ratio: 9 / 16;
+    scroll-margin-top: 0.5rem;
+    scroll-margin-bottom: 4.5rem;
   }
 
   .chat-bubble__media img {

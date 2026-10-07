@@ -3244,7 +3244,8 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setTrailBusyLabel('Salvando progresso…')
+    // C3-R16 N01: GET de revalidação ≠ mutate — “Salvando…” só no POST advance.
+    setTrailBusyLabel('Conferindo etapa…')
     clearError()
     // Modo Maria: o mesmo Continuar fecha a conversa e avança (um clique).
     setMariaSidechat(false)
@@ -3338,6 +3339,8 @@ export default function PlayerPage() {
 
       let result
       try {
+        // C3-R16 N01: mutate real — agora sim “Salvando progresso…”.
+        setTrailBusyLabel('Salvando progresso…')
         result = await advanceTrail(liveSession.student_id, trailId, {
           expectedVersion:
             livePos.status === 'ok' &&
@@ -4031,9 +4034,13 @@ export default function PlayerPage() {
     externalMediaOpenRef.current = { msgId, href, at: Date.now() }
   }, [])
 
+  /**
+   * C3-R16 N02: busy “Enviando resposta…” só no CTA (fonte de verdade).
+   * Lock do composer usa reforço curto distinto — não 4× a mesma string.
+   */
   const exerciseLockLabel =
     exercisePhase === 'submitting'
-      ? 'Enviando resposta…'
+      ? 'Aguarde…'
       : exercisePhase === 'error'
         ? 'Falha ao enviar — toque em Enviar resposta de novo'
         : selectedOptionKey
@@ -4218,7 +4225,9 @@ export default function PlayerPage() {
       : trailBusy
         ? trailBusyLabel.startsWith('Salvando')
           ? 'busy-save'
-          : 'busy-load'
+          : trailBusyLabel.startsWith('Conferindo')
+            ? 'busy-check'
+            : 'busy-load'
         : mariaBusyWaiting
           ? 'maria-waiting'
           : mariaBusyPending
@@ -4293,14 +4302,13 @@ export default function PlayerPage() {
     !exerciseDone
       ? trailCellKey(content.stage_number, content.question_number)
       : null
+  // C3-R16 N02: legend estável no submit — busy fica no CTA.
   const exerciseLegend =
     exerciseResyncLock
       ? trailBusyLabel
-      : exerciseSubmitting
-        ? 'Enviando resposta…'
-        : exercisePhase === 'error'
-          ? 'Não foi possível enviar'
-          : 'Responda a questão'
+      : exercisePhase === 'error'
+        ? 'Não foi possível enviar'
+        : 'Responda a questão'
 
   const currentCell =
     content?.status === 'ok'
@@ -4837,11 +4845,7 @@ export default function PlayerPage() {
                 </p>
               </div>
             ) : null}
-            {exerciseSubmitting ? (
-              <p className="chat-exercise__pending-label" aria-live="polite">
-                Enviando resposta…
-              </p>
-            ) : null}
+            {/* C3-R16 N02: sem pending-label “Enviando…” — CTA já anuncia busy. */}
             {exerciseResyncLock ? (
               <p className="chat-exercise__pending-label" aria-live="polite">
                 {trailBusyLabel}
@@ -5061,10 +5065,12 @@ export default function PlayerPage() {
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
             {trailBusy
-              ? // C2-R4 N01: rodapé na mesma fase do CTA/typing
+              ? // C2-R4 N01 / C3-R16 N01: rodapé na mesma fase do CTA/typing
                 trailBusyLabel.startsWith('Salvando')
                 ? 'Aguarde — salvando progresso'
-                : 'Aguarde — carregando a próxima etapa'
+                : trailBusyLabel.startsWith('Conferindo')
+                  ? 'Aguarde — conferindo a etapa'
+                  : 'Aguarde — carregando a próxima etapa'
               : mariaBusyWaiting
                 ? // C3-R6 N02: mid-flight / long-wait — não “Continue a conversa” com CTA off
                   'Aguarde — Maria está respondendo'

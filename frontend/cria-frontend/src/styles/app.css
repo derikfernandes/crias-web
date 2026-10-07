@@ -528,7 +528,8 @@ a.ghost:hover {
   background: rgba(25, 195, 125, 0.1);
 }
 
-.chat-sidebar__new {
+/* C3-R7 N04: home/lista (antes chat-sidebar__new com “+”). */
+.chat-sidebar__home {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -548,14 +549,14 @@ a.ghost:hover {
     box-shadow 0.2s ease;
 }
 
-.chat-sidebar__new-plus {
+.chat-sidebar__home-icon {
   color: var(--accent);
-  font-weight: 700;
-  font-size: 1.05rem;
+  display: inline-flex;
   line-height: 1;
+  flex-shrink: 0;
 }
 
-.chat-sidebar__new:hover {
+.chat-sidebar__home:hover {
   border-color: var(--accent);
   background: rgba(23, 234, 157, 0.08);
   box-shadow: 0 0 0 1px rgba(23, 234, 157, 0.12);
@@ -693,13 +694,20 @@ a.ghost:hover {
   flex-shrink: 0;
 }
 
+/* C3-R7 N01: até 2 linhas + title no Link — sem esmagar em ~102px. */
 .trail-card__id {
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--ink);
-  white-space: nowrap;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .trail-card__status {
@@ -2763,7 +2771,7 @@ html[data-keyboard='open'] .chat-new-msg-chip--kb-fallback {
    * C2-R17 N01: z-index:40 no ☰ (position:relative) ficava preso no stacking do
    * .chat-topbar (flex item z-index:2) — abaixo da sidebar fixed z:30.
    * Com drawer aberto, eleva o topbar inteiro acima da sidebar/backdrop.
-   * padding-top na sidebar evita “+ Minhas trilhas” sob a faixa do topbar.
+   * padding-top na sidebar evita “Minhas trilhas” sob a faixa do topbar.
    */
   .chat-shell--drawer-open .chat-topbar {
     z-index: 40;

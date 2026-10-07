@@ -463,11 +463,20 @@ export default function ChatLayout() {
           ) : null}
           <Link
             to="/"
-            className="chat-sidebar__new"
+            className="chat-sidebar__home"
+            aria-label="Minhas trilhas — início"
             onClick={() => closeDrawer(false)}
           >
-            <span className="chat-sidebar__new-plus" aria-hidden>
-              +
+            {/* C3-R7 N04: ícone de lista/início — não “+ criar”. */}
+            <span className="chat-sidebar__home-icon" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 6h16M4 12h16M4 18h10"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
             </span>{' '}
             Minhas trilhas
           </Link>
@@ -532,13 +541,19 @@ export default function ChatLayout() {
                     ? Math.max(totalRaw, stageNumber)
                     : null
                 // C3-N05: % só com total conhecido — sem “0 %” mentiroso.
+                // C3-R7 N02: (etapa−1)/total — estágio 1 = 0 %, não 25 %.
                 const pct =
                   total != null
                     ? rowCompleted
                       ? 100
                       : Math.min(
                           100,
-                          Math.round((stageNumber / total) * 100),
+                          Math.max(
+                            0,
+                            Math.round(
+                              ((Math.max(stageNumber, 1) - 1) / total) * 100,
+                            ),
+                          ),
                         )
                     : null
                 const rowStatus = rowCompleted ? 'completed' : row.status
@@ -553,6 +568,8 @@ export default function ChatLayout() {
                       to={href}
                       className={`trail-card${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
+                      title={label}
+                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${etapaMeta}${pct != null ? `. ${pct}\u00a0%` : ''}`}
                       onClick={() => {
                         writeFocusedTrailId(row.trail_id)
                         closeDrawer(false)

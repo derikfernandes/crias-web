@@ -828,6 +828,8 @@ export default function PlayerPage() {
   const lastUserInputAtRef = useRef(0)
   /** scrollTop do último onScroll — direção do movimento. */
   const lastScrollTopRef = useRef(0)
+  /** C3-R8 N01: id da última bolha — “Nova mensagem” só se o fim cresceu. */
+  const tailMsgIdRef = useRef<string | null>(null)
   /** Smooth programático em voo (Ir para o fim) — gesto do aluno cancela. */
   const smoothScrollUntilRef = useRef(0)
   const reduceMotionRef = useRef(false)
@@ -2039,17 +2041,29 @@ export default function PlayerPage() {
     (scroller: HTMLElement) => {
       const current = contentRef.current
       /**
-       * C3-R2 N03: no exercício, block:start no lesson-card deixa as opções
-       * abaixo da dobra (A invisível) em viewport baixa. Âncora no fim +
-       * nudge se A ficou com topo cortado.
+       * C3-R2 N03 / C3-R8 N02: no exercício, âncora no bloco `.chat-exercise`
+       * (opções na vista) — não no título do lesson-card após prepend histórico.
        */
       if (current?.status === 'ok' && current.stage_type === 'exercise') {
         programmaticScrollRef.current = true
-        scroller.scrollTop = scroller.scrollHeight
+        const exerciseRoot = scroller.querySelector(
+          '.chat-exercise',
+        ) as HTMLElement | null
+        const lastOpt = scroller.querySelector(
+          '.chat-exercise__option:last-of-type',
+        ) as HTMLElement | null
+        if (lastOpt) {
+          lastOpt.scrollIntoView({ block: 'end', behavior: 'auto' })
+        } else if (exerciseRoot) {
+          exerciseRoot.scrollIntoView({ block: 'end', behavior: 'auto' })
+        } else {
+          scroller.scrollTop = scroller.scrollHeight
+        }
         ensureFirstExerciseOptionVisible(scroller)
         nearBottomRef.current = isScrollNearBottom(scroller)
         pinnedAwayRef.current = !nearBottomRef.current
         pinnedScrollTopRef.current = scroller.scrollTop
+        // C3-R8 N01: expand/âncora ≠ mensagem nova — “Ir para o fim”.
         if (!nearBottomRef.current) showJumpChip()
         else clearJumpChip()
         window.setTimeout(() => {
@@ -2482,6 +2496,7 @@ export default function PlayerPage() {
    * C3-10 / C2-10: ancora no passo corrente.
    * Preferência: fim do thread (math + CTA) — block:nearest falhava no mount
    * com scrollTop colado em 0 e conteúdo ainda crescendo.
+   * C3-R8 N03: aula longa no mount → título na 1ª vista (não rodapé).
    */
   function scrollCurrentStepIntoView(behavior: ScrollBehavior = 'smooth') {
     const el = threadRef.current
@@ -2495,8 +2510,26 @@ export default function PlayerPage() {
     const bubble = el.querySelector(
       `[data-cell-key="${key}"]`,
     ) as HTMLElement | null
-    // No mount/âncora inicial: força near-bottom (aula atual + Continuar).
+    // Mount/âncora inicial.
     if (initialAnchorPendingRef.current || skipSmoothScrollRef.current) {
+      const lesson = el.querySelector(
+        '[data-current-step="true"], .lesson-card',
+      ) as HTMLElement | null
+      const longLesson =
+        lesson &&
+        current.stage_type !== 'exercise' &&
+        lesson.offsetHeight > el.clientHeight * 0.85
+      if (longLesson && lesson) {
+        runProgrammaticScroll(() => {
+          lesson.scrollIntoView({ block: 'start', behavior: 'auto' })
+        })
+        nearBottomRef.current = isScrollNearBottom(el)
+        pinnedAwayRef.current = !nearBottomRef.current
+        pinnedScrollTopRef.current = el.scrollTop
+        if (!nearBottomRef.current) showJumpChip()
+        else clearJumpChip()
+        return
+      }
       scrollToBottom(behavior === 'smooth' ? 'auto' : behavior)
       return
     }
@@ -2548,12 +2581,16 @@ export default function PlayerPage() {
           if (cur?.status === 'ok' && cur.stage_type === 'exercise') {
             ensureFirstExerciseOptionVisible(scroller)
           }
-          if (
-            messages.length > 0 &&
-            (contentRef.current?.status === 'ok' ||
-              contentRef.current?.status === 'completed') &&
-            isScrollNearBottom(scroller)
-          ) {
+          const contentOk =
+            contentRef.current?.status === 'ok' ||
+            contentRef.current?.status === 'completed'
+          if (!messages.length || !contentOk) return
+          // C3-R8 N03: aula longa ancorada no título — libera pending sem exigir fundo.
+          if (pinnedAwayRef.current && !isScrollNearBottom(scroller)) {
+            initialAnchorPendingRef.current = false
+            return
+          }
+          if (isScrollNearBottom(scroller)) {
             initialAnchorPendingRef.current = false
             pinnedAwayRef.current = false
             nearBottomRef.current = true
@@ -2570,9 +2607,21 @@ export default function PlayerPage() {
     // Revalida pin pelo DOM (refs podem estar stale após scroll programático).
     if (isPinLocked() || pinnedAwayRef.current) {
       if (el && isPinLocked()) el.scrollTop = pinnedScrollTopRef.current
-      showJumpChip({ unseen: true })
+      // C3-R8 N01: “Nova mensagem” só se o fim do thread cresceu (reply/advance).
+      // Expand/prepend histórico muda o prefixo — label = “Ir para o fim”.
+      const tailId = messages.length ? messages[messages.length - 1]!.id : null
+      const grewAtEnd =
+        tailId != null &&
+        tailMsgIdRef.current != null &&
+        tailId !== tailMsgIdRef.current
+      tailMsgIdRef.current = tailId
+      if (grewAtEnd) showJumpChip({ unseen: true })
+      else showJumpChip()
       return
     }
+    tailMsgIdRef.current = messages.length
+      ? messages[messages.length - 1]!.id
+      : null
     // Dedo no scroller: não arrancar a tela da mão do aluno (o stick do
     // ResizeObserver assume quando ele soltar, se ainda estiver no fim).
     if (userScrollUpGestureRef.current || touchActiveRef.current) return
@@ -3874,6 +3923,9 @@ export default function PlayerPage() {
 
   async function onExpandHistory() {
     // C2-R6 N03: expand local primeiro → âncora na etapa; older page sem roubar scroll.
+    // C3-R8 N01/N02: solta pin-lock stale para a âncora do expand valer.
+    stopPinLock()
+    pinHoldUntilRef.current = 0
     pendingScrollAnchorRef.current = { kind: 'current-step' }
     setHistoryExpanded(true)
     if (historyHasMore) {
@@ -3884,6 +3936,9 @@ export default function PlayerPage() {
       await loadOlderHistory({ keepCurrentStep: true })
       // Reafirma após merge (layoutEffect seguinte).
       pendingScrollAnchorRef.current = { kind: 'current-step' }
+      const scroller = threadRef.current
+      if (scroller) scrollToCurrentStep(scroller)
+    } else {
       const scroller = threadRef.current
       if (scroller) scrollToCurrentStep(scroller)
     }

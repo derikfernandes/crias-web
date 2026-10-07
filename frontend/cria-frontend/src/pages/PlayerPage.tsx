@@ -982,15 +982,21 @@ export default function PlayerPage() {
   }, [])
 
   const focusAfterAdvance = useCallback(
-    (next: NextContentOk | NextContentStatus | null | undefined) => {
-      const title =
-        next && next.status === 'ok' && next.stage_title
-          ? stripDecorTitle(next.stage_title)
-          : ''
-      const stageBit = title
-        ? `Nova etapa: ${title}`
-        : 'Nova etapa da trilha disponível'
-      setSrAnnounce(`Progresso salvo. ${stageBit}`)
+    (
+      next: NextContentOk | NextContentStatus | null | undefined,
+      opts?: { announce?: boolean },
+    ) => {
+      // C3-R4 N02: só ACK “Progresso salvo…” quando a célula realmente avançou.
+      if (opts?.announce !== false) {
+        const title =
+          next && next.status === 'ok' && next.stage_title
+            ? stripDecorTitle(next.stage_title)
+            : ''
+        const stageBit = title
+          ? `Nova etapa: ${title}`
+          : 'Nova etapa da trilha disponível'
+        setSrAnnounce(`Progresso salvo. ${stageBit}`)
+      }
 
       const tryFocus = () => {
         if (focusCurrentLessonOrExercise()) return true
@@ -2998,6 +3004,12 @@ export default function PlayerPage() {
     let advanceSucceeded = false
     let advancedContent: NextContentOk | NextContentStatus | null = null
     let advanceClaimId: string | null = null
+    // C3-R4 N02: baseline da célula — ACK só se a posição mudar de verdade.
+    const startSnap = contentRef.current
+    const startCellKey =
+      startSnap?.status === 'ok'
+        ? trailCellKey(startSnap.stage_number, startSnap.question_number)
+        : null
     // R18-N05: falha de Continuar não apaga rascunho do composer.
     try {
       // C2-R21 N01/N02: revalida posição antes do advance — UI stale não pula etapa.
@@ -3053,13 +3065,18 @@ export default function PlayerPage() {
         )
         advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
         if (!advanceClaimId) {
+          // Outra aba pode ter avançado — re-fetch fresco (não reusar livePos stale).
           setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
-          advancedContent = await loadNextAfterAdvance(livePos)
-          publishTrailProgress(trailId, {
-            stage_number: livePos.stage_number,
-            question_number: livePos.question_number,
-          })
+          advancedContent = await loadNextAfterAdvance()
+          if (advancedContent && advancedContent.status === 'ok') {
+            publishTrailProgress(trailId, {
+              stage_number: advancedContent.stage_number,
+              question_number: advancedContent.question_number,
+            })
+          } else {
+            window.dispatchEvent(new CustomEvent('crias:trail-progress'))
+          }
           advanceSucceeded = true
           return
         }
@@ -3145,14 +3162,14 @@ export default function PlayerPage() {
         if (advanceCommittedRef.current) void resyncAfterAdvance()
         else void doAdvance()
       })
-      // Reconcile silencioso (sem chrome busy). Se ok → um path (Continuar); senão Tentar.
+      // C3-R4 N01: reconcile next-content NÃO apaga recovery se advance não commitou.
+      // Banner + Tentar de novo ficam até recovery real (retry/sucesso).
       if (!advanceCommittedRef.current) {
         try {
           const s = requireSession()
           if (s) {
             const reconciled = await fetchNextContent(s.student_id, trailId)
             setContent(reconciled)
-            clearError()
           }
         } catch {
           /* ignore — Tentar de novo permanece */
@@ -3179,9 +3196,21 @@ export default function PlayerPage() {
       } else {
         stopPinLock()
       }
-      // C2-R8 N01 / R15-Y04: ACK + foco na nova etapa (nunca BODY limbo).
+      // C2-R8 N01 / R15-Y04: foco pós-sucesso; ACK só se a célula mudou (C3-R4 N02).
       if (advanceSucceeded) {
-        focusAfterAdvance(advancedContent)
+        const afterKey =
+          advancedContent?.status === 'ok'
+            ? trailCellKey(
+                advancedContent.stage_number,
+                advancedContent.question_number,
+              )
+            : null
+        const didAdvance =
+          advancedContent?.status === 'completed' ||
+          (startCellKey != null &&
+            afterKey != null &&
+            startCellKey !== afterKey)
+        focusAfterAdvance(advancedContent, { announce: didAdvance })
       }
     }
   }

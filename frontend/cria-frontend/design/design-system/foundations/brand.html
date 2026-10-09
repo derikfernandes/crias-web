@@ -1,0 +1,32 @@
+<!-- @dsCard group="Marca" name="Logotipo e símbolo" subtitle="Wordmark de traço fino; símbolo parado" viewport="640x420" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crias · Marca</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+.demo { max-width: 640px; margin: 0 auto; padding: 24px 16px 32px; }
+.demo-head { font-size: 12px; font-weight: 700; color: var(--color-subtle); margin: 24px 0 10px; }
+.demo-head:first-child { margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.sw { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--color-highlight-2); font-size: 12px; }
+.sw b { display: block; height: 56px; }
+.sw span { display: block; padding: 8px 10px; line-height: 1.4; }
+.note { font-size: 13px; color: var(--color-muted); max-width: 60ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<main class="demo">
+
+<div class="demo-head">Wordmark padrão</div>
+<img src="../assets/crias-logo-dark-green.svg" alt="Crias" style="height:40px;width:auto">
+<p class="note" style="margin-top:8px"><code>assets/crias-logo-dark-green.svg</code>. Vale para o menu (20px), a entrada (40px) e o painel. Nunca animar.</p>
+<div class="demo-head">Símbolo</div>
+<div class="row"><img src="../assets/crias-simbolo-luz.svg" alt="" style="width:64px;height:64px"><img src="../assets/crias-simbolo-luz.svg" alt="" style="width:32px;height:32px"></div>
+<p class="note" style="margin-top:8px">64px parado na tela inicial e 32px como avatar do parceiro de estudos na conversa. Não aparece no menu lateral nem no topo da entrada.</p>
+</main>
+</body>
+</html>

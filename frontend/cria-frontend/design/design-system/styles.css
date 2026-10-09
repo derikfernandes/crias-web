@@ -1,0 +1,137 @@
+/* Crias · design system. Tokens e classes de componente. Fonte de verdade do visual; ver readme.md. Referência: protótipo Crias Aluno. */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Fundos: branco é o principal; bege só em destaque */
+  --color-bg: #ffffff;
+  --color-highlight-1: #fcfbf6;   /* menu lateral, campos, barra de mensagem, balão do aluno, cards de trilha */
+  --color-highlight-2: #f7f5ec;   /* bordas finas, item ativo, hover sobre destaque, botão desativado */
+  --color-highlight-3: #fefdfa;   /* cartão de exercício */
+  --color-track: #f1eee3;         /* trilho da barra de progresso, borda de campo */
+  --color-border: #efebdd;        /* borda de card flutuante e botão secundário */
+  --color-selected: #e6f8f1;      /* alternativa marcada, etiqueta Exercício */
+
+  /* Texto */
+  --color-text: #001c0e;
+  --color-text-2: #3d4d43;
+  --color-muted: #5b6b60;
+  --color-subtle: #6b7a70;        /* apoio e placeholder */
+  --color-link: #00875e;
+  --color-link-hover: #006b4a;
+  --color-selected-ink: #00744f;
+  --color-error: #8a1c12;
+  --color-error-bg: #fdecea;
+
+  /* Marca */
+  --color-accent: #00be85;        /* ação principal, com texto branco */
+  --color-accent-hover: #00a974;
+  --color-accent-active: #00925f;
+  --color-on-accent: #ffffff;
+  --color-accent-2: #ffd500;      /* Maria e marcações pontuais */
+  --color-user: #00593d;          /* avatar do usuário, letra branca */
+  --color-dark: #001c0e;
+
+  --tech-green: #00be85; --cyber-yellow: #ffd500; --dark-green: #001c0e;
+
+  --font-heading: "Outfit", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Manrope", system-ui, sans-serif;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px;
+
+  --radius-sm: 12px;   /* campos */
+  --radius-md: 16px;   /* cartões, exercício */
+  --radius-bubble: 20px;
+  --radius-lg: 28px;   /* barra de mensagem */
+  --radius-full: 999px;/* botões, etiquetas */
+
+  --shadow-sm: 0 1px 3px rgba(0, 28, 14, .08);
+  --shadow-md: 0 4px 16px rgba(0, 28, 14, .08);
+  --focus-ring: 0 0 0 3px rgba(0, 190, 133, .14);
+  --progress: linear-gradient(90deg, #ffd500, #00be85);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 600; line-height: 1.15; margin: 0 0 var(--space-3); color: var(--color-text); }
+h1 { font-size: 32px; } h2 { font-size: 24px; } h3 { font-size: 19px; } h4 { font-size: 17px; }
+.titulo-leve { font-weight: 400; }  /* saudação da tela inicial e título da entrada */
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-link); text-decoration: none; } a:hover { color: var(--color-link-hover); text-decoration: underline; }
+img { display: block; max-width: 100%; }
+.text-muted { color: var(--color-muted); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* — botões — */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: var(--radius-full); font-family: var(--font-body); font-weight: 700; font-size: 15px; cursor: pointer; text-decoration: none; color: var(--color-text); background: transparent; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.btn-primary { background: var(--color-accent); color: var(--color-on-accent); }
+.btn-primary:hover { background: var(--color-accent-hover); animation: cr-halo 2.2s ease-out infinite; }
+.btn-primary:active { background: var(--color-accent-active); }
+.btn-primary:disabled { background: var(--color-highlight-2); color: #9aa69e; cursor: default; animation: none; }
+.btn-secondary { border: 1px solid var(--color-border); font-weight: 600; }
+.btn-secondary:hover { background: var(--color-highlight-1); }
+.btn-icon { width: 40px; height: 40px; padding: 0; }
+.btn-halo { animation: cr-halo 2.2s ease-out 1.4s infinite; } /* primeira abertura da trilha */
+@keyframes cr-halo { 0% { box-shadow: 0 0 0 0 rgba(0,190,133,.45) } 70% { box-shadow: 0 0 0 12px rgba(0,190,133,0) } 100% { box-shadow: 0 0 0 0 rgba(0,190,133,0) } }
+
+/* — etiquetas — */
+.tag { display: inline-flex; align-items: center; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-full); background: var(--color-highlight-2); color: var(--color-muted); }
+.tag-on { background: var(--color-selected); color: var(--color-selected-ink); }
+.tag-maria { background: var(--color-accent-2); color: var(--color-text); letter-spacing: .06em; }
+
+/* — cartões — */
+.card { background: #fff; border: 1px solid var(--color-highlight-2); border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; gap: var(--space-2); }
+.card-destaque { background: var(--color-highlight-1); border-color: var(--color-highlight-1); }
+.card-destaque:hover { border-color: var(--color-accent); }
+.indicador { background: var(--color-highlight-1); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; }
+.indicador-rotulo { font-size: 13px; font-weight: 600; color: var(--color-muted); }
+.indicador-valor { font-family: var(--font-heading); font-weight: 600; font-size: 28px; font-variant-numeric: tabular-nums; }
+
+/* — campos — */
+.field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--color-text-2); }
+.input { width: 100%; height: 48px; padding: 0 14px; font: inherit; font-weight: 500; color: var(--color-text); background: var(--color-highlight-1); border: 1px solid var(--color-track); border-radius: var(--radius-sm); outline: none; transition: border-color .15s, box-shadow .15s, background .15s; }
+.input:focus { border-color: var(--color-accent); background: #fff; box-shadow: 0 0 0 4px rgba(0,190,133,.12); }
+.input::placeholder { color: var(--color-subtle); }
+
+/* — barra de mensagem — */
+.composer { display: flex; align-items: flex-end; gap: 8px; background: var(--color-highlight-1); border: 1px solid var(--color-highlight-1); border-radius: var(--radius-lg); padding: 8px 8px 8px 20px; transition: border-color .15s, box-shadow .15s; }
+.composer:focus-within { border-color: var(--color-accent); box-shadow: var(--focus-ring); }
+.composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: transparent; font: inherit; font-size: 16px; line-height: 24px; padding: 8px 0; color: var(--color-text); }
+.composer-dica { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--color-subtle); }
+
+/* — conversa — */
+.conversa { display: flex; flex-direction: column; gap: 28px; padding: 16px 10% 52px; } /* 10% de margem; 52px até a barra */
+.msg { display: flex; gap: 14px; align-items: flex-start; }
+.msg-avatar { width: 32px; height: 32px; flex: none; }
+.msg-avatar-maria { width: 30px; height: 30px; border-radius: var(--radius-full); background: var(--color-accent-2); display: grid; place-items: center; font-family: var(--font-heading); font-weight: 700; font-size: 13px; }
+.msg-rotulo { font-size: 13px; font-weight: 700; color: var(--color-text-2); }
+.balao-aluno { align-self: flex-end; max-width: 78%; background: var(--color-highlight-1); border-radius: var(--radius-bubble); padding: 10px 16px; }
+.exercicio { background: var(--color-highlight-3); border-radius: var(--radius-md); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.alternativa { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-highlight-2); background: #fff; font: inherit; font-size: 15px; font-weight: 500; text-align: left; cursor: pointer; }
+.alternativa .letra { width: 28px; height: 28px; flex: none; border-radius: var(--radius-full); display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--color-highlight-1); }
+.alternativa[aria-checked="true"] { border: 2px solid var(--color-accent); background: var(--color-selected); }
+.alternativa[aria-checked="true"] .letra { background: var(--color-accent); color: #fff; }
+
+/* — trilha no menu — */
+.progresso { height: 4px; border-radius: var(--radius-full); background: var(--color-track); overflow: hidden; }
+.progresso > span { display: block; height: 100%; border-radius: var(--radius-full); background: var(--progress); }
+.seta-trilha { color: var(--color-accent); } /* traço 2,6; direita fechada, baixo aberta */
+.passo-num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--color-highlight-2); color: var(--color-subtle); }
+.passo-num.feito { background: var(--color-accent); color: #fff; }
+.passo-num.atual { background: #fff; color: var(--color-selected-ink); border: 2px solid var(--color-accent); }
+
+/* — avatar do usuário — */
+.avatar-usuario { width: 32px; height: 32px; border-radius: var(--radius-full); background: var(--color-user); color: #fff; display: grid; place-items: center; font-family: var(--font-heading); font-weight: 600; font-size: 14px; }
+
+/* — Horizonte: fundo padrão das telas do aluno — */
+.horizonte { position: relative; overflow: hidden; background: var(--color-bg); }
+.horizonte > .hz { position: absolute; left: 50%; border-radius: 999px; pointer-events: none; }
+.horizonte > .hz-brilho { bottom: -520px; width: 900px; height: 900px; background: radial-gradient(circle, rgba(0,190,133,.10) 0%, rgba(0,190,133,.04) 14%, rgba(255,213,0,.05) 50%, rgba(255,255,255,0) 68%); filter: blur(8px); animation: cr-rise 2.6s cubic-bezier(.16,1,.3,1) both; }
+.horizonte > .hz-linha { bottom: -360px; width: 460px; height: 460px; border: 1px solid rgba(0,190,133,.065); animation: cr-rise 2.6s cubic-bezier(.16,1,.3,1) .2s both; }
+.horizonte > .hz-arco { bottom: -300px; width: 460px; height: 460px; border: 1px solid rgba(255,213,0,.34); opacity: 0; transform: translate(-50%, 0); animation: cr-horizon-ring 11s cubic-bezier(.33,0,.2,1) 2.8s infinite; }
+.horizonte > :not(.hz) { position: relative; }
+@keyframes cr-rise { 0% { opacity: 0; transform: translate(-50%, 80px) } 100% { opacity: 1; transform: translate(-50%, 0) } }
+@keyframes cr-horizon-ring { 0% { opacity: 0; transform: translate(-50%, 0) scale(1) } 30% { opacity: .5 } 100% { opacity: 0; transform: translate(-50%, 0) scale(1.18) } }
+@media (prefers-reduced-motion: reduce) { .horizonte > .hz { animation: none !important; opacity: 1; transform: translate(-50%, 0); } .btn-primary, .btn-halo { animation: none !important; } }

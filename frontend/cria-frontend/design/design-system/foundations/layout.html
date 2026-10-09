@@ -1,0 +1,42 @@
+<!-- @dsCard group="Fundamentos" name="Espaço e formas" subtitle="Cantos arredondados, pílulas e respiro da conversa" viewport="640x560" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crias · Espaço e formas</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+.demo { max-width: 640px; margin: 0 auto; padding: 24px 16px 32px; }
+.demo-head { font-size: 12px; font-weight: 700; color: var(--color-subtle); margin: 24px 0 10px; }
+.demo-head:first-child { margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.sw { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--color-highlight-2); font-size: 12px; }
+.sw b { display: block; height: 56px; }
+.sw span { display: block; padding: 8px 10px; line-height: 1.4; }
+.note { font-size: 13px; color: var(--color-muted); max-width: 60ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<main class="demo">
+
+<div class="demo-head">Raios</div>
+<div class="row">
+<div style="width:96px;height:56px;background:var(--color-highlight-1);border:1px solid var(--color-track);border-radius:12px;display:grid;place-items:center;font-size:12px">Campo 12</div>
+<div style="width:96px;height:56px;background:var(--color-highlight-1);border-radius:16px;display:grid;place-items:center;font-size:12px">Card 16</div>
+<div style="width:96px;height:56px;background:var(--color-highlight-1);border-radius:20px;display:grid;place-items:center;font-size:12px">Balão 20</div>
+<div style="width:120px;height:56px;background:var(--color-highlight-1);border-radius:28px;display:grid;place-items:center;font-size:12px">Barra 28</div>
+<button class="btn btn-primary">Pílula</button>
+</div>
+<div class="demo-head">Espaços</div>
+<div class="row">
+<div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:4px;height:4px;background:var(--color-accent)"></span>4</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:8px;height:8px;background:var(--color-accent)"></span>8</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:12px;height:12px;background:var(--color-accent)"></span>12</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:16px;height:16px;background:var(--color-accent)"></span>16</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:24px;height:24px;background:var(--color-accent)"></span>24</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:32px;height:32px;background:var(--color-accent)"></span>32</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--color-subtle)"><span style="width:48px;height:48px;background:var(--color-accent)"></span>48</div>
+</div>
+<div class="demo-head">Conversa</div>
+<p class="note">Largura máxima 740px. Mensagens com 10% de margem de cada lado. 28px entre mensagens e 52px até a barra de mensagem. Topo e cabeçalho do menu com 56px de altura.</p>
+<div class="demo-head">Menu lateral</div>
+<p class="note">Aluno com 272px e painel com 260px. Fundo em destaque 1, com divisória em destaque 2. Rodapé com o avatar alinhado à barra de mensagem.</p>
+</main>
+</body>
+</html>

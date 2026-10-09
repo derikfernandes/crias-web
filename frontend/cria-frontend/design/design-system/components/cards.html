@@ -1,0 +1,42 @@
+<!-- @dsCard group="Componentes" name="Cartões e campos" subtitle="Cards de trilha, indicadores e campos" viewport="640x620" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crias · Cartões e campos</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+.demo { max-width: 640px; margin: 0 auto; padding: 24px 16px 32px; }
+.demo-head { font-size: 12px; font-weight: 700; color: var(--color-subtle); margin: 24px 0 10px; }
+.demo-head:first-child { margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.sw { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--color-highlight-2); font-size: 12px; }
+.sw b { display: block; height: 56px; }
+.sw span { display: block; padding: 8px 10px; line-height: 1.4; }
+.note { font-size: 13px; color: var(--color-muted); max-width: 60ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<main class="demo">
+
+<div class="demo-head">Card de trilha (tela inicial)</div>
+<div class="card card-destaque" style="max-width:300px;cursor:pointer">
+<div style="display:flex;align-items:center;justify-content:space-between;font-family:var(--font-heading);font-weight:600;font-size:17px">Matemática básica<svg class="seta-trilha" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+<div class="progresso"><span style="width:20%"></span></div>
+<span class="text-muted" style="font-size:13px">Atividade 1 de 5</span>
+</div>
+<div class="demo-head">Card do painel</div>
+<div class="card" style="max-width:420px"><h3 style="margin:0">Escola Estadual Exemplo</h3><span class="text-muted" style="font-size:13px">Escola pública</span>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div class="indicador"><span class="indicador-rotulo">Alunos ativos</span><span class="indicador-valor">214</span></div><div class="indicador"><span class="indicador-rotulo">Trilhas ativas</span><span class="indicador-valor">6</span></div></div></div>
+<div class="demo-head">Campos</div>
+<div style="max-width:360px;display:grid;gap:14px">
+<div class="field"><label>Login</label><input class="input" placeholder="DDD + telefone, e-mail ou ID da escola"></div>
+<div class="field"><label>Senha</label><input class="input" type="password" value="senha"></div>
+<button class="btn btn-primary" style="height:52px">Entrar</button>
+</div>
+<p class="note" style="margin-top:12px">Campo vazio mostra "Não informado". Erro com fundo #fdecea e texto #8a1c12, sempre com palavra.</p>
+</main>
+</body>
+</html>

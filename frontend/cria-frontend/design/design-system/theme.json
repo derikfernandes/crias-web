@@ -1,0 +1,24 @@
+{
+  "name": "Crias",
+  "palette": {
+    "hue": 163,
+    "band": "light",
+    "scheme": "duo",
+    "bg": "#ffffff",
+    "surface": "#fcfbf6",
+    "text": "#001c0e",
+    "accent": "#00be85",
+    "accent2": "#ffd500"
+  },
+  "fonts": {
+    "heading": { "family": "Outfit", "class": "geometric", "weights": [400, 600, 700] },
+    "body": { "family": "Manrope", "class": "grotesque", "weights": [400, 500, 600, 700] }
+  },
+  "density": 1,
+  "radius": 16,
+  "layoutStyle": "conversational",
+  "dividers": "thin",
+  "buttonAlign": "center",
+  "imageTreatment": "natural",
+  "photo": "educacao"
+}

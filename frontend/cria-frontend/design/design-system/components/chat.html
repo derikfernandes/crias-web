@@ -1,0 +1,28 @@
+<!-- @dsCard group="Componentes" name="Conversa" subtitle="Parceiro de estudos, aluno, exercício e barra de mensagem" viewport="640x620" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crias · Conversa</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>.demo { max-width: 640px; margin: 0 auto; padding: 24px 16px; }</style>
+</head>
+<body>
+<main class="demo">
+  <div class="conversa" style="padding-bottom:24px">
+    <div class="msg"><img class="msg-avatar" src="../assets/crias-simbolo-luz.svg" alt=""><div><div class="msg-rotulo">Matemática básica</div><p>Nesta atividade vamos ver porcentagem. Porcentagem é uma forma de dizer quantas partes de 100 você tem.</p></div></div>
+    <div class="exercicio">
+      <span class="tag tag-on" style="align-self:flex-start">Exercício</span>
+      <strong>Uma camiseta custa R$ 80 e está com 25% de desconto. Quanto você paga?</strong>
+      <button class="alternativa" role="radio" aria-checked="false"><span class="letra">A</span>R$ 20</button>
+      <button class="alternativa" role="radio" aria-checked="true"><span class="letra">C</span>R$ 60</button>
+    </div>
+    <div class="balao-aluno">C) R$ 60</div>
+    <div class="msg"><span class="msg-avatar-maria">M</span><div><div class="msg-rotulo">Maria</div><p>Isso! 25% de 80 é 20. Então você paga R$ 60.</p></div></div>
+  </div>
+  <form class="composer"><textarea rows="1" placeholder="Pergunte à Maria…"></textarea><button type="button" class="btn btn-primary">Continuar</button></form>
+  <p class="composer-dica">Envie sua pergunta ou selecione continuar para avançar</p>
+</main>
+</body>
+</html>

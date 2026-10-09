@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+html,body{margin:0;height:100%;background:#fff;color:#001c0e;font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#00875e;text-decoration:none}a:hover{color:#006b4a;text-decoration:underline}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #00be85;outline-offset:2px}
+textarea::placeholder,input::placeholder{color:#6b7a70}
+@keyframes crPulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes crHalo{0%{box-shadow:0 0 0 0 rgba(0,190,133,.45)}70%{box-shadow:0 0 0 12px rgba(0,190,133,0)}100%{box-shadow:0 0 0 0 rgba(0,190,133,0)}}
+@keyframes crBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes crFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes crSunBloom{0%{opacity:0;transform:translate(-50%,-50%) scale(.55)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes crSunBreath{0%,100%{opacity:.75;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+@keyframes crSunRing{0%{opacity:0;transform:translate(-50%,-50%) scale(1)}25%{opacity:.35}100%{opacity:0;transform:translate(-50%,-50%) scale(2.35)}}
+@keyframes crSunIn{0%{opacity:0;transform:scale(.92)}100%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){[data-sun] *{animation:none!important}}
+@keyframes crRise{0%{opacity:0;transform:translate(-50%,80px)}100%{opacity:1;transform:translate(-50%,0)}}
+@keyframes crHorizonRing{0%{opacity:0;transform:translate(-50%,0) scale(1)}30%{opacity:.5}100%{opacity:0;transform:translate(-50%,0) scale(1.18)}}
+@keyframes crShimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+</style>
+</helmet>
+
+<div style="position:fixed;top:12px;right:12px;z-index:50;display:flex;gap:8px;align-items:center">
+  <button type="button" onClick="{{ resetAll }}" aria-label="Atualizar experiência" style="height:34px;padding:0 14px;border:1px solid #efebdd;border-radius:999px;background:#fff;color:#001c0e;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px" style-hover="background:#fcfbf6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>Atualizar</button>
+  <div style="display:flex;gap:2px;background:#001c0e;border-radius:999px;padding:3px">
+    <button onClick="{{ goPainel }}" style="{{ painelTabStyle }}">PAINEL</button>
+    <button onClick="{{ goAluno }}" style="{{ alunoTabStyle }}">ALUNO</button>
+  </div>
+</div>
+
+<sc-if value="{{ isPainel }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Painel · Moldura" style="display:flex;height:100vh;overflow:hidden">
+    <aside aria-label="Navegação principal" style="width:260px;flex:none;display:flex;flex-direction:column;background:#fcfbf6;border-right:1px solid #f7f5ec">
+      <div style="height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px">
+        <img src="assets/crias-symbol.png" alt="" style="width:26px;height:26px">
+        <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:17px">Crias Trilha</span>
+      </div>
+      <nav style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:4px 8px">
+        <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:13px;color:#6b7a70;padding:8px 10px">Carregando menu…</span>
+        </sc-if>
+        <sc-if value="{{ navReady }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ pNav }}" as="n" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-if value="{{ n.isLink }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ n.go }}" style="{{ n.style }}">{{ n.label }}</button>
+              </sc-if>
+              <sc-if value="{{ n.isGroup }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ n.toggle }}" aria-expanded="{{ n.openAttr }}" style="display:flex;align-items:center;justify-content:space-between;height:34px;margin-top:10px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#5b6b60;font-size:12px;font-weight:700;letter-spacing:.02em;cursor:pointer;text-align:left" style-hover="color:#001c0e">
+                  <span>{{ n.label }}</span>
+                  <svg style="{{ n.chevStyle }}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+                </button>
+                <sc-if value="{{ n.open }}" hint-placeholder-val="{{ true }}">
+                  <sc-for list="{{ n.children }}" as="c" hint-placeholder-count="2">
+                    <button onClick="{{ c.go }}" style="{{ c.style }}">{{ c.label }}</button>
+                  </sc-for>
+                </sc-if>
+              </sc-if>
+            </div>
+          </sc-for>
+        </sc-if>
+      </nav>
+      <div style="border-top:1px solid #f7f5ec;padding:8px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;gap:2px">
+          <a href="mailto:" style="flex:1;display:flex;align-items:center;height:34px;padding:0 10px;border-radius:8px;color:#001c0e;font-size:13px;font-weight:600;text-decoration:none" style-hover="background:#f7f5ec">Ajuda</a>
+          <button style="flex:1;height:34px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#001c0e;font-size:13px;font-weight:600;cursor:pointer;text-align:left" style-hover="background:#f7f5ec">Modo escuro</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px">
+          <span style="width:32px;height:32px;border-radius:999px;background:#00593d;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Outfit,sans-serif;font-weight:600;font-size:14px;flex:none">C</span>
+          <span style="flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="coordenacao@escola.org">coordenacao@escola.org</span>
+          <button style="border:0;background:transparent;color:#a3301c;font-size:13px;font-weight:700;cursor:pointer;padding:4px 6px;border-radius:6px" style-hover="background:#fdecea">Sair</button>
+        </div>
+      </div>
+    </aside>
+
+    <main style="flex:1;min-width:0;overflow-y:auto;background:#fff">
+      <div style="max-width:1120px;margin:0 auto;padding:28px 32px 48px;display:flex;flex-direction:column;gap:24px">
+
+        <sc-if value="{{ pIsHome }}" hint-placeholder-val="{{ true }}">
+          <div data-screen-label="PA09 Instituições" style="display:flex;flex-direction:column;gap:24px">
+            <header style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-right:320px">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <h1 style="font-family:Outfit,sans-serif;font-weight:600;font-size:30px;margin:0">Instituições</h1>
+                <p style="margin:0;color:#3d4d43">{{ homeLede }}</p>
+              </div>
+              <button style="height:42px;padding:0 18px;border:0;border-radius:999px;background:#00be85;color:#fff;font-weight:700;font-size:14px;cursor:pointer" style-hover="background:#00a974">+ Nova instituição</button>
+            </header>
+            <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+              <p role="alert" style="margin:0;background:#fdecea;color:#8a1c12;border-radius:12px;padding:12px 16px;font-weight:500">Não foi possível carregar as instituições.</p>
+            </sc-if>
+            <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+              <p role="status" style="margin:0;color:#6b7a70">Carregando dados…</p>
+            </sc-if>
+            <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+              <section style="border:0;border-radius:16px;background:#fefdfa;padding:32px;color:#5b6b60">Nenhuma instituição disponível para o seu usuário.</section>
+            </sc-if>
+            <sc-if value="{{ hasTrails }}" hint-placeholder-val="{{ true }}">
+              <div aria-label="Resumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+                <sc-for list="{{ totals }}" as="k" hint-placeholder-count="5">
+                  <div style="background:#fcfbf6;border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:4px">
+                    <span style="font-size:13px;color:#5b6b60;font-weight:600">{{ k.label }}</span>
+                    <span style="font-family:Outfit,sans-serif;font-size:28px;font-weight:600;font-variant-numeric:tabular-nums">{{ k.value }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <section aria-label="Instituições" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:16px">
+                <sc-for list="{{ institutions }}" as="i" hint-placeholder-count="2">
+                  <article style="border:1px solid #f7f5ec;border-radius:16px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:16px">
+                    <header style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-start">
+                      <div style="display:flex;flex-direction:column;gap:2px">
+                        <h3 style="margin:0;font-family:Outfit,sans-serif;font-size:19px;font-weight:600">{{ i.name }}</h3>
+                        <p style="margin:0;font-size:13px;color:#5b6b60">{{ i.type }}</p>
+                      </div>
+                      <div style="display:flex;gap:6px">
+                        <button style="height:32px;padding:0 12px;border:1px solid #efebdd;border-radius:999px;background:transparent;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#fcfbf6">Editar</button>
+                        <button style="height:32px;padding:0 12px;border:1px solid #efebdd;border-radius:999px;background:transparent;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#fcfbf6">Gestão</button>
+                        <button style="height:32px;padding:0 12px;border:0;border-radius:999px;background:#00be85;color:#fff;font-size:13px;font-weight:700;cursor:pointer" style-hover="background:#00a974">Dashboard</button>
+                      </div>
+                    </header>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                      <div style="background:#fcfbf6;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#5b6b60;font-weight:600">Alunos ativos</span><span style="font-family:Outfit,sans-serif;font-size:22px;font-weight:600">{{ i.students }}</span></div>
+                      <div style="background:#fcfbf6;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#5b6b60;font-weight:600">Trilhas ativas</span><span style="font-family:Outfit,sans-serif;font-size:22px;font-weight:600">{{ i.trails }}</span></div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                      <h4 style="margin:0;font-size:13px;font-weight:700">Uso dos alunos</h4>
+                      <dl style="margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+                        <sc-for list="{{ i.usage }}" as="u" hint-placeholder-count="4">
+                          <div style="display:flex;flex-direction:column;gap:2px;border-top:2px solid #f7f5ec;padding-top:6px">
+                            <dt style="font-size:12px;color:#5b6b60">{{ u.label }}</dt>
+                            <dd style="margin:0;font-weight:700;font-variant-numeric:tabular-nums">{{ u.value }}</dd>
+                          </div>
+                        </sc-for>
+                      </dl>
+                    </div>
+                  </article>
+                </sc-for>
+              </section>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pIsList }}" hint-placeholder-val="{{ false }}">
+          <div data-screen-label="{{ listLabel }}" style="display:flex;flex-direction:column;gap:20px">
+            <header style="display:flex;flex-direction:column;gap:16px;padding-right:320px">
+              <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <h1 style="font-family:Outfit,sans-serif;font-weight:600;font-size:30px;margin:0">{{ listTitle }}</h1>
+                  <p style="margin:0;color:#3d4d43">{{ listLede }}</p>
+                </div>
+                <button style="height:42px;padding:0 18px;border:0;border-radius:999px;background:#00be85;color:#fff;font-weight:700;font-size:14px;cursor:pointer" style-hover="background:#00a974">{{ listNewLabel }}</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px">
+                <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#3d4d43">Instituição
+                  <select style="height:42px;min-width:220px;border:1px solid #f7f5ec;border-radius:12px;background:#fefdfa;padding:0 12px;font:inherit;font-weight:500;color:#001c0e">
+                    <option>Todas as instituições</option>
+                  </select>
+                </label>
+                <label style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#3d4d43">Buscar
+                  <input type="search" value="{{ search }}" onChange="{{ onSearch }}" placeholder="{{ searchPh }}" style="height:42px;border:1px solid #f7f5ec;border-radius:12px;background:#fefdfa;padding:0 14px;font:inherit;font-weight:500;color:#001c0e;outline:none" style-focus="border-color:#00be85;background:#fff;box-shadow:0 0 0 3px rgba(0,190,133,.18)">
+                </label>
+              </div>
+            </header>
+            <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+              <p role="alert" style="margin:0;background:#fdecea;color:#8a1c12;border-radius:12px;padding:12px 16px;font-weight:500">{{ listError }}</p>
+            </sc-if>
+            <section style="border:1px solid #f7f5ec;border-radius:16px;background:#fff;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px">
+                <h2 style="margin:0;font-family:Outfit,sans-serif;font-size:17px;font-weight:600">{{ listAll }}</h2>
+                <span style="font-size:13px;color:#5b6b60">{{ countLabel }}</span>
+              </div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
+                  <thead>
+                    <tr style="background:#fcfbf6">
+                      <sc-for list="{{ cols }}" as="h" hint-placeholder-count="6">
+                        <th style="text-align:left;padding:10px 20px;font-size:12px;font-weight:700;color:#5b6b60;white-space:nowrap">{{ h }}</th>
+                      </sc-for>
+                      <th style="padding:10px 20px"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+                      <tr style="border-top:1px solid #faf8f1" style-hover="background:#fefdfa">
+                        <td style="padding:12px 20px"><a href="#" style="font-weight:700;color:#001c0e">{{ r.name }}</a></td>
+                        <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+                          <td style="padding:12px 20px;color:#3d4d43;white-space:nowrap">{{ c }}</td>
+                        </sc-for>
+                        <td style="padding:12px 20px"><span style="{{ r.activeStyle }}">{{ r.active }}</span></td>
+                        <td style="padding:12px 20px;color:#3d4d43;white-space:nowrap">{{ r.created }}</td>
+                        <td style="padding:8px 20px;text-align:right"><button style="height:30px;padding:0 12px;border:1px solid #efebdd;border-radius:999px;background:transparent;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#fcfbf6">Abrir</button></td>
+                      </tr>
+                    </sc-for>
+                    <sc-if value="{{ rowsEmpty }}" hint-placeholder-val="{{ false }}">
+                      <tr><td colspan="9" style="padding:32px 20px;color:#5b6b60">{{ emptyLabel }}</td></tr>
+                    </sc-if>
+                  </tbody>
+                </table>
+              </div>
+              <sc-if value="{{ showPager }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid #faf8f1;font-size:13px;color:#5b6b60">
+                  <span>{{ rangeLabel }}</span>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button disabled style="height:30px;padding:0 12px;border:1px solid #efebdd;border-radius:999px;background:transparent;font-size:13px;font-weight:600;opacity:.45">Anterior</button>
+                    <span>Página 1 / 1</span>
+                    <button disabled style="height:30px;padding:0 12px;border:1px solid #efebdd;border-radius:999px;background:transparent;font-size:13px;font-weight:600;opacity:.45">Próxima</button>
+                  </div>
+                </div>
+              </sc-if>
+            </section>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pIsOther }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px;padding-right:320px">
+            <h1 style="font-family:Outfit,sans-serif;font-weight:600;font-size:30px;margin:0">{{ otherTitle }}</h1>
+            <p style="margin:0;color:#5b6b60">Esta tela ainda não foi adaptada para a nova identidade.</p>
+          </div>
+        </sc-if>
+      </div>
+    </main>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="AL01 Entrada" style="position:relative;min-height:100vh;display:flex;flex-direction:column;background:#fff;overflow:hidden">
+    <sc-if value="{{ loginB }}" hint-placeholder-val="{{ false }}">{{ horizon }}</sc-if>
+    <div style="position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px 96px">
+      <form onSubmit="{{ doLogin }}" style="width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;gap:40px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:26px">
+          <sc-if value="{{ loginSun }}" hint-placeholder-val="{{ true }}"><div data-sun="1" style="position:relative;width:64px;height:64px;flex:none">{{ sunHalo }}</div></sc-if>
+          <img src="assets/crias-logo-dark-green.svg" alt="Crias" style="{{ loginLogoStyle }}">
+        </div>
+        <sc-if value="{{ loginFields }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ loginFieldsStyle }}">
+          <label style="display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;color:#3d4d43">Login
+            <input type="text" autocomplete="username" placeholder="DDD + telefone, e-mail ou ID da escola" style="height:52px;border:1px solid #f1eee3;background:#fcfbf6;border-radius:14px;padding:0 16px;font:inherit;font-size:15px;font-weight:500;color:#001c0e;outline:none;transition:border-color .15s,box-shadow .15s,background .15s" style-focus="border-color:#00be85;background:#fff;box-shadow:0 0 0 4px rgba(0,190,133,.12)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;color:#3d4d43">Senha
+            <div style="{{ pwWrapStyle }}">
+              <input type="{{ pwType }}" autocomplete="current-password" onFocus="{{ pwFocusOn }}" onBlur="{{ pwFocusOff }}" style="flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:15px;font-weight:500;color:#001c0e;outline:none;height:100%">
+              <button type="button" onClick="{{ togglePw }}" style="border:0;background:transparent;color:#00875e;font-weight:600;font-size:13px;padding:8px 10px;border-radius:10px;cursor:pointer" style-hover="background:#f7f5ec">{{ pwLabel }}</button>
+            </div>
+          </label>
+          <sc-if value="{{ loginError }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fdecea;color:#8a1c12;border-radius:12px;padding:10px 14px;font-size:14px;font-weight:500">
+              <span>Não foi possível entrar. Confira os dados.</span>
+              <button type="button" style="border:0;background:transparent;color:#8a1c12;font-weight:700;cursor:pointer;padding:4px 0">Tentar de novo</button>
+            </div>
+          </sc-if>
+          <button type="submit" style="height:52px;margin-top:8px;border:0;border-radius:999px;background:#00be85;color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="background:#00a974;animation:crHalo 2.2s ease-out infinite" style-active="background:#00925f">{{ loginBtnLabel }}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ loginStart }}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{ loginNext }}" style="width:100%;height:52px;border:0;border-radius:999px;background:#00be85;color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;animation:crHalo 2.2s ease-out 1.4s infinite" style-hover="background:#00a974" style-active="background:#00925f">Entrar<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </sc-if>
+      </form>
+    </div>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="AL04 Moldura" style="display:flex;height:100vh;overflow:hidden">
+    <sc-if value="{{ sidebarOpen }}" hint-placeholder-val="{{ true }}">
+      <aside aria-label="Menu" style="width:272px;flex:none;display:flex;flex-direction:column;background:#fcfbf6;border-right:1px solid #f7f5ec">
+        <div style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 18px">
+          <button onClick="{{ goHome }}" aria-label="Ir para o início" style="display:flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;cursor:pointer">
+            <img src="assets/crias-logo-dark-green.svg" alt="Crias" style="height:20px;width:auto">
+          </button>
+          <button onClick="{{ toggleSidebar }}" aria-label="Fechar menu" style="width:36px;height:36px;border:0;background:transparent;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#3d4d43" style-hover="background:#f7f5ec">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M9 4v16"></path></svg>
+          </button>
+        </div>
+        <nav style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:4px 8px 8px">
+          <p style="margin:10px 0 6px;padding:0 10px;font-size:12px;font-weight:600;color:#6b7a70">Parceiro de estudos</p>
+          <button onClick="{{ goMaria }}" style="{{ mariaNavStyle }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>
+            Conversar com Maria
+          </button>
+          <p style="margin:16px 0 6px;padding:0 10px;font-size:12px;font-weight:600;color:#6b7a70">Trilhas</p>
+          <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+            <div role="status" aria-busy="true" style="display:flex;flex-direction:column;gap:8px;padding:4px">
+              <div style="height:56px;border-radius:12px;background:linear-gradient(90deg,#f7f5ec 0,#faf8f1 50%,#f7f5ec 100%);background-size:400px 100%;animation:crShimmer 1.2s linear infinite"></div>
+              <div style="height:56px;border-radius:12px;background:linear-gradient(90deg,#f7f5ec 0,#faf8f1 50%,#f7f5ec 100%);background-size:400px 100%;animation:crShimmer 1.2s linear infinite"></div>
+              <span style="font-size:13px;color:#6b7a70;padding:4px 6px">Carregando trilhas…</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="display:flex;flex-direction:column;gap:8px;padding:10px">
+              <span style="font-size:13px;color:#3d4d43;line-height:1.45">Não foi possível carregar suas trilhas.</span>
+              <button style="align-self:flex-start;height:32px;padding:0 12px;border:0;border-radius:999px;background:#fcfbf6;color:#001c0e;font-weight:600;font-size:13px;cursor:pointer" style-hover="background:#f7f5ec">Tentar de novo</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:0;padding:10px;font-size:13px;color:#6b7a70">Nenhuma trilha liberada.</p>
+          </sc-if>
+          <sc-if value="{{ hasTrails }}" hint-placeholder-val="{{ true }}">
+            <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ trails }}" as="t" hint-placeholder-count="2">
+                <li>
+                  <div style="{{ t.rowStyle }}">
+                    <div style="display:flex;align-items:flex-start;gap:2px;width:100%">
+                      <button onClick="{{ t.open }}" title="{{ t.name }}" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;padding:10px 4px 10px 12px;border:0;background:transparent;border-radius:12px;cursor:pointer;text-align:left;color:#001c0e">
+                        <span style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">{{ t.name }}</span>
+                        <span style="display:block;width:100%;height:4px;border-radius:999px;background:#f1eee3;overflow:hidden"><span style="{{ t.barStyle }}"></span></span>
+                        <span style="font-size:12px;color:#5b6b60">{{ t.meta }}</span>
+                      </button>
+                      <button onClick="{{ t.toggle }}" aria-expanded="{{ t.expandedAttr }}" aria-label="{{ t.toggleLabel }}" style="width:32px;height:32px;margin:6px 6px 0 0;border:0;background:transparent;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none" style-hover="background:#f7f5ec">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00be85" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.arrowPath }}"></path></svg>
+                      </button>
+                    </div>
+                    <sc-if value="{{ t.expanded }}" hint-placeholder-val="{{ false }}">
+                      <ul style="list-style:none;margin:0;padding:0 8px 8px;display:flex;flex-direction:column;gap:1px">
+                        <sc-for list="{{ t.acts }}" as="a" hint-placeholder-count="3">
+                          <li>
+                            <button onClick="{{ a.open }}" disabled="{{ a.disabled }}" style="{{ a.style }}">
+                              <span style="{{ a.dotStyle }}">{{ a.mark }}</span>
+                              <span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</span>
+                            </button>
+                          </li>
+                        </sc-for>
+                      </ul>
+                    </sc-if>
+                  </div>
+                </li>
+              </sc-for>
+            </ul>
+          </sc-if>
+        </nav>
+        <div style="height:100px;flex:none;border-top:1px solid #f7f5ec;padding:0 8px">
+          <button onClick="{{ logout }}" style="display:flex;align-items:center;gap:10px;width:100%;height:58px;padding:0 10px;border:0;border-radius:12px;background:transparent;cursor:pointer;text-align:left;color:#001c0e" style-hover="background:#f7f5ec">
+            <span style="width:32px;height:32px;border-radius:999px;background:#00593d;color:#fff;display:flex;align-items:center;justify-content:center;font-family:Outfit,sans-serif;font-weight:600;font-size:14px;flex:none">{{ initial }}</span>
+            <span style="display:flex;flex-direction:column;min-width:0;flex:1">
+              <span style="font-size:14px;font-weight:600">{{ firstName }}</span>
+              <span style="font-size:12px;color:#6b7a70">Sair · seu progresso fica salvo</span>
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b6b60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M14 8l4 4-4 4M18 12H9.5"></path></svg>
+          </button>
+        </div>
+      </aside>
+    </sc-if>
+
+    <div style="position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;overflow:hidden">
+      {{ horizon }}
+      <header style="position:relative;height:56px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;padding-right:340px">
+        <sc-if value="{{ sidebarClosed }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ toggleSidebar }}" aria-label="Abrir menu" style="width:36px;height:36px;border:0;background:transparent;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#3d4d43" style-hover="background:#fcfbf6">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M9 4v16"></path></svg>
+          </button>
+        </sc-if>
+        <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ topTitle }}">{{ topTitle }}</span>
+        <sc-if value="{{ topStage }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:14px;color:#5b6b60;white-space:nowrap">{{ topStage }}</span>
+        </sc-if>
+      </header>
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+        <section data-screen-label="AL02 Início" style="position:relative;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px 150px;background:transparent">
+          <div style="width:100%;max-width:720px;display:flex;flex-direction:column;align-items:center;gap:32px;text-align:center">
+            <img src="assets/crias-symbol.png" alt="" style="width:64px;height:64px;flex:none">
+            <h1 style="font-family:Outfit,sans-serif;font-weight:400;font-size:32px;line-height:1.15;margin:0;text-wrap:balance">{{ homeTitle }}</h1>
+            <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+              <p role="alert" style="margin:0;color:#8a1c12;font-weight:500">Não foi possível carregar suas trilhas.</p>
+            </sc-if>
+            <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0;color:#3d4d43;line-height:1.55;max-width:420px;text-wrap:pretty">Nenhuma trilha liberada para você. Fale com a escola para liberar uma trilha.</p>
+            </sc-if>
+            <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+              <p role="status" style="margin:0;font-size:14px;color:#6b7a70">Carregando suas trilhas…</p>
+            </sc-if>
+            <sc-if value="{{ hasTrails }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ trailGridStyle }}">
+                <sc-for list="{{ homeTrails }}" as="t" hint-placeholder-count="2">
+                  <button onClick="{{ t.open }}" style="{{ t.cardStyle }}" style-hover="border-color:#00be85;background:#faf8f1">
+                    <span style="display:flex;align-items:center;gap:8px;width:100%">
+                      <span style="flex:1;min-width:0;font-family:Outfit,sans-serif;font-size:17px;font-weight:600;color:#001c0e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</span>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00be85" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 6l6 6-6 6"></path></svg>
+                    </span>
+                    <span style="display:block;width:100%;height:4px;border-radius:999px;background:#f1eee3;overflow:hidden"><span style="{{ t.barStyle }}"></span></span>
+                    <span style="font-size:13px;color:#5b6b60">{{ t.meta }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <sc-if value="{{ hasOthers }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:0;font-size:14px;color:#6b7a70">Outras trilhas no menu ao lado</p>
+              </sc-if>
+            </sc-if>
+            <form onSubmit="{{ homeSend }}" style="{{ composerStyleHome }}">
+              <textarea rows="1" value="{{ draft }}" onChange="{{ onDraft }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" onKeyDown="{{ onKeyHome }}" placeholder="Pergunte à Maria…" style="flex:1;min-width:0;border:0;outline:none;resize:none;background:transparent;font:inherit;font-size:16px;line-height:24px;padding:8px 0;max-height:160px;color:#001c0e"></textarea>
+              <button type="submit" aria-label="Enviar pergunta à Maria" style="{{ sendStyle }}" style-hover="background:#00a974;animation:crHalo 2.2s ease-out infinite" style-active="background:#00925f">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
+              </button>
+            </form>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{ isPlayer }}" hint-placeholder-val="{{ false }}">
+        <section data-screen-label="AL03 Conversa" style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column">
+          <div data-thread="1" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;padding:0 20px">
+            <div style="width:100%;max-width:740px;margin:auto auto 0;padding:16px 10% 52px;display:flex;flex-direction:column;gap:28px">
+              <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-busy="true" style="display:flex;flex-direction:column;gap:10px;padding-left:44px">
+                  <div style="height:12px;width:30%;border-radius:6px;background:#fcfbf6"></div>
+                  <div style="height:12px;width:90%;border-radius:6px;background:#fcfbf6"></div>
+                  <div style="height:12px;width:65%;border-radius:6px;background:#fcfbf6"></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+                <div role="status" style="display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:40px 0">
+                  <p style="margin:0;font-family:Outfit,sans-serif;font-size:22px;font-weight:600">Trilha indisponível</p>
+                  <button onClick="{{ goHome }}" style="height:44px;padding:0 20px;border:0;border-radius:999px;background:#00be85;color:#fff;font-weight:700;cursor:pointer" style-hover="background:#00a974">Voltar para o início</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+                <div role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fdecea;color:#8a1c12;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:500">
+                  <span>Não foi possível carregar a aula.</span>
+                  <button style="border:0;background:transparent;color:#8a1c12;font-weight:700;cursor:pointer">Tentar de novo</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ showThread }}" hint-placeholder-val="{{ true }}">
+                <sc-for list="{{ messages }}" as="m" hint-placeholder-count="3">
+                  <div>
+                    <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+                      <div aria-label="Você" style="display:flex;justify-content:flex-end">
+                        <div style="max-width:78%;background:#fcfbf6;border-radius:20px;padding:10px 16px;font-size:16px;line-height:1.55;white-space:pre-wrap">{{ m.text }}</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ m.isAssistant }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;gap:14px;align-items:flex-start">
+                        <sc-if value="{{ m.isMaria }}" hint-placeholder-val="{{ false }}"><span style="width:30px;height:30px;border-radius:999px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Outfit,sans-serif;font-weight:700;font-size:13px;color:#001c0e;background:#ffd500" aria-hidden="true">M</span></sc-if><sc-if value="{{ m.isTrail }}" hint-placeholder-val="{{ true }}"><img src="assets/crias-symbol.png" alt="" style="width:32px;height:32px;flex:none"></sc-if>
+                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding-top:3px">
+                          <span style="font-size:13px;font-weight:700;color:#3d4d43">{{ m.label }}</span>
+                          <div style="font-size:16px;line-height:1.65;white-space:pre-wrap;text-wrap:pretty">{{ m.text }}</div>
+                          <sc-if value="{{ m.hasImage }}" hint-placeholder-val="{{ false }}"><figure style="margin:6px 0 0;display:flex;flex-direction:column;gap:8px"><div style="aspect-ratio:16/9;border-radius:14px;background:#fcfbf6;border:1px solid #f7f5ec;display:flex;align-items:center;justify-content:center;color:#b5bdb5"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-5-5L5 21"></path></svg></div><figcaption style="font-size:13px;color:#5b6b60">{{ m.image }}</figcaption></figure></sc-if>
+                          <sc-if value="{{ m.hasVideo }}" hint-placeholder-val="{{ false }}"><div style="margin-top:6px;aspect-ratio:16/9;border-radius:14px;background:#001c0e;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="width:64px;height:64px;border-radius:999px;background:#00be85;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,190,133,.35)"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"></path></svg></span><div style="position:absolute;left:18px;right:18px;bottom:16px;display:flex;flex-direction:column;gap:2px;color:#fff"><span style="font-weight:700;font-size:15px">{{ m.video }}</span><span style="font-size:12px;color:#cfe9de">{{ m.videoMeta }}</span></div></div></sc-if>
+                          <sc-if value="{{ m.hasLink }}" hint-placeholder-val="{{ false }}"><a href="#" style="align-self:flex-start;margin-top:4px;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px 0 12px;border-radius:999px;background:#fcfbf6;border:1px solid #f7f5ec;color:#001c0e;font-size:14px;font-weight:600;text-decoration:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00a974" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path></svg>{{ m.link }}</a></sc-if>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ m.isExercise }}" hint-placeholder-val="{{ false }}">
+                      <fieldset aria-label="Responda o exercício" style="margin:0 0 0 44px;border:0;border-radius:16px;background:#fefdfa;padding:18px;display:flex;flex-direction:column;gap:12px">
+                        <span style="align-self:flex-start;font-size:12px;font-weight:700;color:#00744f;background:#e6f8f1;border-radius:999px;padding:4px 10px">{{ m.qLabel }}</span>
+                        <p style="margin:0;font-size:16px;font-weight:600;line-height:1.5">{{ m.prompt }}</p>
+                        <div role="radiogroup" aria-label="Opções da questão" style="display:flex;flex-direction:column;gap:8px">
+                          <sc-for list="{{ m.options }}" as="o" hint-placeholder-count="4">
+                            <button role="radio" aria-checked="{{ o.checked }}" disabled="{{ o.disabled }}" onClick="{{ o.pick }}" style="{{ o.style }}">
+                              <span style="{{ o.keyStyle }}">{{ o.key }}</span>
+                              <span>{{ o.text }}</span>
+                            </button>
+                          </sc-for>
+                        </div>
+                      </fieldset>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ typing }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:14px;align-items:center">
+                    <span style="width:30px;height:30px;border-radius:999px;background:#ffd500;flex:none;display:flex;align-items:center;justify-content:center;font-family:Outfit,sans-serif;font-weight:700;font-size:13px">M</span>
+                    <span style="display:flex;gap:4px">
+                      <span style="width:7px;height:7px;border-radius:999px;background:#5b6b60;animation:crPulse 1s infinite"></span>
+                      <span style="width:7px;height:7px;border-radius:999px;background:#5b6b60;animation:crPulse 1s .2s infinite"></span>
+                      <span style="width:7px;height:7px;border-radius:999px;background:#5b6b60;animation:crPulse 1s .4s infinite"></span>
+                    </span>
+                  </div>
+                </sc-if>
+              </sc-if>
+            </div>
+          </div>
+
+          <div style="flex:none;padding:0 20px 16px">
+            <div style="max-width:740px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+              <sc-if value="{{ showPastBar }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fcfbf6;border-radius:28px;padding:8px 8px 8px 20px"><span style="font-size:15px;color:#3d4d43">{{ pastText }}</span><button type="button" onClick="{{ backToCurrent }}" style="{{ continueStyle }}" style-hover="{{ continueHover }}">Voltar para a atividade atual</button></div></sc-if><sc-if value="{{ showForm }}" hint-placeholder-val="{{ true }}"><form onSubmit="{{ send }}" style="{{ composerStyle }}">
+                <textarea rows="1" value="{{ draft }}" onChange="{{ onDraft }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" onKeyDown="{{ onKey }}" disabled="{{ locked }}" placeholder="{{ composerPh }}" style="flex:1;min-width:0;border:0;outline:none;resize:none;background:transparent;font:inherit;font-size:16px;line-height:24px;padding:8px 0;max-height:160px;color:#001c0e"></textarea>
+                <sc-if value="{{ isContinue }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ advance }}" style="{{ continueStyle }}" style-hover="{{ continueHover }}" style-active="background:#00925f">Continuar<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button></sc-if>
+                <sc-if value="{{ isSend }}" hint-placeholder-val="{{ false }}"><button type="submit" aria-label="Enviar pergunta à Maria" style="{{ sendStyle }}" style-hover="background:#00a974;animation:crHalo 2.2s ease-out infinite" style-active="background:#00925f">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
+                </button></sc-if>
+              </form>
+              <p style="margin:0;text-align:center;font-size:12px;line-height:16px;color:#6b7a70">{{ composerHint }}</p></sc-if>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isAlunoNav }}" hint-placeholder-val="{{ true }}">
+  <div style="position:fixed;top:52px;right:12px;z-index:50;display:flex;flex-direction:column;gap:2px;background:#fff;border:1px solid #f7f5ec;border-radius:12px;padding:4px;box-shadow:0 4px 16px rgba(0,28,14,.08)">
+    <button onClick="{{ goLogin }}" style="{{ navLoginStyle }}">AL01 Entrada</button>
+    <button onClick="{{ goHome }}" style="{{ navHomeStyle }}">AL02 Minhas trilhas</button>
+    <button onClick="{{ openPrimary }}" style="{{ navPlayerStyle }}">AL03 Player</button>
+  </div>
+</sc-if>
+<sc-if value="{{ isPainel }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;top:52px;right:12px;z-index:50;display:flex;flex-direction:column;gap:2px;background:#fff;border:1px solid #f7f5ec;border-radius:12px;padding:4px;box-shadow:0 4px 16px rgba(0,28,14,.08)">
+    <button onClick="{{ pGoHome }}" style="{{ pNavHome }}">PA09 Instituições</button>
+    <button onClick="{{ pGoTrilhas }}" style="{{ pNavTrilhas }}">PA02 Trilhas</button>
+    <button onClick="{{ pGoAlunos }}" style="{{ pNavAlunos }}">PA06 Alunos</button>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;carregando&quot;,&quot;vazio&quot;,&quot;erro&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;'normal'|'carregando'|'vazio'|'erro'&quot;}}">
+const TRAILS = [{ id: 'mat', name: 'Matemática básica' }, { id: 'lei', name: 'Leitura e interpretação' }];
+const Q = (prompt, options, answer, right, wrong) => ({ ex: { prompt: prompt, options: options, answer: answer, right: right, wrong: wrong } });
+const C = {
+  maria: { title: 'Parceiro de estudos', acts: [{ title: 'Conversa', steps: [{ maria: true, label: 'Maria', text: 'Oi, eu sou a Maria, sua parceira de estudos. Pode me perguntar sobre qualquer trilha ou assunto.' }] }] },
+  mat: { title: 'Matemática básica', acts: [
+    { title: 'Porcentagem', steps: [
+      { text: 'Nesta atividade vamos ver porcentagem. Porcentagem é uma forma de dizer quantas partes de 100 você tem.\n\nSe uma turma tem 40 alunos e 10 faltaram, 10 de 40 é igual a 25 de 100. Ou seja, 25% faltaram.' },
+      { text: 'Veja como isso aparece no dia a dia. Nas lojas, o desconto quase sempre vem em porcentagem.', image: 'Etiqueta de preço com 25% de desconto' },
+      Q('Uma camiseta custa R$ 80 e está com 25% de desconto. Quanto você paga?', [['A', 'R$ 20'], ['B', 'R$ 55'], ['C', 'R$ 60'], ['D', 'R$ 75']], 'C', 'Isso! 25% de 80 é 20. Então você paga R$ 80 menos R$ 20, que dá R$ 60.', 'Quase. 25% de 80 é 20, e R$ 80 menos R$ 20 dá R$ 60.') ] },
+    { title: 'Frações equivalentes', steps: [
+      { text: 'Nesta atividade vamos ver frações equivalentes. Duas frações são equivalentes quando representam a mesma parte do inteiro.\n\nSe você divide uma pizza em 4 pedaços e pega 2, pegou metade. Então 2 de 4 é igual a 1 de 2.' },
+      { text: 'Assista ao vídeo antes de responder o exercício.', video: 'Frações equivalentes', videoMeta: 'YouTube · 5 min' },
+      Q('Qual fração é equivalente a 1/2?', [['A', '2/3'], ['B', '2/4'], ['C', '3/5'], ['D', '1/4']], 'B', 'Isso! Multiplicando numerador e denominador por 2, 1/2 vira 2/4.', 'Quase. Multiplique numerador e denominador pelo mesmo número. 1/2 vira 2/4.') ] },
+    { title: 'Proporção', steps: [
+      { text: 'Nesta atividade vamos ver proporção. Duas grandezas são proporcionais quando uma cresce na mesma razão que a outra.\n\nSe 2 canetas custam R$ 4, então 4 canetas custam o dobro: R$ 8.' },
+      { text: 'Para revisar quando quiser, o material de apoio fica aqui.', link: 'Abrir material de apoio' },
+      Q('Se 3 cadernos custam R$ 18, quanto custam 5 cadernos?', [['A', 'R$ 24'], ['B', 'R$ 30'], ['C', 'R$ 36'], ['D', 'R$ 32']], 'B', 'Isso! Cada caderno custa R$ 6, então 5 cadernos custam R$ 30.', 'Quase. Cada caderno custa R$ 6, então 5 cadernos custam R$ 30.') ] },
+    { title: 'Média', steps: [
+      { text: 'Nesta atividade vamos ver média. A média é a soma dos valores dividida pela quantidade de valores.\n\nA média de 2, 4 e 6 é (2 + 4 + 6) dividido por 3, que dá 4.' },
+      { text: 'Veja um exemplo com as notas de uma turma.', image: 'Gráfico de barras com as notas de uma turma' },
+      Q('Qual é a média de 4, 6 e 8?', [['A', '5'], ['B', '6'], ['C', '7'], ['D', '18']], 'B', 'Isso! 4 + 6 + 8 é 18, e 18 dividido por 3 dá 6.', 'Quase. A soma é 18, e 18 dividido por 3 dá 6.') ] },
+    { title: 'Área do retângulo', steps: [
+      { text: 'Nesta atividade vamos ver área. A área de um retângulo é a base vezes a altura.\n\nUm retângulo com base 4 e altura 2 tem área 8.' },
+      { text: 'Assista ao vídeo curto antes de continuar.', video: 'Área do retângulo', videoMeta: 'YouTube · 4 min' },
+      Q('Qual é a área de um retângulo com base 5 e altura 3?', [['A', '8'], ['B', '15'], ['C', '16'], ['D', '10']], 'B', 'Isso! 5 vezes 3 dá 15.', 'Quase. A área é a base vezes a altura: 5 vezes 3 dá 15.') ] },
+  ] },
+  lei: { title: 'Leitura e interpretação', acts: [
+    { title: 'Ideia principal', steps: [
+      { text: 'Nesta atividade vamos praticar a leitura de um texto curto. Ler com atenção é procurar a ideia principal, não apenas as palavras que aparecem.\n\nAntes de responder, pergunte a si mesmo o que o autor quer que você entenda.' },
+      { text: 'Um parágrafo costuma ter uma ideia principal e alguns detalhes que a apoiam.', image: 'Esquema com ideia principal e detalhes de apoio' },
+      Q('Leia o trecho: a chuva chegou cedo e a feira ficou vazia, quase ninguém saiu de casa. Qual é a ideia principal?', [['A', 'A feira fica sempre vazia'], ['B', 'A chuva cedo afastou as pessoas'], ['C', 'As pessoas gostam de sair de casa'], ['D', 'A feira abre apenas à tarde']], 'B', 'Isso! O trecho fala da chuva e de como ela afastou as pessoas da feira.', 'Quase. A ideia principal é que a chuva cedo deixou a feira vazia.') ] },
+    { title: 'Inferência', steps: [
+      { text: 'Nesta atividade vamos ver inferência. Inferir é descobrir o que o texto sugere sem dizer de forma direta.\n\nSe alguém chega em casa molhado e com o guarda-chuva quebrado, podemos inferir que choveu forte.' },
+      { text: 'Assista ao vídeo para ver como inferir informações.', video: 'Como inferir informações', videoMeta: 'YouTube · 4 min' },
+      Q('Leia: Ana chegou ofegante à estação e viu o trem sumindo na curva. O que podemos inferir?', [['A', 'Ana perdeu o trem'], ['B', 'Ana chegou cedo'], ['C', 'Ana foi de carro'], ['D', 'O trem estava parado']], 'A', 'Isso! O trem já estava indo embora quando Ana chegou.', 'Quase. Se o trem sumia na curva, Ana perdeu o trem.') ] },
+    { title: 'Tipos de texto', steps: [
+      { text: 'Nesta atividade vamos reconhecer tipos de texto. Uma notícia informa, uma receita instrui e um poema expressa sentimentos.' },
+      { text: 'Para revisar quando quiser, o material de apoio fica aqui.', link: 'Abrir material de apoio' },
+      Q('Qual tipo de texto traz lista de ingredientes e modo de preparo?', [['A', 'Notícia'], ['B', 'Receita'], ['C', 'Poema'], ['D', 'Carta']], 'B', 'Isso! A receita traz ingredientes e modo de preparo.', 'Quase. Lista de ingredientes e modo de preparo são características da receita.') ] },
+  ] },
+};
+function msgOf(id, a, s) { return Object.assign({ id: id + '-' + a + '-' + s + '-' + Date.now(), role: 'assistant', label: C[id].title }, C[id].acts[a].steps[s]); }
+function blank(id) { return { act: 0, step: 0, done: false, picked: null, submitted: false, advanced: false, view: 0, answers: {}, hist: [[msgOf(id, 0, 0)]] }; }
+const GREET = ['Vamos avançar mais, Ana?', 'Olá, Ana. Continue sua atividade...', 'Oi, Ana. Vamos aprender mais hoje?', 'Qual trilha você quer seguir, Ana?', 'Ei, Ana. Vamos em frente nos estudos...'];
+function fresh(app, screen) { return { loginVariant: 'b', loginStep: 0, focus: false, greet: Math.floor(Math.random() * 5), app: app, screen: screen, current: 'mat', lastOpened: [], open: {}, sidebarOpen: true, showPw: false, draft: '', typing: false, pScreen: 'home', collapsed: {}, search: '', progress: { mat: blank('mat'), lei: blank('lei'), maria: blank('maria') } }; }
+function optText(ex, k) { const o = ex.options.filter(x => x[0] === k)[0]; return o ? o[1] : ''; }
+const SIDEBAR_NAV = [
+  { type: 'link', key: 'home', label: 'Início' },
+  { type: 'link', key: 'dashboard', label: 'Dashboard' },
+  { type: 'group', id: 'gestao', label: 'Gestão acadêmica', children: [{ key: 'alunos', label: 'Alunos' }, { key: 'gerenciamento', label: 'Visão por instituição' }] },
+  { type: 'group', id: 'conteudo', label: 'Conteúdo e avaliações', children: [{ key: 'trilhas', label: 'Trilhas' }, { key: 'gabarito', label: 'Gabaritos' }] },
+  { type: 'group', id: 'admin', label: 'Administração', children: [{ key: 'admin', label: 'Usuários e permissões' }, { key: 'doc', label: 'API e documentação' }] },
+];
+const ALL_LABELS = { home: 'Início', dashboard: 'Dashboard', alunos: 'Alunos', gerenciamento: 'Visão por instituição', trilhas: 'Trilhas', gabarito: 'Gabaritos', admin: 'Usuários e permissões', doc: 'API e documentação' };
+const INSTS = [
+  { name: 'Escola Estadual Exemplo', type: 'Escola pública', students: 214, trails: 6, usage: [38, 61, 115, 72] },
+  { name: 'Colégio Exemplo', type: 'Escola privada', students: 96, trails: 4, usage: [22, 30, 44, 41] },
+];
+const P_TRAILS = [
+  ['Matemática básica', 'Escola Estadual Exemplo', 'Matemática', true, '12/08/2026'],
+  ['Leitura e interpretação', 'Escola Estadual Exemplo', 'Português', true, '19/08/2026'],
+  ['Ciências da natureza', 'Colégio Exemplo', '', false, '15/09/2026'],
+];
+const P_STUDENTS = [
+  ['Ana Souza', 'Escola Estadual Exemplo', '(11) 90000-0001', 'Fundamental II · 8º ano', 'Intermediário', true, '05/08/2026'],
+  ['Bruno Lima', 'Escola Estadual Exemplo', '(11) 90000-0002', 'Fundamental II · 9º ano', 'Básico', true, '05/08/2026'],
+  ['Carla Dias', 'Colégio Exemplo', '', 'Médio · 1º ano', 'Avançado', false, '21/08/2026'],
+];
+
+class Component extends DCLogic {
+  state = fresh('aluno', 'home');
+  toBottom = (instant) => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.querySelector('[data-thread]'); if (el) el.scrollTo({ top: el.scrollHeight, behavior: instant === true ? 'auto' : 'smooth' });
+  }));
+  jump = () => this.toBottom(true);
+  componentDidMount() { if (this.state.screen === 'player' || this.state.screen === 'maria') this.jump(); }
+  upd = (id, patch, cb) => this.setState(st => ({ progress: Object.assign({}, st.progress, { [id]: Object.assign({}, st.progress[id], typeof patch === 'function' ? patch(st.progress[id]) : patch) }) }), cb);
+  addMsg = (id, a, msgs, patch, cb) => this.upd(id, q => { const hist = q.hist.slice(); hist[a] = (hist[a] || []).concat(msgs); return Object.assign({}, patch || {}, { hist: hist }); }, cb);
+  enter = (id, screen) => this.setState(st => {
+    const p = st.progress[id];
+    const lastOpened = id === 'maria' ? st.lastOpened : [id].concat(st.lastOpened.filter(x => x !== id));
+    return { current: id, screen: screen || 'player', lastOpened: lastOpened, open: id === 'maria' ? st.open : Object.assign({}, st.open, { [id]: true }), draft: '', typing: false, progress: Object.assign({}, st.progress, { [id]: Object.assign({}, p, { view: p.act }) }) };
+  }, this.jump);
+  viewAct = (id, i) => this.setState(st => ({ current: id, screen: 'player', open: Object.assign({}, st.open, { [id]: true }), draft: '', typing: false, progress: Object.assign({}, st.progress, { [id]: Object.assign({}, st.progress[id], { view: i }) }) }), this.jump);
+  toggleOpen = (id) => this.setState(st => ({ open: Object.assign({}, st.open, { [id]: !st.open[id] }) }));
+  backToCurrent = () => { const id = this.state.current; this.upd(id, q => ({ view: q.act }), this.jump); };
+  resetAll = () => this.setState(st => Object.assign(fresh(st.app, 'home'), { loginVariant: st.loginVariant }));
+  homeSend = (e) => {
+    e && e.preventDefault();
+    const text = this.state.draft.trim(); if (!text) return;
+    this.enter('maria', 'maria'); this.setState({ draft: text }); setTimeout(() => this.send(), 30);
+  };
+  onKeyHome = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.homeSend(e); } };
+  send = (e) => {
+    e && e.preventDefault();
+    const s = this.state, id = s.current, p = s.progress[id]; const text = s.draft.trim(); if (!text) return;
+    const hist = p.hist[p.act]; const last = hist[hist.length - 1];
+    if (p.view !== p.act || (id !== 'maria' && last && last.ex && !p.submitted)) return;
+    const a = p.act;
+    this.addMsg(id, a, [{ id: Date.now(), role: 'user', text: text }], null, this.toBottom);
+    this.setState({ draft: '', typing: true });
+    setTimeout(() => { this.addMsg(id, a, [{ id: Date.now() + 1, role: 'assistant', maria: true, label: 'Maria', text: id === 'maria' ? 'Claro! Me conta qual é a sua dúvida e vamos resolver juntos.' : 'Vamos pensar juntos. Tente explicar com suas palavras o que o texto quer dizer.' }], null, this.toBottom); this.setState({ typing: false }); }, 1400);
+  };
+  advance = () => {
+    const s = this.state, id = s.current; if (id === 'maria') return;
+    const p = s.progress[id], T = C[id]; if (p.view !== p.act || p.done) return;
+    const hist = p.hist[p.act]; const last = hist[hist.length - 1]; const A = T.acts[p.act];
+    if (last && last.ex && !p.submitted) {
+      if (p.picked == null) return;
+      const ok = p.picked === last.ex.answer;
+      this.addMsg(id, p.act, [{ id: Date.now(), role: 'user', text: p.picked + ') ' + optText(last.ex, p.picked) }, { id: Date.now() + 1, role: 'assistant', label: T.title, text: ok ? last.ex.right : last.ex.wrong }], { submitted: true, advanced: true, answers: Object.assign({}, p.answers, { [p.act]: p.picked }) }, this.toBottom);
+      return;
+    }
+    const next = p.step + 1;
+    if (next < A.steps.length) { this.addMsg(id, p.act, [msgOf(id, p.act, next)], { step: next, advanced: true, picked: null }, this.toBottom); return; }
+    if (p.act + 1 < T.acts.length) {
+      const na = p.act + 1;
+      this.upd(id, q => { const hh = q.hist.slice(); hh[na] = [msgOf(id, na, 0)]; return { act: na, view: na, step: 0, submitted: false, picked: null, advanced: true, hist: hh }; }, this.jump);
+      return;
+    }
+    this.addMsg(id, p.act, [{ id: Date.now(), role: 'assistant', label: T.title, text: 'Você concluiu esta trilha. Parabéns!' }], { done: true }, this.toBottom);
+  };
+  renderVals() {
+    const pr = this.props, s = this.state;
+    const estado = pr.estado ?? 'normal';
+    const isLoading = estado === 'carregando', isEmpty = estado === 'vazio', isError = estado === 'erro';
+    const hasTrails = estado === 'normal';
+    const isApp = s.app === 'aluno' && s.screen !== 'login';
+    const isMaria = isApp && s.screen === 'maria';
+    const isPlayer = isApp && (s.screen === 'player' || s.screen === 'maria');
+    const cid = s.current, p = s.progress[cid], T = C[cid], nAct = T.acts.length;
+    const view = p.view, isCur = view === p.act;
+    const vh = p.hist[view] || [];
+    const last = vh[vh.length - 1];
+    const locked = hasTrails && !isMaria && isCur && !!last && !!last.ex && !p.submitted;
+    const canGo = !locked || p.picked != null;
+    const idle = !isMaria && !p.advanced && !vh.some(m => m.role === 'user');
+    const showPast = isPlayer && !isMaria && hasTrails && !isCur;
+    const statusOf = (q) => q.done ? 'completed' : (q.act > 0 || q.step > 0 || q.advanced || q.hist[0].some(m => m.role === 'user')) ? 'in_progress' : 'not_started';
+    const pctOf = (id) => { const q = s.progress[id], n = C[id].acts.length; if (q.done) return 100; const st = C[id].acts[q.act].steps.length; return Math.round(((q.act + (q.step + (q.submitted ? 1 : 0)) / st) / n) * 100); };
+    const metaOf = (id) => { const q = s.progress[id], n = C[id].acts.length; return 'Atividade ' + (q.done ? n : q.act + 1) + ' de ' + n; };
+    const tab = (on) => ({ border: 0, borderRadius: 999, padding: '6px 14px', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', cursor: 'pointer', background: on ? '#00be85' : 'transparent', color: on ? '#001c0e' : '#fffcf0' });
+    const navBtn = (on) => ({ border: 0, borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 600, textAlign: 'left', cursor: 'pointer', background: on ? '#fcfbf6' : 'transparent', color: '#001c0e' });
+    const pLink = (on, child) => ({ display: 'flex', alignItems: 'center', height: 36, padding: child ? '0 10px 0 18px' : '0 10px', border: 0, borderRadius: 10, background: on ? '#ffd500' : 'transparent', color: '#001c0e', fontSize: 14, fontWeight: on ? 700 : 600, cursor: 'pointer', textAlign: 'left', width: '100%' });
+    const goP = (k) => () => this.setState({ pScreen: k, search: '' });
+    const isTr = s.pScreen === 'trilhas', isAl = s.pScreen === 'alunos';
+    const q = s.search.trim().toLowerCase();
+    const ni = (v) => v || 'Não informado';
+    const actStyle = (on) => ({ display: 'inline-block', fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '3px 10px', background: on ? '#e6f8f1' : '#faf8f1', color: on ? '#00744f' : '#5b6b60' });
+    let rows = [];
+    if (hasTrails && isTr) rows = P_TRAILS.filter(r => !q || r.join(' ').toLowerCase().includes(q)).map(r => ({ name: r[0], cells: [r[1], ni(r[2])], active: r[3] ? 'Sim' : 'Não', activeStyle: actStyle(r[3]), created: r[4] }));
+    if (hasTrails && isAl) rows = P_STUDENTS.filter(r => !q || r.join(' ').toLowerCase().includes(q)).map(r => ({ name: r[0], cells: [r[1], ni(r[2]), r[3], r[4]], active: r[5] ? 'Sim' : 'Não', activeStyle: actStyle(r[5]), created: r[6] }));
+    const n = rows.length;
+    const ordered = s.lastOpened.concat(TRAILS.map(t => t.id).filter(id => s.lastOpened.indexOf(id) < 0));
+    const sortedTrails = ordered.map(id => TRAILS.find(t => t.id === id)).filter(Boolean);
+    const homeShown = sortedTrails.slice(0, hasTrails ? 3 : 0);
+    const gridCols = Math.max(homeShown.length, 1);
+    const trailGridStyle = gridCols === 1
+      ? { display: 'grid', gridTemplateColumns: 'minmax(0,440px)', justifyContent: 'center', width: '100%' }
+      : { display: 'grid', gridTemplateColumns: 'repeat(' + gridCols + ', minmax(0,1fr))', gap: 12, width: '100%' };
+    const homeCard = gridCols === 1
+      ? { display: 'flex', flexDirection: 'column', gap: 8, width: '100%', padding: '14px 12px 14px 16px', border: '1px solid #f7f5ec', borderRadius: 16, background: '#fcfbf6', cursor: 'pointer', textAlign: 'left' }
+      : { display: 'flex', flexDirection: 'column', gap: 8, width: '100%', padding: '14px 12px 14px 16px', border: '1px solid #f7f5ec', borderRadius: 16, background: '#fcfbf6', cursor: 'pointer', textAlign: 'left' };
+    const homeTrails = homeShown.map(t => { const st = statusOf(s.progress[t.id]); return {
+      name: t.name, meta: metaOf(t.id), cta: st === 'not_started' ? 'Começar trilha' : st === 'completed' ? 'Rever trilha' : 'Continuar trilha',
+      open: () => this.enter(t.id), cardStyle: homeCard, barStyle: { display: 'block', height: '100%', width: pctOf(t.id) + '%', background: 'linear-gradient(90deg,#ffd500,#00be85)', borderRadius: 999 } }; });
+    const pVals = {
+      navReady: !isLoading,
+      pNav: SIDEBAR_NAV.map(e => e.type === 'link'
+        ? { isLink: true, isGroup: false, label: e.label, go: goP(e.key), style: pLink(s.pScreen === e.key) }
+        : { isLink: false, isGroup: true, label: e.label, open: !s.collapsed[e.id], openAttr: s.collapsed[e.id] ? 'false' : 'true',
+            chevStyle: { transform: s.collapsed[e.id] ? 'rotate(-90deg)' : 'none', transition: 'transform .15s' },
+            toggle: () => this.setState(st => ({ collapsed: Object.assign({}, st.collapsed, { [e.id]: !st.collapsed[e.id] }) })),
+            children: e.children.map(c => ({ label: c.label, go: goP(c.key), style: pLink(s.pScreen === c.key, true) })) }),
+      pIsHome: s.pScreen === 'home', pIsList: isTr || isAl, pIsOther: !['home', 'trilhas', 'alunos'].includes(s.pScreen),
+      otherTitle: ALL_LABELS[s.pScreen],
+      homeLede: isEmpty ? 'Cadastre uma instituição para começar a acompanhar alunos e trilhas.' : 'Resumo das instituições às quais você tem acesso.',
+      totals: [['Instituições', 2], ['Alunos ativos', 310], ['Trilhas ativas', 10], ['Ativos (7 dias)', 113], ['Em andamento', 60]].map(([label, value]) => ({ label: label, value: value })),
+      institutions: INSTS.map(i => Object.assign({}, i, { usage: ['Em andamento', 'Concluíram', 'Não iniciaram', 'Ativos (7 dias)'].map((label, k) => ({ label: label, value: i.usage[k] })) })),
+      listLabel: isTr ? 'PA02 Trilhas' : 'PA06 Alunos',
+      listTitle: isTr ? 'Trilhas' : 'Alunos',
+      listLede: isTr ? 'Lista de trilhas das instituições permitidas. Use o filtro para restringir por instituição.' : 'Lista de alunos das instituições permitidas. Use o filtro para restringir por instituição.',
+      listNewLabel: isTr ? '+ Nova trilha' : '+ Novo aluno',
+      listAll: isTr ? 'Todas as trilhas' : 'Todos os alunos',
+      listError: isTr ? 'Não foi possível carregar as trilhas.' : 'Não foi possível carregar os alunos.',
+      searchPh: isTr ? 'Nome, matéria ou ID' : 'Nome, telefone ou ID',
+      search: s.search, onSearch: (e) => this.setState({ search: e.target.value }),
+      cols: isTr ? ['Nome', 'Instituição', 'Matéria', 'Ativa', 'Criada em'] : ['Nome', 'Instituição', 'Telefone', 'Nível / série', 'Nível pedagógico', 'Ativo', 'Criado em'],
+      rows, rowsEmpty: !isLoading && n === 0,
+      emptyLabel: isTr ? 'Nenhuma trilha encontrada.' : 'Nenhum aluno encontrado.',
+      countLabel: isLoading ? 'Carregando…' : n + ' resultado' + (n === 1 ? '' : 's'),
+      showPager: n > 0, rangeLabel: '1 a ' + n + ' de ' + n,
+      pGoHome: goP('home'), pGoTrilhas: goP('trilhas'), pGoAlunos: goP('alunos'),
+      pNavHome: navBtn(s.pScreen === 'home'), pNavTrilhas: navBtn(isTr), pNavAlunos: navBtn(isAl),
+    };
+    const primaryId = s.lastOpened[0] || 'mat';
+    const navPill = (on) => ({ border: 0, borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? '#001c0e' : 'transparent', color: on ? '#fff' : '#3d4d43' });
+    const E = React.createElement, ab = { position: 'absolute', left: '50%', top: '50%', borderRadius: 999, pointerEvents: 'none' };
+    const ring = (d, c) => E('span', { key: 'r' + d, style: Object.assign({}, ab, { width: 64, height: 64, border: '1px solid ' + c, opacity: 0, animation: 'crSunRing 5.6s cubic-bezier(.22,.61,.36,1) ' + d + 's infinite' }) });
+    const sunHalo = E(React.Fragment, null,
+      E('span', { key: 'haze', style: Object.assign({}, ab, { width: 340, height: 340, background: 'radial-gradient(circle, rgba(255,213,0,.10) 0%, rgba(0,190,133,.06) 38%, rgba(255,255,255,0) 68%)', filter: 'blur(6px)', animation: 'crSunBloom 1.6s cubic-bezier(.16,1,.3,1) both, crSunBreath 7s ease-in-out 1.6s infinite' }) }),
+      E('span', { key: 'glow', style: Object.assign({}, ab, { width: 120, height: 120, background: 'radial-gradient(circle, rgba(255,213,0,.22) 0%, rgba(255,213,0,.08) 45%, rgba(255,213,0,0) 70%)', animation: 'crSunBloom 1.2s cubic-bezier(.16,1,.3,1) .1s both, crSunBreath 5.6s ease-in-out 1.3s infinite' }) }),
+      ring(0.9, 'rgba(0,190,133,.22)'), ring(3.7, 'rgba(255,213,0,.35)'),
+      E('img', { key: 'img', src: 'assets/crias-symbol.png', alt: '', style: { position: 'relative', width: 64, height: 64, display: 'block', animation: 'crSunIn 1s cubic-bezier(.16,1,.3,1) both' } })
+    );
+    return {
+      ...pVals,
+      sunHalo,
+      loginB: s.loginVariant === 'b',
+      horizon: E(React.Fragment, null,
+        E('span', { key: 'hz', style: { position: 'absolute', left: '50%', bottom: -520, width: 900, height: 900, borderRadius: 999, pointerEvents: 'none', background: 'radial-gradient(circle, rgba(0,190,133,.10) 0%, rgba(0,190,133,.04) 14%, rgba(255,213,0,.05) 50%, rgba(255,255,255,0) 68%)', filter: 'blur(8px)', animation: 'crRise 2.6s cubic-bezier(.16,1,.3,1) both' } }),
+        E('span', { key: 'hr', style: { position: 'absolute', left: '50%', bottom: -360, width: 460, height: 460, borderRadius: 999, pointerEvents: 'none', border: '1px solid rgba(0,190,133,.065)', animation: 'crRise 2.6s cubic-bezier(.16,1,.3,1) .2s both' } }),
+        E('span', { key: 'hp', style: { position: 'absolute', left: '50%', bottom: -300, width: 460, height: 460, borderRadius: 999, pointerEvents: 'none', border: '1px solid rgba(255,213,0,.34)', opacity: 0, animation: 'crHorizonRing 11s cubic-bezier(.33,0,.2,1) 2.8s infinite' } })),
+      loginSun: s.loginVariant !== 'b',
+      loginLogoStyle: { height: s.loginVariant === 'b' ? 40 : 32, width: 'auto', display: 'block' },
+      loginFields: s.loginVariant !== 'c' || s.loginStep === 1,
+      loginStart: s.loginVariant === 'c' && s.loginStep === 0,
+      loginFieldsStyle: { position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', gap: 14, animation: s.loginVariant === 'c' ? 'crFadeIn .5s cubic-bezier(.16,1,.3,1) both' : 'none' },
+      loginNext: () => this.setState({ loginStep: 1 }),
+      lvA: () => this.setState({ loginVariant: 'a', loginStep: 0 }), lvB: () => this.setState({ loginVariant: 'b', loginStep: 0 }), lvC: () => this.setState({ loginVariant: 'c', loginStep: 0 }),
+      lvAStyle: navPill(s.loginVariant === 'a'), lvBStyle: navPill(s.loginVariant === 'b'), lvCStyle: navPill(s.loginVariant === 'c'),
+      isPainel: s.app === 'painel', isLogin: s.app === 'aluno' && s.screen === 'login', isApp, isPlayer,
+      isHome: isApp && s.screen === 'home', isAlunoNav: s.app === 'aluno',
+      painelTabStyle: tab(s.app === 'painel'), alunoTabStyle: tab(s.app === 'aluno'),
+      goPainel: () => this.setState({ app: 'painel' }), goAluno: () => this.setState({ app: 'aluno' }),
+      goLogin: () => this.setState({ screen: 'login' }),
+      goHome: () => this.setState(st => ({ screen: 'home', greet: (st.greet + 1) % GREET.length })),
+      openPrimary: () => this.enter(primaryId),
+      goMaria: () => this.enter('maria', 'maria'),
+      mariaNavStyle: Object.assign(pLink(isMaria), { gap: 10 }),
+      resetAll: this.resetAll,
+      navLoginStyle: navBtn(s.screen === 'login'), navHomeStyle: navBtn(s.screen === 'home'), navPlayerStyle: navBtn(s.screen === 'player'),
+      pwType: s.showPw ? 'text' : 'password', pwLabel: s.showPw ? 'Ocultar' : 'Mostrar',
+      pwFocusOn: () => this.setState({ pwFocus: true }), pwFocusOff: () => this.setState({ pwFocus: false }),
+      pwWrapStyle: { display: 'flex', alignItems: 'center', height: 52, borderRadius: 14, padding: '0 6px 0 16px', transition: 'border-color .15s, box-shadow .15s, background .15s', border: '1px solid ' + (s.pwFocus ? '#00be85' : '#f1eee3'), background: s.pwFocus ? '#fff' : '#fcfbf6', boxShadow: s.pwFocus ? '0 0 0 4px rgba(0,190,133,.12)' : 'none' },
+      togglePw: () => this.setState({ showPw: !s.showPw }),
+      loginError: isError, loginBtnLabel: isLoading ? 'Entrando…' : 'Entrar',
+      doLogin: (e) => { e.preventDefault(); this.setState({ screen: 'home', loginStep: 0 }); },
+      sidebarOpen: s.sidebarOpen, sidebarClosed: !s.sidebarOpen,
+      toggleSidebar: () => this.setState({ sidebarOpen: !s.sidebarOpen }),
+      isLoading, isEmpty, isError, hasTrails,
+      trailGridStyle, homeTrails, homeSend: this.homeSend, onKeyHome: this.onKeyHome,
+      hasOthers: hasTrails && sortedTrails.length > 3,
+      trails: hasTrails ? TRAILS.map(t => {
+        const q2 = s.progress[t.id], TT = C[t.id];
+        const active = isPlayer && !isMaria && cid === t.id;
+        const expanded = !!s.open[t.id];
+        return {
+          name: t.name, meta: metaOf(t.id),
+          open: () => this.enter(t.id), toggle: () => this.toggleOpen(t.id),
+          expanded: expanded, expandedAttr: expanded ? 'true' : 'false', toggleLabel: (expanded ? 'Recolher' : 'Abrir') + ' atividades de ' + t.name,
+          arrowPath: expanded ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6',
+          rowStyle: { width: '100%', display: 'flex', flexDirection: 'column', borderRadius: 12, background: active ? '#fff' : 'transparent', boxShadow: active ? '0 1px 3px rgba(0,28,14,.08)' : 'none' },
+          barStyle: { display: 'block', height: '100%', width: pctOf(t.id) + '%', background: 'linear-gradient(90deg,#ffd500,#00be85)', borderRadius: 999 },
+          acts: TT.acts.map((a, i) => {
+            const st = (q2.done || i < q2.act) ? 'done' : i === q2.act ? 'cur' : 'future';
+            const on = active && q2.view === i;
+            return {
+              title: a.title, mark: st === 'done' ? '✓' : String(i + 1), disabled: st === 'future',
+              open: () => this.viewAct(t.id, i),
+              style: { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '7px 10px', border: 0, borderRadius: 10, background: on ? '#f7f5ec' : 'transparent', color: '#001c0e', fontSize: 13, fontWeight: on ? 700 : 500, textAlign: 'left', cursor: st === 'future' ? 'default' : 'pointer', opacity: st === 'future' ? 0.5 : 1 },
+              dotStyle: { width: 20, height: 20, borderRadius: 999, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, background: st === 'done' ? '#00be85' : st === 'cur' ? '#fff' : '#f7f5ec', color: st === 'done' ? '#fff' : st === 'cur' ? '#00744f' : '#6b7a70', border: st === 'cur' ? '2px solid #00be85' : '0' },
+            };
+          }),
+        };
+      }) : [],
+      firstName: 'Ana', initial: 'A',
+      logout: () => { if (window.confirm('Sair da conta? Seu progresso na trilha fica salvo.')) this.setState({ screen: 'login' }); },
+      topTitle: isMaria ? 'Conversar com Maria' : isPlayer ? T.title : '',
+      topStage: !isMaria && isPlayer && hasTrails ? 'Atividade ' + (view + 1) + ' de ' + nAct + ' · Passo ' + (isCur ? p.step + 1 : T.acts[view].steps.length) + ' de ' + T.acts[view].steps.length : '',
+      homeTitle: isEmpty ? 'Olá, Ana.' : GREET[s.greet % GREET.length],
+      showThread: hasTrails, typing: s.typing,
+      messages: vh.map(m => {
+        const maria = !!m.maria, ex = m.ex;
+        const answered = !isCur || p.submitted;
+        const sel = answered ? p.answers[view] : p.picked;
+        return {
+          isUser: m.role === 'user', isExercise: !!ex, isAssistant: m.role !== 'user' && !ex,
+          text: m.text || '', label: m.label || '',
+          hasImage: !!m.image, image: m.image || '', hasVideo: !!m.video, video: m.video || '', videoMeta: m.videoMeta || '', hasLink: !!m.link, link: m.link || '',
+          isMaria: maria, isTrail: !maria,
+          prompt: ex ? ex.prompt : '', qLabel: 'Exercício',
+          options: ex ? ex.options.map(([k, txt]) => {
+            const on = sel === k;
+            return {
+              key: k, text: txt, checked: on ? 'true' : 'false', disabled: answered,
+              pick: () => { const q3 = this.state.progress[cid]; if (q3.view === q3.act && !q3.submitted) this.upd(cid, { picked: k }); },
+              style: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 12px', borderRadius: 12, cursor: answered ? 'default' : 'pointer', textAlign: 'left', fontSize: 15, fontWeight: 500, color: '#001c0e', border: on ? '2px solid #00be85' : '1px solid #f7f5ec', background: on ? '#e6f8f1' : '#fff', margin: on ? 0 : 1 },
+              keyStyle: { width: 28, height: 28, borderRadius: 999, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, background: on ? '#00be85' : '#fcfbf6', color: on ? '#fff' : '#001c0e' },
+            };
+          }) : [],
+        };
+      }),
+      locked, composerPh: locked ? 'Selecione uma alternativa e continue...' : 'Pergunte à Maria…',
+      isContinue: hasTrails && !isMaria && !p.done && !s.draft.trim(), isSend: !!s.draft.trim() || isMaria,
+      showNudge: false,
+      showPastBar: showPast, showForm: !showPast,
+      pastText: 'Você está revendo a Atividade ' + (view + 1) + '.', backToCurrent: this.backToCurrent,
+      composerHint: isMaria ? 'Envie sua pergunta para a Maria' : 'Envie sua pergunta ou selecione continuar para avançar',
+      continueStyle: { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 16px 0 18px', border: 0, borderRadius: 999, fontSize: 15, fontWeight: 700, cursor: canGo ? 'pointer' : 'default', background: canGo ? '#00be85' : '#f7f5ec', color: canGo ? '#fff' : '#9aa69e', animation: idle && hasTrails && !locked ? 'crHalo 2.2s ease-out 1.4s infinite' : 'none' },
+      continueHover: canGo ? 'background:#00a974;animation:crHalo 2.2s ease-out infinite' : '',
+      advance: this.advance,
+      draft: s.draft,
+      onDraft: (e) => this.setState({ draft: e.target.value }),
+      onKey: (e) => { if (e.key === 'Enter' && !e.shiftKey) this.send(e); },
+      send: this.send,
+      onFocus: () => this.setState({ focus: true }), onBlur: () => this.setState({ focus: false }),
+      composerStyle: { position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 8, background: '#fcfbf6', border: '1px solid ' + ((s.focus || s.draft.trim()) ? '#00be85' : '#fcfbf6'), borderRadius: 28, padding: '8px 8px 8px 20px', transition: 'border-color .15s, box-shadow .15s', boxShadow: (s.focus || s.draft.trim()) ? '0 0 0 3px rgba(0,190,133,.14)' : 'none' },
+      composerStyleHome: { width: '100%', maxWidth: 740, display: 'flex', alignItems: 'flex-end', gap: 8, background: '#fcfbf6', border: '1px solid ' + ((s.focus || s.draft.trim()) ? '#00be85' : '#f7f5ec'), borderRadius: 28, padding: '8px 8px 8px 20px', textAlign: 'left', transition: 'border-color .15s, box-shadow .15s', boxShadow: (s.focus || s.draft.trim()) ? '0 0 0 3px rgba(0,190,133,.14)' : 'none' },
+      sendStyle: { width: 40, height: 40, flex: 'none', border: 0, borderRadius: 999, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#00be85', color: '#fff' },
+    };
+  }
+}
+</script>
+</body>
+</html>

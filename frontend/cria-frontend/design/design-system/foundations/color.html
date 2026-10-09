@@ -1,0 +1,54 @@
+<!-- @dsCard group="Fundamentos" name="Cor" subtitle="Branco é o fundo; bege só em destaque; verde com texto branco" viewport="640x720" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crias · Cor</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+.demo { max-width: 640px; margin: 0 auto; padding: 24px 16px 32px; }
+.demo-head { font-size: 12px; font-weight: 700; color: var(--color-subtle); margin: 24px 0 10px; }
+.demo-head:first-child { margin-top: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.sw { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--color-highlight-2); font-size: 12px; }
+.sw b { display: block; height: 56px; }
+.sw span { display: block; padding: 8px 10px; line-height: 1.4; }
+.note { font-size: 13px; color: var(--color-muted); max-width: 60ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+<main class="demo">
+
+<div class="demo-head">Fundos</div>
+<div class="grid">
+<div class="sw"><b style="background:#ffffff"></b><span><strong>Fundo</strong><br>#ffffff<br>Conteúdo, entrada, painel</span></div>
+<div class="sw"><b style="background:#fcfbf6"></b><span><strong>Destaque 1</strong><br>#fcfbf6<br>Menu, campos, barra, balão, cards</span></div>
+<div class="sw"><b style="background:#f7f5ec"></b><span><strong>Destaque 2</strong><br>#f7f5ec<br>Bordas, item ativo, hover</span></div>
+<div class="sw"><b style="background:#fefdfa"></b><span><strong>Destaque 3</strong><br>#fefdfa<br>Exercício</span></div>
+<div class="sw"><b style="background:#f1eee3"></b><span><strong>Trilho</strong><br>#f1eee3<br>Barra de progresso, borda de campo</span></div>
+<div class="sw"><b style="background:#e6f8f1"></b><span><strong>Seleção</strong><br>#e6f8f1<br>Alternativa marcada</span></div>
+</div>
+<div class="demo-head">Marca</div>
+<div class="grid">
+<div class="sw"><b style="background:#00be85"></b><span><strong>Verde</strong><br>#00be85<br>Ação principal, texto branco</span></div>
+<div class="sw"><b style="background:#00a974"></b><span><strong>Verde hover</strong><br>#00a974<br>Com halo pulsante</span></div>
+<div class="sw"><b style="background:#00925f"></b><span><strong>Verde pressionado</strong><br>#00925f<br></span></div>
+<div class="sw"><b style="background:#00593d"></b><span><strong>Verde escuro</strong><br>#00593d<br>Avatar do usuário</span></div>
+<div class="sw"><b style="background:#ffd500"></b><span><strong>Amarelo</strong><br>#ffd500<br>Maria, marcações</span></div>
+<div class="sw"><b style="background:var(--progress)"></b><span><strong>Progresso</strong><br>#ffd500 → #00be85<br>Barra da trilha</span></div>
+</div>
+<div class="demo-head">Texto</div>
+<div class="grid">
+<div class="sw"><b style="background:#001c0e"></b><span><strong>Principal</strong><br>#001c0e<br></span></div>
+<div class="sw"><b style="background:#3d4d43"></b><span><strong>Texto 2</strong><br>#3d4d43<br>Rótulos</span></div>
+<div class="sw"><b style="background:#5b6b60"></b><span><strong>Secundário</strong><br>#5b6b60<br></span></div>
+<div class="sw"><b style="background:#6b7a70"></b><span><strong>Apoio</strong><br>#6b7a70<br>Placeholder, dicas</span></div>
+<div class="sw"><b style="background:#00875e"></b><span><strong>Link</strong><br>#00875e<br>Hover #006b4a</span></div>
+<div class="sw"><b style="background:#8a1c12"></b><span><strong>Erro</strong><br>#8a1c12<br>Fundo #fdecea</span></div>
+</div>
+<p class="note" style="margin-top:16px">O bege nunca é fundo de página. Verde e amarelo da marca nunca são texto sobre fundo claro.</p>
+</main>
+</body>
+</html>

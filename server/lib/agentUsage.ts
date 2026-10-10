@@ -6,12 +6,16 @@
  * viram uma única linha, somando mensagens e unindo alunos.
  */
 
+/** Parceiro de estudos fora da trilha (conversation_logs.trail_id). */
+export const MARIA_AGENT_TRAIL_ID = 'Tutor - Maria'
+
 export const CANONICAL_AGENT_TRAIL_IDS = [
   'Trilha - Matemática',
   'Trilha - Geral',
   'Trilha - Humanas',
   'Trilha - Natureza',
   'Tutor - Linguagens',
+  MARIA_AGENT_TRAIL_ID,
 ] as const
 
 export type CanonicalAgentTrailId = (typeof CANONICAL_AGENT_TRAIL_IDS)[number]
@@ -22,6 +26,7 @@ const CANONICAL_LABELS: Record<CanonicalAgentTrailId, string> = {
   'Trilha - Humanas': 'Humanas',
   'Trilha - Natureza': 'Natureza',
   'Tutor - Linguagens': 'Linguagens',
+  'Tutor - Maria': 'Maria',
 }
 
 /** Ordem de exibição das disciplinas canônicas. */
@@ -31,6 +36,7 @@ export const CANONICAL_AGENT_LABELS = [
   'Humanas',
   'Natureza',
   'Linguagens',
+  'Maria',
 ] as const
 
 const CANONICAL_SET = new Set<string>(CANONICAL_AGENT_TRAIL_IDS)
@@ -42,6 +48,7 @@ const PRIMARY_BY_LABEL: Record<string, string> = {
   Humanas: 'Trilha - Humanas',
   Natureza: 'Trilha - Natureza',
   Linguagens: 'Tutor - Linguagens',
+  Maria: MARIA_AGENT_TRAIL_ID,
 }
 
 export function isAgentTrailId(trailId: string): boolean {

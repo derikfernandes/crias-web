@@ -185,11 +185,11 @@ describe('mainButtonState — um botão principal', () => {
     const s = mainButtonState({ ...idle, stageType: 'exercise', hasSelection: true, submitting: true, busy: true, busyReason: 'exercise' })
     expect(s).toMatchObject({ label: MAIN_BUTTON_SUBMITTING_LABEL, disabled: true, busy: true })
   })
-  it('após o feedback: Continuar trilha (sem auto-avanço — só ação do aluno)', () => {
+  it('após o feedback: Continuar (sem auto-avanço — só ação do aluno)', () => {
     const s = mainButtonState({ ...idle, stageType: 'exercise', exerciseDone: true })
     expect(s).toMatchObject({ action: 'advance', label: MAIN_BUTTON_CONTINUE_LABEL, disabled: false })
   })
-  it('aula / texto fixo: Continuar trilha', () => {
+  it('aula / texto fixo: Continuar', () => {
     expect(mainButtonState({ ...idle, stageType: 'fixed' }).label).toBe(MAIN_BUTTON_CONTINUE_LABEL)
     expect(mainButtonState(idle).action).toBe('advance')
   })
@@ -199,8 +199,12 @@ describe('mainButtonState — um botão principal', () => {
     })
     expect(mainButtonState(idle)).toMatchObject({ action: 'advance', disabled: false })
   })
-  it('sidechat Maria: Continuar oculto (Voltar à trilha é a saída)', () => {
-    expect(mainButtonState({ ...idle, mariaSidechat: true }).visible).toBe(false)
+  it('sidechat Maria: Continuar sai sem avançar', () => {
+    expect(mainButtonState({ ...idle, mariaSidechat: true })).toMatchObject({
+      visible: true,
+      action: 'exit_maria',
+      label: MAIN_BUTTON_CONTINUE_LABEL,
+    })
   })
   it('rascunho para a Maria pausa o Continuar', () => {
     expect(mainButtonState({ ...idle, hasMariaDraft: true }).disabled).toBe(true)

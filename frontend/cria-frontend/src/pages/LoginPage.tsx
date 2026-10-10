@@ -6,12 +6,15 @@ import {
   type FocusEvent,
 } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { identifyStudent } from '../lib/api'
+import {
+  identifyStudent,
+  type IdentifyInstitutionChoice,
+  type IdentifyOkResponse,
+} from '../lib/api'
 import {
   isRetryableSystemError,
   toUserFacingError,
 } from '../lib/networkError'
-import { canonicalizeStudentPhone } from '../lib/phone'
 import { getSession, setSession } from '../lib/session'
 import { confirmOnline } from '../lib/connectivity'
 import {
@@ -33,15 +36,27 @@ function resolvePostLoginPath(state: LoginLocationState): string {
   return `${path}${from?.search ?? ''}${from?.hash ?? ''}`
 }
 
+function applySession(result: IdentifyOkResponse) {
+  setSession({
+    student_id: result.student_id,
+    institution_id: result.institution_id,
+    name: result.name,
+    phone_number: result.phone_number,
+  })
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const loginState = location.state as LoginLocationState
   const existing = getSession()
-  const [phone, setPhone] = useState('')
-  const [code, setCode] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [institutions, setInstitutions] = useState<IdentifyInstitutionChoice[]>(
+    [],
+  )
+  const [selectedInstitution, setSelectedInstitution] = useState('')
   const [error, setError] = useState<string | null>(() => {
     if (loginState?.message) return loginState.message
     if (loginState?.reason === 'auth' || loginState?.reason === 'missing') {
@@ -70,7 +85,8 @@ export default function LoginPage() {
       const el = document.activeElement
       if (!(el instanceof HTMLElement)) return
       if (!el.closest('.login-page')) return
-      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return
+      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')
+        return
       scrollFocusedIntoView(el)
     }
     const vv = window.visualViewport
@@ -149,16 +165,17 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const result = await identifyStudent({
-        phone_number: canonicalizeStudentPhone(phone),
-        institution_code: code.trim(),
+        login: login.trim(),
         password,
+        institution_id: selectedInstitution || undefined,
       })
-      setSession({
-        student_id: result.student_id,
-        institution_id: result.institution_id,
-        name: result.name,
-        phone_number: result.phone_number,
-      })
+      if (result.status === 'needs_institution') {
+        setInstitutions(result.institutions)
+        setSelectedInstitution(result.institutions[0]?.institution_id ?? '')
+        setError('Escolha a escola para continuar.')
+        return
+      }
+      applySession(result)
       navigate(resolvePostLoginPath(loginState), { replace: true })
     } catch (err) {
       setError(toUserFacingError(err, 'Não foi possível entrar.'))
@@ -168,50 +185,70 @@ export default function LoginPage() {
     }
   }
 
-  function onFieldFocus(e: FocusEvent<HTMLInputElement>) {
+  function onFieldFocus(e: FocusEvent<HTMLInputElement | HTMLSelectElement>) {
     scrollFocusedIntoView(e.currentTarget)
   }
 
-  const entrarDisabled = loading || offline
+  const entrarDisabled =
+    loading ||
+    offline ||
+    (institutions.length > 1 && !selectedInstitution)
 
   return (
-    <main className="login-page">
-      <div className="login-atmosphere" aria-hidden />
+    <main className="login-page horizonte">
+      <span className="hz hz-brilho" aria-hidden />
+      <span className="hz hz-linha" aria-hidden />
+      <span className="hz hz-arco" aria-hidden />
       {offline ? (
         <div className="chat-offline-banner" role="status" aria-live="polite">
           Você está offline. Conecte-se para entrar.
         </div>
       ) : null}
       <form className="login-panel" onSubmit={(e) => void onSubmit(e)}>
-        <p className="brand">Crias</p>
-        <h1>Entre na sua trilha</h1>
-        <p className="lede">
-          Use o telefone, o código da sua escola e a senha que você recebeu.
-        </p>
+        <img
+          className="login-wordmark"
+          src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
+          alt="Crias"
+          height={40}
+        />
+        {institutions.length > 1 ? (
+          <label className="login-institution">
+            Escola
+            <select
+              value={selectedInstitution}
+              onChange={(e) => setSelectedInstitution(e.target.value)}
+              onFocus={onFieldFocus}
+              required
+            >
+              {institutions.map((inst) => (
+                <option key={inst.institution_id} value={inst.institution_id}>
+                  {inst.institution_name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label>
-          Telefone
-          <input
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            onFocus={onFieldFocus}
-            placeholder="DDD + número"
-            required
-          />
-        </label>
-        <label>
-          Código da escola
+          Login
           <input
             type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
+            autoComplete="username"
+            value={login}
+            onChange={(e) => {
+              setLogin(e.target.value)
+              if (institutions.length) {
+                setInstitutions([])
+                setSelectedInstitution('')
+              }
+            }}
             onFocus={onFieldFocus}
-            placeholder="código da sua escola"
+            placeholder="DDD + telefone, e-mail ou ID da escola"
             required
           />
         </label>
+        <p className="login-support muted">
+          DDD + telefone, e-mail ou ID da escola
+        </p>
         <label>
           Senha
           <div className="login-password-row">
@@ -253,11 +290,23 @@ export default function LoginPage() {
         ) : null}
         <button
           type="submit"
+          className="login-submit"
           disabled={entrarDisabled}
           aria-disabled={entrarDisabled || undefined}
           aria-busy={loading || undefined}
         >
           {loading ? 'Entrando…' : 'Entrar'}
+          {!loading ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M5 12h12M13 6l6 6-6 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
         </button>
       </form>
     </main>

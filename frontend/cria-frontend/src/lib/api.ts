@@ -67,7 +67,7 @@ export function isAuthError(err: unknown): boolean {
   return err instanceof ApiRequestError && err.authFailed
 }
 
-export type IdentifyResponse = {
+export type IdentifyOkResponse = {
   status: 'ok'
   student_id: string
   institution_id: string
@@ -75,6 +75,21 @@ export type IdentifyResponse = {
   active: boolean
   phone_number: string
 }
+
+export type IdentifyInstitutionChoice = {
+  institution_id: string
+  institution_name: string
+  student_id: string
+}
+
+export type IdentifyNeedsInstitutionResponse = {
+  status: 'needs_institution'
+  institutions: IdentifyInstitutionChoice[]
+}
+
+export type IdentifyResponse =
+  | IdentifyOkResponse
+  | IdentifyNeedsInstitutionResponse
 
 export type StudentTrailRow = {
   id: string
@@ -279,8 +294,12 @@ function throwHttpError(
 }
 
 export async function identifyStudent(input: {
-  phone_number: string
-  institution_code: string
+  /** Login livre: telefone, e-mail ou ID do aluno. */
+  login?: string
+  phone_number?: string
+  /** Opcional: desambigua multi-escola ou caminho legado. */
+  institution_code?: string
+  institution_id?: string
   password: string
 }): Promise<IdentifyResponse> {
   const res = await fetchWithTimeout(`${API_BASE}/student/identify`, {
@@ -291,7 +310,11 @@ export async function identifyStudent(input: {
   const body = (await parseJson(res)) as IdentifyResponse & ApiError & {
     code?: string
   }
-  if (!res.ok || (body as { status?: string } | null)?.status !== 'ok') {
+  const status = (body as { status?: string } | null)?.status
+  if (res.ok && status === 'needs_institution') {
+    return body as IdentifyNeedsInstitutionResponse
+  }
+  if (!res.ok || status !== 'ok') {
     // ER08: 401/Unauthorized → mesma copy PT de credenciais.
     const code = typeof body?.code === 'string' ? body.code : ''
     const raw = messageFromBody(body, '')
@@ -303,7 +326,7 @@ export async function identifyStudent(input: {
       )
     ) {
       throw new ApiRequestError(
-        'Telefone, escola ou senha incorretos.',
+        'Login ou senha incorretos.',
         res.status || 401,
         { code: code || undefined, authFailed: false },
       )
@@ -314,7 +337,7 @@ export async function identifyStudent(input: {
       res.status || 500,
     )
   }
-  return body
+  return body as IdentifyOkResponse
 }
 
 export async function listStudentTrails(

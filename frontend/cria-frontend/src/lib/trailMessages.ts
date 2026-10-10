@@ -364,9 +364,9 @@ export function mediaHintForText(text: string): string | null {
   const onlyVideo = [...kinds].every(
     (k) => k === 'youtube' || k === 'youtube-shorts',
   )
-  if (onlyDrive) return 'Material na etapa — Continuar trilha quando quiser'
-  if (onlyVideo) return 'Vídeo na etapa — Continuar trilha quando quiser'
-  return 'Mídia na etapa — Continuar trilha quando quiser'
+  if (onlyDrive) return 'Material no passo. Continuar quando quiser'
+  if (onlyVideo) return 'Vídeo no passo. Continuar quando quiser'
+  return 'Mídia no passo. Continuar quando quiser'
 }
 
 /** URL de embed in-app para YT/Drive; null se não suportado. */

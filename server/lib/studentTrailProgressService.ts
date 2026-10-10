@@ -28,6 +28,7 @@ export type ProgressErrorCode =
   | 'invalid_payload'
   | 'invalid_credentials'
   | 'password_not_set'
+  | 'needs_institution'
   | 'internal_error'
 
 export type ProgressResult<T> =
@@ -83,6 +84,20 @@ export type IdentifyOk = {
   active: true
   phone_number: string
 }
+
+export type IdentifyInstitutionChoice = {
+  institution_id: string
+  institution_name: string
+  student_id: string
+}
+
+/** Login bateu em mais de uma escola — o aluno escolhe no seletor. */
+export type IdentifyNeedsInstitution = {
+  status: 'needs_institution'
+  institutions: IdentifyInstitutionChoice[]
+}
+
+export type IdentifyResultData = IdentifyOk | IdentifyNeedsInstitution
 
 // "A resposta correta é a letra X" é gabarito/explicação, não celebração —
 // não pode ser podado de feedback de tentativa errada.
@@ -488,34 +503,111 @@ function stageDocId(trailId: string, stageNumber: number): string {
   return `${trailId}_stage_${stageNumber}`
 }
 
-export async function identifyStudent(
+type StudentCandidate = {
+  id: string
+  data: Record<string, unknown>
+  institution_id: string
+}
+
+function loginLooksLikeEmail(login: string): boolean {
+  return login.includes('@')
+}
+
+function normalizeLoginEmail(login: string): string {
+  return login.trim().toLowerCase()
+}
+
+function digitsOnly(raw: string): string {
+  return raw.replace(/\D/g, '')
+}
+
+async function institutionNameFor(
   db: Firestore,
-  input: {
-    phone_number: string
-    institution_code: string
-    password: string
-  },
-): Promise<ProgressResult<IdentifyOk>> {
-  const phone = input.phone_number.replace(/\D/g, '')
-  const institutionCode = input.institution_code.trim()
-  const password = typeof input.password === 'string' ? input.password : ''
-  if (!phone || !institutionCode || !password.trim()) {
-    return {
-      ok: false,
-      code: 'invalid_payload',
-      message:
-        'phone_number, institution_code e password são obrigatórios.',
-      httpStatus: 400,
+  institutionsCollection: string,
+  institutionId: string,
+): Promise<string> {
+  try {
+    const snap = await db.collection(institutionsCollection).doc(institutionId).get()
+    if (!snap.exists) return institutionId
+    const data = (snap.data() ?? {}) as Record<string, unknown>
+    const name = typeof data.name === 'string' ? data.name.trim() : ''
+    return name || institutionId
+  } catch {
+    return institutionId
+  }
+}
+
+async function findStudentsByLogin(
+  db: Firestore,
+  studentsCollection: string,
+  loginRaw: string,
+): Promise<StudentCandidate[]> {
+  const login = loginRaw.trim()
+  if (!login) return []
+
+  const out: StudentCandidate[] = []
+  const seen = new Set<string>()
+
+  const pushDoc = (id: string, data: Record<string, unknown>) => {
+    if (seen.has(id)) return
+    const institution_id =
+      typeof data.institution_id === 'string' ? data.institution_id.trim() : ''
+    if (!institution_id) return
+    seen.add(id)
+    out.push({ id, data, institution_id })
+  }
+
+  // ID da escola / matrícula = id do documento do aluno.
+  const byId = await db.collection(studentsCollection).doc(login).get()
+  if (byId.exists) {
+    pushDoc(byId.id, (byId.data() ?? {}) as Record<string, unknown>)
+  }
+
+  if (loginLooksLikeEmail(login)) {
+    const email = normalizeLoginEmail(login)
+    const emailSnap = await db
+      .collection(studentsCollection)
+      .where('email', '==', email)
+      .limit(20)
+      .get()
+    for (const doc of emailSnap.docs) {
+      pushDoc(doc.id, (doc.data() ?? {}) as Record<string, unknown>)
     }
   }
 
-  const institutionsCollection =
-    process.env.INSTITUTIONS_COLLECTION ?? 'institutions'
-  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const phone = digitsOnly(login)
+  if (phone.length >= 8) {
+    const variants = new Set<string>([phone])
+    // Aceita com/sem 55 para bater no canônico BR.
+    if (phone.startsWith('55') && phone.length > 11) {
+      variants.add(phone.slice(2))
+    } else if (!phone.startsWith('55') && (phone.length === 10 || phone.length === 11)) {
+      variants.add(`55${phone}`)
+    }
+    for (const variant of variants) {
+      const phoneSnap = await db
+        .collection(studentsCollection)
+        .where('phone_number', '==', variant)
+        .limit(20)
+        .get()
+      for (const doc of phoneSnap.docs) {
+        pushDoc(doc.id, (doc.data() ?? {}) as Record<string, unknown>)
+      }
+    }
+  }
 
+  return out
+}
+
+async function finishIdentifyCandidate(
+  db: Firestore,
+  institutionsCollection: string,
+  candidate: StudentCandidate,
+  password: string,
+): Promise<ProgressResult<IdentifyOk>> {
   const instSnap = await db
     .collection(institutionsCollection)
-    .doc(institutionCode)
+    .doc(candidate.institution_id)
     .get()
   if (!instSnap.exists) {
     return {
@@ -535,25 +627,7 @@ export async function identifyStudent(
     }
   }
 
-  const snap = await db
-    .collection(studentsCollection)
-    .where('phone_number', '==', phone)
-    .where('institution_id', '==', institutionCode)
-    .limit(1)
-    .get()
-
-  if (snap.empty) {
-    return {
-      ok: false,
-      code: 'not_found',
-      message: 'Aluno não encontrado para telefone e instituição informados.',
-      httpStatus: 404,
-    }
-  }
-
-  const doc = snap.docs[0]
-  const data = (doc.data() ?? {}) as Record<string, unknown>
-  if (asBool(data.active, true) === false) {
+  if (asBool(candidate.data.active, true) === false) {
     return {
       ok: false,
       code: 'inactive_student',
@@ -564,7 +638,9 @@ export async function identifyStudent(
 
   const { verifyStudentPassword } = await import('./studentPassword.js')
   const passwordHash =
-    typeof data.password_hash === 'string' ? data.password_hash : null
+    typeof candidate.data.password_hash === 'string'
+      ? candidate.data.password_hash
+      : null
   if (!passwordHash) {
     return {
       ok: false,
@@ -578,20 +654,188 @@ export async function identifyStudent(
     return {
       ok: false,
       code: 'invalid_credentials',
-      message: 'Telefone, instituição ou senha incorretos.',
+      message: 'Login ou senha incorretos.',
       httpStatus: 401,
     }
   }
+
+  const phoneRaw =
+    typeof candidate.data.phone_number === 'string'
+      ? candidate.data.phone_number
+      : typeof candidate.data.phone_number === 'number'
+        ? String(candidate.data.phone_number)
+        : ''
 
   return {
     ok: true,
     data: {
       status: 'ok',
-      student_id: doc.id,
-      institution_id: institutionCode,
-      name: typeof data.name === 'string' ? data.name : '',
+      student_id: candidate.id,
+      institution_id: candidate.institution_id,
+      name: typeof candidate.data.name === 'string' ? candidate.data.name : '',
       active: true,
-      phone_number: phone,
+      phone_number: digitsOnly(phoneRaw),
+    },
+  }
+}
+
+/**
+ * Login do aluno: Login (telefone, e-mail ou ID) + senha.
+ * Sem código da escola. Se o mesmo login existir em várias escolas
+ * (com a senha correta), devolve `needs_institution` para o seletor.
+ * Compat: ainda aceita phone_number + institution_code.
+ */
+export async function identifyStudent(
+  db: Firestore,
+  input: {
+    phone_number?: string
+    institution_code?: string
+    /** Alias de institution_code (seletor multi-escola). */
+    institution_id?: string
+    /** Login livre: telefone, e-mail ou ID do aluno. */
+    login?: string
+    password: string
+  },
+): Promise<ProgressResult<IdentifyResultData>> {
+  const password = typeof input.password === 'string' ? input.password : ''
+  if (!password.trim()) {
+    return {
+      ok: false,
+      code: 'invalid_payload',
+      message: 'Login e senha são obrigatórios.',
+      httpStatus: 400,
+    }
+  }
+
+  const institutionsCollection =
+    process.env.INSTITUTIONS_COLLECTION ?? 'institutions'
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+
+  const institutionFilter = (
+    input.institution_id?.trim() ||
+    input.institution_code?.trim() ||
+    ''
+  ).trim()
+
+  const loginRaw = (input.login?.trim() || input.phone_number?.trim() || '').trim()
+  if (!loginRaw) {
+    return {
+      ok: false,
+      code: 'invalid_payload',
+      message: 'Login e senha são obrigatórios.',
+      httpStatus: 400,
+    }
+  }
+
+  // Caminho legado: telefone + código da escola (um único candidato).
+  if (input.phone_number && institutionFilter && !input.login) {
+    const phone = digitsOnly(input.phone_number)
+    if (!phone) {
+      return {
+        ok: false,
+        code: 'invalid_payload',
+        message: 'Login e senha são obrigatórios.',
+        httpStatus: 400,
+      }
+    }
+    const snap = await db
+      .collection(studentsCollection)
+      .where('phone_number', '==', phone)
+      .where('institution_id', '==', institutionFilter)
+      .limit(1)
+      .get()
+    if (snap.empty) {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'Aluno não encontrado para telefone e instituição informados.',
+        httpStatus: 404,
+      }
+    }
+    const doc = snap.docs[0]
+    return finishIdentifyCandidate(
+      db,
+      institutionsCollection,
+      {
+        id: doc.id,
+        data: (doc.data() ?? {}) as Record<string, unknown>,
+        institution_id: institutionFilter,
+      },
+      password,
+    )
+  }
+
+  let candidates = await findStudentsByLogin(db, studentsCollection, loginRaw)
+  if (institutionFilter) {
+    candidates = candidates.filter((c) => c.institution_id === institutionFilter)
+  }
+
+  if (candidates.length === 0) {
+    return {
+      ok: false,
+      code: 'not_found',
+      message: 'Aluno não encontrado.',
+      httpStatus: 404,
+    }
+  }
+
+  // Verifica senha em cada candidato; só escolas com senha ok entram no seletor.
+  const verified: IdentifyOk[] = []
+  let sawPasswordNotSet = false
+  for (const candidate of candidates) {
+    const result = await finishIdentifyCandidate(
+      db,
+      institutionsCollection,
+      candidate,
+      password,
+    )
+    if (result.ok) {
+      verified.push(result.data)
+      continue
+    }
+    if (result.code === 'password_not_set') sawPasswordNotSet = true
+    // inactive / wrong password → ignora neste loop
+  }
+
+  if (verified.length === 0) {
+    if (sawPasswordNotSet && candidates.length === 1) {
+      return {
+        ok: false,
+        code: 'password_not_set',
+        message:
+          'Senha ainda não definida. Peça à instituição para configurar sua senha de acesso.',
+        httpStatus: 403,
+      }
+    }
+    return {
+      ok: false,
+      code: 'invalid_credentials',
+      message: 'Login ou senha incorretos.',
+      httpStatus: 401,
+    }
+  }
+
+  if (verified.length === 1) {
+    return { ok: true, data: verified[0] }
+  }
+
+  const institutions: IdentifyInstitutionChoice[] = await Promise.all(
+    verified.map(async (row) => ({
+      institution_id: row.institution_id,
+      institution_name: await institutionNameFor(
+        db,
+        institutionsCollection,
+        row.institution_id,
+      ),
+      student_id: row.student_id,
+    })),
+  )
+
+  return {
+    ok: true,
+    data: {
+      status: 'needs_institution',
+      institutions,
     },
   }
 }

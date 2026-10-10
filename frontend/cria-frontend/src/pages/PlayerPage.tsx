@@ -65,6 +65,11 @@ import {
   mergeHistoryIntoMessages,
 } from '../lib/playerHelpers'
 import { writeFocusedTrailId } from '../lib/trailFocus'
+import {
+  markContinueHaloDone,
+  markTrailOpened,
+  shouldShowContinueHalo,
+} from '../lib/trailOpenState'
 import { confirmOnline } from '../lib/connectivity'
 
 /** Fallback de bolhas se não houver question corrente (status). */
@@ -2296,7 +2301,11 @@ export default function PlayerPage() {
 
   /** C3-N02: home CTA retoma a trilha aberta por último (não a 1ª in_progress). */
   useEffect(() => {
-    if (trailId) writeFocusedTrailId(trailId)
+    if (trailId) {
+      writeFocusedTrailId(trailId)
+      const sid = getSession()?.student_id
+      if (sid) markTrailOpened(sid, trailId)
+    }
   }, [trailId])
 
   /** R10-Z07: persiste draft + modo Maria (reload mid-dúvida). */
@@ -3199,7 +3208,7 @@ export default function PlayerPage() {
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       }
     } catch (err) {
-      reportError(err, 'Etapa salva. Recarregando…', () => {
+      reportError(err, 'Passo salvo. Recarregando…', () => {
         void resyncAfterAdvance()
       })
     } finally {
@@ -3245,7 +3254,8 @@ export default function PlayerPage() {
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
     // C3-R16 N01: GET de revalidação ≠ mutate — “Salvando…” só no POST advance.
-    setTrailBusyLabel('Conferindo etapa…')
+    setTrailBusyLabel('Conferindo passo…')
+    markContinueHaloDone(liveSession.student_id, trailId)
     clearError()
     // Modo Maria: o mesmo Continuar fecha a conversa e avança (um clique).
     setMariaSidechat(false)
@@ -4009,15 +4019,6 @@ export default function PlayerPage() {
       (content.stage_type === 'exercise' && exerciseDone))
 
   /**
-   * D#11 / C3-N01: Voltar só no sidechat — sai da Maria sem rebobinar etapa.
-   * Continuar fica oculto (N04: hierarquia clara enquanto Maria pede escolha).
-   */
-  const showVoltarTrilha =
-    content?.status === 'ok' &&
-    mariaSidechat &&
-    (!busy || busyReason === 'maria' || busyReason === 'trail')
-
-  /**
    * R08-M02: com embed YT/Drive na etapa corrente, Continuar vira secundário
    * (outline) para não competir com a mídia como CTA verde primário.
    */
@@ -4045,7 +4046,7 @@ export default function PlayerPage() {
         ? 'Falha ao enviar — toque em Enviar resposta de novo'
         : selectedOptionKey
           ? 'Toque em Enviar resposta para confirmar'
-          : 'Escolha uma opção e toque em Enviar resposta'
+          : 'Selecione uma alternativa e continue...'
 
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -4193,7 +4194,7 @@ export default function PlayerPage() {
           'Essa trilha não está disponível na sua conta.'
   const trailEmptyCopy =
     /^trilha não encontrada\.?$/i.test(trailEmptyCopyRaw.trim())
-      ? 'Confira o link ou volte para Minhas trilhas.'
+      ? 'Confira o link ou volte para o início.'
       : trailEmptyCopyRaw
 
   const placeholder =
@@ -4258,7 +4259,7 @@ export default function PlayerPage() {
       busyReason === 'exercise' ||
       busyReason === 'trail') &&
     exercisePhase !== 'submitting'
-  /** Botão principal único: Enviar resposta (exercício) ou Continuar trilha. */
+  /** Botão principal único: Enviar resposta (exercício) ou Continuar. */
   const mainButton = mainButtonState({
     contentOk: content?.status === 'ok',
     stageType: content?.status === 'ok' ? content.stage_type : null,
@@ -4277,8 +4278,32 @@ export default function PlayerPage() {
     canRetry,
     mariaSidechat,
   })
+  const continueHalo =
+    Boolean(session?.student_id) &&
+    Boolean(trailId) &&
+    shouldShowContinueHalo(session.student_id, trailId)
+
+  /** CTA fora do composer: exercício (Enviar resposta), busy, ou hint de mídia. */
   const showCtaSlot =
-    content?.status === 'ok' && (mainButton.visible || showVoltarTrilha)
+    content?.status === 'ok' &&
+    mainButton.visible &&
+    (mainButton.action === 'submit' ||
+      mainButton.action === 'none' ||
+      Boolean(
+        currentStageMediaHint &&
+          mainButton.action === 'advance' &&
+          !hasMariaDraft,
+      ))
+
+  /** Continuar / sair da Maria vive no composer quando o campo está vazio. */
+  const composerPrimaryAction =
+    !exerciseLockedComposer &&
+    !hasMariaDraft &&
+    mainButton.visible &&
+    (mainButton.action === 'advance' || mainButton.action === 'exit_maria')
+      ? mainButton
+      : null
+
   /**
    * F02/F07 / C2-R8 N03: aria-disabled só sem opção; no pending
    * (submitting) o nome fica “Enviando…”, nunca “escolha uma opção”.
@@ -4417,7 +4442,7 @@ export default function PlayerPage() {
         className="lesson-card"
         tabIndex={-1}
         aria-label={
-          lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'
+          lessonTitle ? `Passo: ${lessonTitle}` : 'Conteúdo do passo'
         }
         data-current-step="true"
       >
@@ -4754,7 +4779,7 @@ export default function PlayerPage() {
             <p className="chat-thread__empty-title">Trilha indisponível</p>
             <p className="lede">{trailEmptyCopy}</p>
             <Link to="/" className="chat-home__cta">
-              Minhas trilhas
+              Voltar ao início
             </Link>
           </div>
         ) : null}
@@ -4874,19 +4899,12 @@ export default function PlayerPage() {
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
             </button>
           ) : null}
-          {showVoltarTrilha ? (
-            <div className="chat-continue chat-continue--sidechat chat-continue--enter">
-              <button
-                ref={voltarBtnRef}
-                type="button"
-                className="chat-continue__btn"
-                onClick={onVoltarParaTrilha}
-              >
-                Voltar à trilha
-              </button>
-            </div>
-          ) : null}
-          {mainButton.visible ? (
+          {mainButton.visible &&
+          (mainButton.action === 'submit' ||
+            mainButton.action === 'none' ||
+            (mainButton.action === 'advance' &&
+              currentStageMediaHint &&
+              !hasMariaDraft)) ? (
             <div
               className={`chat-continue${
                 mainButton.busy && mainButton.action !== 'advance'
@@ -4907,36 +4925,33 @@ export default function PlayerPage() {
                   {currentStageMediaHint}
                 </p>
               ) : null}
-              <button
-                ref={continuarBtnRef}
-                type="button"
-                className={`chat-continue__btn${
-                  mainButton.action === 'advance' &&
-                  currentStageHasEmbed &&
-                  !mainButton.busy
-                    ? ' chat-continue__btn--secondary'
-                    : ''
-                }`}
-                data-action={mainButton.action}
-                disabled={mainButton.disabled}
-                aria-busy={mainButton.busy || undefined}
-                title={
-                  mainButton.action === 'advance' && hasMariaDraft
-                    ? 'Envie a dúvida à Maria antes de avançar'
-                    : mainButton.action === 'submit' && !selectedOptionKey
+              {mainButton.action === 'submit' ||
+              mainButton.action === 'none' ? (
+                <button
+                  ref={continuarBtnRef}
+                  type="button"
+                  className={`chat-continue__btn${
+                    continueHalo && mainButton.action === 'submit'
+                      ? ' chat-continue__btn--halo'
+                      : ''
+                  }`}
+                  data-action={mainButton.action}
+                  disabled={mainButton.disabled}
+                  aria-busy={mainButton.busy || undefined}
+                  title={
+                    mainButton.action === 'submit' && !selectedOptionKey
                       ? 'Escolha uma opção primeiro'
                       : undefined
-                }
-                onClick={() => {
-                  if (mainButton.action === 'submit') {
-                    void submitSelectedOption()
-                  } else if (mainButton.action === 'advance') {
-                    void doAdvance()
                   }
-                }}
-              >
-                {mainButton.label}
-              </button>
+                  onClick={() => {
+                    if (mainButton.action === 'submit') {
+                      void submitSelectedOption()
+                    }
+                  }}
+                >
+                  {mainButton.label}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -4970,15 +4985,26 @@ export default function PlayerPage() {
       <footer
         className={`chat-composer${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
-        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
-          (showContinuar && !hasMariaDraft) || mariaBusyPending
+        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''        }${
+          composerPrimaryAction || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
-        }${showVoltarTrilha ? ' chat-composer--with-voltar' : ''}`}
+        }`}
       >
 <form
           className="chat-composer__form"
           onSubmit={(e) => {
+            if (composerPrimaryAction) {
+              e.preventDefault()
+              if (composerPrimaryAction.disabled) return
+              if (composerPrimaryAction.action === 'exit_maria') {
+                onVoltarParaTrilha()
+              } else if (composerPrimaryAction.action === 'advance') {
+                markContinueHaloDone(session.student_id, trailId)
+                void doAdvance()
+              }
+              return
+            }
             if (sendAriaDisabled) {
               e.preventDefault()
               return
@@ -5041,27 +5067,48 @@ export default function PlayerPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
-          {/* C3-R2 N01: avião oculto no exercício — affordance = Enviar resposta. */}
+          {/* Continuar no lugar do Enviar quando o campo está vazio; ao digitar, Enviar. */}
           {!exerciseLockedComposer ? (
-            <button
-              type="submit"
-              className={`chat-composer__send${
-                sendAriaDisabled ? ' is-aria-disabled' : ''
-              }`}
-              disabled={sendDisabledHard}
-              aria-disabled={sendAriaDisabled || undefined}
-              aria-label="Enviar pergunta à Maria"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+            composerPrimaryAction ? (
+              <button
+                ref={(node) => {
+                  continuarBtnRef.current = node
+                  voltarBtnRef.current = node
+                }}
+                type="submit"
+                className={`chat-composer__continue${
+                  continueHalo && composerPrimaryAction.action === 'advance'
+                    ? ' chat-composer__continue--halo'
+                    : ''
+                }`}
+                data-action={composerPrimaryAction.action}
+                disabled={composerPrimaryAction.disabled}
+                aria-busy={composerPrimaryAction.busy || undefined}
+                aria-label={composerPrimaryAction.label}
+              >
+                {composerPrimaryAction.label}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className={`chat-composer__send${
+                  sendAriaDisabled ? ' is-aria-disabled' : ''
+                }`}
+                disabled={sendDisabledHard}
+                aria-disabled={sendAriaDisabled || undefined}
+                aria-label="Enviar pergunta à Maria"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )
           ) : null}
         </form>
         {content?.status === 'ok' && !exerciseLockedComposer ? (
@@ -5089,8 +5136,7 @@ export default function PlayerPage() {
                           'Pergunte à Maria · toque Continuar para avançar'
                         : 'Pergunte à Maria'
                       : mariaSidechat
-                        ? // C3-N01/N04: Voltar sai; composer responde — Continuar pausado
-                          'Responda no composer · Voltar à trilha sai da Maria'
+                        ? 'Responda no composer · Continuar volta à trilha'
                         : // R01-F06 / R01-F09 / R14-L01 / C3-R17 N03: hierarquia Continuar × Enviar
                           showContinuar
                           ? 'Envie à Maria · toque Continuar para avançar'

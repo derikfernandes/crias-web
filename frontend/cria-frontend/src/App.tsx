@@ -4,6 +4,7 @@ import ChatLayout from './layouts/ChatLayout'
 import LoginPage from './pages/LoginPage'
 import TrailsPage from './pages/TrailsPage'
 import PlayerPage from './pages/PlayerPage'
+import MariaPage from './pages/MariaPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const session = getSession()
@@ -29,6 +30,7 @@ export default function App() {
           }
         >
           <Route index element={<TrailsPage />} />
+          <Route path="maria" element={<MariaPage />} />
           <Route path="trilha/:trailId" element={<PlayerPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -372,22 +372,29 @@ async function handleRequest(request: Request): Promise<Response> {
           const { identifyStudent } = await import(
             '../server/lib/studentTrailProgressService.js'
           )
+          const login =
+            sanitizeString(body.login) ??
+            sanitizeString(body.phone_number) ??
+            null
           const phone_number = sanitizePhoneNumber(body.phone_number)
           const institution_code =
             sanitizeString(body.institution_code) ??
             sanitizeString(body.institution_id)
           const password = sanitizeString(body.password)
-          if (!phone_number || !institution_code || !password) {
+          // Login livre (telefone / e-mail / ID) + senha; código da escola opcional
+          // (só para desambiguar multi-escola ou caminho legado).
+          if ((!login && !phone_number) || !password) {
             return respond(400, {
               status: 'error',
               code: 'invalid_payload',
-              error:
-                'Campos "phone_number", "institution_code" e "password" são obrigatórios.',
+              error: 'Campos "login" (ou "phone_number") e "password" são obrigatórios.',
             })
           }
           const result = await identifyStudent(db, {
-            phone_number,
-            institution_code,
+            login: login ?? undefined,
+            phone_number: phone_number ?? undefined,
+            institution_code: institution_code ?? undefined,
+            institution_id: sanitizeString(body.institution_id) ?? undefined,
             password,
           })
           if (!result.ok) {

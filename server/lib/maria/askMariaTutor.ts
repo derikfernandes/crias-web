@@ -1,5 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
+import { isAgentTrailId } from '../agentUsage'
 import { createConversationLog } from '../conversationLogService'
 import { formatAiAnswer } from '../trail-ai/formatAiAnswer'
 import {
@@ -74,13 +75,18 @@ export async function askMariaTutor(
   const logsCollection =
     process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 
-  // Aluno, matrícula e CONTEXT em paralelo (antes: em série antes do Gemini).
+  // Agente fora da trilha (ex.: Tutor - Maria): sem matrícula curricular.
+  const agentChat = isAgentTrailId(trailId)
+
+  // Aluno + CONTEXT; matrícula só para trail_id curricular (opcional).
   const [studentSnap, progressSnap, recent] = await Promise.all([
     db.collection(studentsCollection).doc(studentId).get(),
-    db
-      .collection(studentTrailsCollection)
-      .doc(`${studentId}_trail_${trailId}`)
-      .get(),
+    agentChat
+      ? Promise.resolve(null)
+      : db
+          .collection(studentTrailsCollection)
+          .doc(`${studentId}_trail_${trailId}`)
+          .get(),
     listRecentContextLogs(db, {
       student_id: studentId,
       trail_id: trailId,
@@ -93,20 +99,28 @@ export async function askMariaTutor(
   }
 
   const studentData = (studentSnap.data() ?? {}) as Record<string, unknown>
-  const progressData = (progressSnap.data() ?? {}) as Record<string, unknown>
+  const progressData = (
+    progressSnap && 'data' in progressSnap && progressSnap.exists
+      ? progressSnap.data() ?? {}
+      : {}
+  ) as Record<string, unknown>
 
   const stage_number =
     typeof input.stage_number === 'number' && input.stage_number >= 1
       ? input.stage_number
-      : typeof progressData.current_stage_number === 'number'
-        ? progressData.current_stage_number
-        : 1
+      : agentChat
+        ? 1
+        : typeof progressData.current_stage_number === 'number'
+          ? progressData.current_stage_number
+          : 1
   const question_number =
     typeof input.question_number === 'number' && input.question_number >= 1
       ? input.question_number
-      : typeof progressData.current_question_number === 'number'
-        ? progressData.current_question_number
-        : 1
+      : agentChat
+        ? 1
+        : typeof progressData.current_question_number === 'number'
+          ? progressData.current_question_number
+          : 1
 
   const name = firstName(
     typeof studentData.name === 'string' ? studentData.name : '',

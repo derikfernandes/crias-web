@@ -179,7 +179,7 @@ export function isFeedbackCellAlreadyShown(
 
 export const MAIN_BUTTON_SUBMIT_LABEL = 'Enviar resposta'
 export const MAIN_BUTTON_SUBMITTING_LABEL = 'Enviando resposta…'
-export const MAIN_BUTTON_CONTINUE_LABEL = 'Continuar trilha →'
+export const MAIN_BUTTON_CONTINUE_LABEL = 'Continuar'
 
 export type MainButtonInput = {
   contentOk: boolean
@@ -199,15 +199,15 @@ export type MainButtonInput = {
   /** “Tentar de novo” (erro de rede/sistema) vivo — recovery único. */
   canRetry: boolean
   /**
-   * Sidechat Maria: Continuar some — saída = “Voltar à trilha” (D#11).
-   * Não avança etapa; cancela stream/drafts no handler do Voltar.
+   * Sidechat Maria: Continuar sai da conversa sem avançar o passo
+   * (substitui o antigo “Voltar à trilha”).
    */
   mariaSidechat?: boolean
 }
 
 export type MainButtonState = {
   visible: boolean
-  action: 'submit' | 'advance' | 'none'
+  action: 'submit' | 'advance' | 'exit_maria' | 'none'
   label: string
   disabled: boolean
   busy: boolean
@@ -257,8 +257,20 @@ export function mainButtonState(i: MainButtonInput): MainButtonState {
     }
   }
 
-  // D#11 / C3-N01: na Maria o Continuar some — Voltar sai sem avançar.
-  if (i.mariaSidechat) return HIDDEN
+  // Sidechat: Continuar sai da Maria sem avançar o passo.
+  if (i.mariaSidechat) {
+    if (trailBusy) {
+      return { visible: true, action: 'none', label: i.trailBusyLabel, disabled: true, busy: true }
+    }
+    const mariaReplying = i.mariaInFlight || (i.busy && i.busyReason === 'maria')
+    return {
+      visible: true,
+      action: 'exit_maria',
+      label: MAIN_BUTTON_CONTINUE_LABEL,
+      disabled: mariaReplying || i.busy || i.offline || i.hasMariaDraft,
+      busy: mariaReplying,
+    }
+  }
 
   if (trailBusy) {
     return { visible: true, action: 'none', label: i.trailBusyLabel, disabled: true, busy: true }

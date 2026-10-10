@@ -3,12 +3,16 @@
  * Mantido local para respeitar a fronteira design/pages ↔ api.
  */
 
+/** Parceiro de estudos fora da trilha (espelho server/lib/agentUsage). */
+export const MARIA_AGENT_TRAIL_ID = 'Tutor - Maria'
+
 export const CANONICAL_AGENT_TRAIL_IDS = [
   'Trilha - Matemática',
   'Trilha - Geral',
   'Trilha - Humanas',
   'Trilha - Natureza',
   'Tutor - Linguagens',
+  MARIA_AGENT_TRAIL_ID,
 ] as const
 
 export const CANONICAL_AGENT_LABELS = [
@@ -17,6 +21,7 @@ export const CANONICAL_AGENT_LABELS = [
   'Humanas',
   'Natureza',
   'Linguagens',
+  'Maria',
 ] as const
 
 export type AgentUsagePeriodDays = 0 | 7 | 30
@@ -67,6 +72,7 @@ export function agentLabelForTrailId(trailId: string): string {
     'Trilha - Humanas': 'Humanas',
     'Trilha - Natureza': 'Natureza',
     'Tutor - Linguagens': 'Linguagens',
+    'Tutor - Maria': 'Maria',
   }
   if (id in canonical) return canonical[id]!
   if (id.startsWith('Trilha -')) return id.slice('Trilha -'.length).trim() || id
@@ -106,6 +112,7 @@ export function mergeAgentRowsByLabel(
     Humanas: 'Trilha - Humanas',
     Natureza: 'Trilha - Natureza',
     Linguagens: 'Tutor - Linguagens',
+    Maria: MARIA_AGENT_TRAIL_ID,
   }
 
   for (const row of rows) {

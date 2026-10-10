@@ -40,6 +40,7 @@ describe('agentLabelForTrailId', () => {
     expect(agentLabelForTrailId('Trilha - Matemática')).toBe('Matemática')
     expect(agentLabelForTrailId('Tutor - Linguagens')).toBe('Linguagens')
     expect(agentLabelForTrailId('Tutor - Matemática')).toBe('Matemática')
+    expect(agentLabelForTrailId('Tutor - Maria')).toBe('Maria')
   })
 })
 

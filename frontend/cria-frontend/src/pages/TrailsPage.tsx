@@ -1,8 +1,11 @@
-import { Link, useOutletContext } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { getSession } from '../lib/session'
 import type { StudentTrailRow } from '../lib/api'
-import { pickHomeTrail } from '../lib/trailFocus'
+import { nextHomeGreeting } from '../lib/homeGreeting'
+import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
+import { sortTrailsByLastOpened } from '../lib/trailOpenState'
+import { writeFocusedTrailId } from '../lib/trailFocus'
 
 type LayoutOutlet = {
   trailRows: StudentTrailRow[] | null
@@ -13,14 +16,35 @@ type LayoutOutlet = {
   stageTotals?: Record<string, number>
 }
 
-function homeCtaLabel(row: StudentTrailRow): string {
-  if (row.status === 'not_started') return 'Começar trilha'
-  if (row.status === 'completed') return 'Rever trilha'
-  return 'Continuar trilha'
+function progressMeta(
+  row: StudentTrailRow,
+  totalRaw: number | null | undefined,
+): { label: string; pct: number | null } {
+  const total =
+    totalRaw != null && totalRaw > 0
+      ? Math.max(totalRaw, row.current_stage_number)
+      : null
+  const stage =
+    row.status === 'completed' && total != null
+      ? total
+      : row.current_stage_number
+  const label =
+    total != null ? `Passo ${stage} de ${total}` : `Passo ${stage}`
+  const pct =
+    total != null
+      ? row.status === 'completed'
+        ? 100
+        : Math.min(
+            100,
+            Math.max(0, Math.round(((Math.max(stage, 1) - 1) / total) * 100)),
+          )
+      : null
+  return { label, pct }
 }
 
 export default function TrailsPage() {
   const session = getSession()!
+  const navigate = useNavigate()
   const {
     trailRows,
     trailsError,
@@ -29,47 +53,68 @@ export default function TrailsPage() {
     trailNames,
     stageTotals,
   } = useOutletContext<LayoutOutlet>()
-  const ctaRef = useRef<HTMLAnchorElement>(null)
+  const [greeting] = useState(() =>
+    nextHomeGreeting(session.student_id, session.name.split(' ')[0] || 'aluno'),
+  )
+  const [mariaDraft, setMariaDraft] = useState('')
+  const firstCardRef = useRef<HTMLAnchorElement>(null)
 
   const empty =
     !trailsLoading && !trailsError && Array.isArray(trailRows) && trailRows.length === 0
-  const primary = pickHomeTrail(trailRows)
-  const primaryLabel =
-    primary && trailNames?.[primary.trail_id]
-      ? trailNames[primary.trail_id]
-      : primary
-        ? 'Trilha'
-        : null
-  const primaryTotal =
-    primary && stageTotals?.[primary.trail_id] && stageTotals[primary.trail_id] > 0
-      ? stageTotals[primary.trail_id]
-      : null
-  const primaryEtapa =
-    primary && primary.status === 'in_progress'
-      ? primaryTotal != null
-        ? `Etapa ${primary.current_stage_number} de ${Math.max(primaryTotal, primary.current_stage_number)}`
-        : `Etapa ${primary.current_stage_number}`
-      : null
 
-  const homeLoading = trailsLoading && !primary && !trailsError && !empty
+  const ordered = useMemo(() => {
+    if (!trailRows?.length) return []
+    return sortTrailsByLastOpened(session.student_id, trailRows).filter(
+      (r) => r.status !== 'blocked',
+    )
+  }, [trailRows, session.student_id])
 
-  // C2-R17 N03: pós-Minhas trilhas o layout zera restore → BODY; focar CTA útil.
+  const visible = ordered.slice(0, 3)
+  const hasMore = ordered.length > 3
+  const homeLoading = trailsLoading && visible.length === 0 && !trailsError && !empty
+
   useEffect(() => {
-    if (!primary || homeLoading) return
+    if (!visible.length || homeLoading) return
     const ae = document.activeElement
     if (ae && ae !== document.body && ae !== document.documentElement) return
     const id = window.requestAnimationFrame(() => {
-      ctaRef.current?.focus()
+      firstCardRef.current?.focus()
     })
     return () => window.cancelAnimationFrame(id)
-  }, [primary?.trail_id, homeLoading])
+  }, [visible[0]?.trail_id, homeLoading])
+
+  function onAskMaria(e: FormEvent) {
+    e.preventDefault()
+    const message = mariaDraft.trim()
+    if (message) {
+      try {
+        sessionStorage.setItem(
+          `crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`,
+          message,
+        )
+      } catch {
+        /* ignore */
+      }
+    }
+    navigate('/maria')
+  }
 
   return (
     <div
-      className="chat-home"
+      className={`chat-home horizonte chat-home--cards-${Math.min(visible.length || 1, 3)}`}
       aria-busy={homeLoading || undefined}
     >
-      <h1>Crias</h1>
+      <span className="hz hz-brilho" aria-hidden />
+      <span className="hz hz-linha" aria-hidden />
+      <span className="hz hz-arco" aria-hidden />
+      <img
+        className="chat-home__symbol"
+        src={`${import.meta.env.BASE_URL}crias-simbolo-luz.svg`}
+        alt=""
+        width={72}
+        height={72}
+      />
+      <h1 className="chat-home__greeting titulo-leve">{greeting}</h1>
       {trailsError ? (
         <>
           <p className="lede error" role="alert">
@@ -82,53 +127,88 @@ export default function TrailsPage() {
       ) : empty ? (
         <>
           <p className="lede">
-            Olá, {session.name.split(' ')[0] || 'aluno'}. Nenhuma trilha liberada
-            para você.
+            Nenhuma trilha liberada para você.
           </p>
           <p className="muted chat-home__hint">
             Fale com a escola para liberar uma trilha. O menu também mostra quando
             a escola ainda não liberou.
           </p>
         </>
+      ) : homeLoading ? (
+        <div className="chat-home__loading" role="status" aria-live="polite">
+          <div className="chat-home__cta-skeleton" aria-hidden="true" />
+          <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+        </div>
       ) : (
         <>
-          <p className="lede">
-            Olá, {session.name.split(' ')[0] || 'aluno'}. Continue sua aula por
-            aqui.
-          </p>
-          {homeLoading ? (
-            <div
-              className="chat-home__loading"
-              role="status"
-              aria-live="polite"
-            >
-              <div className="chat-home__cta-skeleton" aria-hidden="true" />
-              <p className="muted chat-home__hint">Carregando suas trilhas…</p>
-            </div>
-          ) : primary ? (
-            <>
-              <Link
-                ref={ctaRef}
-                to={`/trilha/${encodeURIComponent(primary.trail_id)}`}
-                className="chat-home__cta"
-              >
-                {homeCtaLabel(primary)}
-              </Link>
-              <p className="muted chat-home__hint">
-                {primaryLabel}
-                {primaryEtapa ? ` · ${primaryEtapa}` : ''}
-                {trailRows && trailRows.length > 1
-                  ? ' · outras trilhas no menu'
-                  : ''}
-              </p>
-            </>
-          ) : (
+          <div className="chat-home__cards">
+            {visible.map((row, i) => {
+              const label = trailNames?.[row.trail_id] || 'Trilha'
+              const { label: passo, pct } = progressMeta(
+                row,
+                stageTotals?.[row.trail_id],
+              )
+              const href = `/trilha/${encodeURIComponent(row.trail_id)}`
+              return (
+                <Link
+                  key={row.id}
+                  ref={i === 0 ? firstCardRef : undefined}
+                  to={href}
+                  className="chat-home__card"
+                  onClick={() => writeFocusedTrailId(row.trail_id)}
+                >
+                  <span className="chat-home__card-top">
+                    <span className="chat-home__card-name">{label}</span>
+                    <span className="chat-home__card-arrow" aria-hidden>
+                      ›
+                    </span>
+                  </span>
+                  {pct != null ? (
+                    <span className="chat-home__card-progress" aria-hidden>
+                      <span style={{ width: `${pct}%` }} />
+                    </span>
+                  ) : (
+                    <span className="chat-home__card-progress" aria-hidden>
+                      <span style={{ width: '0%' }} />
+                    </span>
+                  )}
+                  <span className="chat-home__card-meta">{passo}</span>
+                </Link>
+              )
+            })}
+          </div>
+          {hasMore ? (
             <p className="muted chat-home__hint">
-              Abra uma trilha no menu para continuar a aula.
+              Outras trilhas no menu ao lado
             </p>
-          )}
+          ) : null}
         </>
       )}
+
+      <form className="chat-home__maria" onSubmit={onAskMaria}>
+        <input
+          type="text"
+          value={mariaDraft}
+          onChange={(e) => setMariaDraft(e.target.value)}
+          placeholder="Pergunte à Maria…"
+          aria-label="Pergunte à Maria…"
+        />
+        <button
+          type="submit"
+          className="chat-home__maria-send"
+          aria-label="Enviar pergunta à Maria"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </form>
     </div>
   )
 }

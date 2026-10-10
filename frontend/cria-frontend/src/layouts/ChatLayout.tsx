@@ -21,7 +21,7 @@ import {
   getSession,
   SESSION_CLEARED_EVENT,
 } from '../lib/session'
-import { pickHomeTrail, writeFocusedTrailId } from '../lib/trailFocus'
+import { writeFocusedTrailId } from '../lib/trailFocus'
 
 const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   not_started: 'Não iniciada',
@@ -404,20 +404,6 @@ export default function ChatLayout() {
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
 
-  /** R14-L11 / C3-N02: Continuar aula = trilha ativa ou foco recente. */
-  const continueAulaRow =
-    activeRow || pickHomeTrail(rows) || null
-  const continueAulaHref = continueAulaRow
-    ? `/trilha/${encodeURIComponent(continueAulaRow.trail_id)}`
-    : null
-  const continueAulaLabel =
-    continueAulaRow?.status === 'not_started'
-      ? 'Começar aula'
-      : 'Continuar aula'
-  const showContinueAula =
-    Boolean(continueAulaHref) &&
-    location.pathname !== continueAulaHref
-
   // Layout effect: listener ativo antes do layout effect do player que despacha.
   useLayoutEffect(() => {
     const onChrome = (e: Event) => {
@@ -496,7 +482,7 @@ export default function ChatLayout() {
         role={drawerAsModal ? 'dialog' : 'navigation'}
         inert={sidebarInert || undefined}
       >
-        <nav className="chat-sidebar__nav" aria-label="Lista de trilhas">
+        <nav className="chat-sidebar__nav" aria-label="Menu do aluno">
           {/* C2-R17 N02: Fechar dentro do dialog (trap); N01: ☰ topbar sobe via CSS. */}
           {drawerAsModal ? (
             <button
@@ -508,35 +494,33 @@ export default function ChatLayout() {
               Fechar
             </button>
           ) : null}
+
           <Link
             to="/"
-            className="chat-sidebar__home"
-            aria-label="Minhas trilhas — início"
+            className="chat-sidebar__logo"
+            aria-label="Crias — início"
             onClick={() => closeDrawer(false)}
           >
-            {/* C3-R7 N04: ícone de lista/início — não “+ criar”. */}
-            <span className="chat-sidebar__home-icon" aria-hidden>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 6h16M4 12h16M4 18h10"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>{' '}
-            Minhas trilhas
+            <img
+              src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
+              alt="Crias"
+              height={28}
+            />
           </Link>
 
-          {showContinueAula && continueAulaHref ? (
-            <Link
-              to={continueAulaHref}
-              className="chat-sidebar__continue-aula"
-              onClick={() => closeDrawer(false)}
-            >
-              {continueAulaLabel}
-            </Link>
-          ) : null}
+          <p className="chat-sidebar__group-label">Parceiro de estudos</p>
+          <Link
+            to="/maria"
+            className={`chat-sidebar__maria${
+              location.pathname === '/maria' ? ' is-active' : ''
+            }`}
+            aria-current={location.pathname === '/maria' ? 'page' : undefined}
+            onClick={() => closeDrawer(false)}
+          >
+            Conversar com Maria
+          </Link>
+
+          <p className="chat-sidebar__group-label">Trilhas</p>
 
           {trailsLoading && rows === null ? (
             <p
@@ -588,7 +572,7 @@ export default function ChatLayout() {
                     ? Math.max(totalRaw, stageNumber)
                     : null
                 // C3-N05: % só com total conhecido — sem “0 %” mentiroso.
-                // C3-R7 N02: (etapa−1)/total — estágio 1 = 0 %, não 25 %.
+                // C3-R7 N02: (passo−1)/total — passo 1 = 0 %, não 25 %.
                 const pct =
                   total != null
                     ? rowCompleted
@@ -605,10 +589,10 @@ export default function ChatLayout() {
                     : null
                 const rowStatus = rowCompleted ? 'completed' : row.status
                 const label = trailNames[row.trail_id] || 'Trilha'
-                const etapaMeta =
+                const passoMeta =
                   total != null
-                    ? `Etapa ${stageNumber} de ${total}`
-                    : `Etapa ${stageNumber}`
+                    ? `Passo ${stageNumber} de ${total}`
+                    : `Passo ${stageNumber}`
                 return (
                   <li key={row.id}>
                     <Link
@@ -616,7 +600,7 @@ export default function ChatLayout() {
                       className={`trail-card${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       title={label}
-                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${etapaMeta}${pct != null ? `. ${pct}\u00a0%` : ''}`}
+                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${passoMeta}${pct != null ? `. ${pct}\u00a0%` : ''}`}
                       onClick={() => {
                         writeFocusedTrailId(row.trail_id)
                         closeDrawer(false)
@@ -634,7 +618,7 @@ export default function ChatLayout() {
                           {STATUS_LABEL[rowStatus]}
                         </span>
                       </span>
-                      <span className="trail-card__meta">{etapaMeta}</span>
+                      <span className="trail-card__meta">{passoMeta}</span>
                       {pct != null ? (
                         <span className="trail-card__progress" aria-hidden>
                           <span className="trail-card__progress-track">
@@ -660,7 +644,6 @@ export default function ChatLayout() {
 
         <div className="chat-sidebar__foot">
           <div className="chat-sidebar__brand-row">
-            <span className="chat-sidebar__brand">Crias</span>
             <span className="chat-sidebar__user">{firstName}</span>
           </div>
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
@@ -681,7 +664,10 @@ export default function ChatLayout() {
         />
       ) : null}
 
-      <div className="chat-main">
+      <div className="chat-main horizonte">
+        <span className="hz hz-brilho" aria-hidden />
+        <span className="hz hz-linha" aria-hidden />
+        <span className="hz hz-arco" aria-hidden />
         {/* C2-R6 N01: faixa in-flow — empurra topbar; não tapa brand/☰. */}
         {offline ? (
           <div className="chat-offline-banner" role="status" aria-live="polite">
@@ -707,10 +693,9 @@ export default function ChatLayout() {
             ☰
           </button>
           <div className="chat-topbar__titles">
-            <span className="chat-topbar__brand">Crias</span>
             {(() => {
-              /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
-              /* C3-R11 N02: title nativo com nome+etapa completo (ellipsis). */
+              /* Topbar = trilha · Passo (sem tag MARIA). */
+              const onMaria = location.pathname === '/maria'
               const topbarTitle = activeTrailId
                 ? [
                     trailNames[activeTrailId] || 'Trilha',
@@ -724,24 +709,21 @@ export default function ChatLayout() {
                           ? Math.max(totalRaw, playerStageNumber ?? 0)
                           : playerStageNumber
                       if (n == null) return null
-                      // C2-R1 N01: sem fallback current→total (“N de N” / “5 de 4”).
-                      if (totalRaw == null) return `Etapa ${n}`
-                      return `Etapa ${n} de ${Math.max(totalRaw, n)}`
+                      if (totalRaw == null) return `Passo ${n}`
+                      return `Passo ${n} de ${Math.max(totalRaw, n)}`
                     })(),
                   ]
                     .filter(Boolean)
                     .join(' · ')
-                : 'Minhas trilhas'
+                : onMaria
+                  ? 'Conversar com Maria'
+                  : 'Início'
               return (
                 <span className="chat-topbar__title" title={topbarTitle}>
                   {topbarTitle}
                 </span>
               )
             })()}
-            {/* C2-R5 N02: chip MARIA só na sessão sidechat — não no chrome da aula. */}
-            {activeTrailId && playerChrome.mariaActive ? (
-              <span className="chat-topbar__maria">MARIA</span>
-            ) : null}
           </div>
         </header>
         <div className="chat-main__content" inert={mainInert || undefined}>

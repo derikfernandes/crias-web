@@ -4,7 +4,7 @@ Este arquivo guarda as regras da interface. Cada regra inviolável definida na r
 
 ## Como aplicar este pacote
 
-O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/cria-frontend/design/` (espelho de `crias-redesign/`). Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta, tema claro Horizonte) permanecem; o TSX do pacote que regride essas decisões não se aplica cegamente.
+O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/cria-frontend/design/` (espelho de `crias-redesign/`). Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta) permanecem; tema escuro é o padrão do zip/protótipo (claro pelo botão). O TSX do pacote que regride essas decisões não se aplica cegamente. Lista de atividades aninhada no menu: **não** aplicar (decisão de produto).
 
 | Caminho no pacote | Em crias-web | O que é |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`
 | `crias-redesign/design-system/` | `.../design/design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
 | `frontend/cria-frontend/public/` | igual | Logotipos e favicon do app |
 | `frontend/cria-frontend/index.html` | igual | Viewport de app, título sem travessão, favicon e fontes |
-| `frontend/cria-frontend/src/styles/crias-tema.css` | igual | Visual do app: **claro por padrão** (decisão aprovada), escuro pelo botão Claro/Escuro. Outfit/Manrope, pílula verde, Horizonte, Maria sem balão |
+| `frontend/cria-frontend/src/styles/crias-tema.css` | igual | Visual do app: **escuro por padrão** (zip/protótipo v4), claro pelo botão Claro/Escuro (fundo branco). Outfit/Manrope, pílula verde, Horizonte, Maria sem balão |
 | `frontend/cria-frontend/src/styles/crias-ajustes.css` | igual | Correções de front-end (foco, toque, zoom, menu em tela cheia, nomes esmaecidos) |
 | `frontend/cria-frontend/src/components/ThemeToggle.tsx` | igual | Botão Claro/Escuro do menu (`crias-aluno-v2-tema`) |
 | `frontend/cria-frontend/src/main.tsx` | igual | Importa `crias-tema.css` e `crias-ajustes.css` depois de `app.css` |

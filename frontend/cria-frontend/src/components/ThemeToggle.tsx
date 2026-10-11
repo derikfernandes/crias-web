@@ -3,7 +3,7 @@ import { useState } from 'react'
 type Tema = 'escuro' | 'claro'
 const CHAVE = 'crias-aluno-v2-tema'
 
-/** Padrão aprovado: claro + Horizonte. Escuro só se o aluno escolher. */
+/** Padrão do zip/protótipo v4: escuro. Claro só se o aluno escolher. */
 function atual(): Tema {
   try {
     const saved = localStorage.getItem(CHAVE)
@@ -11,7 +11,7 @@ function atual(): Tema {
   } catch {
     /* sem armazenamento */
   }
-  return document.documentElement.dataset.tema === 'escuro' ? 'escuro' : 'claro'
+  return document.documentElement.dataset.tema === 'claro' ? 'claro' : 'escuro'
 }
 
 export default function ThemeToggle() {

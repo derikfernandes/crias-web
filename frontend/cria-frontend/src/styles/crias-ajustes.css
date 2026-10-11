@@ -53,6 +53,11 @@ select {
   box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
+html[data-tema='claro'] .chat-composer--locked .chat-composer__form:focus-within {
+  border-color: var(--cr-line, #efebdd);
+  box-shadow: inset 0 1px 0 rgba(0, 28, 14, 0.06);
+}
+
 .login-panel input:focus,
 .login-panel input:focus-visible {
   outline: none;

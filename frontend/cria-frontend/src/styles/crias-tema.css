@@ -1,23 +1,24 @@
 /*
- * Crias · tema do app do aluno (pacote design zip 2026-10-11).
- * Claro (Horizonte) é o padrão aprovado. Escuro via html[data-tema='escuro']
- * (botão Claro/Escuro no menu). Importado depois de app.css. Só visual.
+ * Crias · tema do app do aluno (igual ao protótipo v4 / zip 2026-10-11).
+ * Escuro é o padrão. Claro com html[data-tema='claro'] (botão Claro/Escuro no menu).
+ * No tema claro o fundo da área de conteúdo é branco. Importado depois de app.css. Só visual.
+ * Mantém fixes Ciclo 1 (#20): contraste CTA, dock, home cards, Maria.
  */
 
 :root,
-html[data-tema='claro'] {
-  --cr-bg: #ffffff; --cr-side: #fcfbf6; --cr-raise: #ffffff; --cr-soft: #fcfbf6; --cr-soft2: #f7f5ec;
-  --cr-line: #efebdd; --cr-ink: #001c0e; --cr-t2: #3d4d43; --cr-t3: #5b6b60;
-  --cr-gsoft: #e6f8f1; --cr-gink: #00744f; --cr-err: #b3261e; --cr-errsoft: #fdecea;
-  --cr-card: 0 1px 2px rgba(0, 28, 14, 0.04), 0 14px 34px -14px rgba(0, 28, 14, 0.16);
-  color-scheme: light;
-}
 html[data-tema='escuro'] {
   --cr-bg: #07110c; --cr-side: #0a1711; --cr-raise: #0f1d16; --cr-soft: #12221a; --cr-soft2: #18291f;
   --cr-line: #203328; --cr-ink: #eef5ef; --cr-t2: #bccbc0; --cr-t3: #95a69a;
   --cr-gsoft: #0d3526; --cr-gink: #5fe3b5; --cr-err: #ff8a7a; --cr-errsoft: rgba(255, 110, 90, 0.12);
   --cr-card: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 22px 44px -18px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
+}
+html[data-tema='claro'] {
+  --cr-bg: #ffffff; --cr-side: #fcfbf6; --cr-raise: #ffffff; --cr-soft: #fcfbf6; --cr-soft2: #f7f5ec;
+  --cr-line: #efebdd; --cr-ink: #001c0e; --cr-t2: #3d4d43; --cr-t3: #5b6b60;
+  --cr-gsoft: #e6f8f1; --cr-gink: #00744f; --cr-err: #b3261e; --cr-errsoft: #fdecea;
+  --cr-card: 0 1px 2px rgba(0, 28, 14, 0.04), 0 14px 34px -14px rgba(0, 28, 14, 0.16);
+  color-scheme: light;
 }
 
 :root {

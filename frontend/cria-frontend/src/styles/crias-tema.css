@@ -23,7 +23,8 @@ html[data-tema='escuro'] {
 :root {
   --main: var(--cr-bg); --main-alt: var(--cr-soft); --sidebar: var(--cr-side); --composer: var(--cr-soft);
   --ink: var(--cr-ink); --muted: var(--cr-t2); --muted-dim: var(--cr-t3); --placeholder: var(--cr-t3); --label: var(--cr-t2);
-  --accent: #00be85; --accent-2: #00be85; --accent-ink: #ffffff; --cta-continue: #00be85; --cta-send: #00be85;
+  /* R5-N02: accent-2 = amarelo Horizonte; R3-N01: tinta escura no CTA (≥4.5:1). */
+  --accent: #00be85; --accent-2: #ffd500; --accent-ink: #001c0e; --cta-continue: #00be85; --cta-send: #00be85;
   --error: var(--cr-err); --border: var(--cr-line); --border-subtle: var(--cr-line);
   --radius: 12px; --radius-sm: 12px; --radius-md: 16px;
   --bubble-user: var(--cr-soft2); --bubble-ai: transparent; --avatar-bg: #00593d; --intro-bg: var(--cr-soft);
@@ -40,7 +41,7 @@ h1, .brand, .chat-thread__empty-title, .lesson-card__title, .chat-exercise__lege
   font-family: 'Outfit', system-ui, sans-serif;
 }
 
-/* botões: pílula verde, texto branco */
+/* botões: pílula verde, texto escuro (contraste AA — R3-N01) */
 button { border-radius: 999px; }
 button:not(:disabled):hover { filter: none; background: #00a974; }
 button:not(:disabled):active { background: #00925f; }
@@ -50,12 +51,12 @@ button:not(:disabled):active { background: #00925f; }
   background-color: transparent;
 }
 .chat-continue__btn, .chat-home__cta, .login-panel > button[type='submit'], .login-submit {
-  background: #00be85; color: #fff; border: 0; border-radius: 999px; box-shadow: 0 4px 0 #00925f;
+  background: #00be85; color: var(--accent-ink, #001c0e); border: 0; border-radius: 999px; box-shadow: 0 4px 0 #00925f;
   font-family: 'Outfit', system-ui, sans-serif;
 }
 .chat-continue__btn:hover:not(:disabled), .chat-home__cta:hover,
 .login-panel > button[type='submit']:hover:not(:disabled), .login-submit:hover:not(:disabled) {
-  background: #00a974; filter: none;
+  background: #00a974; filter: none; color: var(--accent-ink, #001c0e);
 }
 .chat-continue__btn:active:not(:disabled), .login-submit:active:not(:disabled) {
   background: #00925f; transform: translateY(3px); box-shadow: 0 1px 0 #00925f;
@@ -130,8 +131,9 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-topbar__menu:hover { background: var(--cr-soft2); border-color: transparent; transform: none; }
 .chat-topbar__title { font-family: 'Outfit', system-ui, sans-serif; font-weight: 700; font-size: 1.1rem; color: var(--cr-ink); letter-spacing: 0; }
 
-/* conversa: Maria sem balão, aluno em balão */
-.chat-thread__scroll { padding-bottom: 52px; }
+/* conversa: Maria sem balão, aluno em balão.
+ * R2-N01: sem padding-bottom fantasma (composer já é in-flow no dock). */
+.chat-thread__scroll { padding-bottom: 0.75rem; }
 .chat-bubble--assistant .chat-bubble__text, .chat-bubble--system .chat-bubble__text {
   background: transparent; padding-left: 0; padding-right: 0; font-size: 1rem; line-height: 1.65; color: var(--cr-ink);
 }
@@ -185,7 +187,7 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-composer .chat-composer__send,
 .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__send:not(:disabled) {
   width: 42px; height: 42px; min-width: 42px; min-height: 42px; border-radius: 999px;
-  background: #00be85; color: #fff; border: 0; box-shadow: 0 3px 0 #00925f;
+  background: #00be85; color: var(--accent-ink, #001c0e); border: 0; box-shadow: 0 3px 0 #00925f;
 }
 .chat-composer .chat-composer__send:disabled,
 .chat-composer .chat-composer__send[aria-disabled='true'] {
@@ -196,7 +198,8 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 
 /* cartões de aula e início (#19 home cards + Maria) */
 .lesson-card, .trail-complete { background: var(--cr-raise); border: 1px solid var(--cr-line); border-radius: 22px; box-shadow: var(--cr-card); }
-.chat-home h1, .chat-home__greeting { font-weight: 600; color: var(--cr-ink); }
+/* R5-N04: saudação Outfit 400 (titulo-leve) — não vencer com 600. */
+.chat-home h1, .chat-home__greeting, .chat-home__greeting.titulo-leve { font-weight: 400; color: var(--cr-ink); }
 .chat-home .lede, .muted { color: var(--cr-t2); }
 .chat-home__hint { color: var(--cr-t3); }
 .chat-home__cta-skeleton, .chat-thread__skeleton-line { background: var(--cr-soft2); }
@@ -216,7 +219,7 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-home__maria:focus-within { border-color: #00be85; box-shadow: 0 0 0 4px rgba(0, 190, 133, 0.16); }
 .chat-home__maria input { color: var(--cr-ink); }
 .chat-home__maria-send {
-  width: 42px; height: 42px; border-radius: 999px; background: #00be85; color: #fff; border: 0;
+  width: 42px; height: 42px; border-radius: 999px; background: #00be85; color: var(--accent-ink, #001c0e); border: 0;
   box-shadow: 0 3px 0 #00925f;
 }
 .chat-home__maria-send:hover:not(:disabled) { background: #00a974; }

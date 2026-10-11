@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react'
 import {
   askMaria,
@@ -18,7 +19,27 @@ import {
   toUserFacingError,
 } from '../lib/networkError'
 import { clearSession, getSession } from '../lib/session'
+import { parseInlineMarkdown, type InlineSeg } from '../lib/trailMessages'
 import { useNavigate } from 'react-router-dom'
+
+function renderInlineSegments(
+  segments: InlineSeg[] | undefined,
+  fallback: string,
+): ReactNode {
+  if (!segments || segments.length === 0) return fallback || '\u00a0'
+  return segments.map((seg) => {
+    if (seg.kind === 'strong' || seg.kind === 'em') {
+      const Tag = seg.kind === 'strong' ? 'strong' : 'em'
+      const inner = parseInlineMarkdown(seg.value)
+      const nested =
+        inner.length === 1 && inner[0]?.kind === 'text'
+          ? seg.value
+          : renderInlineSegments(inner, seg.value)
+      return <Tag key={seg.key}>{nested}</Tag>
+    }
+    return <span key={seg.key}>{seg.value}</span>
+  })
+}
 
 type ChatLine = {
   id: string
@@ -195,7 +216,12 @@ export default function MariaPage() {
                 {line.role === 'maria' ? (
                   <span className="maria-page__label">Maria</span>
                 ) : null}
-                <p>{line.text}</p>
+                <p>
+                  {renderInlineSegments(
+                    parseInlineMarkdown(line.text),
+                    line.text,
+                  )}
+                </p>
               </li>
             ))}
           </ul>

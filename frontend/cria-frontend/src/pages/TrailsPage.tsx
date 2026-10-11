@@ -6,6 +6,11 @@ import { nextHomeGreeting } from '../lib/homeGreeting'
 import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
 import { sortTrailsByLastOpened } from '../lib/trailOpenState'
 import { writeFocusedTrailId } from '../lib/trailFocus'
+import {
+  activityProgressPct,
+  formatAtividadeLabel,
+  formatPassoLabel,
+} from '../lib/trailProgressLabel'
 
 type LayoutOutlet = {
   trailRows: StudentTrailRow[] | null
@@ -14,31 +19,49 @@ type LayoutOutlet = {
   retryTrails: () => void
   trailNames?: Record<string, string>
   stageTotals?: Record<string, number>
+  questionTotals?: Record<string, number>
 }
 
 function progressMeta(
   row: StudentTrailRow,
-  totalRaw: number | null | undefined,
+  totalActivities: number | null | undefined,
+  totalSteps: number | null | undefined,
 ): { label: string; pct: number | null } {
-  const total =
-    totalRaw != null && totalRaw > 0
-      ? Math.max(totalRaw, row.current_stage_number)
-      : null
-  const stage =
-    row.status === 'completed' && total != null
-      ? total
-      : row.current_stage_number
+  const completed = row.status === 'completed'
+  const activity =
+    completed && totalActivities != null && totalActivities > 0
+      ? Math.max(totalActivities, row.current_question_number)
+      : row.current_question_number
   const label =
-    total != null ? `Passo ${stage} de ${total}` : `Passo ${stage}`
+    formatAtividadeLabel(activity, totalActivities) ||
+    formatPassoLabel(
+      completed && totalSteps != null && totalSteps > 0
+        ? Math.max(totalSteps, row.current_stage_number)
+        : row.current_stage_number,
+      totalSteps,
+    ) ||
+    `Atividade ${Math.max(activity, 1)}`
   const pct =
-    total != null
-      ? row.status === 'completed'
+    activityProgressPct({
+      activity,
+      totalActivities,
+      completed,
+    }) ??
+    (totalSteps != null && totalSteps > 0
+      ? completed
         ? 100
         : Math.min(
             100,
-            Math.max(0, Math.round(((Math.max(stage, 1) - 1) / total) * 100)),
+            Math.max(
+              0,
+              Math.round(
+                ((Math.max(row.current_stage_number, 1) - 1) /
+                  Math.max(totalSteps, row.current_stage_number)) *
+                  100,
+              ),
+            ),
           )
-      : null
+      : null)
   return { label, pct }
 }
 
@@ -52,6 +75,7 @@ export default function TrailsPage() {
     retryTrails,
     trailNames,
     stageTotals,
+    questionTotals,
   } = useOutletContext<LayoutOutlet>()
   const [greeting] = useState(() =>
     nextHomeGreeting(session.student_id, session.name.split(' ')[0] || 'aluno'),
@@ -143,9 +167,11 @@ export default function TrailsPage() {
           <>
             <div className="chat-home__cards">
               {visible.map((row, i) => {
-                const label = trailNames?.[row.trail_id] || 'Trilha'
-                const { label: passo, pct } = progressMeta(
+                const label =
+                  trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
+                const { label: progresso, pct } = progressMeta(
                   row,
+                  questionTotals?.[row.trail_id],
                   stageTotals?.[row.trail_id],
                 )
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
@@ -155,6 +181,8 @@ export default function TrailsPage() {
                     ref={i === 0 ? firstCardRef : undefined}
                     to={href}
                     className="chat-home__card"
+                    title={label}
+                    aria-label={`${label}. ${progresso}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
                   >
                     <span className="chat-home__card-top">
@@ -172,7 +200,7 @@ export default function TrailsPage() {
                         <span style={{ width: '0%' }} />
                       </span>
                     )}
-                    <span className="chat-home__card-meta">{passo}</span>
+                    <span className="chat-home__card-meta">{progresso}</span>
                   </Link>
                 )
               })}
@@ -197,7 +225,8 @@ export default function TrailsPage() {
         <button
           type="submit"
           className="chat-home__maria-send"
-          aria-label="Enviar pergunta à Maria"
+          aria-label="Abrir chat com Maria"
+          title="Abrir chat com Maria"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path

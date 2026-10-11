@@ -325,7 +325,7 @@ select {
 .chat-composer--with-continue:not(.chat-composer--locked)
   button.chat-composer__continue:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
   background: #00be85;
-  color: #fff;
+  color: var(--accent-ink, #001c0e);
   border: 0;
   box-shadow: 0 3px 0 #00925f;
 }
@@ -335,6 +335,66 @@ select {
   background: var(--cr-soft2, #f7f5ec);
   color: #9aa69e;
   box-shadow: none;
+}
+
+/* R1-N05: CTA de saída quando a trilha termina. */
+.chat-composer--trail-done {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.55rem;
+}
+.chat-composer__home-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+  max-width: 28rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* R2-N03: Continuar full-bleed no mobile (não ~33% ao lado do input). */
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__form {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__input {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 1;
+  }
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__continue {
+    flex: 1 1 100%;
+    width: 100%;
+    order: 2;
+    min-height: 48px;
+  }
+}
+
+/* R5-N03: margens da aula ~10% cada lado (INTERFACE 19a). */
+.chat-thread__scroll .lesson-card,
+.chat-thread__scroll .chat-exercise,
+.chat-thread__scroll .trail-complete {
+  width: 80%;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.chat-thread__scroll .chat-bubble {
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* R2-N01 / R6-N02: sem translateY fora do teclado (evita gap/topbar −111). */
+.chat-shell {
+  transform: none;
+}
+html[data-keyboard='open'] .chat-shell {
+  transform: translateY(var(--vv-offset-top, 0px));
 }
 
 /* Horizonte: círculos sempre centrados (evita corte assimétrico à direita). */

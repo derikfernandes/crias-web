@@ -393,6 +393,51 @@ export async function fetchTrailNames(): Promise<Record<string, string>> {
   return map
 }
 
+/**
+ * Totais de atividades (question) por trilha — vocab INTERFACE.
+ * Usa action=max no stage 1 (mesma contagem de questões em cada passo).
+ */
+export async function fetchTrailQuestionTotals(
+  trailIds: string[],
+): Promise<Record<string, number>> {
+  const unique = Array.from(
+    new Set(trailIds.map((id) => id.trim()).filter(Boolean)),
+  )
+  if (unique.length === 0) return {}
+  const map: Record<string, number> = {}
+  await Promise.all(
+    unique.map(async (tid) => {
+      try {
+        const url = new URL(
+          `${API_BASE}/trail_stage_questions`,
+          window.location.origin,
+        )
+        url.searchParams.set('action', 'max')
+        url.searchParams.set('trail_id', tid)
+        url.searchParams.set('stage_number', '1')
+        const res = await fetchWithTimeout(url.pathname + url.search)
+        const body = (await parseJson(res)) as {
+          max_question_number?: number
+          total_questions?: number
+        } | null
+        if (!res.ok || !body) return
+        const n =
+          typeof body.max_question_number === 'number' &&
+          body.max_question_number > 0
+            ? body.max_question_number
+            : typeof body.total_questions === 'number' &&
+                body.total_questions > 0
+              ? body.total_questions
+              : 0
+        if (n > 0) map[tid] = n
+      } catch {
+        /* ignore — UI cai para Passo-only */
+      }
+    }),
+  )
+  return map
+}
+
 export async function fetchNextContent(
   studentId: string,
   trailId: string,

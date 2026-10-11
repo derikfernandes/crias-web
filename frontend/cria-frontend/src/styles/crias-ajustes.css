@@ -215,20 +215,21 @@ select {
   flex-direction: column;
 }
 
-/* Home: corpo rola; barra Maria dockada (F6 + F24). */
+/* Home: cluster central (hero+cards+barra); no mobile barra pode dockar. */
 .chat-home {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 1rem;
+  justify-content: center;
+  gap: 0.85rem;
 }
 
 .chat-home__body {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -241,16 +242,22 @@ select {
 }
 
 .chat-home__maria {
+  flex: 0 0 auto !important;
   flex-shrink: 0;
   margin-top: 0;
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   align-self: center;
 }
 
 @media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
   .chat-home {
+    justify-content: flex-start;
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-home__body {
+    flex: 1 1 0;
   }
 
   .chat-home__maria {

@@ -453,10 +453,17 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-exercise__option {
   background: var(--cr-soft); border: 1px solid var(--cr-line); border-bottom-width: 4px; border-radius: 16px;
   font-weight: 600; font-size: 0.9375rem;
+  display: flex; align-items: flex-start; gap: 0.75rem;
 }
 .chat-exercise__option:hover:not(:disabled) { border-color: #00be85; background: var(--cr-soft2); box-shadow: none; transform: none; }
 .chat-exercise__option.is-selected, .chat-exercise--pending .chat-exercise__option.is-selected {
   border-color: #00be85; border-bottom-color: #00925f; background: var(--cr-gsoft); box-shadow: none;
+}
+.chat-exercise__option-badge {
+  background: var(--cr-soft2); border: 1px solid var(--cr-line); color: var(--cr-ink);
+}
+.chat-exercise__option.is-selected .chat-exercise__option-badge {
+  background: #00be85; border-color: #00925f; color: #001c0e;
 }
 .chat-exercise__retry p, .chat-exercise__pending-label { color: var(--cr-err); }
 .chat-exercise--error-state { border-color: var(--cr-err); }

@@ -186,6 +186,23 @@ function stripOptionLines(text: string): string {
     .trim()
 }
 
+/** Badge A–D + texto sem prefixo `A)` (proto). */
+function optionBadgeAndText(
+  opt: { key: string; text: string },
+  index: number,
+): { letter: string; text: string } {
+  const fromKey = /^[A-Za-z]$/.test(opt.key) ? opt.key.toUpperCase() : ''
+  const prefix = opt.text.match(/^\s*\(?([A-Za-z])\)?\s*[\)\.\:\-]\s*/)
+  const letter =
+    fromKey ||
+    (prefix ? prefix[1].toUpperCase() : '') ||
+    String.fromCharCode(65 + (index % 26))
+  const text = (
+    prefix ? opt.text.slice(prefix[0].length) : opt.text
+  ).trim() || opt.text.trim()
+  return { letter, text }
+}
+
 /** Enunciado exibido no card do exercício (acima das opções). */
 function exercisePromptFromContent(content: NextContentOk): string {
   return stripOptionLines((content.content ?? '').trim())
@@ -4931,6 +4948,10 @@ export default function PlayerPage() {
                   : optIndex === 0
                     ? 0
                     : -1
+                const { letter, text: optLabel } = optionBadgeAndText(
+                  opt,
+                  optIndex,
+                )
                 return (
                   <button
                     key={opt.key}
@@ -4949,7 +4970,10 @@ export default function PlayerPage() {
                     onClick={() => onOptionSelect(opt)}
                     onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
                   >
-                    {opt.text}
+                    <span className="chat-exercise__option-badge" aria-hidden>
+                      {letter}
+                    </span>
+                    <span className="chat-exercise__option-text">{optLabel}</span>
                   </button>
                 )
               })}
@@ -5134,7 +5158,7 @@ export default function PlayerPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
-          {/* Continuar / Enviar resposta no pill; ao digitar (fora do exercício), seta Enviar. */}
+          {/* Continuar (texto) / Enviar (seta circular no exercício) no pill. */}
           {composerPrimaryAction ? (
             <button
               ref={(node) => {
@@ -5143,6 +5167,12 @@ export default function PlayerPage() {
               }}
               type="submit"
               className={`chat-composer__continue${
+                composerPrimaryAction.action === 'submit' ||
+                (exerciseLockedComposer &&
+                  composerPrimaryAction.action === 'none')
+                  ? ' chat-composer__continue--icon'
+                  : ''
+              }${
                 continueHalo &&
                 (composerPrimaryAction.action === 'advance' ||
                   composerPrimaryAction.action === 'submit')
@@ -5156,10 +5186,21 @@ export default function PlayerPage() {
               title={
                 composerPrimaryAction.action === 'submit' && !selectedOptionKey
                   ? 'Escolha uma opção primeiro'
-                  : undefined
+                  : composerPrimaryAction.label
               }
             >
-              {composerPrimaryAction.label}
+              {composerPrimaryAction.action === 'submit' ||
+              (exerciseLockedComposer &&
+                composerPrimaryAction.action === 'none') ? (
+                <SendArrowIcon direction="right" size={18} />
+              ) : (
+                <>
+                  <span className="chat-composer__continue-label">
+                    {composerPrimaryAction.label}
+                  </span>
+                  <SendArrowIcon direction="right" size={16} />
+                </>
+              )}
             </button>
           ) : !exerciseLockedComposer ? (
             <button

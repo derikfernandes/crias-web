@@ -378,14 +378,63 @@ select {
 .chat-composer--with-continue .chat-composer__form,
 .chat-composer--locked.chat-composer--with-continue .chat-composer__form {
   flex-wrap: nowrap;
-  align-items: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 .chat-composer__continue {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   white-space: nowrap;
   min-height: 42px;
   padding: 0 0.95rem;
   font-size: 0.92rem;
+}
+/* Exercício: CTA circular (seta) — libera largura pro placeholder 1 linha. */
+.chat-composer__continue--icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 999px;
+}
+.chat-composer--locked .chat-composer__continue--icon {
+  min-width: 42px;
+}
+/* Lock 1 linha (proto); sem wrap de 3 linhas com cadeado. */
+.chat-composer__lock {
+  align-items: center !important;
+  white-space: nowrap !important;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.chat-composer__lock > svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+.chat-composer__lock-label {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25 !important;
+}
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-composer--v4 .maria-face--composer {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .chat-composer--locked .chat-composer__form {
+    padding-left: 10px;
+    padding-right: 8px;
+  }
 }
 
 /* Proto: slide/exercício quase full-bleed — sem coluna chat estreita. */
@@ -405,20 +454,23 @@ select {
 }
 
 /* Slide da trilha: orb + nome no head; texto full-bleed abaixo (proto). */
+.chat-bubble--slide {
+  padding: 0.35rem 0 0.85rem;
+}
 .chat-bubble--slide .chat-bubble__row {
   max-width: none;
   width: 100%;
   margin: 0;
-  padding: 0 1.15rem;
+  padding: 0 1rem;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 .chat-bubble--slide .chat-bubble__slide-head {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   min-width: 0;
 }
 .chat-bubble--slide .chat-bubble__stack {
@@ -429,11 +481,13 @@ select {
 .chat-bubble--slide .chat-bubble__orb {
   flex: 0 0 auto;
   display: inline-flex;
+  transform: scale(0.92);
+  transform-origin: left center;
 }
 .chat-bubble--slide .chat-bubble__label {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 650;
   color: var(--cr-ink, var(--ink));
   text-transform: none;
   letter-spacing: 0;
@@ -443,9 +497,53 @@ select {
 }
 .chat-bubble--slide .chat-bubble__text {
   width: 100%;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: var(--cr-ink, var(--ink));
+}
+.chat-bubble--slide .chat-bubble__text p {
+  margin: 0 0 0.75rem;
+}
+.chat-bubble--slide .chat-bubble__text p:last-child {
+  margin-bottom: 0;
 }
 .chat-bubble--slide .chat-bubble__meta {
   display: none;
+}
+
+/* Opções: badge quadrado A/B/C/D (proto). */
+.chat-exercise__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+}
+.chat-exercise__option-badge {
+  flex: 0 0 auto;
+  width: 1.65rem;
+  height: 1.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--cr-soft2, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--cr-line, var(--border));
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--cr-ink, var(--ink));
+}
+.chat-exercise__option.is-selected .chat-exercise__option-badge {
+  background: #00be85;
+  border-color: #00925f;
+  color: #001c0e;
+}
+.chat-exercise__option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.4;
+  padding-top: 0.12rem;
 }
 
 /* Só mostrar “Ir para o fim” quando há mensagem nova; senão some (proto). */
@@ -456,32 +554,41 @@ select {
   padding: 0.12rem 0.5rem;
 }
 
-/* “ver mensagens anteriores” sem colidir com a barra de progresso. */
+/* “ver mensagens anteriores” — folga clara sob a barra (zip/proto). */
+.chat-main:has(.chat-thread) .chat-topbar {
+  padding-bottom: 0.75rem;
+}
 .chat-thread__scroll {
-  padding-top: 0.85rem;
+  padding-top: 1.15rem;
 }
 .chat-history-collapse {
   justify-content: center;
-  padding: 0.55rem 1rem 0.95rem;
-  margin-top: 0.35rem;
+  padding: 0.25rem 1rem 1.1rem;
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
 }
 .chat-history-collapse__btn {
-  min-height: 36px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.78rem;
+  min-height: 32px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--cr-t3, var(--muted));
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--cr-line, var(--border)) 70%, transparent);
+  border: 0;
   border-radius: 999px;
   box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--cr-t3, var(--muted)) 55%, transparent);
 }
 .chat-history-collapse__btn:hover {
   transform: none;
   box-shadow: none;
   color: var(--cr-ink, var(--ink));
-  border-color: var(--cr-line, var(--border));
-  background: color-mix(in srgb, var(--cr-soft, var(--composer)) 55%, transparent);
+  border-color: transparent;
+  background: transparent;
+  text-decoration-color: currentColor;
 }
 
 /* “Ir para o fim” bem discreto (proto quase não mostra). */

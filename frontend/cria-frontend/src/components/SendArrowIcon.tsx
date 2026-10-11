@@ -1,5 +1,15 @@
-/** Seta para cima do proto (enviar) — não paper-plane. */
-export default function SendArrowIcon({ size = 18 }: { size?: number }) {
+/** Seta do proto — ↑ enviar Maria; → Continuar / Enviar resposta. */
+export default function SendArrowIcon({
+  size = 18,
+  direction = 'up',
+}: {
+  size?: number
+  direction?: 'up' | 'right'
+}) {
+  const d =
+    direction === 'right'
+      ? 'M5 12h14M13 6l6 6-6 6'
+      : 'M12 19V5M6 11l6-6 6 6'
   return (
     <svg
       width={size}
@@ -9,7 +19,7 @@ export default function SendArrowIcon({ size = 18 }: { size?: number }) {
       aria-hidden
     >
       <path
-        d="M12 19V5M6 11l6-6 6 6"
+        d={d}
         stroke="currentColor"
         strokeWidth="2.4"
         strokeLinecap="round"

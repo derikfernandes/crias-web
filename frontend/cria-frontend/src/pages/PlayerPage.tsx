@@ -4978,14 +4978,15 @@ export default function PlayerPage() {
         <div
           className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
         >
-          {jumpChip ? (
+          {/* Proto: sem chip “Ir para o fim”; só “Nova mensagem” quando há unseen. */}
+          {jumpChip && unseenBelow ? (
             <button
               type="button"
               className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
-              data-unseen={unseenBelow ? 'true' : undefined}
+              data-unseen="true"
               onClick={() => scrollToBottom('smooth')}
             >
-              {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+              Nova mensagem
             </button>
           ) : null}
           {mainButton.action === 'advance' &&
@@ -5006,28 +5007,28 @@ export default function PlayerPage() {
       ) : null}
 
       {/* R2-N02: chip discreto docked acima do composer (nunca absolute sobre a aula). */}
-      {jumpChip && !showCtaSlot && !trailShellUnavailable ? (
+      {jumpChip && unseenBelow && !showCtaSlot && !trailShellUnavailable ? (
         <div className="chat-cta-slot chat-cta-slot--chip-only">
           <button
             type="button"
             className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
-            data-unseen={unseenBelow ? 'true' : undefined}
+            data-unseen="true"
             onClick={() => scrollToBottom('smooth')}
           >
-            {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+            Nova mensagem
           </button>
         </div>
       ) : null}
       {/* C2-R7 N02: CTA some sob KB (display:none) — chip docked some junto;
           fallback absoluto só visível com data-keyboard=open. */}
-      {jumpChip && showCtaSlot && !trailShellUnavailable ? (
+      {jumpChip && unseenBelow && showCtaSlot && !trailShellUnavailable ? (
         <button
           type="button"
           className="chat-new-msg-chip chat-new-msg-chip--kb-fallback chat-new-msg-chip--quiet"
-          data-unseen={unseenBelow ? 'true' : undefined}
+          data-unseen="true"
           onClick={() => scrollToBottom('smooth')}
         >
-          {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+          Nova mensagem
         </button>
       ) : null}
       </div>

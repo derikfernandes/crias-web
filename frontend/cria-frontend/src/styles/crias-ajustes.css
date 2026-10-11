@@ -458,12 +458,12 @@ select {
 
 /* “ver mensagens anteriores” sem colidir com a barra de progresso. */
 .chat-thread__scroll {
-  padding-top: 0.65rem;
+  padding-top: 0.85rem;
 }
 .chat-history-collapse {
   justify-content: center;
-  padding: 0.35rem 1rem 0.85rem;
-  margin-top: 0.15rem;
+  padding: 0.55rem 1rem 0.95rem;
+  margin-top: 0.35rem;
 }
 .chat-history-collapse__btn {
   min-height: 36px;

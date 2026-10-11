@@ -159,17 +159,18 @@ select {
     overscroll-behavior: contain;
   }
 
-  .trail-card {
-    min-height: 56px;
-    padding: 0.85rem 0.9rem;
+  .trail-card,
+  .trail-card--v4 {
+    min-height: 0 !important;
+    padding: 8px 10px !important;
   }
 
   .trail-card__id {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
   .trail-card__meta {
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
   }
 
   .chat-sidebar__logout {

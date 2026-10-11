@@ -229,26 +229,26 @@ export default function TrailsPage() {
             ) : null}
           </>
         )}
+        {/* Barra slim no fluxo — glass, sem painel envolvendo cards. */}
+        <form className="chat-home__maria chat-home__maria--v4" onSubmit={onAskMaria}>
+          <MariaFace size="composer" />
+          <input
+            type="text"
+            value={mariaDraft}
+            onChange={(e) => setMariaDraft(e.target.value)}
+            placeholder="Pergunte à Maria…"
+            aria-label="Pergunte à Maria…"
+          />
+          <button
+            type="submit"
+            className="chat-home__maria-send"
+            aria-label="Abrir chat com Maria"
+            title="Abrir chat com Maria"
+          >
+            <SendArrowIcon />
+          </button>
+        </form>
       </div>
-
-      <form className="chat-home__maria chat-home__maria--v4" onSubmit={onAskMaria}>
-        <MariaFace size="composer" />
-        <input
-          type="text"
-          value={mariaDraft}
-          onChange={(e) => setMariaDraft(e.target.value)}
-          placeholder="Pergunte à Maria…"
-          aria-label="Pergunte à Maria…"
-        />
-        <button
-          type="submit"
-          className="chat-home__maria-send"
-          aria-label="Abrir chat com Maria"
-          title="Abrir chat com Maria"
-        >
-          <SendArrowIcon />
-        </button>
-      </form>
     </div>
   )
 }

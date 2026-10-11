@@ -187,6 +187,13 @@ button:not(:disabled):active { background: #00925f; }
   color: var(--cr-ink);
   width: min(300px, 86vw);
 }
+/* Anula app.css .trail-card { background: var(--highlight-1) } nos dois temas */
+html[data-tema='escuro'] .trail-card:not(.is-active):not(:hover),
+html[data-tema='claro'] .trail-card:not(.is-active):not(:hover) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
 .cr-logo-link, .chat-sidebar__logo {
   display: flex; align-items: center; min-height: 44px; padding: 0 0.5rem; margin-bottom: 0.25rem; flex-shrink: 0;
 }
@@ -229,27 +236,50 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   background: transparent; color: var(--cr-ink); border: 1px solid var(--cr-line);
 }
 
-/* trail row v4 — orb | título+meta | chevron (sem lista aninhada) */
+/* trail row v4 — lista horizontal (proto rowStyle), NÃO card empilhado */
+.chat-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  align-items: stretch;
+}
+.chat-sidebar__list > li {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+.trail-card,
 .trail-card--v4,
-.trail-card.trail-card--v4 {
+.trail-card.trail-card--v4,
+.trail-card.trail-card--v4:focus,
+.trail-card.trail-card--v4:focus-visible,
+.trail-card.trail-card--v4:focus-within {
   display: flex !important;
   flex-direction: row !important;
+  flex-wrap: nowrap !important;
   align-items: center !important;
-  justify-content: flex-start;
+  justify-content: flex-start !important;
   gap: 10px;
-  padding: 0.5rem 0.4rem 0.5rem 0.45rem;
+  padding: 8px 10px !important;
+  min-height: 0 !important;
+  height: auto !important;
   background: transparent !important;
   border: 1px solid transparent !important;
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: none !important;
   text-decoration: none;
   color: var(--cr-ink);
-  text-align: left;
-  min-height: 0;
+  text-align: left !important;
 }
 .trail-card--v4:hover {
   background: var(--cr-soft2) !important;
   border-color: transparent !important;
+  box-shadow: none !important;
 }
 .trail-card--v4.is-active {
   background: var(--cr-raise) !important;
@@ -257,37 +287,51 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   box-shadow: var(--cr-card) !important;
 }
 .trail-card--v4 .trail-orb {
-  flex: 0 0 auto;
-  align-self: center;
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  align-self: center !important;
+  margin: 0 !important;
 }
 .trail-card--v4 .trail-card__head {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: stretch;
-  gap: 2px;
-  text-align: left;
+  align-items: flex-start !important;
+  justify-content: center;
+  gap: 1px;
+  text-align: left !important;
 }
 .trail-card--v4 .trail-card__id {
   color: var(--cr-ink);
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.875rem; /* proto --r-name ~14px */
   line-height: 1.25;
-  text-align: left;
+  text-align: left !important;
   display: block;
+  width: 100%;
   white-space: nowrap;
   overflow: hidden;
-  -webkit-line-clamp: unset;
-  -webkit-box-orient: initial;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: initial !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
 }
 .trail-card--v4 .trail-card__meta {
   color: var(--cr-t3);
   font-size: 0.75rem;
   font-weight: 500;
-  text-align: left;
+  text-align: left !important;
+  width: 100%;
 }
-.trail-card__chev { flex: 0 0 auto; margin-right: 2px; }
+.trail-card__chev {
+  flex: 0 0 16px !important;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  align-self: center;
+}
 .trail-card__doc,
 .trail-card__status,
 .trail-card__top,
@@ -422,11 +466,13 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: var(--cr-soft);
+  background: var(--cr-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--cr-line);
   border-radius: 28px;
   padding: 8px 8px 8px 12px;
-  box-shadow: var(--cr-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px -14px rgba(0, 0, 0, 0.4);
 }
 .chat-composer__form {
   background: var(--cr-soft); border: 1px solid var(--cr-line); border-radius: 28px;
@@ -537,15 +583,18 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-home h1,
 .chat-home__greeting,
 .chat-home__greeting.titulo-leve {
+  font-family: 'Outfit', system-ui, sans-serif;
   font-weight: 600;
   color: var(--cr-ink);
-  font-size: clamp(1.55rem, 2.6vw, 1.95rem);
-  max-width: min(36ch, 100%);
-  margin: 0;
+  font-size: 38px; /* proto --r-hero */
+  letter-spacing: -0.015em;
+  max-width: min(40ch, 100%);
+  margin: -6px 0 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.25;
+  line-height: 1.12;
+  text-wrap: balance;
 }
 .chat-home .lede, .muted { color: var(--cr-t2); }
 .chat-home__hint { color: var(--cr-t3); }
@@ -563,12 +612,25 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   animation: mPop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both;
 }
 .chat-home__card--v4 {
-  display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 16px;
-  background: var(--cr-raise); border: 1px solid var(--cr-line); border-radius: 22px;
-  box-shadow: var(--cr-card); color: var(--cr-ink); text-decoration: none;
-  position: relative; overflow: hidden; min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 16px;
+  /* proto cardStyle: gradient raise→soft, sem “painel” sólido */
+  background: linear-gradient(160deg, var(--cr-raise) 0%, var(--cr-soft) 100%);
+  border: 1px solid var(--cr-line);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 28px -18px rgba(0, 0, 0, 0.45);
+  color: var(--cr-ink);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
 }
 .chat-home__card--v4:hover { border-color: #00be85; }
+html[data-tema='claro'] .chat-home__card--v4 {
+  box-shadow: 0 1px 2px rgba(0, 28, 14, 0.04), 0 14px 34px -14px rgba(0, 28, 14, 0.16);
+}
 .chat-home__card-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .chat-home__card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .chat-home__card-name {
@@ -611,7 +673,7 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   font-size: 13px; font-weight: 700; box-shadow: 0 3px 0 #00925f;
 }
 .chat-home__card-cta svg { stroke: #fff; }
-/* Slim dock — NÃO cresce (flex:1 quebrava cobrindo os cards) */
+/* Slim bar — glass proto, sem sombra pesada que vira “painel” com os cards */
 .chat-home__maria,
 .chat-home__maria--v4 {
   display: flex;
@@ -621,14 +683,16 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   width: 100%;
   max-width: 520px;
   align-self: center;
-  background: var(--cr-soft);
+  background: var(--cr-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--cr-line);
   border-radius: 28px;
-  box-shadow: var(--cr-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px -14px rgba(0, 0, 0, 0.4);
   padding: 6px 6px 6px 12px;
-  margin-top: 0;
+  margin-top: 4px;
   min-height: 0;
-  position: relative; /* abaixo dos cards, não overlay */
+  position: relative;
 }
 .chat-home__maria--v4:focus-within {
   border-color: #00be85;
@@ -732,6 +796,12 @@ html[data-tema='escuro'] .cr-logo--entrada { filter: brightness(0) invert(1); }
   .chat-home__greeting,
   .chat-home__greeting.titulo-leve {
     white-space: normal;
-    font-size: clamp(1.35rem, 5vw, 1.7rem);
+    font-size: 30px; /* proto --r-hero mobile */
+    max-width: 18ch;
+  }
+  .trail-card,
+  .trail-card--v4 {
+    padding: 8px 10px !important;
+    min-height: 0 !important;
   }
 }

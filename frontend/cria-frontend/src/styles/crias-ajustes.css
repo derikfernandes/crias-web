@@ -375,11 +375,11 @@ select {
  * Proto v4: Continuar / Enviar resposta embutidos na pílula (não full-bleed
  * abaixo do campo no mobile).
  */
-/* Dock: face fora da pílula (proto) + form largo. */
+/* Dock: face fora/sobrepondo a pílula (proto) + form largo. */
 .chat-composer--v4 .chat-composer__dock {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   width: 100%;
   max-width: 720px;
   margin-inline: auto;
@@ -388,6 +388,9 @@ select {
   flex: 0 0 auto;
   width: 44px !important;
   height: 44px !important;
+  position: relative;
+  z-index: 2;
+  margin-right: -10px;
 }
 .chat-composer--v4 .chat-composer__dock .chat-composer__form {
   flex: 1 1 auto;
@@ -395,6 +398,7 @@ select {
   width: auto;
   max-width: none;
   margin-inline: 0;
+  padding-left: 18px;
 }
 .chat-composer--with-continue .chat-composer__form,
 .chat-composer--locked.chat-composer--with-continue .chat-composer__form {
@@ -441,26 +445,33 @@ select {
 .chat-composer__lock-label {
   white-space: nowrap !important;
   overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  text-overflow: clip !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
-  font-size: 0.875rem !important;
+  font-size: 0.8125rem !important;
   line-height: 1.25 !important;
 }
 @media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
-  .chat-composer--v4 .chat-composer__dock {
-    gap: 6px;
-  }
   .chat-composer--v4 .chat-composer__dock .maria-face--composer {
-    width: 40px !important;
-    height: 40px !important;
+    width: 42px !important;
+    height: 42px !important;
+    margin-right: -14px;
   }
-  .chat-composer--locked .chat-composer__form {
-    padding: 6px 6px 6px 12px;
+  .chat-composer--v4 .chat-composer__dock .chat-composer__form {
+    padding: 6px 6px 6px 20px;
+  }
+  .chat-composer__continue--icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
   /* No mobile o cadeado some — proto só mostra o texto 1 linha. */
   .chat-composer__lock-icon {
     display: none;
+  }
+  .chat-composer__lock-label {
+    font-size: 0.78rem !important;
   }
 }
 

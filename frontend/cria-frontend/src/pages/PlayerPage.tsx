@@ -4090,10 +4090,10 @@ export default function PlayerPage() {
     exercisePhase === 'submitting'
       ? 'Aguarde…'
       : exercisePhase === 'error'
-        ? 'Falha ao enviar — toque em Enviar resposta de novo'
+        ? 'Falha ao enviar — toque de novo'
         : selectedOptionKey
-          ? 'Toque em Enviar resposta para confirmar'
-          : 'Selecione uma alternativa e continue...'
+          ? 'Toque para enviar a resposta'
+          : 'Selecione uma alternativa e continue…'
 
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -5237,9 +5237,7 @@ export default function PlayerPage() {
                   ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
                     'Aguarde — finalizando conversa com Maria'
                   : exerciseLockedComposer
-                    ? selectedOptionKey
-                      ? 'Toque em Enviar resposta para confirmar'
-                      : 'Selecione uma alternativa e continue'
+                    ? 'Envie sua pergunta ou selecione continuar para avançar'
                   : hasMariaDraft && showContinuar
                     ? // C2-R9 N01: draft pausa Continuar
                       'Enviar a dúvida à Maria — Continuar pausado'

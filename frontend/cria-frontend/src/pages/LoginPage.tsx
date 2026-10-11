@@ -207,7 +207,12 @@ export default function LoginPage() {
       ) : null}
       <form className="login-panel login-panel--v4" onSubmit={(e) => void onSubmit(e)}>
         <div className="login-brand">
-          <MariaFace size="login" mood="oi" />
+          <div className="login-brand__hero">
+            <MariaFace size="login" mood="oi" />
+            <p className="login-brand__bubble" aria-hidden>
+              Oi!
+            </p>
+          </div>
           <img
             className="login-wordmark cr-logo cr-logo--entrada"
             src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}

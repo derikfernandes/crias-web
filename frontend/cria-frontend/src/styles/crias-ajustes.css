@@ -405,18 +405,19 @@ html[data-keyboard='open'] .chat-shell {
 }
 
 .horizonte > .hz-brilho {
-  bottom: -480px;
-  width: min(980px, 140vw);
-  height: min(980px, 140vw);
+  bottom: -420px;
+  width: min(1100px, 160vw);
+  height: min(1100px, 160vw);
   background: radial-gradient(
     circle,
-    rgba(0, 190, 133, 0.22) 0%,
-    rgba(0, 190, 133, 0.1) 16%,
-    rgba(255, 213, 0, 0.1) 48%,
-    transparent 70%
+    rgba(0, 190, 133, 0.32) 0%,
+    rgba(0, 190, 133, 0.14) 14%,
+    rgba(255, 213, 0, 0.14) 42%,
+    transparent 68%
   );
-  filter: blur(10px);
+  filter: blur(8px);
   animation: cr-rise 2.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 1;
 }
 
 .horizonte > .hz-linha {

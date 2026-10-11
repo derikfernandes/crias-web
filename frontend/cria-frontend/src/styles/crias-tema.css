@@ -112,7 +112,12 @@ h1, .brand, .chat-thread__empty-title, .lesson-card__title, .chat-exercise__lege
   z-index: 2;
 }
 .maria-face--nav .maria-face__bob { animation: none; }
-.maria-face--composer { margin-right: 2px; }
+.maria-face--nav .maria-face__shell {
+  box-shadow: inset -1px -1px 3px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(120, 70, 0, 0.35);
+}
+.maria-face--nav .maria-face__svg { width: 72%; height: 72%; }
+.maria-face--composer { margin-right: 2px; flex-shrink: 0; }
+.maria-face--hero, .maria-face--login { margin-bottom: 0.25rem; }
 @keyframes mBob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4%); }
@@ -339,8 +344,8 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   gap: 1rem; text-align: center;
 }
 .chat-home--v4 .chat-home__body {
-  width: 100%; max-width: 780px; margin: auto 0; display: flex; flex-direction: column;
-  align-items: center; gap: 22px;
+  width: 100%; max-width: 780px; margin: 0 auto; display: flex; flex-direction: column;
+  align-items: center; gap: 22px; padding-top: 1.25rem; justify-content: flex-start;
 }
 .chat-home--v4 .chat-home__cards {
   width: 100%; max-width: 780px; display: grid; gap: 14px;
@@ -395,14 +400,18 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 }
 .chat-home__card-cta svg { stroke: #fff; }
 .chat-home__maria--v4 {
+  display: flex; align-items: center; gap: 10px; width: 100%; max-width: 560px;
   background: var(--cr-soft); border: 1px solid var(--cr-line); border-radius: 28px;
-  box-shadow: var(--cr-card); padding: 8px 8px 8px 12px; max-width: 560px;
+  box-shadow: var(--cr-card); padding: 8px 8px 8px 12px;
 }
 .chat-home__maria--v4:focus-within { border-color: #00be85; box-shadow: 0 0 0 4px rgba(0, 190, 133, 0.16); }
-.chat-home__maria--v4 input { color: var(--cr-ink); flex: 1; min-width: 0; border: 0; background: transparent; font-size: 16px; }
+.chat-home__maria--v4 input {
+  color: var(--cr-ink); flex: 1; min-width: 0; border: 0; background: transparent;
+  font-size: 16px; padding: 8px 0;
+}
 .chat-home__maria-send {
   width: 42px; height: 42px; border-radius: 999px; background: #00be85; color: var(--accent-ink, #001c0e);
-  border: 0; box-shadow: 0 3px 0 #00925f; display: grid; place-items: center;
+  border: 0; box-shadow: 0 3px 0 #00925f; display: grid; place-items: center; flex: none;
 }
 .chat-home__maria-send:hover:not(:disabled) { background: #00a974; }
 .error { color: var(--cr-err); }
@@ -413,9 +422,17 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .login-brand {
   display: flex; flex-direction: column; align-items: center; gap: 18px; margin-bottom: 0.25rem;
 }
+.login-brand__hero { position: relative; display: flex; justify-content: center; }
+.login-brand__bubble {
+  position: absolute; bottom: calc(100% - 18px); left: calc(50% + 46px); margin: 0;
+  white-space: nowrap; background: var(--cr-raise); border: 1px solid var(--cr-line);
+  border-radius: 16px 16px 16px 4px; padding: 8px 12px; font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 14px; font-weight: 600; color: var(--cr-ink); box-shadow: var(--cr-card);
+  animation: mPop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
 .login-panel--v4, .login-panel {
   background: var(--cr-glass); border: 1px solid var(--cr-line); border-radius: 24px;
-  box-shadow: var(--cr-card); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: none; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   padding: clamp(16px, 5vw, 22px); width: 100%; max-width: 380px;
 }
 .login-panel input, .login-panel select {

@@ -677,7 +677,7 @@ export default function ChatLayout() {
                         closeDrawerForNav()
                       }}
                     >
-                      <TrailOrb pct={pct} hue={orbHue} size={28} />
+                      <TrailOrb pct={pct} hue={orbHue} size={22} />
                       <span className="trail-card__head">
                         <span className="trail-card__id cr-fade">{label}</span>
                         <span className="trail-card__meta cr-fade">{metaLine}</span>

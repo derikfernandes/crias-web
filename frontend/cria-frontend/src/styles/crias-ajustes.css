@@ -438,6 +438,7 @@ html[data-keyboard='open'] .chat-shell {
 }
 
 .login-page.horizonte {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -445,10 +446,33 @@ html[data-keyboard='open'] .chat-shell {
   min-height: var(--vv-height, 100dvh);
   padding: max(32px, env(safe-area-inset-top, 0px)) 20px
     max(48px, env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+
+.login-page.horizonte > .hz {
+  position: absolute;
+  left: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-page.horizonte > .login-panel,
+.login-page.horizonte > .login-panel--v4,
+.login-page.horizonte > .chat-offline-banner {
+  position: relative;
+  z-index: 1;
 }
 
 .login-page .login-panel--v4 {
   animation: vIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  max-width: 420px;
+  padding: clamp(22px, 5vw, 32px);
+}
+
+.login-page .login-panel--v4 .login-submit {
+  width: 100%;
+  min-height: 52px;
+  font-size: 1.05rem;
 }
 
 @keyframes vIn {

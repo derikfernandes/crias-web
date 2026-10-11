@@ -112,7 +112,8 @@ export default function TrailsPage() {
     const ae = document.activeElement
     if (ae && ae !== document.body && ae !== document.documentElement) return
     const id = window.requestAnimationFrame(() => {
-      firstCardRef.current?.focus()
+      /* preventScroll: foco no card não pode empurrar a Maria para fora. */
+      firstCardRef.current?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(id)
   }, [visible[0]?.trail_id, homeLoading])

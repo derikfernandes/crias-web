@@ -1,4 +1,6 @@
 import ThemeToggle from '../components/ThemeToggle'
+import MariaFace from '../components/MariaFace'
+import TrailOrb, { TrailChevron } from '../components/TrailOrb'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   useCallback,
@@ -10,6 +12,7 @@ import {
 } from 'react'
 import {
   fetchTrailNames,
+  fetchTrailQuestionTotals,
   fetchTrailStageTotals,
   isAuthError,
   listStudentTrails,
@@ -22,7 +25,12 @@ import {
   getSession,
   SESSION_CLEARED_EVENT,
 } from '../lib/session'
-import { pickHomeTrail, writeFocusedTrailId } from '../lib/trailFocus'
+import { writeFocusedTrailId } from '../lib/trailFocus'
+import {
+  activityProgressPct,
+  formatAtividadeLabel,
+  formatTrailChromeProgress,
+} from '../lib/trailProgressLabel'
 
 const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
   not_started: 'Não iniciada',
@@ -49,32 +57,6 @@ function isCompactViewport() {
 function initialSidebarOpen() {
   if (typeof window === 'undefined') return true
   return !isCompactViewport()
-}
-
-function DocumentIcon() {
-  return (
-    <svg
-      className="trail-card__doc"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M7 3.75h7.5L19 8.25V20.25a.75.75 0 0 1-.75.75H7.75A.75.75 0 0 1 7 20.25V3.75z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path d="M14.5 3.75V8.5H19" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M9.5 12h5M9.5 15.5h5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
 }
 
 function LogoutIcon() {
@@ -113,6 +95,10 @@ export default function ChatLayout() {
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
+  /** Totais de atividades (question) por trilha — INTERFACE / R5-N01. */
+  const [questionTotals, setQuestionTotals] = useState<Record<string, number>>(
+    {},
+  )
   /** C2-R1 N04: nome humano da trilha (nunca ID cru na UI). */
   const [trailNames, setTrailNames] = useState<Record<string, string>>({})
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen)
@@ -124,10 +110,17 @@ export default function ChatLayout() {
     trailId: string | null
     stageTitle: string | null
     stageNumber: number | null
+    questionNumber: number | null
     mariaActive: boolean
     /** Player mostra a trilha concluída (progresso completo). */
     completed?: boolean
-  }>({ trailId: null, stageTitle: null, stageNumber: null, mariaActive: false })
+  }>({
+    trailId: null,
+    stageTitle: null,
+    stageNumber: null,
+    questionNumber: null,
+    mariaActive: false,
+  })
   const drawerAsModal = isNarrow && sidebarOpen
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
@@ -263,6 +256,19 @@ export default function ChatLayout() {
   }, [])
 
   /**
+   * R7-N01: Link do drawer navega; history.back() do efeito desfazia a rota.
+   * Fecha sem pop — a entry pushState fica atrás da nova página (back ok).
+   */
+  const closeDrawerForNav = useCallback(() => {
+    restoreFocusRef.current = false
+    if (drawerHistoryPushedRef.current) {
+      drawerHistoryPushedRef.current = false
+      drawerClosingFromPopRef.current = true
+    }
+    setSidebarOpen(false)
+  }, [])
+
+  /**
    * C3-R13 N01: drawer modal empurra history; Android/browser back fecha o
    * dialog (popstate) em vez de ir para home. Esc/Fechar limpa a entry.
    */
@@ -381,6 +387,23 @@ export default function ChatLayout() {
     }
   }, [])
 
+  // Totais de atividade quando a lista de trilhas chega (R1-N01 / R5-N01).
+  useEffect(() => {
+    if (!rows?.length) return
+    let cancelled = false
+    const ids = rows.map((r) => r.trail_id)
+    void fetchTrailQuestionTotals(ids)
+      .then((map) => {
+        if (!cancelled) setQuestionTotals(map)
+      })
+      .catch(() => {
+        /* keep previous */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [rows])
+
   // Player / rotas compactas: nunca reabrir drawer só por navegar.
   useEffect(() => {
     if (isCompactViewport()) {
@@ -405,20 +428,6 @@ export default function ChatLayout() {
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
 
-  /** R14-L11 / C3-N02: Continuar aula = trilha ativa ou foco recente. */
-  const continueAulaRow =
-    activeRow || pickHomeTrail(rows) || null
-  const continueAulaHref = continueAulaRow
-    ? `/trilha/${encodeURIComponent(continueAulaRow.trail_id)}`
-    : null
-  const continueAulaLabel =
-    continueAulaRow?.status === 'not_started'
-      ? 'Começar aula'
-      : 'Continuar aula'
-  const showContinueAula =
-    Boolean(continueAulaHref) &&
-    location.pathname !== continueAulaHref
-
   // Layout effect: listener ativo antes do layout effect do player que despacha.
   useLayoutEffect(() => {
     const onChrome = (e: Event) => {
@@ -426,6 +435,7 @@ export default function ChatLayout() {
         trailId?: string
         stageTitle?: string | null
         stageNumber?: number
+        questionNumber?: number
         mariaActive?: boolean
         completed?: boolean
       }
@@ -435,6 +445,10 @@ export default function ChatLayout() {
         stageTitle: detail.stageTitle ?? null,
         stageNumber:
           typeof detail.stageNumber === 'number' ? detail.stageNumber : null,
+        questionNumber:
+          typeof detail.questionNumber === 'number'
+            ? detail.questionNumber
+            : null,
         mariaActive: Boolean(detail.mariaActive),
         completed: Boolean(detail.completed),
       })
@@ -449,6 +463,7 @@ export default function ChatLayout() {
         trailId: null,
         stageTitle: null,
         stageNumber: null,
+        questionNumber: null,
         mariaActive: false,
       })
     }
@@ -464,6 +479,12 @@ export default function ChatLayout() {
     playerChrome.trailId === activeTrailId &&
     typeof playerChrome.stageNumber === 'number'
       ? playerChrome.stageNumber
+      : null
+  const playerQuestionNumber =
+    activeTrailId &&
+    playerChrome.trailId === activeTrailId &&
+    typeof playerChrome.questionNumber === 'number'
+      ? playerChrome.questionNumber
       : null
   /** Trilha ativa concluída no player (antes do GET /student_trails voltar). */
   const playerCompleted =
@@ -497,10 +518,7 @@ export default function ChatLayout() {
         role={drawerAsModal ? 'dialog' : 'navigation'}
         inert={sidebarInert || undefined}
       >
-        <nav className="chat-sidebar__nav" aria-label="Lista de trilhas">
-          <Link to="/" className="cr-logo-link" aria-label="Crias, ir para o início" onClick={() => closeDrawer(false)}>
-            <img className="cr-logo" src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`} alt="Crias" />
-          </Link>
+        <nav className="chat-sidebar__nav" aria-label="Menu do aluno">
           {/* C2-R17 N02: Fechar dentro do dialog (trap); N01: ☰ topbar sobe via CSS. */}
           {drawerAsModal ? (
             <button
@@ -512,35 +530,40 @@ export default function ChatLayout() {
               Fechar
             </button>
           ) : null}
+
           <Link
             to="/"
-            className="chat-sidebar__home"
-            aria-label="Minhas trilhas, início"
-            onClick={() => closeDrawer(false)}
+            className="chat-sidebar__logo cr-logo-link"
+            aria-label="Crias, ir para o início"
+            onClick={() => closeDrawerForNav()}
           >
-            {/* C3-R7 N04: ícone de lista/início — não “+ criar”. */}
-            <span className="chat-sidebar__home-icon" aria-hidden>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 6h16M4 12h16M4 18h10"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>{' '}
-            Minhas trilhas
+            <img
+              className="cr-logo"
+              src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
+              alt="Crias"
+              height={28}
+            />
           </Link>
 
-          {showContinueAula && continueAulaHref ? (
-            <Link
-              to={continueAulaHref}
-              className="chat-sidebar__continue-aula"
-              onClick={() => closeDrawer(false)}
-            >
-              {continueAulaLabel}
-            </Link>
-          ) : null}
+          <p className="chat-sidebar__group-label">Parceiro de estudos</p>
+          <Link
+            to="/maria"
+            className={`chat-sidebar__maria${
+              location.pathname === '/maria' ? ' is-active' : ''
+            }`}
+            aria-current={location.pathname === '/maria' ? 'page' : undefined}
+            onClick={() => closeDrawerForNav()}
+          >
+            <MariaFace size="nav" />
+            <span className="chat-sidebar__maria-copy">
+              <span className="chat-sidebar__maria-title">Conversar com Maria</span>
+              <span className="chat-sidebar__maria-sub">
+                Tire dúvidas a qualquer hora
+              </span>
+            </span>
+          </Link>
+
+          <p className="chat-sidebar__group-label">Trilhas</p>
 
           {trailsLoading && rows === null ? (
             <p
@@ -578,23 +601,37 @@ export default function ChatLayout() {
                   row.status !== 'completed'
                     ? playerStageNumber
                     : row.current_stage_number
-                const totalRaw =
+                const questionNumberRaw =
+                  row.trail_id === activeTrailId &&
+                  playerQuestionNumber != null &&
+                  row.status !== 'completed'
+                    ? playerQuestionNumber
+                    : row.current_question_number
+                const totalStepsRaw =
                   stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
                     ? stageTotals[row.trail_id]
                     : null
-                // Concluída = progresso completo (N de N · 100 %).
-                const stageNumber =
-                  rowCompleted && totalRaw != null
-                    ? Math.max(totalRaw, stageNumberRaw)
-                    : stageNumberRaw
-                const total =
-                  totalRaw != null
-                    ? Math.max(totalRaw, stageNumber)
+                const totalActivitiesRaw =
+                  questionTotals[row.trail_id] &&
+                  questionTotals[row.trail_id] > 0
+                    ? questionTotals[row.trail_id]
                     : null
-                // C3-N05: % só com total conhecido — sem “0 %” mentiroso.
-                // C3-R7 N02: (etapa−1)/total — estágio 1 = 0 %, não 25 %.
+                const stageNumber =
+                  rowCompleted && totalStepsRaw != null
+                    ? Math.max(totalStepsRaw, stageNumberRaw)
+                    : stageNumberRaw
+                const questionNumber =
+                  rowCompleted && totalActivitiesRaw != null
+                    ? Math.max(totalActivitiesRaw, questionNumberRaw)
+                    : questionNumberRaw
+                // INTERFACE 15: progresso por atividade; fallback por passo.
                 const pct =
-                  total != null
+                  activityProgressPct({
+                    activity: questionNumber,
+                    totalActivities: totalActivitiesRaw,
+                    completed: rowCompleted,
+                  }) ??
+                  (totalStepsRaw != null
                     ? rowCompleted
                       ? 100
                       : Math.min(
@@ -602,58 +639,51 @@ export default function ChatLayout() {
                           Math.max(
                             0,
                             Math.round(
-                              ((Math.max(stageNumber, 1) - 1) / total) * 100,
+                              ((Math.max(stageNumber, 1) - 1) /
+                                Math.max(totalStepsRaw, stageNumber)) *
+                                100,
                             ),
                           ),
                         )
-                    : null
+                    : null)
                 const rowStatus = rowCompleted ? 'completed' : row.status
-                const label = trailNames[row.trail_id] || 'Trilha'
-                const etapaMeta =
-                  total != null
-                    ? `Passo ${stageNumber} de ${total}`
-                    : `Passo ${stageNumber}`
+                const label =
+                  trailNames[row.trail_id] || row.trail_id || 'Trilha'
+                const atividadeMeta =
+                  formatAtividadeLabel(questionNumber, totalActivitiesRaw) ||
+                  formatTrailChromeProgress({
+                    activity: questionNumber,
+                    totalActivities: totalActivitiesRaw,
+                    step: stageNumber,
+                    totalSteps: totalStepsRaw,
+                  }) ||
+                  `Atividade ${Math.max(questionNumber, 1)}`
+                const metaLine =
+                  pct != null
+                    ? `${atividadeMeta} · ${pct}\u00a0%`
+                    : atividadeMeta
+                const orbHue =
+                  rows.findIndex((r) => r.id === row.id) % 2 === 0 ? 'g' : 'y'
                 return (
                   <li key={row.id}>
                     <Link
                       to={href}
-                      className={`trail-card${active ? ' is-active' : ''}`}
+                      className={`trail-card trail-card--v4${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       title={label}
-                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${etapaMeta}${pct != null ? `. ${pct}\u00a0%` : ''}`}
+                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${metaLine}`}
                       onClick={() => {
                         writeFocusedTrailId(row.trail_id)
-                        closeDrawer(false)
+                        closeDrawerForNav()
                       }}
                     >
-                      <span className="trail-card__top">
-                        <span className="trail-card__head">
-                          <DocumentIcon />
-                          <span className="trail-card__id">{label}</span>
-                        </span>
-                        <span
-                          className={`trail-card__status trail-card__status--${rowStatus}`}
-                        >
-                          <span className="trail-card__dot" aria-hidden />
-                          {STATUS_LABEL[rowStatus]}
-                        </span>
+                      <TrailOrb pct={pct} hue={orbHue} size={28} />
+                      <span className="trail-card__head">
+                        <span className="trail-card__id cr-fade">{label}</span>
+                        <span className="trail-card__meta cr-fade">{metaLine}</span>
                       </span>
-                      <span className="trail-card__meta">{etapaMeta}</span>
-                      {pct != null ? (
-                        <span className="trail-card__progress" aria-hidden>
-                          <span className="trail-card__progress-track">
-                            <span
-                              className="trail-card__progress-fill"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </span>
-                          {/* R28-I02: espaço fino pt-BR antes do % */}
-                          <span className="trail-card__pct">
-                            {pct}
-                            {'\u00a0'}%
-                          </span>
-                        </span>
-                      ) : null}
+                      {/* Chevron só visual/navegação — sem lista aninhada (decisão produto). */}
+                      <TrailChevron className="trail-card__chev" />
                     </Link>
                   </li>
                 )
@@ -663,16 +693,18 @@ export default function ChatLayout() {
         </nav>
 
         <div className="chat-sidebar__foot">
-          <div className="chat-sidebar__brand-row">
-            <ThemeToggle />
-            <span className="chat-sidebar__user">{firstName}</span>
-          </div>
+          <ThemeToggle />
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
-            <LogoutIcon />
-            Sair
-            <span className="chat-sidebar__logout-hint">
-              Seu progresso fica salvo
+            <span className="chat-sidebar__avatar" aria-hidden>
+              {(firstName || 'A').charAt(0).toUpperCase()}
             </span>
+            <span className="chat-sidebar__logout-copy">
+              <span className="chat-sidebar__user">{firstName}</span>
+              <span className="chat-sidebar__logout-hint">
+                Sair · seu progresso fica salvo
+              </span>
+            </span>
+            <LogoutIcon />
           </button>
         </div>
       </aside>
@@ -685,7 +717,10 @@ export default function ChatLayout() {
         />
       ) : null}
 
-      <div className="chat-main">
+      <div className="chat-main horizonte">
+        <span className="hz hz-brilho" aria-hidden />
+        <span className="hz hz-linha" aria-hidden />
+        <span className="hz hz-arco" aria-hidden />
         {/* C2-R6 N01: faixa in-flow — empurra topbar; não tapa brand/☰. */}
         {offline ? (
           <div className="chat-offline-banner" role="status" aria-live="polite">
@@ -712,36 +747,62 @@ export default function ChatLayout() {
           </button>
           <div className="chat-topbar__titles">
             {(() => {
-              /* C2-R5 N05: topbar = trilha · Etapa (card guarda stage_title). */
-              /* C3-R11 N02: title nativo com nome+etapa completo (ellipsis). */
-              const topbarTitle = activeTrailId
-                ? [
-                    trailNames[activeTrailId] || 'Trilha',
-                    (() => {
-                      const totalRaw =
+              /* Topbar = trilha · Atividade · Passo (sem tag MARIA). */
+              const onMaria = location.pathname === '/maria'
+              const trailLabel = activeTrailId
+                ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
+                : null
+              const progress =
+                activeTrailId != null
+                  ? formatTrailChromeProgress({
+                      activity:
+                        playerCompleted &&
+                        questionTotals[activeTrailId] > 0
+                          ? Math.max(
+                              questionTotals[activeTrailId],
+                              playerQuestionNumber ??
+                                activeRow?.current_question_number ??
+                                1,
+                            )
+                          : (playerQuestionNumber ??
+                            activeRow?.current_question_number ??
+                            null),
+                      totalActivities:
+                        questionTotals[activeTrailId] > 0
+                          ? questionTotals[activeTrailId]
+                          : null,
+                      step:
+                        playerCompleted && stageTotals[activeTrailId] > 0
+                          ? Math.max(
+                              stageTotals[activeTrailId],
+                              playerStageNumber ??
+                                activeRow?.current_stage_number ??
+                                1,
+                            )
+                          : (playerStageNumber ??
+                            activeRow?.current_stage_number ??
+                            null),
+                      totalSteps:
                         stageTotals[activeTrailId] > 0
                           ? stageTotals[activeTrailId]
-                          : null
-                      const n =
-                        playerCompleted && totalRaw != null
-                          ? Math.max(totalRaw, playerStageNumber ?? 0)
-                          : playerStageNumber
-                      if (n == null) return null
-                      // C2-R1 N01: sem fallback current→total (“N de N” / “5 de 4”).
-                      if (totalRaw == null) return `Passo ${n}`
-                      return `Passo ${n} de ${Math.max(totalRaw, n)}`
-                    })(),
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
-                : 'Minhas trilhas'
+                          : null,
+                    })
+                  : null
+              const topbarTitle = activeTrailId
+                ? [trailLabel, progress].filter(Boolean).join(' · ')
+                : onMaria
+                  ? 'Conversar com Maria'
+                  : 'Início'
               return (
-                <span className="chat-topbar__title" title={topbarTitle}>
+                <span
+                  className="chat-topbar__title"
+                  title={topbarTitle}
+                  aria-label={topbarTitle}
+                >
                   {topbarTitle}
                 </span>
               )
             })()}
-            
           </div>
         </header>
         <div className="chat-main__content" inert={mainInert || undefined}>
@@ -754,6 +815,7 @@ export default function ChatLayout() {
               activeTrailRow: activeRow,
               trailNames,
               stageTotals,
+              questionTotals,
             }}
           />
         </div>

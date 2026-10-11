@@ -21,6 +21,8 @@ import {
 import { clearSession, getSession } from '../lib/session'
 import { parseInlineMarkdown, type InlineSeg } from '../lib/trailMessages'
 import { useNavigate } from 'react-router-dom'
+import MariaFace from '../components/MariaFace'
+import SendArrowIcon from '../components/SendArrowIcon'
 
 function renderInlineSegments(
   segments: InlineSeg[] | undefined,
@@ -242,7 +244,8 @@ export default function MariaPage() {
           </div>
         ) : null}
       </div>
-      <footer className="chat-composer maria-page__composer">
+      <footer className="chat-composer chat-composer--v4 maria-page__composer">
+        <MariaFace size="composer" />
         <form
           className="chat-composer__form"
           onSubmit={(e) => void onSend(e)}
@@ -264,15 +267,7 @@ export default function MariaPage() {
             disabled={sendDisabled}
             aria-label="Enviar pergunta à Maria"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <SendArrowIcon />
           </button>
         </form>
       </footer>

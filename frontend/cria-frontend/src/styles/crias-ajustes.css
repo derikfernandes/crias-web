@@ -1,7 +1,7 @@
 /*
  * Crias · ajustes de front-end para web e celular.
  * Importado em src/main.tsx depois de app.css. Só visual, sem lógica.
- * Regras de referência: crias-redesign/INTERFACE.md (F1 a F29).
+ * Regras de referência: design/INTERFACE.md (F1 a F29).
  */
 
 :root {
@@ -189,5 +189,327 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .chat-sidebar {
     transition: none;
+  }
+}
+
+/*
+ * Mobile Android/Chrome (PR #20): scroll + composer dock.
+ * F6 — a página não rola; só home, conversa e menu.
+ * F24 — barra Maria no rodapé da home no celular.
+ * Causa: .horizonte { overflow:hidden } nas páginas filhas +
+ * .chat-main__content sem contenção de flex → toque sem scroll e
+ * composer “flutuando” no meio com vazio embaixo.
+ */
+
+/*
+ * Contenção flex com basis 0 — height:100% falhava em alguns WebKits e o
+ * .chat-thread encolhia ao conteúdo, deixando o composer no meio com vazio
+ * embaixo (bug do preview Android).
+ */
+.chat-main__content {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Home: corpo rola; barra Maria dockada (F6 + F24). */
+.chat-home {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.chat-home__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.chat-home__maria {
+  flex-shrink: 0;
+  margin-top: 0;
+  width: 100%;
+  max-width: 480px;
+  align-self: center;
+}
+
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-home {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-home__maria {
+    max-width: none;
+  }
+}
+
+/* Player / Maria: preenche a área; composer/CTA no rodapé. */
+.chat-thread,
+.maria-page {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-thread__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-thread__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.chat-cta-slot {
+  flex-shrink: 0;
+}
+
+.maria-page__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/*
+ * Dock do rodapé: full-bleed, fundo sólido (não transparent/none do tema),
+ * padding-bottom = safe-area (≈ 0 sem inset) — pílula colada no rodapé.
+ */
+.chat-composer,
+.maria-page__composer {
+  flex: 0 0 auto;
+  position: relative;
+  margin-top: auto;
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+  max-width: none;
+  z-index: 3;
+  background: var(--cr-bg, var(--main, #ffffff));
+  padding-top: 0.4rem;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: max(0.875rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.875rem, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+
+.chat-composer__form,
+.maria-page__composer .chat-composer__form {
+  margin: 0;
+}
+
+/* Ganha da regra app.css `.chat-composer--with-continue … button { background:transparent }`. */
+.chat-composer--with-continue:not(.chat-composer--locked)
+  button.chat-composer__continue:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+  background: #00be85;
+  color: var(--accent-ink, #001c0e);
+  border: 0;
+  box-shadow: 0 3px 0 #00925f;
+}
+.chat-composer button.chat-composer__continue:disabled,
+.chat-composer button.chat-composer__continue.is-aria-disabled,
+.chat-composer button.chat-composer__continue[aria-disabled='true'] {
+  background: var(--cr-soft2, #f7f5ec);
+  color: #9aa69e;
+  box-shadow: none;
+}
+
+/* R1-N05: CTA de saída quando a trilha termina. */
+.chat-composer--trail-done {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.55rem;
+}
+.chat-composer__home-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+  max-width: 28rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* R2-N03: Continuar full-bleed no mobile (não ~33% ao lado do input). */
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__form {
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__input {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 1;
+  }
+  .chat-composer--with-continue:not(.chat-composer--locked) .chat-composer__continue {
+    flex: 1 1 100%;
+    width: 100%;
+    order: 2;
+    min-height: 48px;
+  }
+}
+
+/* R5-N03: margens da aula ~10% cada lado (INTERFACE 19a). */
+.chat-thread__scroll .lesson-card,
+.chat-thread__scroll .chat-exercise,
+.chat-thread__scroll .trail-complete {
+  width: 80%;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.chat-thread__scroll .chat-bubble {
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* R2-N01 / R6-N02: sem translateY fora do teclado (evita gap/topbar −111). */
+.chat-shell {
+  transform: none;
+}
+html[data-keyboard='open'] .chat-shell {
+  transform: translateY(var(--vv-offset-top, 0px));
+}
+
+/* Horizonte vivo (proto v4) — brilho mais forte e centrado. */
+.horizonte > .hz-brilho,
+.horizonte > .hz-linha,
+.horizonte > .hz-arco {
+  transform: translate(-50%, 0);
+}
+
+.horizonte > .hz-brilho {
+  bottom: -480px;
+  width: min(980px, 140vw);
+  height: min(980px, 140vw);
+  background: radial-gradient(
+    circle,
+    rgba(0, 190, 133, 0.22) 0%,
+    rgba(0, 190, 133, 0.1) 16%,
+    rgba(255, 213, 0, 0.1) 48%,
+    transparent 70%
+  );
+  filter: blur(10px);
+  animation: cr-rise 2.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.horizonte > .hz-linha {
+  bottom: -320px;
+  width: 480px;
+  height: 480px;
+  border: 1px solid rgba(0, 190, 133, 0.12);
+  animation: cr-rise 2.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+.horizonte > .hz-arco {
+  bottom: -280px;
+  width: 480px;
+  height: 480px;
+  border: 1px solid rgba(255, 213, 0, 0.42);
+  opacity: 0;
+  animation: cr-horizon-ring 11s cubic-bezier(0.33, 0, 0.2, 1) 2.6s infinite;
+}
+
+.login-page.horizonte {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--vv-height, 100dvh);
+  padding: max(32px, env(safe-area-inset-top, 0px)) 20px
+    max(48px, env(safe-area-inset-bottom, 0px));
+}
+
+.login-page .login-panel--v4 {
+  animation: vIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes vIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Composer v4: Maria + form em linha no dock. */
+.chat-composer--v4 {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.chat-composer--v4 .chat-composer__form {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.maria-page__composer.chat-composer--v4 {
+  width: 100%;
+}
+
+/* No celular o sol fica no terço inferior — não invade o header “Início”. */
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .horizonte > .hz-brilho {
+    width: min(720px, 180vw);
+    height: min(720px, 180vw);
+    bottom: calc(-0.5 * min(720px, 180vw));
+  }
+
+  .horizonte > .hz-linha,
+  .horizonte > .hz-arco {
+    width: min(380px, 100vw);
+    height: min(380px, 100vw);
+    bottom: calc(-0.68 * min(380px, 100vw));
+  }
+
+  .chat-topbar {
+    background: color-mix(in srgb, var(--cr-bg, var(--main, #fff)) 88%, transparent);
+  }
+
+  .chat-composer--v4 .maria-face--composer {
+    width: 46px !important;
+    height: 46px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizonte > .hz-brilho,
+  .horizonte > .hz-linha,
+  .horizonte > .hz-arco,
+  .login-page .login-panel--v4 {
+    animation: none !important;
+  }
+  .horizonte > .hz-arco {
+    opacity: 0.25;
   }
 }

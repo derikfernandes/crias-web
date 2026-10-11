@@ -201,9 +201,14 @@ select {
  * composer “flutuando” no meio com vazio embaixo.
  */
 
-/* Contém o flex: filhos com overflow (home/thread) passam a encolher. */
+/*
+ * Contenção flex com basis 0 — height:100% falhava em alguns WebKits e o
+ * .chat-thread encolhia ao conteúdo, deixando o composer no meio com vazio
+ * embaixo (bug do preview Android).
+ */
 .chat-main__content {
-  flex: 1 1 auto;
+  position: relative;
+  flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -212,9 +217,8 @@ select {
 
 /* Home: corpo rola; barra Maria dockada (F6 + F24). */
 .chat-home {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -223,7 +227,7 @@ select {
 }
 
 .chat-home__body {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -254,27 +258,83 @@ select {
   }
 }
 
-/* Player / Maria: preenche a altura para o composer dockar no rodapé. */
+/* Player / Maria: preenche a área; composer/CTA no rodapé. */
 .chat-thread,
 .maria-page {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-thread__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-thread__scroll {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.chat-cta-slot {
+  flex-shrink: 0;
 }
 
 .maria-page__scroll {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
+/*
+ * Dock do rodapé: full-bleed, fundo sólido (não transparent/none do tema),
+ * padding-bottom = safe-area (≈ 0 sem inset) — pílula colada no rodapé.
+ */
 .chat-composer,
 .maria-page__composer {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   position: relative;
-  margin-top: 0;
+  margin-top: auto;
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+  max-width: none;
+  z-index: 3;
+  background: var(--cr-bg, var(--main, #ffffff));
+  padding-top: 0.4rem;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: max(0.875rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.875rem, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+
+.chat-composer__form,
+.maria-page__composer .chat-composer__form {
+  margin: 0;
+}
+
+/* Ganha da regra app.css `.chat-composer--with-continue … button { background:transparent }`. */
+.chat-composer--with-continue:not(.chat-composer--locked)
+  button.chat-composer__continue:not(:disabled):not(.is-aria-disabled):not([aria-disabled='true']) {
+  background: #00be85;
+  color: #fff;
+  border: 0;
+  box-shadow: 0 3px 0 #00925f;
+}
+.chat-composer button.chat-composer__continue:disabled,
+.chat-composer button.chat-composer__continue.is-aria-disabled,
+.chat-composer button.chat-composer__continue[aria-disabled='true'] {
+  background: var(--cr-soft2, #f7f5ec);
+  color: #9aa69e;
+  box-shadow: none;
 }
 
 /* Horizonte: círculos sempre centrados (evita corte assimétrico à direita). */

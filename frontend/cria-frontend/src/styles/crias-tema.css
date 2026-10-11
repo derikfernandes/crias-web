@@ -44,7 +44,8 @@ h1, .brand, .chat-thread__empty-title, .lesson-card__title, .chat-exercise__lege
 button { border-radius: 999px; }
 button:not(:disabled):hover { filter: none; background: #00a974; }
 button:not(:disabled):active { background: #00925f; }
-.chat-composer button, .chat-sidebar__close, .chat-sidebar__logout, .chat-topbar__menu,
+.chat-composer button:not(.chat-composer__continue):not(.chat-composer__send),
+.chat-sidebar__close, .chat-sidebar__logout, .chat-topbar__menu,
 .chat-history-collapse__btn, .login-password-toggle, .chat-home__maria-send {
   background-color: transparent;
 }
@@ -169,8 +170,7 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-exercise__retry p, .chat-exercise__pending-label { color: var(--cr-err); }
 .chat-exercise--error-state { border-color: var(--cr-err); }
 
-/* barra de mensagem */
-.chat-composer { background: none; }
+/* barra de mensagem — fundo do dock vem de crias-ajustes (rodapé sólido) */
 .chat-cta-slot { background: none; border-top: 0; }
 .chat-composer__form {
   background: var(--cr-soft); border: 1px solid var(--cr-line); border-radius: 28px;

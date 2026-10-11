@@ -456,6 +456,28 @@ html[data-keyboard='open'] .chat-shell {
   z-index: 0;
 }
 
+.login-page.horizonte > .hz-brilho {
+  bottom: -280px;
+  width: min(1200px, 170vw);
+  height: min(1200px, 170vw);
+  background: radial-gradient(
+    circle,
+    rgba(0, 190, 133, 0.42) 0%,
+    rgba(0, 190, 133, 0.18) 16%,
+    rgba(255, 213, 0, 0.16) 42%,
+    transparent 68%
+  );
+  filter: blur(6px);
+  opacity: 1;
+}
+
+.login-page.horizonte > .hz-arco {
+  bottom: -200px;
+  width: 520px;
+  height: 520px;
+  border: 1px solid rgba(255, 213, 0, 0.55);
+}
+
 .login-page.horizonte > .login-panel,
 .login-page.horizonte > .login-panel--v4,
 .login-page.horizonte > .chat-offline-banner {

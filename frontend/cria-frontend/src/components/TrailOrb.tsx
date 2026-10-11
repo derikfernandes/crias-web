@@ -13,10 +13,11 @@ export default function TrailOrb({
   className,
 }: Props) {
   const p = Math.max(0, Math.min(100, pct ?? 0))
-  const r = size / 2 + Math.max(3, size * 0.16)
-  const box = Math.ceil(r * 2 + 4)
+  /* Anel fino — evita orb “card” que estoura a row da sidebar. */
+  const r = size / 2 + Math.max(2, size * 0.1)
+  const box = Math.ceil(Math.max(size + 8, r * 2 + 2))
   const c = 2 * Math.PI * r
-  const sw = Math.max(2, size * 0.06)
+  const sw = Math.max(1.5, size * 0.055)
   const stroke = hue === 'y' ? '#ffd500' : '#00be85'
   const core =
     hue === 'y'

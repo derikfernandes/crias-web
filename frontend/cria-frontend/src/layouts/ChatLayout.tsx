@@ -677,7 +677,7 @@ export default function ChatLayout() {
                         closeDrawerForNav()
                       }}
                     >
-                      <TrailOrb pct={pct} hue={orbHue} size={22} />
+                      <TrailOrb pct={pct} hue={orbHue} size={20} />
                       <span className="trail-card__head">
                         <span className="trail-card__id cr-fade">{label}</span>
                         <span className="trail-card__meta cr-fade">{metaLine}</span>
@@ -789,18 +789,48 @@ export default function ChatLayout() {
                     })
                   : null
               const topbarTitle = activeTrailId
-                ? [trailLabel, progress].filter(Boolean).join(' · ')
+                ? trailLabel || 'Trilha'
                 : onMaria
                   ? 'Conversar com Maria'
                   : 'Início'
+              const pct =
+                activeTrailId != null
+                  ? activityProgressPct({
+                      activity:
+                        playerQuestionNumber ??
+                        activeRow?.current_question_number ??
+                        1,
+                      totalActivities:
+                        questionTotals[activeTrailId] > 0
+                          ? questionTotals[activeTrailId]
+                          : null,
+                      completed: !!playerCompleted,
+                    })
+                  : null
+              const fullLabel = [topbarTitle, progress].filter(Boolean).join(' · ')
               return (
-                <span
-                  className="chat-topbar__title"
-                  title={topbarTitle}
-                  aria-label={topbarTitle}
-                >
-                  {topbarTitle}
-                </span>
+                <>
+                  <span
+                    className="chat-topbar__title cr-fade"
+                    title={fullLabel}
+                    aria-label={fullLabel}
+                  >
+                    {topbarTitle}
+                  </span>
+                  {activeTrailId && progress ? (
+                    <div className="chat-topbar__progress" aria-hidden>
+                      <span className="chat-topbar__progress-meta">{progress}</span>
+                      {pct != null ? (
+                        <span className="chat-topbar__progress-track">
+                          <span
+                            className="chat-topbar__progress-fill"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
               )
             })()}
           </div>

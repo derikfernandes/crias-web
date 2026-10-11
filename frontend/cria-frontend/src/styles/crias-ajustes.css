@@ -508,20 +508,38 @@ html[data-keyboard='open'] .chat-shell {
   }
 }
 
-/* Composer v4: Maria + form em linha no dock. */
+/* Composer v4: face dentro da pílula no dock. */
 .chat-composer--v4 {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  background: transparent;
 }
 
 .chat-composer--v4 .chat-composer__form {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
   min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-composer--v4 .maria-face--composer {
+  flex: 0 0 auto;
+  width: 40px !important;
+  height: 40px !important;
 }
 
 .maria-page__composer.chat-composer--v4 {
   width: 100%;
+}
+
+.chat-home__maria {
+  flex: 0 0 auto !important;
 }
 
 /* No celular o sol fica no terço inferior — não invade o header “Início”. */

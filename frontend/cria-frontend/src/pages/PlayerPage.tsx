@@ -5044,7 +5044,6 @@ export default function PlayerPage() {
             : ''
         }`}
       >
-        <MariaFace size="composer" />
 <form
           className="chat-composer__form"
           onSubmit={(e) => {
@@ -5066,6 +5065,7 @@ export default function PlayerPage() {
             void onSend(e)
           }}
         >
+          <MariaFace size="composer" />
           {exerciseLockedComposer ? (
             <span
               className="chat-composer__lock"

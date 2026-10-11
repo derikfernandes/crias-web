@@ -245,11 +245,11 @@ export default function MariaPage() {
         ) : null}
       </div>
       <footer className="chat-composer chat-composer--v4 maria-page__composer">
-        <MariaFace size="composer" />
         <form
           className="chat-composer__form"
           onSubmit={(e) => void onSend(e)}
         >
+          <MariaFace size="composer" />
           <textarea
             ref={inputRef}
             className="chat-composer__input"

@@ -102,8 +102,9 @@ export default function TrailsPage() {
     )
   }, [trailRows, session.student_id])
 
-  const visible = ordered.slice(0, 3)
-  const hasMore = ordered.length > 3
+  /* Proto: 2 cards por linha; 3ª trilha fica no menu. */
+  const visible = ordered.slice(0, 2)
+  const hasMore = ordered.length > 2
   const homeLoading = trailsLoading && visible.length === 0 && !trailsError && !empty
   const firstName = session.name.split(' ')[0] || 'aluno'
 
@@ -136,7 +137,7 @@ export default function TrailsPage() {
 
   return (
     <div
-      className={`chat-home chat-home--v4 chat-home--cards-${Math.min(visible.length || 1, 3)}`}
+      className={`chat-home chat-home--v4 chat-home--cards-${Math.min(visible.length || 1, 2)}`}
       aria-busy={homeLoading || undefined}
     >
       <div className="chat-home__body">
@@ -200,15 +201,15 @@ export default function TrailsPage() {
                         size={44}
                       />
                       <span className="chat-home__card-text">
-                        <span className="chat-home__card-name cr-fade">{label}</span>
-                        <span className="chat-home__card-meta cr-fade">{meta}</span>
+                        <span className="chat-home__card-name">{label}</span>
+                        <span className="chat-home__card-meta">{meta}</span>
                       </span>
                       <TrailChevron className="chat-home__card-chev" />
                     </span>
                     <span className="chat-home__card-foot">
                       <span className="chat-home__card-now">
                         <span className="chat-home__card-now-label">AGORA</span>
-                        <span className="chat-home__card-now-value cr-fade">
+                        <span className="chat-home__card-now-value">
                           {progresso}
                         </span>
                       </span>

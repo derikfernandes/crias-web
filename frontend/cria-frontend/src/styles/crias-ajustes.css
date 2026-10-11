@@ -191,3 +191,114 @@ select {
     transition: none;
   }
 }
+
+/*
+ * Mobile Android/Chrome (PR #20): scroll + composer dock.
+ * F6 — a página não rola; só home, conversa e menu.
+ * F24 — barra Maria no rodapé da home no celular.
+ * Causa: .horizonte { overflow:hidden } nas páginas filhas +
+ * .chat-main__content sem contenção de flex → toque sem scroll e
+ * composer “flutuando” no meio com vazio embaixo.
+ */
+
+/* Contém o flex: filhos com overflow (home/thread) passam a encolher. */
+.chat-main__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Home: corpo rola; barra Maria dockada (F6 + F24). */
+.chat-home {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.chat-home__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.chat-home__maria {
+  flex-shrink: 0;
+  margin-top: 0;
+  width: 100%;
+  max-width: 480px;
+  align-self: center;
+}
+
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-home {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-home__maria {
+    max-width: none;
+  }
+}
+
+/* Player / Maria: preenche a altura para o composer dockar no rodapé. */
+.chat-thread,
+.maria-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.maria-page__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.chat-composer,
+.maria-page__composer {
+  flex-shrink: 0;
+  position: relative;
+  margin-top: 0;
+}
+
+/* Horizonte: círculos sempre centrados (evita corte assimétrico à direita). */
+.horizonte > .hz-brilho,
+.horizonte > .hz-linha {
+  transform: translate(-50%, 0);
+}
+
+/* No celular o sol fica no terço inferior — não invade o header “Início”. */
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .horizonte > .hz-brilho {
+    width: min(640px, 170vw);
+    height: min(640px, 170vw);
+    bottom: calc(-0.55 * min(640px, 170vw));
+  }
+
+  .horizonte > .hz-linha,
+  .horizonte > .hz-arco {
+    width: min(360px, 96vw);
+    height: min(360px, 96vw);
+    bottom: calc(-0.72 * min(360px, 96vw));
+  }
+
+  .chat-topbar {
+    background: color-mix(in srgb, var(--cr-bg, var(--main, #fff)) 88%, transparent);
+  }
+}

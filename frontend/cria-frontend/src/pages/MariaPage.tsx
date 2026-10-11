@@ -160,10 +160,8 @@ export default function MariaPage() {
   const sendDisabled = sending || !draft.trim()
 
   return (
-    <div className="maria-page horizonte">
-      <span className="hz hz-brilho" aria-hidden />
-      <span className="hz hz-linha" aria-hidden />
-      <span className="hz hz-arco" aria-hidden />
+    <div className="maria-page">
+      {/* Horizonte só no .chat-main — evita overflow:hidden aninhado no scroll. */}
       <div className="maria-page__scroll" ref={scrollRef}>
         <div className="maria-page__intro">
           <p className="maria-page__lede">

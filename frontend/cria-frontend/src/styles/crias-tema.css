@@ -102,8 +102,15 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .trail-card__progress-track { background: var(--cr-line); height: 4px; }
 .trail-card__progress-fill { background: linear-gradient(90deg, #ffd500, #00be85); box-shadow: none; }
 
-/* área de conteúdo: Horizonte via .horizonte (spans) — sem duplicar ::before/::after */
-.chat-main { background: var(--cr-bg); overflow: hidden; position: relative; }
+/* área de conteúdo: Horizonte via .horizonte (spans) — sem duplicar ::before/::after.
+ * overflow:hidden no shell (clipa o sol); o scroll fica em .chat-home__body /
+ * .chat-thread__scroll / .maria-page__scroll (ver crias-ajustes.css). */
+.chat-main {
+  background: var(--cr-bg);
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
 .chat-main:not(.horizonte)::before {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 100%; pointer-events: none; z-index: 0;
   background: radial-gradient(circle 450px at 50% calc(100% - 70px), rgba(0, 190, 133, 0.1) 0%, rgba(0, 190, 133, 0.04) 14%, rgba(255, 213, 0, 0.05) 50%, transparent 68%);

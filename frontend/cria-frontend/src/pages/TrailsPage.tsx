@@ -101,89 +101,90 @@ export default function TrailsPage() {
 
   return (
     <div
-      className={`chat-home horizonte chat-home--cards-${Math.min(visible.length || 1, 3)}`}
+      className={`chat-home chat-home--cards-${Math.min(visible.length || 1, 3)}`}
       aria-busy={homeLoading || undefined}
     >
-      <span className="hz hz-brilho" aria-hidden />
-      <span className="hz hz-linha" aria-hidden />
-      <span className="hz hz-arco" aria-hidden />
-      <img
-        className="chat-home__symbol"
-        src={`${import.meta.env.BASE_URL}crias-simbolo-luz.svg`}
-        alt=""
-        width={72}
-        height={72}
-      />
-      <h1 className="chat-home__greeting titulo-leve">{greeting}</h1>
-      {trailsError ? (
-        <>
-          <p className="lede error" role="alert">
-            {trailsError}
-          </p>
-          <button type="button" className="chat-home__retry" onClick={retryTrails}>
-            Tentar de novo
-          </button>
-        </>
-      ) : empty ? (
-        <>
-          <p className="lede">
-            Nenhuma trilha liberada para você.
-          </p>
-          <p className="muted chat-home__hint">
-            Fale com a escola para liberar uma trilha. O menu também mostra quando
-            a escola ainda não liberou.
-          </p>
-        </>
-      ) : homeLoading ? (
-        <div className="chat-home__loading" role="status" aria-live="polite">
-          <div className="chat-home__cta-skeleton" aria-hidden="true" />
-          <p className="muted chat-home__hint">Carregando suas trilhas…</p>
-        </div>
-      ) : (
-        <>
-          <div className="chat-home__cards">
-            {visible.map((row, i) => {
-              const label = trailNames?.[row.trail_id] || 'Trilha'
-              const { label: passo, pct } = progressMeta(
-                row,
-                stageTotals?.[row.trail_id],
-              )
-              const href = `/trilha/${encodeURIComponent(row.trail_id)}`
-              return (
-                <Link
-                  key={row.id}
-                  ref={i === 0 ? firstCardRef : undefined}
-                  to={href}
-                  className="chat-home__card"
-                  onClick={() => writeFocusedTrailId(row.trail_id)}
-                >
-                  <span className="chat-home__card-top">
-                    <span className="chat-home__card-name">{label}</span>
-                    <span className="chat-home__card-arrow" aria-hidden>
-                      ›
-                    </span>
-                  </span>
-                  {pct != null ? (
-                    <span className="chat-home__card-progress" aria-hidden>
-                      <span style={{ width: `${pct}%` }} />
-                    </span>
-                  ) : (
-                    <span className="chat-home__card-progress" aria-hidden>
-                      <span style={{ width: '0%' }} />
-                    </span>
-                  )}
-                  <span className="chat-home__card-meta">{passo}</span>
-                </Link>
-              )
-            })}
-          </div>
-          {hasMore ? (
-            <p className="muted chat-home__hint">
-              Outras trilhas no menu ao lado
+      {/* Horizonte fica só no .chat-main (ChatLayout): evita overflow:hidden
+          aninhado que bloqueava o scroll no Android Chrome. */}
+      <div className="chat-home__body">
+        <img
+          className="chat-home__symbol"
+          src={`${import.meta.env.BASE_URL}crias-simbolo-luz.svg`}
+          alt=""
+          width={72}
+          height={72}
+        />
+        <h1 className="chat-home__greeting titulo-leve">{greeting}</h1>
+        {trailsError ? (
+          <>
+            <p className="lede error" role="alert">
+              {trailsError}
             </p>
-          ) : null}
-        </>
-      )}
+            <button type="button" className="chat-home__retry" onClick={retryTrails}>
+              Tentar de novo
+            </button>
+          </>
+        ) : empty ? (
+          <>
+            <p className="lede">
+              Nenhuma trilha liberada para você.
+            </p>
+            <p className="muted chat-home__hint">
+              Fale com a escola para liberar uma trilha. O menu também mostra quando
+              a escola ainda não liberou.
+            </p>
+          </>
+        ) : homeLoading ? (
+          <div className="chat-home__loading" role="status" aria-live="polite">
+            <div className="chat-home__cta-skeleton" aria-hidden="true" />
+            <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+          </div>
+        ) : (
+          <>
+            <div className="chat-home__cards">
+              {visible.map((row, i) => {
+                const label = trailNames?.[row.trail_id] || 'Trilha'
+                const { label: passo, pct } = progressMeta(
+                  row,
+                  stageTotals?.[row.trail_id],
+                )
+                const href = `/trilha/${encodeURIComponent(row.trail_id)}`
+                return (
+                  <Link
+                    key={row.id}
+                    ref={i === 0 ? firstCardRef : undefined}
+                    to={href}
+                    className="chat-home__card"
+                    onClick={() => writeFocusedTrailId(row.trail_id)}
+                  >
+                    <span className="chat-home__card-top">
+                      <span className="chat-home__card-name">{label}</span>
+                      <span className="chat-home__card-arrow" aria-hidden>
+                        ›
+                      </span>
+                    </span>
+                    {pct != null ? (
+                      <span className="chat-home__card-progress" aria-hidden>
+                        <span style={{ width: `${pct}%` }} />
+                      </span>
+                    ) : (
+                      <span className="chat-home__card-progress" aria-hidden>
+                        <span style={{ width: '0%' }} />
+                      </span>
+                    )}
+                    <span className="chat-home__card-meta">{passo}</span>
+                  </Link>
+                )
+              })}
+            </div>
+            {hasMore ? (
+              <p className="muted chat-home__hint">
+                Outras trilhas no menu ao lado
+              </p>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <form className="chat-home__maria" onSubmit={onAskMaria}>
         <input

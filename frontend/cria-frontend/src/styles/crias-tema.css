@@ -187,12 +187,16 @@ button:not(:disabled):active { background: #00925f; }
   color: var(--cr-ink);
   width: min(300px, 86vw);
 }
-/* Anula app.css .trail-card { background: var(--highlight-1) } nos dois temas */
-html[data-tema='escuro'] .trail-card:not(.is-active):not(:hover),
-html[data-tema='claro'] .trail-card:not(.is-active):not(:hover) {
+/* Anula app.css highlight — inativo sempre transparente (focus/hover inclusive se não ativo) */
+html[data-tema='escuro'] .trail-card:not(.is-active),
+html[data-tema='claro'] .trail-card:not(.is-active) {
   background: transparent !important;
   box-shadow: none !important;
   border-color: transparent !important;
+}
+html[data-tema='escuro'] .trail-card:not(.is-active):hover,
+html[data-tema='claro'] .trail-card:not(.is-active):hover {
+  background: var(--cr-soft2) !important;
 }
 .cr-logo-link, .chat-sidebar__logo {
   display: flex; align-items: center; min-height: 44px; padding: 0 0.5rem; margin-bottom: 0.25rem; flex-shrink: 0;
@@ -588,13 +592,13 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   color: var(--cr-ink);
   font-size: 38px; /* proto --r-hero */
   letter-spacing: -0.015em;
-  max-width: min(40ch, 100%);
+  max-width: min(42ch, 92%);
   margin: -6px 0 0;
-  white-space: nowrap;
+  white-space: nowrap !important;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.12;
-  text-wrap: balance;
+  text-wrap: nowrap;
 }
 .chat-home .lede, .muted { color: var(--cr-t2); }
 .chat-home__hint { color: var(--cr-t3); }
@@ -616,20 +620,38 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
   flex-direction: column;
   gap: 14px;
   padding: 18px 18px 16px;
-  /* proto cardStyle: gradient raise→soft, sem “painel” sólido */
-  background: linear-gradient(160deg, var(--cr-raise) 0%, var(--cr-soft) 100%);
-  border: 1px solid var(--cr-line);
+  /* Mais translúcido que raise sólido — Horizonte aparece entre/ao redor (sem “painel”). */
+  background: linear-gradient(
+    160deg,
+    rgba(15, 29, 22, 0.72) 0%,
+    rgba(18, 34, 26, 0.55) 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(32, 51, 40, 0.85);
   border-radius: 22px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 28px -18px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 22px -16px rgba(0, 0, 0, 0.35);
   color: var(--cr-ink);
   text-decoration: none;
   position: relative;
   overflow: hidden;
   min-height: 0;
+  isolation: isolate;
 }
 .chat-home__card--v4:hover { border-color: #00be85; }
 html[data-tema='claro'] .chat-home__card--v4 {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.92) 0%, rgba(252, 251, 246, 0.88) 100%);
+  border-color: var(--cr-line);
   box-shadow: 0 1px 2px rgba(0, 28, 14, 0.04), 0 14px 34px -14px rgba(0, 28, 14, 0.16);
+}
+.chat-home__cards {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+.chat-home__hint {
+  background: transparent !important;
 }
 .chat-home__card-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .chat-home__card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -673,7 +695,7 @@ html[data-tema='claro'] .chat-home__card--v4 {
   font-size: 13px; font-weight: 700; box-shadow: 0 3px 0 #00925f;
 }
 .chat-home__card-cta svg { stroke: #fff; }
-/* Slim bar — glass proto, sem sombra pesada que vira “painel” com os cards */
+/* Slim bar — glass proto (sem face na home) */
 .chat-home__maria,
 .chat-home__maria--v4 {
   display: flex;
@@ -683,16 +705,19 @@ html[data-tema='claro'] .chat-home__card--v4 {
   width: 100%;
   max-width: 520px;
   align-self: center;
-  background: var(--cr-glass);
+  background: rgba(16, 30, 23, 0.55);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--cr-line);
   border-radius: 28px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px -14px rgba(0, 0, 0, 0.4);
-  padding: 6px 6px 6px 12px;
-  margin-top: 4px;
+  box-shadow: none;
+  padding: 8px 8px 8px 20px;
+  margin-top: 10px;
   min-height: 0;
   position: relative;
+}
+html[data-tema='claro'] .chat-home__maria--v4 {
+  background: rgba(255, 255, 255, 0.8);
 }
 .chat-home__maria--v4:focus-within {
   border-color: #00be85;

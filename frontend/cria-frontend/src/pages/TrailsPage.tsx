@@ -229,9 +229,8 @@ export default function TrailsPage() {
             ) : null}
           </>
         )}
-        {/* Barra slim no fluxo — glass, sem painel envolvendo cards. */}
+        {/* Proto home: pílula slim sem face (face fica no composer da trilha/Maria). */}
         <form className="chat-home__maria chat-home__maria--v4" onSubmit={onAskMaria}>
-          <MariaFace size="composer" />
           <input
             type="text"
             value={mariaDraft}

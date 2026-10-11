@@ -404,14 +404,22 @@ select {
   margin-right: 0;
 }
 
-/* Slide da trilha: orb + nome, texto largo (não bolha “M”/MARIA). */
+/* Slide da trilha: orb + nome no head; texto full-bleed abaixo (proto). */
 .chat-bubble--slide .chat-bubble__row {
   max-width: none;
   width: 100%;
   margin: 0;
   padding: 0 1.15rem;
-  align-items: flex-start;
-  gap: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.chat-bubble--slide .chat-bubble__slide-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
 }
 .chat-bubble--slide .chat-bubble__stack {
   max-width: none;
@@ -421,20 +429,31 @@ select {
 .chat-bubble--slide .chat-bubble__orb {
   flex: 0 0 auto;
   display: inline-flex;
-  margin-top: 0.1rem;
 }
 .chat-bubble--slide .chat-bubble__label {
-  font-size: 0.92rem;
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--cr-ink, var(--ink));
   text-transform: none;
   letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .chat-bubble--slide .chat-bubble__text {
   width: 100%;
 }
 .chat-bubble--slide .chat-bubble__meta {
   display: none;
+}
+
+/* Só mostrar “Ir para o fim” quando há mensagem nova; senão some (proto). */
+.chat-new-msg-chip--quiet:not([data-unseen='true']) {
+  opacity: 0.28;
+  font-size: 0.68rem;
+  min-height: 24px;
+  padding: 0.12rem 0.5rem;
 }
 
 /* “ver mensagens anteriores” sem colidir com a barra de progresso. */

@@ -4748,45 +4748,54 @@ export default function PlayerPage() {
             >
               <div className="chat-bubble__row">
                 {isTrailSlide ? (
-                  <span className="chat-bubble__orb" aria-hidden>
-                    <TrailOrb
-                      pct={trailOrbPct}
-                      hue={trailOrbHue}
-                      size={22}
-                    />
-                  </span>
-                ) : (
-                  <span className="chat-bubble__avatar" aria-hidden>
-                    V
-                  </span>
-                )}
-                <div className="chat-bubble__stack">
-                  {msg.role !== 'user' ? (
-                    <p className="chat-bubble__label" id={labelId}>
-                      {speaker}
-                    </p>
-                  ) : null}
-                  <div className="chat-bubble__text">
-                    {promptMovedToCard ? (
-                      <p className="muted">Questão abaixo — escolha uma opção.</p>
-                    ) : (
-                      renderBubbleParts(msg.text, msg.id)
-                    )}
-                  </div>
-                  <div className="chat-bubble__meta">
-                    <span>
-                      {msg.timeLabel || formatBubbleTime(null, true) || ''}
-                    </span>
-                    {msg.role === 'user' ? (
-                      <span
-                        className="chat-bubble__checks"
-                        aria-label="Mensagem enviada"
-                      >
-                        ✓✓
+                  <>
+                    <div className="chat-bubble__slide-head">
+                      <span className="chat-bubble__orb" aria-hidden>
+                        <TrailOrb
+                          pct={trailOrbPct}
+                          hue={trailOrbHue}
+                          size={22}
+                        />
                       </span>
-                    ) : null}
-                  </div>
-                </div>
+                      <p className="chat-bubble__label" id={labelId}>
+                        {speaker}
+                      </p>
+                    </div>
+                    <div className="chat-bubble__stack">
+                      <div className="chat-bubble__text">
+                        {promptMovedToCard ? (
+                          <p className="muted">
+                            Questão abaixo — escolha uma opção.
+                          </p>
+                        ) : (
+                          renderBubbleParts(msg.text, msg.id)
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="chat-bubble__avatar" aria-hidden>
+                      V
+                    </span>
+                    <div className="chat-bubble__stack">
+                      <div className="chat-bubble__text">
+                        {renderBubbleParts(msg.text, msg.id)}
+                      </div>
+                      <div className="chat-bubble__meta">
+                        <span>
+                          {msg.timeLabel || formatBubbleTime(null, true) || ''}
+                        </span>
+                        <span
+                          className="chat-bubble__checks"
+                          aria-label="Mensagem enviada"
+                        >
+                          ✓✓
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </article>
             </Fragment>
@@ -4812,14 +4821,15 @@ export default function PlayerPage() {
             }
           >
             <div className="chat-bubble__row">
-              <span className="chat-bubble__orb" aria-hidden>
-                <TrailOrb pct={trailOrbPct} hue={trailOrbHue} size={22} />
-              </span>
-              <div className="chat-bubble__stack">
-                {/* C3-R3 N02: label visual; live anuncia o status real (reduced). */}
+              <div className="chat-bubble__slide-head">
+                <span className="chat-bubble__orb" aria-hidden>
+                  <TrailOrb pct={trailOrbPct} hue={trailOrbHue} size={22} />
+                </span>
                 <p className="chat-bubble__label" aria-hidden="true">
                   {busyReason === 'maria' ? typing.label : trailHeading}
                 </p>
+              </div>
+              <div className="chat-bubble__stack">
                 <div className="chat-bubble__text">
                   <span className="typing-dots" aria-hidden="true">
                     <span />
@@ -4972,6 +4982,7 @@ export default function PlayerPage() {
             <button
               type="button"
               className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
+              data-unseen={unseenBelow ? 'true' : undefined}
               onClick={() => scrollToBottom('smooth')}
             >
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
@@ -5000,6 +5011,7 @@ export default function PlayerPage() {
           <button
             type="button"
             className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
+            data-unseen={unseenBelow ? 'true' : undefined}
             onClick={() => scrollToBottom('smooth')}
           >
             {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
@@ -5012,6 +5024,7 @@ export default function PlayerPage() {
         <button
           type="button"
           className="chat-new-msg-chip chat-new-msg-chip--kb-fallback chat-new-msg-chip--quiet"
+          data-unseen={unseenBelow ? 'true' : undefined}
           onClick={() => scrollToBottom('smooth')}
         >
           {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}

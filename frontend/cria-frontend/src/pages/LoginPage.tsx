@@ -206,7 +206,7 @@ export default function LoginPage() {
       ) : null}
       <form className="login-panel" onSubmit={(e) => void onSubmit(e)}>
         <img
-          className="login-wordmark"
+          className="login-wordmark cr-logo cr-logo--entrada"
           src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
           alt="Crias"
           height={40}

@@ -605,14 +605,14 @@ function contentToAssistantText(
   if (title) parts.push(title)
   if (body) parts.push(body)
   // Preserva markdown inline (_em_ / **bold**) para o renderer.
-  return parts.join('\n\n') || 'Conteúdo da etapa.'
+  return parts.join('\n\n') || 'Conteúdo do passo.'
 }
 
 function statusToSystemText(content: NextContentStatus): string {
   if (content.status === 'blocked') {
     return (
       content.message ||
-      'Esta etapa ainda não foi liberada pela instituição.'
+      'Este passo ainda não foi liberado pela instituição.'
     )
   }
   if (content.status === 'completed') {
@@ -726,7 +726,7 @@ function typingCopy(
   }
   // C2-R4 N01: status alinhado ao CTA (Salvando… → Carregando etapa…).
   // C2-R13 N03: falante estável (`Aula`); frase de busy só no corpo/aria.
-  const trailLabel = opts?.trailLabel?.trim() || 'Carregando etapa…'
+  const trailLabel = opts?.trailLabel?.trim() || 'Carregando passo…'
   return {
     label: 'Aula',
     aria: trailLabel.replace(/…$/, ''),
@@ -771,7 +771,7 @@ export default function PlayerPage() {
     'idle' | 'selected' | 'submitting' | 'error' | 'done'
   >('idle')
   /** R04-L05: progresso multi-etapa no Continuar. */
-  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
+  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando passo…')
   /** C2-R4 N03: Maria em espera longa (>3s) — estágio “ainda pensando”. */
   const [mariaLongWait, setMariaLongWait] = useState(false)
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
@@ -1005,8 +1005,8 @@ export default function PlayerPage() {
             ? stripDecorTitle(next.stage_title)
             : ''
         const stageBit = title
-          ? `Nova etapa: ${title}`
-          : 'Nova etapa da trilha disponível'
+          ? `Novo passo: ${title}`
+          : 'Novo passo da trilha disponível'
         setSrAnnounce(`Progresso salvo. ${stageBit}`)
       }
 
@@ -1369,7 +1369,7 @@ export default function PlayerPage() {
         setBusyReason(null)
         busyReasonRef.current = null
         setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
       })()
     }
     window.addEventListener('offline', goOffline)
@@ -1445,7 +1445,7 @@ export default function PlayerPage() {
         setBusy(true)
         setBusyReason('trail')
         busyReasonRef.current = 'trail'
-        setTrailBusyLabel('Atualizando etapa…')
+        setTrailBusyLabel('Atualizando passo…')
       }
       void resyncIfStale()
     }
@@ -1764,7 +1764,7 @@ export default function PlayerPage() {
     // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
     // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
-    setTrailBusyLabel('Preparando etapa…')
+    setTrailBusyLabel('Preparando passo…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     setMariaEntrance(false)
     mariaCancelledRef.current = false
@@ -2897,9 +2897,9 @@ export default function PlayerPage() {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
     } else if (!mariaActive && prelockedTrail) {
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
     }
     try {
       const data =
@@ -2936,7 +2936,7 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
       }
     }
   }
@@ -3179,7 +3179,7 @@ export default function PlayerPage() {
       } catch {
         /* ignore */
       }
-      reportError(err, 'Erro ao carregar a etapa.', () => {
+      reportError(err, 'Erro ao carregar o passo.', () => {
         void loadNextAfterAdvance()
       })
       throw err
@@ -3193,7 +3193,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setTrailBusyLabel('Carregando etapa…')
+    setTrailBusyLabel('Carregando passo…')
     clearError()
     try {
       deliveredKeyRef.current = null
@@ -3215,7 +3215,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       advanceInFlightRef.current = false
     }
@@ -3286,9 +3286,9 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
         setContinuarLeaving(false)
-        reportError(err, 'Erro ao conferir a etapa.', () => {
+        reportError(err, 'Erro ao conferir o passo.', () => {
           void doAdvance()
         })
         return
@@ -3306,7 +3306,7 @@ export default function PlayerPage() {
           livePos.question_number,
         )
         if (uiKey !== liveKey) {
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance(livePos)
           publishTrailProgress(trailId, {
@@ -3331,7 +3331,7 @@ export default function PlayerPage() {
         advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
         if (!advanceClaimId) {
           // Outra aba pode ter avançado — re-fetch fresco (não reusar livePos stale).
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3362,7 +3362,7 @@ export default function PlayerPage() {
       } catch (err) {
         // 409 conflict / versão divergente → só resync, sem segundo advance.
         if (err instanceof ApiRequestError && err.status === 409) {
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3401,7 +3401,7 @@ export default function PlayerPage() {
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
-        setTrailBusyLabel('Carregando etapa…')
+        setTrailBusyLabel('Carregando passo…')
         advancedContent = await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         advanceSucceeded = true
@@ -3422,7 +3422,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       setShowTyping(false)
       reportError(err, 'Erro ao avançar a trilha.', () => {
@@ -3452,7 +3452,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       // Mantém lock ~1.2s — paint/focus pós-busy ainda tentam puxar o scroll.
       if (pinnedAwayRef.current && threadRef.current) {
@@ -3759,7 +3759,7 @@ export default function PlayerPage() {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
       deliveredKeyRef.current = null
       await resyncIfStale()
       return
@@ -3797,7 +3797,7 @@ export default function PlayerPage() {
         if (err instanceof ApiRequestError && err.status === 409) {
           setBusyReason('trail')
           busyReasonRef.current = 'trail'
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           await resyncIfStale()
           submitSucceeded = true

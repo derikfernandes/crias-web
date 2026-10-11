@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   useCallback,
@@ -498,10 +499,11 @@ export default function ChatLayout() {
           <Link
             to="/"
             className="chat-sidebar__logo"
-            aria-label="Crias — início"
+            aria-label="Crias, ir para o início"
             onClick={() => closeDrawer(false)}
           >
             <img
+              className="cr-logo"
               src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
               alt="Crias"
               height={28}
@@ -644,6 +646,7 @@ export default function ChatLayout() {
 
         <div className="chat-sidebar__foot">
           <div className="chat-sidebar__brand-row">
+            <ThemeToggle />
             <span className="chat-sidebar__user">{firstName}</span>
           </div>
           <button type="button" className="chat-sidebar__logout" onClick={logout}>

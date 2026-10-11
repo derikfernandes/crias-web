@@ -793,20 +793,36 @@ export default function ChatLayout() {
                 : onMaria
                   ? 'Conversar com Maria'
                   : 'Início'
-              const pct =
-                activeTrailId != null
-                  ? activityProgressPct({
-                      activity:
-                        playerQuestionNumber ??
-                        activeRow?.current_question_number ??
-                        1,
-                      totalActivities:
-                        questionTotals[activeTrailId] > 0
-                          ? questionTotals[activeTrailId]
-                          : null,
-                      completed: !!playerCompleted,
-                    })
-                  : null
+              const pct = (() => {
+                if (!activeTrailId) return null
+                const byAct = activityProgressPct({
+                  activity:
+                    playerQuestionNumber ??
+                    activeRow?.current_question_number ??
+                    1,
+                  totalActivities:
+                    questionTotals[activeTrailId] > 0
+                      ? questionTotals[activeTrailId]
+                      : null,
+                  completed: !!playerCompleted,
+                })
+                if (byAct != null) return byAct
+                const step =
+                  playerStageNumber ?? activeRow?.current_stage_number ?? null
+                const total =
+                  stageTotals[activeTrailId] > 0
+                    ? stageTotals[activeTrailId]
+                    : null
+                if (step == null || total == null) return null
+                if (playerCompleted) return 100
+                return Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round(((Math.max(step, 1) - 1) / Math.max(total, step)) * 100),
+                  ),
+                )
+              })()
               const fullLabel = [topbarTitle, progress].filter(Boolean).join(' · ')
               return (
                 <>

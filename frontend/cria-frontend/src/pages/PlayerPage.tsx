@@ -33,6 +33,8 @@ import {
 import MariaMascot from '../components/MariaMascot'
 import MariaFace from '../components/MariaFace'
 import SendArrowIcon from '../components/SendArrowIcon'
+import TrailOrb from '../components/TrailOrb'
+import { activityProgressPct } from '../lib/trailProgressLabel'
 import {
   isRetryableSystemError,
   toUserFacingError,
@@ -740,13 +742,19 @@ export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { trailNames } = useOutletContext<{
+  const { trailNames, trailRows, questionTotals } = useOutletContext<{
     trailNames?: Record<string, string>
+    trailRows?: { trail_id: string }[]
+    questionTotals?: Record<string, number>
   }>()
   const session = getSession()!
   /** C2-R3 N03: H1 SR com nome humano — nunca ID cru (`t47`). */
   const trailHeading =
     (trailId && trailNames?.[trailId]?.trim()) || 'Trilha'
+  const trailOrbHue: 'g' | 'y' =
+    (trailRows?.findIndex((r) => r.trail_id === trailId) ?? 0) % 2 === 0
+      ? 'g'
+      : 'y'
   const [content, setContent] = useState<NextContentOk | NextContentStatus | null>(
     null,
   )
@@ -4294,24 +4302,30 @@ export default function PlayerPage() {
     Boolean(trailId) &&
     shouldShowContinueHalo(session.student_id, trailId)
 
-  /** CTA fora do composer: exercício (Enviar resposta), busy, ou hint de mídia. */
+  /**
+   * CTA fora do composer: só hint de mídia / busy sem CTA no pill.
+   * Enviar resposta e Continuar ficam embutidos no composer (proto v4).
+   */
   const showCtaSlot =
     content?.status === 'ok' &&
     mainButton.visible &&
-    (mainButton.action === 'submit' ||
-      mainButton.action === 'none' ||
-      Boolean(
-        currentStageMediaHint &&
-          mainButton.action === 'advance' &&
-          !hasMariaDraft,
-      ))
+    Boolean(
+      currentStageMediaHint &&
+        mainButton.action === 'advance' &&
+        !hasMariaDraft,
+    )
 
-  /** Continuar / sair da Maria vive no composer quando o campo está vazio. */
+  /**
+   * Continuar / Enviar resposta / sair da Maria / busy no composer (pill).
+   * Exercício: Maria locked + CTA “Enviar resposta” no pill (sem botão largo acima).
+   */
   const composerPrimaryAction =
-    !exerciseLockedComposer &&
     !hasMariaDraft &&
     mainButton.visible &&
-    (mainButton.action === 'advance' || mainButton.action === 'exit_maria')
+    (mainButton.action === 'advance' ||
+      mainButton.action === 'exit_maria' ||
+      mainButton.action === 'submit' ||
+      mainButton.action === 'none')
       ? mainButton
       : null
 
@@ -4331,6 +4345,17 @@ export default function PlayerPage() {
   const sendDisabledHard =
     exercisePhase === 'submitting' ||
     (exerciseLockedComposer ? true : !canSend)
+  const trailOrbPct =
+    content?.status === 'ok'
+      ? activityProgressPct({
+          activity: content.question_number,
+          totalActivities:
+            trailId && questionTotals?.[trailId] && questionTotals[trailId] > 0
+              ? questionTotals[trailId]
+              : null,
+          completed: false,
+        }) ?? 0
+      : 0
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
     content?.status === 'ok' &&
@@ -4688,15 +4713,17 @@ export default function PlayerPage() {
             msg.role === 'assistant' &&
             msg.stageType === 'exercise' &&
             msg.cellKey === activeExerciseCellKey
+          /** Slide da trilha: orb + nome (não avatar “M” / MARIA). */
           const speaker =
             msg.role === 'assistant'
-              ? 'MARIA'
+              ? trailHeading
               : msg.role === 'user'
                 ? 'Você'
                 : 'Sistema'
           const labelId = `bubble-label-${msg.id}`
           const isFeedback = msg.kind === 'feedback'
           const mediaResume = mediaResumeMsgId === msg.id
+          const isTrailSlide = msg.role === 'assistant' || msg.role === 'system'
           return (
             <Fragment key={msg.id}>
             {msgIdx === lessonCardSlot ? lessonCardNode : null}
@@ -4704,7 +4731,9 @@ export default function PlayerPage() {
             <article
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
-              }${mediaResume ? ' chat-bubble--media-resume' : ''}`}
+              }${mediaResume ? ' chat-bubble--media-resume' : ''}${
+                isTrailSlide ? ' chat-bubble--slide' : ''
+              }`}
               data-msg-id={msg.id}
               data-stage-type={msg.stageType}
               data-cell-key={msg.cellKey || undefined}
@@ -4718,9 +4747,19 @@ export default function PlayerPage() {
                 : {})}
             >
               <div className="chat-bubble__row">
-                <span className="chat-bubble__avatar" aria-hidden>
-                  {msg.role === 'user' ? 'V' : msg.role === 'assistant' ? 'M' : 'S'}
-                </span>
+                {isTrailSlide ? (
+                  <span className="chat-bubble__orb" aria-hidden>
+                    <TrailOrb
+                      pct={trailOrbPct}
+                      hue={trailOrbHue}
+                      size={22}
+                    />
+                  </span>
+                ) : (
+                  <span className="chat-bubble__avatar" aria-hidden>
+                    V
+                  </span>
+                )}
                 <div className="chat-bubble__stack">
                   {msg.role !== 'user' ? (
                     <p className="chat-bubble__label" id={labelId}>
@@ -4759,7 +4798,7 @@ export default function PlayerPage() {
 
         {showTypingBubble ? (
           <article
-            className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
+            className={`chat-bubble chat-bubble--assistant chat-bubble--slide chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
               mariaLongWait && busyReason === 'maria'
                 ? ' chat-bubble--typing-long'
                 : ''
@@ -4773,13 +4812,13 @@ export default function PlayerPage() {
             }
           >
             <div className="chat-bubble__row">
-              <span className="chat-bubble__avatar" aria-hidden>
-                M
+              <span className="chat-bubble__orb" aria-hidden>
+                <TrailOrb pct={trailOrbPct} hue={trailOrbHue} size={22} />
               </span>
               <div className="chat-bubble__stack">
                 {/* C3-R3 N02: label visual; live anuncia o status real (reduced). */}
                 <p className="chat-bubble__label" aria-hidden="true">
-                  {typing.label}
+                  {busyReason === 'maria' ? typing.label : trailHeading}
                 </p>
                 <div className="chat-bubble__text">
                   <span className="typing-dots" aria-hidden="true">
@@ -4924,85 +4963,43 @@ export default function PlayerPage() {
 
       </div>
 
-      {/* CTA fora do scroller: não cobre bolhas (C3-CTA-OVERLAP); pin C2-40 intacto. */}
+      {/* CTA fora do scroller: só hint de mídia (Enviar/Continuar no pill). */}
       {showCtaSlot && !trailShellUnavailable ? (
         <div
           className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
         >
-          {/* C2-R6 N02: chip docked no CTA — sem overlap de bolha/card. */}
           {jumpChip ? (
             <button
               type="button"
-              className="chat-new-msg-chip chat-new-msg-chip--docked"
+              className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
               onClick={() => scrollToBottom('smooth')}
             >
               {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
             </button>
           ) : null}
-          {mainButton.visible &&
-          (mainButton.action === 'submit' ||
-            mainButton.action === 'none' ||
-            (mainButton.action === 'advance' &&
-              currentStageMediaHint &&
-              !hasMariaDraft)) ? (
+          {mainButton.action === 'advance' &&
+          currentStageMediaHint &&
+          !hasMariaDraft &&
+          !mainButton.busy ? (
             <div
-              className={`chat-continue${
-                mainButton.busy && mainButton.action !== 'advance'
-                  ? ' chat-continue--leaving'
-                  : ' chat-continue--enter'
-              }${
-                mainButton.action === 'advance' &&
-                currentStageHasEmbed &&
-                !mainButton.busy
-                  ? ' chat-continue--with-media'
-                  : ''
+              className={`chat-continue chat-continue--enter${
+                currentStageHasEmbed ? ' chat-continue--with-media' : ''
               }`}
             >
-              {mainButton.action === 'advance' &&
-              currentStageMediaHint &&
-              !mainButton.busy ? (
-                <p className="chat-cta-slot__media-hint">
-                  {currentStageMediaHint}
-                </p>
-              ) : null}
-              {mainButton.action === 'submit' ||
-              mainButton.action === 'none' ? (
-                <button
-                  ref={continuarBtnRef}
-                  type="button"
-                  className={`chat-continue__btn${
-                    continueHalo && mainButton.action === 'submit'
-                      ? ' chat-continue__btn--halo'
-                      : ''
-                  }`}
-                  data-action={mainButton.action}
-                  disabled={mainButton.disabled}
-                  aria-busy={mainButton.busy || undefined}
-                  title={
-                    mainButton.action === 'submit' && !selectedOptionKey
-                      ? 'Escolha uma opção primeiro'
-                      : undefined
-                  }
-                  onClick={() => {
-                    if (mainButton.action === 'submit') {
-                      void submitSelectedOption()
-                    }
-                  }}
-                >
-                  {mainButton.label}
-                </button>
-              ) : null}
+              <p className="chat-cta-slot__media-hint">
+                {currentStageMediaHint}
+              </p>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {/* R2-N02: chip sempre docked acima do composer (nunca absolute sobre a aula). */}
+      {/* R2-N02: chip discreto docked acima do composer (nunca absolute sobre a aula). */}
       {jumpChip && !showCtaSlot && !trailShellUnavailable ? (
         <div className="chat-cta-slot chat-cta-slot--chip-only">
           <button
             type="button"
-            className="chat-new-msg-chip chat-new-msg-chip--docked"
+            className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
             onClick={() => scrollToBottom('smooth')}
           >
             {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
@@ -5014,7 +5011,7 @@ export default function PlayerPage() {
       {jumpChip && showCtaSlot && !trailShellUnavailable ? (
         <button
           type="button"
-          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback"
+          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback chat-new-msg-chip--quiet"
           onClick={() => scrollToBottom('smooth')}
         >
           {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
@@ -5038,7 +5035,7 @@ export default function PlayerPage() {
       <footer
         className={`chat-composer chat-composer--v4${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
-        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''        }${
+        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
           composerPrimaryAction || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
@@ -5055,6 +5052,8 @@ export default function PlayerPage() {
               } else if (composerPrimaryAction.action === 'advance') {
                 markContinueHaloDone(session.student_id, trailId)
                 void doAdvance()
+              } else if (composerPrimaryAction.action === 'submit') {
+                void submitSelectedOption()
               }
               return
             }
@@ -5121,43 +5120,48 @@ export default function PlayerPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onComposerKeyDown}
           />
-          {/* Continuar no lugar do Enviar quando o campo está vazio; ao digitar, Enviar. */}
-          {!exerciseLockedComposer ? (
-            composerPrimaryAction ? (
-              <button
-                ref={(node) => {
-                  continuarBtnRef.current = node
-                  voltarBtnRef.current = node
-                }}
-                type="submit"
-                className={`chat-composer__continue${
-                  continueHalo && composerPrimaryAction.action === 'advance'
-                    ? ' chat-composer__continue--halo'
-                    : ''
-                }`}
-                data-action={composerPrimaryAction.action}
-                disabled={composerPrimaryAction.disabled}
-                aria-busy={composerPrimaryAction.busy || undefined}
-                aria-label={composerPrimaryAction.label}
-              >
-                {composerPrimaryAction.label}
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className={`chat-composer__send${
-                  sendAriaDisabled ? ' is-aria-disabled' : ''
-                }`}
-                disabled={sendDisabledHard}
-                aria-disabled={sendAriaDisabled || undefined}
-                aria-label="Enviar pergunta à Maria"
-              >
-                <SendArrowIcon />
-              </button>
-            )
+          {/* Continuar / Enviar resposta no pill; ao digitar (fora do exercício), seta Enviar. */}
+          {composerPrimaryAction ? (
+            <button
+              ref={(node) => {
+                continuarBtnRef.current = node
+                voltarBtnRef.current = node
+              }}
+              type="submit"
+              className={`chat-composer__continue${
+                continueHalo &&
+                (composerPrimaryAction.action === 'advance' ||
+                  composerPrimaryAction.action === 'submit')
+                  ? ' chat-composer__continue--halo'
+                  : ''
+              }`}
+              data-action={composerPrimaryAction.action}
+              disabled={composerPrimaryAction.disabled}
+              aria-busy={composerPrimaryAction.busy || undefined}
+              aria-label={composerPrimaryAction.label}
+              title={
+                composerPrimaryAction.action === 'submit' && !selectedOptionKey
+                  ? 'Escolha uma opção primeiro'
+                  : undefined
+              }
+            >
+              {composerPrimaryAction.label}
+            </button>
+          ) : !exerciseLockedComposer ? (
+            <button
+              type="submit"
+              className={`chat-composer__send${
+                sendAriaDisabled ? ' is-aria-disabled' : ''
+              }`}
+              disabled={sendDisabledHard}
+              aria-disabled={sendAriaDisabled || undefined}
+              aria-label="Enviar pergunta à Maria"
+            >
+              <SendArrowIcon />
+            </button>
           ) : null}
         </form>
-        {content?.status === 'ok' && !exerciseLockedComposer ? (
+        {content?.status === 'ok' ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
             {trailBusy
@@ -5173,6 +5177,10 @@ export default function PlayerPage() {
                 : mariaBusyPending
                   ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
                     'Aguarde — finalizando conversa com Maria'
+                  : exerciseLockedComposer
+                    ? selectedOptionKey
+                      ? 'Toque em Enviar resposta para confirmar'
+                      : 'Selecione uma alternativa e continue'
                   : hasMariaDraft && showContinuar
                     ? // C2-R9 N01: draft pausa Continuar
                       'Enviar a dúvida à Maria — Continuar pausado'

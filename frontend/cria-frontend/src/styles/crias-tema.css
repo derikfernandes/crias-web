@@ -429,6 +429,13 @@ html[data-tema='escuro'] .cr-logo { filter: brightness(0) invert(1); }
 .chat-bubble__avatar { background: #00593d; border: 0; color: #fff; }
 .chat-bubble--assistant .chat-bubble__avatar, .chat-bubble--system .chat-bubble__avatar { background: #ffd500; color: #001c0e; }
 .chat-bubble--user .chat-bubble__avatar, .chat-bubble--user .chat-bubble__label { display: none; }
+/* Slide trilha: sem avatar “M”; orb + nome da trilha (proto). */
+.chat-bubble--slide .chat-bubble__avatar { display: none; }
+.chat-bubble--slide .chat-bubble__label {
+  color: var(--cr-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
 .chat-bubble__body, .chat-bubble__text { hyphens: none; }
 .chat-bubble__link { color: var(--cr-gink); }
 .chat-bubble__link--chip { background: var(--cr-soft); border: 1px solid var(--cr-line); color: var(--cr-ink); }

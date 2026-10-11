@@ -375,11 +375,32 @@ select {
  * Proto v4: Continuar / Enviar resposta embutidos na pílula (não full-bleed
  * abaixo do campo no mobile).
  */
+/* Dock: face fora da pílula (proto) + form largo. */
+.chat-composer--v4 .chat-composer__dock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+}
+.chat-composer--v4 .chat-composer__dock .maria-face--composer {
+  flex: 0 0 auto;
+  width: 44px !important;
+  height: 44px !important;
+}
+.chat-composer--v4 .chat-composer__dock .chat-composer__form {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  margin-inline: 0;
+}
 .chat-composer--with-continue .chat-composer__form,
 .chat-composer--locked.chat-composer--with-continue .chat-composer__form {
   flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .chat-composer__continue {
   flex: 0 0 auto;
@@ -404,18 +425,18 @@ select {
 .chat-composer--locked .chat-composer__continue--icon {
   min-width: 42px;
 }
-/* Lock 1 linha (proto); sem wrap de 3 linhas com cadeado. */
+/* Lock 1 linha (proto); cadeado discreto. */
 .chat-composer__lock {
   align-items: center !important;
   white-space: nowrap !important;
   overflow: hidden;
   min-width: 0;
   flex: 1 1 auto;
+  gap: 0.35rem !important;
 }
-.chat-composer__lock > svg {
+.chat-composer__lock-icon {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  opacity: 0.55;
 }
 .chat-composer__lock-label {
   white-space: nowrap !important;
@@ -427,13 +448,19 @@ select {
   line-height: 1.25 !important;
 }
 @media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
-  .chat-composer--v4 .maria-face--composer {
+  .chat-composer--v4 .chat-composer__dock {
+    gap: 6px;
+  }
+  .chat-composer--v4 .chat-composer__dock .maria-face--composer {
     width: 40px !important;
     height: 40px !important;
   }
   .chat-composer--locked .chat-composer__form {
-    padding-left: 10px;
-    padding-right: 8px;
+    padding: 6px 6px 6px 12px;
+  }
+  /* No mobile o cadeado some — proto só mostra o texto 1 linha. */
+  .chat-composer__lock-icon {
+    display: none;
   }
 }
 
@@ -556,16 +583,26 @@ select {
 
 /* “ver mensagens anteriores” — folga clara sob a barra (zip/proto). */
 .chat-main:has(.chat-thread) .chat-topbar {
-  padding-bottom: 0.75rem;
+  padding-bottom: 1rem;
+  margin-bottom: 0;
 }
 .chat-thread__scroll {
-  padding-top: 1.15rem;
+  padding-top: 0.35rem;
 }
 .chat-history-collapse {
   justify-content: center;
-  padding: 0.25rem 1rem 1.1rem;
-  margin-top: 0.15rem;
-  margin-bottom: 0.15rem;
+  padding: 1rem 1rem 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+@media (max-width: 768px), (max-height: 600px) and (orientation: landscape) {
+  .chat-main:has(.chat-thread) .chat-topbar {
+    padding-bottom: 1.1rem;
+  }
+  .chat-history-collapse {
+    padding-top: 1.15rem;
+    margin-top: 0.65rem;
+  }
 }
 .chat-history-collapse__btn {
   min-height: 32px;
@@ -737,7 +774,7 @@ html[data-keyboard='open'] .chat-shell {
   }
 }
 
-/* Composer v4: face dentro da pílula no dock. */
+/* Composer v4: face à esquerda da pílula (proto). */
 .chat-composer--v4 {
   display: flex;
   flex-direction: column;
@@ -746,25 +783,16 @@ html[data-keyboard='open'] .chat-shell {
   background: transparent;
 }
 
-.chat-composer--v4 .chat-composer__form {
+.maria-page__composer.chat-composer--v4 {
+  width: 100%;
+}
+
+/* Maria page ainda usa face dentro do form (sem dock). */
+.maria-page__composer.chat-composer--v4 .chat-composer__form {
   flex: 0 0 auto;
   width: 100%;
   max-width: 720px;
   margin-inline: auto;
-  min-width: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.chat-composer--v4 .maria-face--composer {
-  flex: 0 0 auto;
-  width: 40px !important;
-  height: 40px !important;
-}
-
-.maria-page__composer.chat-composer--v4 {
-  width: 100%;
 }
 
 .chat-home__maria {
@@ -788,11 +816,6 @@ html[data-keyboard='open'] .chat-shell {
 
   .chat-topbar {
     background: color-mix(in srgb, var(--cr-bg, var(--main, #fff)) 88%, transparent);
-  }
-
-  .chat-composer--v4 .maria-face--composer {
-    width: 46px !important;
-    height: 46px !important;
   }
 }
 

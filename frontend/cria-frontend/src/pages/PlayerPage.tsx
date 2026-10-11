@@ -5079,143 +5079,147 @@ export default function PlayerPage() {
             : ''
         }`}
       >
-<form
-          className="chat-composer__form"
-          onSubmit={(e) => {
-            if (composerPrimaryAction) {
-              e.preventDefault()
-              if (composerPrimaryAction.disabled) return
-              if (composerPrimaryAction.action === 'exit_maria') {
-                onVoltarParaTrilha()
-              } else if (composerPrimaryAction.action === 'advance') {
-                markContinueHaloDone(session.student_id, trailId)
-                void doAdvance()
-              } else if (composerPrimaryAction.action === 'submit') {
-                void submitSelectedOption()
-              }
-              return
-            }
-            if (sendAriaDisabled) {
-              e.preventDefault()
-              return
-            }
-            void onSend(e)
-          }}
-        >
+{/* Proto: face à esquerda da pílula; campo largo + CTA embutido. */}
+        <div className="chat-composer__dock">
           <MariaFace size="composer" />
-          {exerciseLockedComposer ? (
-            <span
-              className="chat-composer__lock"
-              aria-hidden="true"
-              title={exerciseLockLabel}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M7 11V8a5 5 0 0 1 10 0v3"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-                <rect
-                  x="5"
-                  y="11"
-                  width="14"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                />
-              </svg>
-              <span className="chat-composer__lock-label">
-                {exerciseLockLabel}
-              </span>
-            </span>
-          ) : null}
-          <textarea
-            ref={inputRef}
-            className="chat-composer__input"
-            rows={1}
-            value={draft}
-            disabled={composerBlocked && !exerciseLockedComposer}
-            readOnly={exerciseLockedComposer}
-            /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
-            tabIndex={exerciseLockedComposer ? -1 : undefined}
-            placeholder={exerciseLockedComposer ? '' : placeholder}
-            aria-label={
-              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
-            }
-            enterKeyHint={canSubmitExercise ? 'send' : 'send'}
-            inputMode="text"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onComposerKeyDown}
-          />
-          {/* Continuar (texto) / Enviar (seta circular no exercício) no pill. */}
-          {composerPrimaryAction ? (
-            <button
-              ref={(node) => {
-                continuarBtnRef.current = node
-                voltarBtnRef.current = node
-              }}
-              type="submit"
-              className={`chat-composer__continue${
-                composerPrimaryAction.action === 'submit' ||
-                (exerciseLockedComposer &&
-                  composerPrimaryAction.action === 'none')
-                  ? ' chat-composer__continue--icon'
-                  : ''
-              }${
-                continueHalo &&
-                (composerPrimaryAction.action === 'advance' ||
-                  composerPrimaryAction.action === 'submit')
-                  ? ' chat-composer__continue--halo'
-                  : ''
-              }`}
-              data-action={composerPrimaryAction.action}
-              disabled={composerPrimaryAction.disabled}
-              aria-busy={composerPrimaryAction.busy || undefined}
-              aria-label={composerPrimaryAction.label}
-              title={
-                composerPrimaryAction.action === 'submit' && !selectedOptionKey
-                  ? 'Escolha uma opção primeiro'
-                  : composerPrimaryAction.label
+          <form
+            className="chat-composer__form"
+            onSubmit={(e) => {
+              if (composerPrimaryAction) {
+                e.preventDefault()
+                if (composerPrimaryAction.disabled) return
+                if (composerPrimaryAction.action === 'exit_maria') {
+                  onVoltarParaTrilha()
+                } else if (composerPrimaryAction.action === 'advance') {
+                  markContinueHaloDone(session.student_id, trailId)
+                  void doAdvance()
+                } else if (composerPrimaryAction.action === 'submit') {
+                  void submitSelectedOption()
+                }
+                return
               }
-            >
-              {composerPrimaryAction.action === 'submit' ||
-              (exerciseLockedComposer &&
-                composerPrimaryAction.action === 'none') ? (
-                <SendArrowIcon direction="right" size={18} />
-              ) : (
-                <>
-                  <span className="chat-composer__continue-label">
-                    {composerPrimaryAction.label}
-                  </span>
-                  <SendArrowIcon direction="right" size={16} />
-                </>
-              )}
-            </button>
-          ) : !exerciseLockedComposer ? (
-            <button
-              type="submit"
-              className={`chat-composer__send${
-                sendAriaDisabled ? ' is-aria-disabled' : ''
-              }`}
-              disabled={sendDisabledHard}
-              aria-disabled={sendAriaDisabled || undefined}
-              aria-label="Enviar pergunta à Maria"
-            >
-              <SendArrowIcon />
-            </button>
-          ) : null}
-        </form>
+              if (sendAriaDisabled) {
+                e.preventDefault()
+                return
+              }
+              void onSend(e)
+            }}
+          >
+            {exerciseLockedComposer ? (
+              <span
+                className="chat-composer__lock"
+                aria-hidden="true"
+                title={exerciseLockLabel}
+              >
+                <svg
+                  className="chat-composer__lock-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M7 11V8a5 5 0 0 1 10 0v3"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                  <rect
+                    x="5"
+                    y="11"
+                    width="14"
+                    height="10"
+                    rx="2"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                  />
+                </svg>
+                <span className="chat-composer__lock-label">
+                  {exerciseLockLabel}
+                </span>
+              </span>
+            ) : null}
+            <textarea
+              ref={inputRef}
+              className="chat-composer__input"
+              rows={1}
+              value={draft}
+              disabled={composerBlocked && !exerciseLockedComposer}
+              readOnly={exerciseLockedComposer}
+              /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
+              tabIndex={exerciseLockedComposer ? -1 : undefined}
+              placeholder={exerciseLockedComposer ? '' : placeholder}
+              aria-label={
+                exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
+              }
+              enterKeyHint={canSubmitExercise ? 'send' : 'send'}
+              inputMode="text"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onComposerKeyDown}
+            />
+            {/* Continuar (texto) / Enviar (seta circular no exercício) no pill. */}
+            {composerPrimaryAction ? (
+              <button
+                ref={(node) => {
+                  continuarBtnRef.current = node
+                  voltarBtnRef.current = node
+                }}
+                type="submit"
+                className={`chat-composer__continue${
+                  composerPrimaryAction.action === 'submit' ||
+                  (exerciseLockedComposer &&
+                    composerPrimaryAction.action === 'none')
+                    ? ' chat-composer__continue--icon'
+                    : ''
+                }${
+                  continueHalo &&
+                  (composerPrimaryAction.action === 'advance' ||
+                    composerPrimaryAction.action === 'submit')
+                    ? ' chat-composer__continue--halo'
+                    : ''
+                }`}
+                data-action={composerPrimaryAction.action}
+                disabled={composerPrimaryAction.disabled}
+                aria-busy={composerPrimaryAction.busy || undefined}
+                aria-label={composerPrimaryAction.label}
+                title={
+                  composerPrimaryAction.action === 'submit' && !selectedOptionKey
+                    ? 'Escolha uma opção primeiro'
+                    : composerPrimaryAction.label
+                }
+              >
+                {composerPrimaryAction.action === 'submit' ||
+                (exerciseLockedComposer &&
+                  composerPrimaryAction.action === 'none') ? (
+                  <SendArrowIcon direction="right" size={18} />
+                ) : (
+                  <>
+                    <span className="chat-composer__continue-label">
+                      {composerPrimaryAction.label}
+                    </span>
+                    <SendArrowIcon direction="right" size={16} />
+                  </>
+                )}
+              </button>
+            ) : !exerciseLockedComposer ? (
+              <button
+                type="submit"
+                className={`chat-composer__send${
+                  sendAriaDisabled ? ' is-aria-disabled' : ''
+                }`}
+                disabled={sendDisabledHard}
+                aria-disabled={sendAriaDisabled || undefined}
+                aria-label="Enviar pergunta à Maria"
+              >
+                <SendArrowIcon />
+              </button>
+            ) : null}
+          </form>
+        </div>
         {content?.status === 'ok' ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}

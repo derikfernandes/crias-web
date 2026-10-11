@@ -605,14 +605,14 @@ function contentToAssistantText(
   if (title) parts.push(title)
   if (body) parts.push(body)
   // Preserva markdown inline (_em_ / **bold**) para o renderer.
-  return parts.join('\n\n') || 'Conteúdo da etapa.'
+  return parts.join('\n\n') || 'Conteúdo do passo.'
 }
 
 function statusToSystemText(content: NextContentStatus): string {
   if (content.status === 'blocked') {
     return (
       content.message ||
-      'Esta etapa ainda não foi liberada pela instituição.'
+      'Este passo ainda não foi liberado pela instituição.'
     )
   }
   if (content.status === 'completed') {
@@ -726,7 +726,7 @@ function typingCopy(
   }
   // C2-R4 N01: status alinhado ao CTA (Salvando… → Carregando etapa…).
   // C2-R13 N03: falante estável (`Aula`); frase de busy só no corpo/aria.
-  const trailLabel = opts?.trailLabel?.trim() || 'Carregando etapa…'
+  const trailLabel = opts?.trailLabel?.trim() || 'Carregando passo…'
   return {
     label: 'Aula',
     aria: trailLabel.replace(/…$/, ''),
@@ -771,7 +771,7 @@ export default function PlayerPage() {
     'idle' | 'selected' | 'submitting' | 'error' | 'done'
   >('idle')
   /** R04-L05: progresso multi-etapa no Continuar. */
-  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
+  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando passo…')
   /** C2-R4 N03: Maria em espera longa (>3s) — estágio “ainda pensando”. */
   const [mariaLongWait, setMariaLongWait] = useState(false)
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
@@ -941,13 +941,13 @@ export default function PlayerPage() {
       return r.bottom > s.top + 4 && r.top < s.bottom - 4
     }
     const focusInView = (el: HTMLElement) => {
+      // R3-N02: nearest deixava radio abaixo da dobra; centro da faixa útil.
       if (!inScrollerView(el)) {
-        el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+        el.scrollIntoView({ block: 'center', behavior: 'auto' })
       }
       el.focus({ preventScroll: true })
       if (document.activeElement === el && inScrollerView(el)) return true
-      // Ainda fora: permite scroll nativo do focus.
-      el.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      el.scrollIntoView({ block: 'center', behavior: 'auto' })
       el.focus()
       return document.activeElement === el && inScrollerView(el)
     }
@@ -1005,8 +1005,8 @@ export default function PlayerPage() {
             ? stripDecorTitle(next.stage_title)
             : ''
         const stageBit = title
-          ? `Nova etapa: ${title}`
-          : 'Nova etapa da trilha disponível'
+          ? `Novo passo: ${title}`
+          : 'Novo passo da trilha disponível'
         setSrAnnounce(`Progresso salvo. ${stageBit}`)
       }
 
@@ -1369,7 +1369,7 @@ export default function PlayerPage() {
         setBusyReason(null)
         busyReasonRef.current = null
         setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
       })()
     }
     window.addEventListener('offline', goOffline)
@@ -1445,7 +1445,7 @@ export default function PlayerPage() {
         setBusy(true)
         setBusyReason('trail')
         busyReasonRef.current = 'trail'
-        setTrailBusyLabel('Atualizando etapa…')
+        setTrailBusyLabel('Atualizando passo…')
       }
       void resyncIfStale()
     }
@@ -1764,7 +1764,7 @@ export default function PlayerPage() {
     // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
     // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
-    setTrailBusyLabel('Preparando etapa…')
+    setTrailBusyLabel('Preparando passo…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     setMariaEntrance(false)
     mariaCancelledRef.current = false
@@ -2842,11 +2842,12 @@ export default function PlayerPage() {
   }, [content, exerciseDone, exercisePhase, ensureFirstExerciseOptionVisible])
 
   /**
-   * C3-R10 N01/N02: pós-rotate/resize curto — reancora opções na faixa útil.
+   * C3-R10 N01/N02 + R6-N01/N03: pós-rotate/resize — reancora opções também
+   * em idle (antes o early-return deixava 0 hits em landscape).
    */
   useEffect(() => {
     if (content?.status !== 'ok' || content.stage_type !== 'exercise') return
-    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'idle') {
+    if (exerciseDone || exercisePhase === 'done' || exercisePhase === 'submitting') {
       return
     }
     const reanchor = () => {
@@ -2856,10 +2857,16 @@ export default function PlayerPage() {
         if (scroller) ensureFirstExerciseOptionVisible(scroller)
       })
     }
-    window.addEventListener('orientationchange', reanchor)
+    // Passes extras: layout WebKit atrasa após orient (R6-N01/N02).
+    const onOrient = () => {
+      reanchor()
+      window.setTimeout(reanchor, 120)
+      window.setTimeout(reanchor, 360)
+    }
+    window.addEventListener('orientationchange', onOrient)
     window.addEventListener('resize', reanchor)
     return () => {
-      window.removeEventListener('orientationchange', reanchor)
+      window.removeEventListener('orientationchange', onOrient)
       window.removeEventListener('resize', reanchor)
     }
   }, [
@@ -2897,9 +2904,9 @@ export default function PlayerPage() {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
     } else if (!mariaActive && prelockedTrail) {
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
     }
     try {
       const data =
@@ -2936,7 +2943,7 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
       }
     }
   }
@@ -3179,7 +3186,7 @@ export default function PlayerPage() {
       } catch {
         /* ignore */
       }
-      reportError(err, 'Erro ao carregar a etapa.', () => {
+      reportError(err, 'Erro ao carregar o passo.', () => {
         void loadNextAfterAdvance()
       })
       throw err
@@ -3193,7 +3200,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setTrailBusyLabel('Carregando etapa…')
+    setTrailBusyLabel('Carregando passo…')
     clearError()
     try {
       deliveredKeyRef.current = null
@@ -3215,7 +3222,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       advanceInFlightRef.current = false
     }
@@ -3286,9 +3293,9 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando etapa…')
+        setTrailBusyLabel('Preparando passo…')
         setContinuarLeaving(false)
-        reportError(err, 'Erro ao conferir a etapa.', () => {
+        reportError(err, 'Erro ao conferir o passo.', () => {
           void doAdvance()
         })
         return
@@ -3306,7 +3313,7 @@ export default function PlayerPage() {
           livePos.question_number,
         )
         if (uiKey !== liveKey) {
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance(livePos)
           publishTrailProgress(trailId, {
@@ -3331,7 +3338,7 @@ export default function PlayerPage() {
         advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
         if (!advanceClaimId) {
           // Outra aba pode ter avançado — re-fetch fresco (não reusar livePos stale).
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3362,7 +3369,7 @@ export default function PlayerPage() {
       } catch (err) {
         // 409 conflict / versão divergente → só resync, sem segundo advance.
         if (err instanceof ApiRequestError && err.status === 409) {
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3401,7 +3408,7 @@ export default function PlayerPage() {
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
-        setTrailBusyLabel('Carregando etapa…')
+        setTrailBusyLabel('Carregando passo…')
         advancedContent = await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         advanceSucceeded = true
@@ -3422,7 +3429,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       setShowTyping(false)
       reportError(err, 'Erro ao avançar a trilha.', () => {
@@ -3452,7 +3459,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando etapa…')
+      setTrailBusyLabel('Preparando passo…')
       setContinuarLeaving(false)
       // Mantém lock ~1.2s — paint/focus pós-busy ainda tentam puxar o scroll.
       if (pinnedAwayRef.current && threadRef.current) {
@@ -3727,12 +3734,17 @@ export default function PlayerPage() {
       optionKey: option.key,
     })
     clearError()
-    // R23-L04: seleção mantém foco no radio (não deixa cair no body).
+    // R1-N02 / R23-L04: opção + Enviar na 1ª dobra; foco no radio.
     window.requestAnimationFrame(() => {
       const selected = document.querySelector(
         `.chat-exercise__option.is-selected`,
       ) as HTMLElement | null
-      selected?.focus({ preventScroll: true })
+      if (selected) {
+        selected.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        selected.focus({ preventScroll: true })
+      }
+      const scroller = threadRef.current
+      if (scroller) ensureFirstExerciseOptionVisible(scroller)
     })
   }
 
@@ -3755,13 +3767,20 @@ export default function PlayerPage() {
     const cellKey = trailCellKey(content.stage_number, content.question_number)
     const exerciseClaimId = tryClaimTrailExercise(trailId, cellKey)
     if (!exerciseClaimId) {
-      // C2-R23 N02: outra aba já reivindicou o Enviar — só ressynca.
+      // C2-R23 N02 / R4-N03: outra aba já reivindicou — resync sem Enviando zumbi.
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando etapa…')
+      setTrailBusyLabel('Atualizando passo…')
       deliveredKeyRef.current = null
-      await resyncIfStale()
+      try {
+        await resyncIfStale()
+      } finally {
+        setBusy(false)
+        setBusyReason(null)
+        busyReasonRef.current = null
+        setExercisePhase(selectedOptionKey ? 'selected' : 'idle')
+      }
       return
     }
 
@@ -3793,13 +3812,14 @@ export default function PlayerPage() {
           idempotencyKey: exerciseClaimId,
         })
       } catch (err) {
-        // C2-R23 N02/N03: 409 conflict / célula movida → só resync.
+        // C2-R23 N02/N03 / R4-N03: 409 → resync e sai de submitting.
         if (err instanceof ApiRequestError && err.status === 409) {
           setBusyReason('trail')
           busyReasonRef.current = 'trail'
-          setTrailBusyLabel('Atualizando etapa…')
+          setTrailBusyLabel('Atualizando passo…')
           deliveredKeyRef.current = null
           await resyncIfStale()
+          setExercisePhase(option.key ? 'selected' : 'idle')
           submitSucceeded = true
           return
         }
@@ -4248,17 +4268,6 @@ export default function PlayerPage() {
     trailLabel: trailBusyLabel,
     mariaLongWait,
   })
-  /**
-   * R04-L03 / R01-F25 / R01-F05 / R09-X09 + C2-R1 N03:
-   * typing em Maria/feedback/Continuar (trail) — nunca junto do card “Enviando…”.
-   */
-  const showTypingBubble =
-    busy &&
-    showTyping &&
-    (busyReason === 'maria' ||
-      busyReason === 'exercise' ||
-      busyReason === 'trail') &&
-    exercisePhase !== 'submitting'
   /** Botão principal único: Enviar resposta (exercício) ou Continuar. */
   const mainButton = mainButtonState({
     contentOk: content?.status === 'ok',
@@ -4344,7 +4353,7 @@ export default function PlayerPage() {
     content?.status === 'ok' && content.stage_title
       ? stripDecorTitle(content.stage_title)
       : ''
-  const lessonBody =
+  const lessonBodyRaw =
     content?.status === 'ok'
       ? stripOptionLines(
           (content.content ?? '').trim() ||
@@ -4353,6 +4362,24 @@ export default function PlayerPage() {
               : ''),
         )
       : ''
+  /** R5-N05: se o body abre com o mesmo título do H2, remove o eco. */
+  const lessonBody = (() => {
+    if (!lessonBodyRaw || !lessonTitle) return lessonBodyRaw
+    const titleKey = normalizeTitleKey(lessonTitle)
+    if (!titleKey) return lessonBodyRaw
+    const lines = lessonBodyRaw.split(/\n+/)
+    const first = lines[0]?.trim() ?? ''
+    if (first && normalizeTitleKey(first) === titleKey) {
+      return lines.slice(1).join('\n').trim()
+    }
+    // Parágrafo único: "Título. resto…"
+    const para = lessonBodyRaw.trim()
+    const m = para.match(/^(.+?)([.!?：:])\s+([\s\S]+)$/)
+    if (m && normalizeTitleKey(m[1] || '') === titleKey) {
+      return (m[3] || '').trim()
+    }
+    return lessonBodyRaw
+  })()
 
   /** Fase IA pós-exercício já mostrada como feedback (servidor) → sem 2ª cópia. */
   const currentCellShownAsFeedback = isFeedbackCellAlreadyShown(
@@ -4363,6 +4390,17 @@ export default function PlayerPage() {
     content?.status === 'ok' &&
     !currentCellShownAsFeedback &&
     Boolean(lessonTitle || lessonBody)
+
+  /**
+   * R04-L03 / R4-N01/N02: typing em Maria / Enviar / Continuar.
+   * Enviar (~12 s) mostra bolha; Continuar não cobre lesson-card já legível.
+   */
+  const showTypingBubble =
+    busy &&
+    showTyping &&
+    (busyReason === 'maria' ||
+      busyReason === 'exercise' ||
+      (busyReason === 'trail' && !showLessonCard))
 
   const showMariaEntrance =
     mariaEntrance ||
@@ -4957,14 +4995,17 @@ export default function PlayerPage() {
         </div>
       ) : null}
 
+      {/* R2-N02: chip sempre docked acima do composer (nunca absolute sobre a aula). */}
       {jumpChip && !showCtaSlot && !trailShellUnavailable ? (
-        <button
-          type="button"
-          className="chat-new-msg-chip"
-          onClick={() => scrollToBottom('smooth')}
-        >
-          {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
-        </button>
+        <div className="chat-cta-slot chat-cta-slot--chip-only">
+          <button
+            type="button"
+            className="chat-new-msg-chip chat-new-msg-chip--docked"
+            onClick={() => scrollToBottom('smooth')}
+          >
+            {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+          </button>
+        </div>
       ) : null}
       {/* C2-R7 N02: CTA some sob KB (display:none) — chip docked some junto;
           fallback absoluto só visível com data-keyboard=open. */}
@@ -4979,8 +5020,18 @@ export default function PlayerPage() {
       ) : null}
       </div>
 
+      {/* R1-N05: trilha concluída — CTA claro de saída (Início). */}
+      {!trailShellUnavailable &&
+      historyReady &&
+      content?.status === 'completed' ? (
+        <footer className="chat-composer chat-composer--trail-done">
+          <Link to="/" className="chat-continue__btn chat-composer__home-cta">
+            Ir ao início
+          </Link>
+        </footer>
+      ) : null}
+
       {/* C2-R12 N05: sem composer/Enviar competindo com skeleton no mount. */}
-      {/* Concluída: sem composer desabilitado — o card final fecha a trilha. */}
       {!trailShellUnavailable && historyReady && content?.status !== 'completed' ? (
       <footer
         className={`chat-composer${
@@ -5136,7 +5187,7 @@ export default function PlayerPage() {
                           'Pergunte à Maria · toque Continuar para avançar'
                         : 'Pergunte à Maria'
                       : mariaSidechat
-                        ? 'Responda no composer · Continuar volta à trilha'
+                        ? 'Responda no composer · Continuar avança o passo'
                         : // R01-F06 / R01-F09 / R14-L01 / C3-R17 N03: hierarquia Continuar × Enviar
                           showContinuar
                           ? 'Envie à Maria · toque Continuar para avançar'

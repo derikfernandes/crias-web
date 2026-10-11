@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const src = join(root, 'frontend/cria-frontend/dist')
 const dest = join(root, 'frontend/trilha-admin/dist/aluno')
-const expectedTitle = 'Crias — Trilhas'
+// INTERFACE: título sem travessão (pacote design 2026-10-11).
+const expectedTitle = 'Crias'
 
 if (!existsSync(src)) {
   console.error('[copy-aluno-dist] Build do aluno ausente:', src)

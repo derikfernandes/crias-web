@@ -7,27 +7,24 @@ Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `fronte
 | Pasta ou arquivo | O que é |
 | --- | --- |
 | `design-system/` | Design system do Crias: tokens (`styles.css`), guia (`readme.md`) e páginas de referência |
-| `prototipo/Crias Aluno.dc.html` | Protótipo navegável. Para abrir, rode `npx serve .` nesta pasta |
+| `prototipo/Crias Aluno.dc.html` | Protótipo navegável (precisa de `support.js` e `assets/`) |
+| `prototipo/Crias Aluno (offline).html` | Protótipo em arquivo único, abre sem internet |
+| `prototipo/Crias Painel.dc.html` | Protótipo do painel (referência visual) |
 | `INTERFACE.md` | Regras invioláveis, conflitos com o código atual e a ordem de aplicação |
 | `DECISOES.md` | O que foi feito e o que falta decidir |
-| `ATUALIZACAO-DESIGN-SYSTEM.md` | O que mudou no design system |
+| `ATUALIZACAO-DESIGN-SYSTEM.md` | O que mudou no design system (histórico da revisão anterior) |
+
+No pacote de origem (`export/repo/`), estes arquivos vivem em `crias-redesign/`. Neste repositório (`crias-web`) a cópia canônica do aluno fica aqui em `frontend/cria-frontend/design/`.
 
 ## Como subir no GitHub
 
-1. Use a branch `design/interface`, nunca a `main`.
-2. Copie esta pasta para `frontend/cria-frontend/design/`. Não apague nada que já existe no repositório, inclusive `crias-redesign/`.
-3. Faça um commit só, com a mensagem `design: design system e protótipo do aluno`.
-4. Esta pasta não entra no build do Vite e não altera o app.
-
-## Próximo passo no código
-
-- Aplicar o visual em `src/styles/app.css` e no JSX de apresentação de `src/pages` e `src/layouts`, página por página, conforme `INTERFACE.md`.
-- Os tokens de `design-system/styles.css` são a referência para as variáveis de `:root` do `app.css`.
-- Itens marcados como CONFLITO esperam aval.
+1. Atualize esta pasta por cima do que já existe. Não apague nada fora do design (incluindo `crias-redesign/`).
+2. O app aplica o visual em `src/styles/crias-tema.css` + `crias-ajustes.css` (depois de `app.css`), com assets em `public/`.
+3. Itens marcados como CONFLITO em `INTERFACE.md` seguem as decisões aprovadas em `DECISOES.md` / store `docs/aluno-redesign-decisoes.md`.
 
 ## Regras rápidas
 
 - Vocabulário: trilha > atividade > passo. "Exercício" é o passo que pede resposta. "Parceiro de estudos" é o tutor. Nunca usar "etapa".
-- Fundo branco. Bege só em destaques.
+- Fundo claro (Horizonte) por padrão; tema escuro opcional pelo botão do menu.
 - Verde `#00be85` com texto branco na ação principal.
-- Horizonte como fundo das telas do aluno.
+- Maria fora da trilha; login sem código da escola; sem histórico/lista/pulo por atividade.

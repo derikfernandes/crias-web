@@ -10,7 +10,8 @@
   --placeholder: #6b7a70;
   --accent: #00be85;
   --accent-2: #ffd500;
-  --accent-ink: #ffffff;
+  /* R3-N01: texto escuro no verde (#00be85) ≥ AA. */
+  --accent-ink: #001c0e;
   --cta-continue: #00be85;
   --cta-send: #00be85;
   --error: #8a1c12;

@@ -4,15 +4,15 @@ Este arquivo guarda as regras da interface. Cada regra inviolável definida na r
 
 ## Como aplicar este pacote
 
-O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/cria-frontend/design/` (espelho de `crias-redesign/`). Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta) permanecem; tema escuro é o padrão do zip/protótipo (claro pelo botão). O TSX do pacote que regride essas decisões não se aplica cegamente. Lista de atividades aninhada no menu: **não** aplicar (decisão de produto).
+O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/cria-frontend/design/`. Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta) permanecem; tema escuro é o padrão do zip/protótipo (claro pelo botão). O TSX do pacote que regride essas decisões não se aplica cegamente. Lista de atividades aninhada no menu: **não** aplicar (decisão de produto).
 
 | Caminho no pacote | Em crias-web | O que é |
 | --- | --- | --- |
-| `crias-redesign/INTERFACE.md` | `frontend/cria-frontend/design/INTERFACE.md` | Este arquivo. Regras de interface e de front-end |
-| `crias-redesign/DECISOES.md` | `frontend/cria-frontend/design/DECISOES.md` | Decisões em aberto, para o sócio |
-| `crias-redesign/prototipo/Crias Aluno (offline).html` | `.../design/prototipo/` | Protótipo em arquivo único. Abre com duplo clique, sem internet |
-| `crias-redesign/prototipo/Crias Aluno.dc.html` | idem | Fonte do protótipo. Precisa de `support.js` e `assets/` |
-| `crias-redesign/design-system/` | `.../design/design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
+| `INTERFACE.md` (pacote) | `frontend/cria-frontend/design/INTERFACE.md` | Este arquivo. Regras de interface e de front-end |
+| `DECISOES.md` (pacote) | `frontend/cria-frontend/design/DECISOES.md` | Decisões em aberto, para o sócio |
+| `prototipo/Crias Aluno (offline).html` (pacote) | `.../design/prototipo/` | Protótipo em arquivo único. Abre com duplo clique, sem internet |
+| `prototipo/Crias Aluno.dc.html` (pacote) | idem | Fonte do protótipo. Precisa de `support.js` e `assets/` |
+| `design-system/` (pacote) | `.../design/design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
 | `frontend/cria-frontend/public/` | igual | Logotipos e favicon do app |
 | `frontend/cria-frontend/index.html` | igual | Viewport de app, título sem travessão, favicon e fontes |
 | `frontend/cria-frontend/src/styles/crias-tema.css` | igual | Visual do app: **escuro por padrão** (zip/protótipo v4), claro pelo botão Claro/Escuro (fundo branco). Outfit/Manrope, pílula verde, Horizonte, Maria sem balão |
@@ -28,9 +28,9 @@ Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-g
 ## Base de referência
 
 - A revisão parte do repositório funcional atual: `thiagocrias/crias-gpt`, branch `design/interface`. Não usar a `main`.
-- O protótipo `Crias Aluno v4.dc.html` (no repositório: `crias-redesign/prototipo/Crias Aluno.dc.html`) é a referência visual e de comportamento em computador e celular. A implementação final é feita no código, sobre o repositório atual.
+- O protótipo `Crias Aluno v4.dc.html` (no repositório: `frontend/cria-frontend/design/prototipo/Crias Aluno.dc.html`) é a referência visual e de comportamento em computador e celular. A implementação final é feita no código, sobre o repositório atual.
 - Aluno: `frontend/cria-frontend` (`src/pages`, `src/layouts`, `src/components`, `src/styles/app.css`). É o app em uso.
-- O design novo (design system, protótipo e estes documentos) fica em `frontend/cria-frontend/design/` neste repositório. A pasta raiz `crias-redesign/` fica como histórico: não apagar nem alterar.
+- O design novo (design system, protótipo e estes documentos) fica em `frontend/cria-frontend/design/` neste repositório.
 - Painel: `frontend/trilha-admin/src/design/**` e `public/**`.
 - Só camada visual. Nada de API, Firestore, rotas, autenticação ou permissões.
 - Quando um item exige lógica, ele está marcado como **CONFLITO**. Esses itens param e pedem aval antes de mexer no código.
@@ -148,7 +148,7 @@ F24. Celular: cards em uma coluna, saudação em 30px e a barra "Pergunte à Mar
 
 **Imagens e arquivos**
 
-F25. Logo e símbolo são sempre arquivos, nunca texto "Crias" nem desenho refeito. App: `frontend/cria-frontend/public/`. Protótipo: `crias-redesign/prototipo/assets/`. Design system: `crias-redesign/design-system/assets/`.
+F25. Logo e símbolo são sempre arquivos, nunca texto "Crias" nem desenho refeito. App: `frontend/cria-frontend/public/`. Protótipo: `frontend/cria-frontend/design/prototipo/assets/`. Design system: `frontend/cria-frontend/design/design-system/assets/`.
 F26. Wordmark: sempre `crias-logo-dark-green.svg`. No tema escuro o CSS o deixa branco (`filter: brightness(0) invert(1)`), como no protótipo. Favicon: `crias-simbolo-luz.svg`.
 F27. Todo arquivo referenciado precisa estar na mesma pasta do pacote. Nenhuma imagem aponta para outro projeto ou para fora do repositório.
 F28. No app, caminhos públicos usam a base do Vite: `` `${import.meta.env.BASE_URL}crias-logo-branco.svg` `` (a base é `/aluno/`).

@@ -1,6 +1,6 @@
 # cria-frontend · design
 
-Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `frontend/cria-frontend`. A pasta `crias-redesign/` fica no repositório como histórico e **não deve ser apagada nem alterada**.
+Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `frontend/cria-frontend`.
 
 ## O que tem aqui
 
@@ -18,7 +18,7 @@ No pacote de origem (`export/repo/`), estes arquivos vivem em `crias-redesign/`.
 
 ## Como subir no GitHub
 
-1. Atualize esta pasta por cima do que já existe. Não apague nada fora do design (incluindo `crias-redesign/`).
+1. Atualize esta pasta por cima do que já existe. Não apague nada fora do design.
 2. O app aplica o visual em `src/styles/crias-tema.css` + `crias-ajustes.css` (depois de `app.css`), com assets em `public/`.
 3. Itens marcados como CONFLITO em `INTERFACE.md` seguem as decisões aprovadas em `DECISOES.md` / store `docs/aluno-redesign-decisoes.md`.
 

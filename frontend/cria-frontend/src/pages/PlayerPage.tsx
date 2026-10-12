@@ -31,6 +31,10 @@ import {
   type NextContentStatus,
 } from '../lib/api'
 import MariaMascot from '../components/MariaMascot'
+import MariaFace from '../components/MariaFace'
+import SendArrowIcon from '../components/SendArrowIcon'
+import TrailOrb from '../components/TrailOrb'
+import { activityProgressPct } from '../lib/trailProgressLabel'
 import {
   isRetryableSystemError,
   toUserFacingError,
@@ -180,6 +184,23 @@ function stripOptionLines(text: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+}
+
+/** Badge A–D + texto sem prefixo `A)` (proto). */
+function optionBadgeAndText(
+  opt: { key: string; text: string },
+  index: number,
+): { letter: string; text: string } {
+  const fromKey = /^[A-Za-z]$/.test(opt.key) ? opt.key.toUpperCase() : ''
+  const prefix = opt.text.match(/^\s*\(?([A-Za-z])\)?\s*[\)\.\:\-]\s*/)
+  const letter =
+    fromKey ||
+    (prefix ? prefix[1].toUpperCase() : '') ||
+    String.fromCharCode(65 + (index % 26))
+  const text = (
+    prefix ? opt.text.slice(prefix[0].length) : opt.text
+  ).trim() || opt.text.trim()
+  return { letter, text }
 }
 
 /** Enunciado exibido no card do exercício (acima das opções). */
@@ -738,13 +759,19 @@ export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { trailNames } = useOutletContext<{
+  const { trailNames, trailRows, questionTotals } = useOutletContext<{
     trailNames?: Record<string, string>
+    trailRows?: { trail_id: string }[]
+    questionTotals?: Record<string, number>
   }>()
   const session = getSession()!
   /** C2-R3 N03: H1 SR com nome humano — nunca ID cru (`t47`). */
   const trailHeading =
     (trailId && trailNames?.[trailId]?.trim()) || 'Trilha'
+  const trailOrbHue: 'g' | 'y' =
+    (trailRows?.findIndex((r) => r.trail_id === trailId) ?? 0) % 2 === 0
+      ? 'g'
+      : 'y'
   const [content, setContent] = useState<NextContentOk | NextContentStatus | null>(
     null,
   )
@@ -4063,10 +4090,10 @@ export default function PlayerPage() {
     exercisePhase === 'submitting'
       ? 'Aguarde…'
       : exercisePhase === 'error'
-        ? 'Falha ao enviar — toque em Enviar resposta de novo'
+        ? 'Falha ao enviar — toque de novo'
         : selectedOptionKey
-          ? 'Toque em Enviar resposta para confirmar'
-          : 'Selecione uma alternativa e continue...'
+          ? 'Toque para enviar a resposta'
+          : 'Selecione uma alternativa e continue…'
 
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -4292,24 +4319,30 @@ export default function PlayerPage() {
     Boolean(trailId) &&
     shouldShowContinueHalo(session.student_id, trailId)
 
-  /** CTA fora do composer: exercício (Enviar resposta), busy, ou hint de mídia. */
+  /**
+   * CTA fora do composer: só hint de mídia / busy sem CTA no pill.
+   * Enviar resposta e Continuar ficam embutidos no composer (proto v4).
+   */
   const showCtaSlot =
     content?.status === 'ok' &&
     mainButton.visible &&
-    (mainButton.action === 'submit' ||
-      mainButton.action === 'none' ||
-      Boolean(
-        currentStageMediaHint &&
-          mainButton.action === 'advance' &&
-          !hasMariaDraft,
-      ))
+    Boolean(
+      currentStageMediaHint &&
+        mainButton.action === 'advance' &&
+        !hasMariaDraft,
+    )
 
-  /** Continuar / sair da Maria vive no composer quando o campo está vazio. */
+  /**
+   * Continuar / Enviar resposta / sair da Maria / busy no composer (pill).
+   * Exercício: Maria locked + CTA “Enviar resposta” no pill (sem botão largo acima).
+   */
   const composerPrimaryAction =
-    !exerciseLockedComposer &&
     !hasMariaDraft &&
     mainButton.visible &&
-    (mainButton.action === 'advance' || mainButton.action === 'exit_maria')
+    (mainButton.action === 'advance' ||
+      mainButton.action === 'exit_maria' ||
+      mainButton.action === 'submit' ||
+      mainButton.action === 'none')
       ? mainButton
       : null
 
@@ -4329,6 +4362,17 @@ export default function PlayerPage() {
   const sendDisabledHard =
     exercisePhase === 'submitting' ||
     (exerciseLockedComposer ? true : !canSend)
+  const trailOrbPct =
+    content?.status === 'ok'
+      ? activityProgressPct({
+          activity: content.question_number,
+          totalActivities:
+            trailId && questionTotals?.[trailId] && questionTotals[trailId] > 0
+              ? questionTotals[trailId]
+              : null,
+          completed: false,
+        }) ?? 0
+      : 0
   /** R01-F15 / R09-X05: enunciado fica no card; bolha da célula atual some o corpo. */
   const activeExerciseCellKey =
     content?.status === 'ok' &&
@@ -4686,15 +4730,17 @@ export default function PlayerPage() {
             msg.role === 'assistant' &&
             msg.stageType === 'exercise' &&
             msg.cellKey === activeExerciseCellKey
+          /** Slide da trilha: orb + nome (não avatar “M” / MARIA). */
           const speaker =
             msg.role === 'assistant'
-              ? 'MARIA'
+              ? trailHeading
               : msg.role === 'user'
                 ? 'Você'
                 : 'Sistema'
           const labelId = `bubble-label-${msg.id}`
           const isFeedback = msg.kind === 'feedback'
           const mediaResume = mediaResumeMsgId === msg.id
+          const isTrailSlide = msg.role === 'assistant' || msg.role === 'system'
           return (
             <Fragment key={msg.id}>
             {msgIdx === lessonCardSlot ? lessonCardNode : null}
@@ -4702,7 +4748,9 @@ export default function PlayerPage() {
             <article
               className={`${bubbleClassName(msg)}${
                 promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
-              }${mediaResume ? ' chat-bubble--media-resume' : ''}`}
+              }${mediaResume ? ' chat-bubble--media-resume' : ''}${
+                isTrailSlide ? ' chat-bubble--slide' : ''
+              }`}
               data-msg-id={msg.id}
               data-stage-type={msg.stageType}
               data-cell-key={msg.cellKey || undefined}
@@ -4716,36 +4764,55 @@ export default function PlayerPage() {
                 : {})}
             >
               <div className="chat-bubble__row">
-                <span className="chat-bubble__avatar" aria-hidden>
-                  {msg.role === 'user' ? 'V' : msg.role === 'assistant' ? 'M' : 'S'}
-                </span>
-                <div className="chat-bubble__stack">
-                  {msg.role !== 'user' ? (
-                    <p className="chat-bubble__label" id={labelId}>
-                      {speaker}
-                    </p>
-                  ) : null}
-                  <div className="chat-bubble__text">
-                    {promptMovedToCard ? (
-                      <p className="muted">Questão abaixo — escolha uma opção.</p>
-                    ) : (
-                      renderBubbleParts(msg.text, msg.id)
-                    )}
-                  </div>
-                  <div className="chat-bubble__meta">
-                    <span>
-                      {msg.timeLabel || formatBubbleTime(null, true) || ''}
-                    </span>
-                    {msg.role === 'user' ? (
-                      <span
-                        className="chat-bubble__checks"
-                        aria-label="Mensagem enviada"
-                      >
-                        ✓✓
+                {isTrailSlide ? (
+                  <>
+                    <div className="chat-bubble__slide-head">
+                      <span className="chat-bubble__orb" aria-hidden>
+                        <TrailOrb
+                          pct={trailOrbPct}
+                          hue={trailOrbHue}
+                          size={22}
+                        />
                       </span>
-                    ) : null}
-                  </div>
-                </div>
+                      <p className="chat-bubble__label" id={labelId}>
+                        {speaker}
+                      </p>
+                    </div>
+                    <div className="chat-bubble__stack">
+                      <div className="chat-bubble__text">
+                        {promptMovedToCard ? (
+                          <p className="muted">
+                            Questão abaixo — escolha uma opção.
+                          </p>
+                        ) : (
+                          renderBubbleParts(msg.text, msg.id)
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="chat-bubble__avatar" aria-hidden>
+                      V
+                    </span>
+                    <div className="chat-bubble__stack">
+                      <div className="chat-bubble__text">
+                        {renderBubbleParts(msg.text, msg.id)}
+                      </div>
+                      <div className="chat-bubble__meta">
+                        <span>
+                          {msg.timeLabel || formatBubbleTime(null, true) || ''}
+                        </span>
+                        <span
+                          className="chat-bubble__checks"
+                          aria-label="Mensagem enviada"
+                        >
+                          ✓✓
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </article>
             </Fragment>
@@ -4757,7 +4824,7 @@ export default function PlayerPage() {
 
         {showTypingBubble ? (
           <article
-            className={`chat-bubble chat-bubble--assistant chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
+            className={`chat-bubble chat-bubble--assistant chat-bubble--slide chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
               mariaLongWait && busyReason === 'maria'
                 ? ' chat-bubble--typing-long'
                 : ''
@@ -4771,14 +4838,15 @@ export default function PlayerPage() {
             }
           >
             <div className="chat-bubble__row">
-              <span className="chat-bubble__avatar" aria-hidden>
-                M
-              </span>
-              <div className="chat-bubble__stack">
-                {/* C3-R3 N02: label visual; live anuncia o status real (reduced). */}
+              <div className="chat-bubble__slide-head">
+                <span className="chat-bubble__orb" aria-hidden>
+                  <TrailOrb pct={trailOrbPct} hue={trailOrbHue} size={22} />
+                </span>
                 <p className="chat-bubble__label" aria-hidden="true">
-                  {typing.label}
+                  {busyReason === 'maria' ? typing.label : trailHeading}
                 </p>
+              </div>
+              <div className="chat-bubble__stack">
                 <div className="chat-bubble__text">
                   <span className="typing-dots" aria-hidden="true">
                     <span />
@@ -4880,6 +4948,10 @@ export default function PlayerPage() {
                   : optIndex === 0
                     ? 0
                     : -1
+                const { letter, text: optLabel } = optionBadgeAndText(
+                  opt,
+                  optIndex,
+                )
                 return (
                   <button
                     key={opt.key}
@@ -4898,7 +4970,10 @@ export default function PlayerPage() {
                     onClick={() => onOptionSelect(opt)}
                     onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
                   >
-                    {opt.text}
+                    <span className="chat-exercise__option-badge" aria-hidden>
+                      {letter}
+                    </span>
+                    <span className="chat-exercise__option-text">{optLabel}</span>
                   </button>
                 )
               })}
@@ -4922,100 +4997,62 @@ export default function PlayerPage() {
 
       </div>
 
-      {/* CTA fora do scroller: não cobre bolhas (C3-CTA-OVERLAP); pin C2-40 intacto. */}
+      {/* CTA fora do scroller: só hint de mídia (Enviar/Continuar no pill). */}
       {showCtaSlot && !trailShellUnavailable ? (
         <div
           className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
         >
-          {/* C2-R6 N02: chip docked no CTA — sem overlap de bolha/card. */}
-          {jumpChip ? (
+          {/* Proto: sem chip “Ir para o fim”; só “Nova mensagem” quando há unseen. */}
+          {jumpChip && unseenBelow ? (
             <button
               type="button"
-              className="chat-new-msg-chip chat-new-msg-chip--docked"
+              className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
+              data-unseen="true"
               onClick={() => scrollToBottom('smooth')}
             >
-              {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+              Nova mensagem
             </button>
           ) : null}
-          {mainButton.visible &&
-          (mainButton.action === 'submit' ||
-            mainButton.action === 'none' ||
-            (mainButton.action === 'advance' &&
-              currentStageMediaHint &&
-              !hasMariaDraft)) ? (
+          {mainButton.action === 'advance' &&
+          currentStageMediaHint &&
+          !hasMariaDraft &&
+          !mainButton.busy ? (
             <div
-              className={`chat-continue${
-                mainButton.busy && mainButton.action !== 'advance'
-                  ? ' chat-continue--leaving'
-                  : ' chat-continue--enter'
-              }${
-                mainButton.action === 'advance' &&
-                currentStageHasEmbed &&
-                !mainButton.busy
-                  ? ' chat-continue--with-media'
-                  : ''
+              className={`chat-continue chat-continue--enter${
+                currentStageHasEmbed ? ' chat-continue--with-media' : ''
               }`}
             >
-              {mainButton.action === 'advance' &&
-              currentStageMediaHint &&
-              !mainButton.busy ? (
-                <p className="chat-cta-slot__media-hint">
-                  {currentStageMediaHint}
-                </p>
-              ) : null}
-              {mainButton.action === 'submit' ||
-              mainButton.action === 'none' ? (
-                <button
-                  ref={continuarBtnRef}
-                  type="button"
-                  className={`chat-continue__btn${
-                    continueHalo && mainButton.action === 'submit'
-                      ? ' chat-continue__btn--halo'
-                      : ''
-                  }`}
-                  data-action={mainButton.action}
-                  disabled={mainButton.disabled}
-                  aria-busy={mainButton.busy || undefined}
-                  title={
-                    mainButton.action === 'submit' && !selectedOptionKey
-                      ? 'Escolha uma opção primeiro'
-                      : undefined
-                  }
-                  onClick={() => {
-                    if (mainButton.action === 'submit') {
-                      void submitSelectedOption()
-                    }
-                  }}
-                >
-                  {mainButton.label}
-                </button>
-              ) : null}
+              <p className="chat-cta-slot__media-hint">
+                {currentStageMediaHint}
+              </p>
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {/* R2-N02: chip sempre docked acima do composer (nunca absolute sobre a aula). */}
-      {jumpChip && !showCtaSlot && !trailShellUnavailable ? (
+      {/* R2-N02: chip discreto docked acima do composer (nunca absolute sobre a aula). */}
+      {jumpChip && unseenBelow && !showCtaSlot && !trailShellUnavailable ? (
         <div className="chat-cta-slot chat-cta-slot--chip-only">
           <button
             type="button"
-            className="chat-new-msg-chip chat-new-msg-chip--docked"
+            className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
+            data-unseen="true"
             onClick={() => scrollToBottom('smooth')}
           >
-            {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+            Nova mensagem
           </button>
         </div>
       ) : null}
       {/* C2-R7 N02: CTA some sob KB (display:none) — chip docked some junto;
           fallback absoluto só visível com data-keyboard=open. */}
-      {jumpChip && showCtaSlot && !trailShellUnavailable ? (
+      {jumpChip && unseenBelow && showCtaSlot && !trailShellUnavailable ? (
         <button
           type="button"
-          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback"
+          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback chat-new-msg-chip--quiet"
+          data-unseen="true"
           onClick={() => scrollToBottom('smooth')}
         >
-          {unseenBelow ? 'Nova mensagem' : 'Ir para o fim'}
+          Nova mensagem
         </button>
       ) : null}
       </div>
@@ -5034,93 +5071,98 @@ export default function PlayerPage() {
       {/* C2-R12 N05: sem composer/Enviar competindo com skeleton no mount. */}
       {!trailShellUnavailable && historyReady && content?.status !== 'completed' ? (
       <footer
-        className={`chat-composer${
+        className={`chat-composer chat-composer--v4${
           exerciseLockedComposer ? ' chat-composer--locked' : ''
-        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''        }${
+        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
           composerPrimaryAction || mariaBusyPending
             ? ' chat-composer--with-continue'
             : ''
         }`}
       >
-<form
-          className="chat-composer__form"
-          onSubmit={(e) => {
-            if (composerPrimaryAction) {
-              e.preventDefault()
-              if (composerPrimaryAction.disabled) return
-              if (composerPrimaryAction.action === 'exit_maria') {
-                onVoltarParaTrilha()
-              } else if (composerPrimaryAction.action === 'advance') {
-                markContinueHaloDone(session.student_id, trailId)
-                void doAdvance()
+{/* Proto: face à esquerda da pílula; campo largo + CTA embutido. */}
+        <div className="chat-composer__dock">
+          <MariaFace size="composer" />
+          <form
+            className="chat-composer__form"
+            onSubmit={(e) => {
+              if (composerPrimaryAction) {
+                e.preventDefault()
+                if (composerPrimaryAction.disabled) return
+                if (composerPrimaryAction.action === 'exit_maria') {
+                  onVoltarParaTrilha()
+                } else if (composerPrimaryAction.action === 'advance') {
+                  markContinueHaloDone(session.student_id, trailId)
+                  void doAdvance()
+                } else if (composerPrimaryAction.action === 'submit') {
+                  void submitSelectedOption()
+                }
+                return
               }
-              return
-            }
-            if (sendAriaDisabled) {
-              e.preventDefault()
-              return
-            }
-            void onSend(e)
-          }}
-        >
-          {exerciseLockedComposer ? (
-            <span
-              className="chat-composer__lock"
-              aria-hidden="true"
-              title={exerciseLockLabel}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+              if (sendAriaDisabled) {
+                e.preventDefault()
+                return
+              }
+              void onSend(e)
+            }}
+          >
+            {exerciseLockedComposer ? (
+              <span
+                className="chat-composer__lock"
+                aria-hidden="true"
+                title={exerciseLockLabel}
               >
-                <path
-                  d="M7 11V8a5 5 0 0 1 10 0v3"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-                <rect
-                  x="5"
-                  y="11"
+                <svg
+                  className="chat-composer__lock-icon"
                   width="14"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                />
-              </svg>
-              <span className="chat-composer__lock-label">
-                {exerciseLockLabel}
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M7 11V8a5 5 0 0 1 10 0v3"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                  <rect
+                    x="5"
+                    y="11"
+                    width="14"
+                    height="10"
+                    rx="2"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                  />
+                </svg>
+                <span className="chat-composer__lock-label">
+                  {exerciseLockLabel}
+                </span>
               </span>
-            </span>
-          ) : null}
-          <textarea
-            ref={inputRef}
-            className="chat-composer__input"
-            rows={1}
-            value={draft}
-            disabled={composerBlocked && !exerciseLockedComposer}
-            readOnly={exerciseLockedComposer}
-            /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
-            tabIndex={exerciseLockedComposer ? -1 : undefined}
-            placeholder={exerciseLockedComposer ? '' : placeholder}
-            aria-label={
-              exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
-            }
-            enterKeyHint={canSubmitExercise ? 'send' : 'send'}
-            inputMode="text"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onComposerKeyDown}
-          />
-          {/* Continuar no lugar do Enviar quando o campo está vazio; ao digitar, Enviar. */}
-          {!exerciseLockedComposer ? (
-            composerPrimaryAction ? (
+            ) : null}
+            <textarea
+              ref={inputRef}
+              className="chat-composer__input"
+              rows={1}
+              value={draft}
+              disabled={composerBlocked && !exerciseLockedComposer}
+              readOnly={exerciseLockedComposer}
+              /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
+              tabIndex={exerciseLockedComposer ? -1 : undefined}
+              placeholder={exerciseLockedComposer ? '' : placeholder}
+              aria-label={
+                exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
+              }
+              enterKeyHint={canSubmitExercise ? 'send' : 'send'}
+              inputMode="text"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onComposerKeyDown}
+            />
+            {/* Continuar (texto) / Enviar (seta circular no exercício) no pill. */}
+            {composerPrimaryAction ? (
               <button
                 ref={(node) => {
                   continuarBtnRef.current = node
@@ -5128,7 +5170,15 @@ export default function PlayerPage() {
                 }}
                 type="submit"
                 className={`chat-composer__continue${
-                  continueHalo && composerPrimaryAction.action === 'advance'
+                  composerPrimaryAction.action === 'submit' ||
+                  (exerciseLockedComposer &&
+                    composerPrimaryAction.action === 'none')
+                    ? ' chat-composer__continue--icon'
+                    : ''
+                }${
+                  continueHalo &&
+                  (composerPrimaryAction.action === 'advance' ||
+                    composerPrimaryAction.action === 'submit')
                     ? ' chat-composer__continue--halo'
                     : ''
                 }`}
@@ -5136,10 +5186,26 @@ export default function PlayerPage() {
                 disabled={composerPrimaryAction.disabled}
                 aria-busy={composerPrimaryAction.busy || undefined}
                 aria-label={composerPrimaryAction.label}
+                title={
+                  composerPrimaryAction.action === 'submit' && !selectedOptionKey
+                    ? 'Escolha uma opção primeiro'
+                    : composerPrimaryAction.label
+                }
               >
-                {composerPrimaryAction.label}
+                {composerPrimaryAction.action === 'submit' ||
+                (exerciseLockedComposer &&
+                  composerPrimaryAction.action === 'none') ? (
+                  <SendArrowIcon direction="right" size={18} />
+                ) : (
+                  <>
+                    <span className="chat-composer__continue-label">
+                      {composerPrimaryAction.label}
+                    </span>
+                    <SendArrowIcon direction="right" size={16} />
+                  </>
+                )}
               </button>
-            ) : (
+            ) : !exerciseLockedComposer ? (
               <button
                 type="submit"
                 className={`chat-composer__send${
@@ -5149,20 +5215,12 @@ export default function PlayerPage() {
                 aria-disabled={sendAriaDisabled || undefined}
                 aria-label="Enviar pergunta à Maria"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <SendArrowIcon />
               </button>
-            )
-          ) : null}
-        </form>
-        {content?.status === 'ok' && !exerciseLockedComposer ? (
+            ) : null}
+          </form>
+        </div>
+        {content?.status === 'ok' ? (
           <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
             {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
             {trailBusy
@@ -5178,6 +5236,8 @@ export default function PlayerPage() {
                 : mariaBusyPending
                   ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
                     'Aguarde — finalizando conversa com Maria'
+                  : exerciseLockedComposer
+                    ? 'Envie sua pergunta ou selecione continuar para avançar'
                   : hasMariaDraft && showContinuar
                     ? // C2-R9 N01: draft pausa Continuar
                       'Enviar a dúvida à Maria — Continuar pausado'

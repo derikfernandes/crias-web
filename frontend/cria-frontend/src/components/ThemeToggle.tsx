@@ -3,15 +3,8 @@ import { useState } from 'react'
 type Tema = 'escuro' | 'claro'
 const CHAVE = 'crias-aluno-v2-tema'
 
-/** Padrão aprovado: claro + Horizonte. Escuro só se o aluno escolher. */
 function atual(): Tema {
-  try {
-    const saved = localStorage.getItem(CHAVE)
-    if (saved === 'escuro' || saved === 'claro') return saved
-  } catch {
-    /* sem armazenamento */
-  }
-  return document.documentElement.dataset.tema === 'escuro' ? 'escuro' : 'claro'
+  return document.documentElement.dataset.tema === 'claro' ? 'claro' : 'escuro'
 }
 
 export default function ThemeToggle() {
@@ -30,20 +23,10 @@ export default function ThemeToggle() {
   }
   return (
     <div className="cr-tema" role="radiogroup" aria-label="Tema">
-      <button
-        type="button"
-        role="radio"
-        aria-checked={tema === 'claro'}
-        onClick={() => escolher('claro')}
-      >
+      <button type="button" role="radio" aria-checked={tema === 'claro'} onClick={() => escolher('claro')}>
         Claro
       </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={tema === 'escuro'}
-        onClick={() => escolher('escuro')}
-      >
+      <button type="button" role="radio" aria-checked={tema === 'escuro'} onClick={() => escolher('escuro')}>
         Escuro
       </button>
     </div>

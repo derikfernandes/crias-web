@@ -21,6 +21,7 @@ import {
   bindVisualViewport,
   scrollFocusedIntoView,
 } from '../lib/visualViewport'
+import MariaFace from '../components/MariaFace'
 
 type LoginLocationState = {
   message?: string
@@ -204,13 +205,21 @@ export default function LoginPage() {
           Você está offline. Conecte-se para entrar.
         </div>
       ) : null}
-      <form className="login-panel" onSubmit={(e) => void onSubmit(e)}>
-        <img
-          className="login-wordmark cr-logo cr-logo--entrada"
-          src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
-          alt="Crias"
-          height={40}
-        />
+      <form className="login-panel login-panel--v4" onSubmit={(e) => void onSubmit(e)}>
+        <div className="login-brand">
+          <div className="login-brand__hero">
+            <MariaFace size="login" mood="oi" />
+            <p className="login-brand__bubble" aria-hidden>
+              Oi!
+            </p>
+          </div>
+          <img
+            className="login-wordmark cr-logo cr-logo--entrada"
+            src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
+            alt="Crias"
+            height={30}
+          />
+        </div>
         {institutions.length > 1 ? (
           <label className="login-institution">
             Escola
@@ -246,9 +255,6 @@ export default function LoginPage() {
             required
           />
         </label>
-        <p className="login-support muted">
-          DDD + telefone, e-mail ou ID da escola
-        </p>
         <label>
           Senha
           <div className="login-password-row">

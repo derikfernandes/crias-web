@@ -11,6 +11,9 @@ import {
   formatAtividadeLabel,
   formatPassoLabel,
 } from '../lib/trailProgressLabel'
+import MariaFace from '../components/MariaFace'
+import TrailOrb, { TrailChevron } from '../components/TrailOrb'
+import SendArrowIcon from '../components/SendArrowIcon'
 
 type LayoutOutlet = {
   trailRows: StudentTrailRow[] | null
@@ -26,7 +29,7 @@ function progressMeta(
   row: StudentTrailRow,
   totalActivities: number | null | undefined,
   totalSteps: number | null | undefined,
-): { label: string; pct: number | null } {
+): { label: string; pct: number | null; cta: string } {
   const completed = row.status === 'completed'
   const activity =
     completed && totalActivities != null && totalActivities > 0
@@ -62,7 +65,13 @@ function progressMeta(
             ),
           )
       : null)
-  return { label, pct }
+  const cta =
+    row.status === 'not_started'
+      ? 'Começar'
+      : row.status === 'completed'
+        ? 'Rever'
+        : 'Continuar'
+  return { label, pct, cta }
 }
 
 export default function TrailsPage() {
@@ -93,16 +102,19 @@ export default function TrailsPage() {
     )
   }, [trailRows, session.student_id])
 
-  const visible = ordered.slice(0, 3)
-  const hasMore = ordered.length > 3
+  /* Proto: 2 cards por linha; 3ª trilha fica no menu. */
+  const visible = ordered.slice(0, 2)
+  const hasMore = ordered.length > 2
   const homeLoading = trailsLoading && visible.length === 0 && !trailsError && !empty
+  const firstName = session.name.split(' ')[0] || 'aluno'
 
   useEffect(() => {
     if (!visible.length || homeLoading) return
     const ae = document.activeElement
     if (ae && ae !== document.body && ae !== document.documentElement) return
     const id = window.requestAnimationFrame(() => {
-      firstCardRef.current?.focus()
+      /* preventScroll: foco no card não pode empurrar a Maria para fora. */
+      firstCardRef.current?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(id)
   }, [visible[0]?.trail_id, homeLoading])
@@ -125,19 +137,16 @@ export default function TrailsPage() {
 
   return (
     <div
-      className={`chat-home chat-home--cards-${Math.min(visible.length || 1, 3)}`}
+      className={`chat-home chat-home--v4 chat-home--cards-${Math.min(visible.length || 1, 2)}`}
       aria-busy={homeLoading || undefined}
     >
-      {/* Horizonte fica só no .chat-main (ChatLayout): evita overflow:hidden
-          aninhado que bloqueava o scroll no Android Chrome. */}
       <div className="chat-home__body">
-        <img
-          className="chat-home__symbol"
-          src={`${import.meta.env.BASE_URL}crias-simbolo-luz.svg`}
-          alt=""
-          width={72}
-          height={72}
-        />
+        <div className="chat-home__hero">
+          <MariaFace size="hero" mood="oi" />
+          <p className="chat-home__bubble" aria-hidden>
+            Oi, {firstName}!
+          </p>
+        </div>
         <h1 className="chat-home__greeting titulo-leve">{greeting}</h1>
         {trailsError ? (
           <>
@@ -150,9 +159,7 @@ export default function TrailsPage() {
           </>
         ) : empty ? (
           <>
-            <p className="lede">
-              Nenhuma trilha liberada para você.
-            </p>
+            <p className="lede">Nenhuma trilha liberada para você.</p>
             <p className="muted chat-home__hint">
               Fale com a escola para liberar uma trilha. O menu também mostra quando
               a escola ainda não liberou.
@@ -169,38 +176,48 @@ export default function TrailsPage() {
               {visible.map((row, i) => {
                 const label =
                   trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
-                const { label: progresso, pct } = progressMeta(
+                const { label: progresso, pct, cta } = progressMeta(
                   row,
                   questionTotals?.[row.trail_id],
                   stageTotals?.[row.trail_id],
                 )
                 const href = `/trilha/${encodeURIComponent(row.trail_id)}`
+                const meta =
+                  pct != null ? `${progresso} · ${pct}\u00a0%` : progresso
                 return (
                   <Link
                     key={row.id}
                     ref={i === 0 ? firstCardRef : undefined}
                     to={href}
-                    className="chat-home__card"
+                    className="chat-home__card chat-home__card--v4"
                     title={label}
-                    aria-label={`${label}. ${progresso}`}
+                    aria-label={`${label}. ${meta}. ${cta}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
                   >
-                    <span className="chat-home__card-top">
-                      <span className="chat-home__card-name">{label}</span>
-                      <span className="chat-home__card-arrow" aria-hidden>
-                        ›
+                    <span className="chat-home__card-main">
+                      <TrailOrb
+                        pct={pct}
+                        hue={i % 2 === 0 ? 'g' : 'y'}
+                        size={44}
+                      />
+                      <span className="chat-home__card-text">
+                        <span className="chat-home__card-name">{label}</span>
+                        <span className="chat-home__card-meta">{meta}</span>
+                      </span>
+                      <TrailChevron className="chat-home__card-chev" />
+                    </span>
+                    <span className="chat-home__card-foot">
+                      <span className="chat-home__card-now">
+                        <span className="chat-home__card-now-label">AGORA</span>
+                        <span className="chat-home__card-now-value">
+                          {progresso}
+                        </span>
+                      </span>
+                      <span className="chat-home__card-cta">
+                        {cta}
+                        <TrailChevron />
                       </span>
                     </span>
-                    {pct != null ? (
-                      <span className="chat-home__card-progress" aria-hidden>
-                        <span style={{ width: `${pct}%` }} />
-                      </span>
-                    ) : (
-                      <span className="chat-home__card-progress" aria-hidden>
-                        <span style={{ width: '0%' }} />
-                      </span>
-                    )}
-                    <span className="chat-home__card-meta">{progresso}</span>
                   </Link>
                 )
               })}
@@ -212,33 +229,25 @@ export default function TrailsPage() {
             ) : null}
           </>
         )}
+        {/* Proto home: pílula slim sem face (face fica no composer da trilha/Maria). */}
+        <form className="chat-home__maria chat-home__maria--v4" onSubmit={onAskMaria}>
+          <input
+            type="text"
+            value={mariaDraft}
+            onChange={(e) => setMariaDraft(e.target.value)}
+            placeholder="Pergunte à Maria…"
+            aria-label="Pergunte à Maria…"
+          />
+          <button
+            type="submit"
+            className="chat-home__maria-send"
+            aria-label="Abrir chat com Maria"
+            title="Abrir chat com Maria"
+          >
+            <SendArrowIcon />
+          </button>
+        </form>
       </div>
-
-      <form className="chat-home__maria" onSubmit={onAskMaria}>
-        <input
-          type="text"
-          value={mariaDraft}
-          onChange={(e) => setMariaDraft(e.target.value)}
-          placeholder="Pergunte à Maria…"
-          aria-label="Pergunte à Maria…"
-        />
-        <button
-          type="submit"
-          className="chat-home__maria-send"
-          aria-label="Abrir chat com Maria"
-          title="Abrir chat com Maria"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M4.5 11.2 19.2 4.7a.8.8 0 0 1 1.1.9l-3.6 14.2a.8.8 0 0 1-1.3.4l-4.3-3.7-2.5 2.4a.6.6 0 0 1-1-.4v-3.9l11-8.2"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </form>
     </div>
   )
 }

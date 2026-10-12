@@ -1,5 +1,5 @@
 :root {
-  /* Redesign aluno — tema claro + Horizonte (design/INTERFACE.md) */
+  /* Redesign aluno — tokens base; crias-tema.css redefine escuro padrão + claro (Horizonte). */
   --sidebar: #faf8f0;
   --main: #ffffff;
   --main-alt: #fcfbf6;

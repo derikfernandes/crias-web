@@ -1,4 +1,6 @@
 import ThemeToggle from '../components/ThemeToggle'
+import MariaFace from '../components/MariaFace'
+import TrailOrb, { TrailChevron } from '../components/TrailOrb'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   useCallback,
@@ -55,32 +57,6 @@ function isCompactViewport() {
 function initialSidebarOpen() {
   if (typeof window === 'undefined') return true
   return !isCompactViewport()
-}
-
-function DocumentIcon() {
-  return (
-    <svg
-      className="trail-card__doc"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M7 3.75h7.5L19 8.25V20.25a.75.75 0 0 1-.75.75H7.75A.75.75 0 0 1 7 20.25V3.75z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path d="M14.5 3.75V8.5H19" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M9.5 12h5M9.5 15.5h5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
 }
 
 function LogoutIcon() {
@@ -557,7 +533,7 @@ export default function ChatLayout() {
 
           <Link
             to="/"
-            className="chat-sidebar__logo"
+            className="chat-sidebar__logo cr-logo-link"
             aria-label="Crias, ir para o início"
             onClick={() => closeDrawerForNav()}
           >
@@ -578,7 +554,13 @@ export default function ChatLayout() {
             aria-current={location.pathname === '/maria' ? 'page' : undefined}
             onClick={() => closeDrawerForNav()}
           >
-            Conversar com Maria
+            <MariaFace size="nav" />
+            <span className="chat-sidebar__maria-copy">
+              <span className="chat-sidebar__maria-title">Conversar com Maria</span>
+              <span className="chat-sidebar__maria-sub">
+                Tire dúvidas a qualquer hora
+              </span>
+            </span>
           </Link>
 
           <p className="chat-sidebar__group-label">Trilhas</p>
@@ -676,47 +658,32 @@ export default function ChatLayout() {
                     totalSteps: totalStepsRaw,
                   }) ||
                   `Atividade ${Math.max(questionNumber, 1)}`
+                const metaLine =
+                  pct != null
+                    ? `${atividadeMeta} · ${pct}\u00a0%`
+                    : atividadeMeta
+                const orbHue =
+                  rows.findIndex((r) => r.id === row.id) % 2 === 0 ? 'g' : 'y'
                 return (
                   <li key={row.id}>
                     <Link
                       to={href}
-                      className={`trail-card${active ? ' is-active' : ''}`}
+                      className={`trail-card trail-card--v4${active ? ' is-active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       title={label}
-                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${atividadeMeta}${pct != null ? `. ${pct}\u00a0%` : ''}`}
+                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${metaLine}`}
                       onClick={() => {
                         writeFocusedTrailId(row.trail_id)
                         closeDrawerForNav()
                       }}
                     >
-                      <span className="trail-card__top">
-                        <span className="trail-card__head">
-                          <DocumentIcon />
-                          <span className="trail-card__id">{label}</span>
-                        </span>
-                        <span
-                          className={`trail-card__status trail-card__status--${rowStatus}`}
-                        >
-                          <span className="trail-card__dot" aria-hidden />
-                          {STATUS_LABEL[rowStatus]}
-                        </span>
+                      <TrailOrb pct={pct} hue={orbHue} size={20} />
+                      <span className="trail-card__head">
+                        <span className="trail-card__id cr-fade">{label}</span>
+                        <span className="trail-card__meta cr-fade">{metaLine}</span>
                       </span>
-                      <span className="trail-card__meta">{atividadeMeta}</span>
-                      {pct != null ? (
-                        <span className="trail-card__progress" aria-hidden>
-                          <span className="trail-card__progress-track">
-                            <span
-                              className="trail-card__progress-fill"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </span>
-                          {/* R28-I02: espaço fino pt-BR antes do % */}
-                          <span className="trail-card__pct">
-                            {pct}
-                            {'\u00a0'}%
-                          </span>
-                        </span>
-                      ) : null}
+                      {/* Chevron só visual/navegação — sem lista aninhada (decisão produto). */}
+                      <TrailChevron className="trail-card__chev" />
                     </Link>
                   </li>
                 )
@@ -726,16 +693,18 @@ export default function ChatLayout() {
         </nav>
 
         <div className="chat-sidebar__foot">
-          <div className="chat-sidebar__brand-row">
-            <ThemeToggle />
-            <span className="chat-sidebar__user">{firstName}</span>
-          </div>
+          <ThemeToggle />
           <button type="button" className="chat-sidebar__logout" onClick={logout}>
-            <LogoutIcon />
-            Sair
-            <span className="chat-sidebar__logout-hint">
-              Seu progresso fica salvo
+            <span className="chat-sidebar__avatar" aria-hidden>
+              {(firstName || 'A').charAt(0).toUpperCase()}
             </span>
+            <span className="chat-sidebar__logout-copy">
+              <span className="chat-sidebar__user">{firstName}</span>
+              <span className="chat-sidebar__logout-hint">
+                Sair · seu progresso fica salvo
+              </span>
+            </span>
+            <LogoutIcon />
           </button>
         </div>
       </aside>
@@ -820,18 +789,64 @@ export default function ChatLayout() {
                     })
                   : null
               const topbarTitle = activeTrailId
-                ? [trailLabel, progress].filter(Boolean).join(' · ')
+                ? trailLabel || 'Trilha'
                 : onMaria
                   ? 'Conversar com Maria'
                   : 'Início'
+              const pct = (() => {
+                if (!activeTrailId) return null
+                const byAct = activityProgressPct({
+                  activity:
+                    playerQuestionNumber ??
+                    activeRow?.current_question_number ??
+                    1,
+                  totalActivities:
+                    questionTotals[activeTrailId] > 0
+                      ? questionTotals[activeTrailId]
+                      : null,
+                  completed: !!playerCompleted,
+                })
+                if (byAct != null) return byAct
+                const step =
+                  playerStageNumber ?? activeRow?.current_stage_number ?? null
+                const total =
+                  stageTotals[activeTrailId] > 0
+                    ? stageTotals[activeTrailId]
+                    : null
+                if (step == null || total == null) return null
+                if (playerCompleted) return 100
+                return Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    Math.round(((Math.max(step, 1) - 1) / Math.max(total, step)) * 100),
+                  ),
+                )
+              })()
+              const fullLabel = [topbarTitle, progress].filter(Boolean).join(' · ')
               return (
-                <span
-                  className="chat-topbar__title"
-                  title={topbarTitle}
-                  aria-label={topbarTitle}
-                >
-                  {topbarTitle}
-                </span>
+                <>
+                  <span
+                    className="chat-topbar__title cr-fade"
+                    title={fullLabel}
+                    aria-label={fullLabel}
+                  >
+                    {topbarTitle}
+                  </span>
+                  {activeTrailId && progress ? (
+                    <div className="chat-topbar__progress" aria-hidden>
+                      <span className="chat-topbar__progress-meta">{progress}</span>
+                      {pct != null ? (
+                        <span className="chat-topbar__progress-track">
+                          <span
+                            className="chat-topbar__progress-fill"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
               )
             })()}
           </div>

@@ -498,7 +498,7 @@ export function hasFeedbackBody(text: string): boolean {
 /**
  * Texto da bolha de feedback do exercício (D#3: só escola / IA, sem hardcode).
  * `pedagogical` é gerado pela IA PARA ESTA TENTATIVA (resposta + resultado no
- * contexto) → vem primeiro e não é podado. Fallbacks (explanation da questão /
+ * contexto) → vem primeiro e não é podado. Fallbacks (explanation do exercício /
  * BLOCO em cache, genérico) mantêm o alinhamento com o resultado.
  */
 export function pickExerciseFeedbackText(input: {

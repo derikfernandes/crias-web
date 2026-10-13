@@ -61,7 +61,7 @@ Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda ativ
 4. Usar sempre "Etapa", nunca "Passo" (ex.: "Etapa 3 de 12").
 5. Nunca usar travessão (—) nem "–" em textos de interface.
 6. Nenhuma conversa mostra a tag "MARIA" no topo.
-7. Questão: o campo fica travado com "Selecione uma alternativa e continue...". Continuar só ativa com alternativa marcada. Depois de responder, as alternativas ficam travadas.
+7. Exercício: o campo fica travado com "Selecione uma alternativa e continue...". Continuar só ativa com alternativa marcada. Depois de responder, as alternativas ficam travadas.
 8. Continuar fica no lugar do botão Enviar, dentro da barra de mensagem, enquanto o campo está vazio. Ao digitar, aparece Enviar no lugar. Ao apagar, volta Continuar.
 9. Continuar tem o efeito de destaque (halo verde pulsante) na primeira vez que a pessoa abre cada trilha, até avançar pela primeira vez. Não há balão de texto sobre o botão. Além disso, todo botão Continuar (quando ativo), todo botão Enviar e o botão Entrar mostram o mesmo halo ao passar o mouse, em qualquer momento: entrada, trilhas, tela inicial e Conversar com Maria.
 10. Menu lateral: grupo "Parceiro de estudos" com "Conversar com Maria" e grupo "Trilhas" com a lista. Não há "Minhas trilhas" nem "Continuar aula" no menu.
@@ -224,7 +224,7 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 ## Histórico de decisões
 
 - Revisão 6: varredura de web e celular. Menu em tela cheia no celular. Nomes de trilha em uma linha com esmaecimento no fim. Anel de foco só na caixa (fim do retângulo dentro da barra). Viewport de app, sem zoom. Barra "Pergunte à Maria" fixa no rodapé da tela inicial no celular. Logos e favicon entram no repositório. Regras F1 a F29. Protótipo v4.
-- Revisão 1: Continuar no lugar do Enviar, com halo na primeira abertura. Questão travada com texto próprio. Número de etapa sobe a cada Continuar.
+- Revisão 1: Continuar no lugar do Enviar, com halo na primeira abertura. Exercício travado com texto próprio. Número de etapa sobe a cada Continuar.
 - Revisão 5: Horizonte vira o fundo padrão de todas as telas do aluno. Verde do brilho mais baixo e transparente. Símbolo da tela inicial sem pulsar. Respiro de 52px acima da barra.
 - Revisão 4: entrada só com Login e Senha. Login aceita telefone, e-mail ou ID da escola. Entrada refeita. Foram testadas três propostas (A · Logo, B · Horizonte, C · Dois tempos). Escolhida a B · Horizonte.
 - Revisão 3: hierarquia trilha > atividade > etapa. Menu com seta abrir/recolher e lista de atividades. Histórico por atividade. Trilha Frações removida do exemplo; Matemática básica com 5 atividades e Leitura e interpretação com 3.

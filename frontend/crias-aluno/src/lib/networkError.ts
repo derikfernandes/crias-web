@@ -11,7 +11,7 @@ const SERVER_RE =
 const AUTH_EN_RE = /^(unauthorized|forbidden)$/i
 
 const SYSTEM_LOAD_RE =
-  /não foi possível (conectar|carregar|avançar|falar|registrar|gravar)|serviço está temporariamente|conexão demorou|opções desta questão/i
+  /não foi possível (conectar|carregar|avançar|falar|registrar|gravar)|serviço está temporariamente|conexão demorou|opções deste exercício/i
 
 const HTMLISH_RE = /^\s*</
 

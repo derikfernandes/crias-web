@@ -23,6 +23,5 @@ Estes pontos usam outro vocabulário e estão ligados ao que é gravado no banco
 
 1. **Editor e assistente de criação de trilhas** (`TrailForm`, `TrailContentEditor`, `TrailStructureEditor`, `TrailAiCreateWizard`, `TrailNewPage`): ali "Etapa N" quer dizer a **atividade** (`question_number`) e "Fase" quer dizer a **etapa** (`stage_number`). Esses textos também viram o título gravado no banco (por exemplo "Etapa 1 — Questão 1") e os cabeçalhos "Etapa" e "Fase N" da planilha de importação. Trocar exige decidir o que acontece com os títulos já gravados e com as planilhas já em uso.
 2. **Servidor** (`server/`, `specs/prompts/`, `docs/prompts/`): os prompts da IA usam "fase", "etapa", "questão" e "passo" no sentido comum da língua. Mexer neles muda o que a IA escreve para o aluno.
-3. **Pergunta de exercício:** no app do aluno, "Responda a questão" e "opções desta questão" falam da pergunta do exercício, não da atividade. Sugestão de texto: "Responda ao exercício" e "opções deste exercício".
-4. **Exportação de planilha** do painel (`Stage atual`, `Questão atual`): cabeçalhos mantidos para não quebrar quem já usa o arquivo.
-5. Protótipo do painel (`frontend/crias-aluno/design/prototipo/Crias Painel.dc.html`): arquivo exportado do Claude Design, mantido como veio.
+3. **Exportação de planilha** do painel (`Stage atual`, `Questão atual`): cabeçalhos mantidos para não quebrar quem já usa o arquivo.
+4. Protótipo do painel (`frontend/crias-aluno/design/prototipo/Crias Painel.dc.html`): arquivo exportado do Claude Design, mantido como veio.

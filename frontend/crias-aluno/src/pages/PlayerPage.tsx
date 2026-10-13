@@ -725,7 +725,7 @@ function typingCopy(
     }
   }
   if (reason === 'exercise') {
-    // R11-C12: chrome neutro (sem “CRIAS” + jargão “feedback da questão”).
+    // R11-C12: chrome neutro (sem “CRIAS” + jargão “feedback do exercício”).
     return {
       label: 'Aula',
       aria: 'Preparando a resposta',
@@ -2079,7 +2079,7 @@ export default function PlayerPage() {
     if (content.stage_type !== 'exercise' || exerciseDone) return
     const opts = normalizeExerciseOptions(content.options)
     if (opts.length > 0) return
-    setError('Não foi possível carregar as opções desta questão.')
+    setError('Não foi possível carregar as opções deste exercício.')
     setCanRetry(true)
     retryFnRef.current = () => {
       void loadHistoryAndContent()
@@ -4398,7 +4398,7 @@ export default function PlayerPage() {
       ? trailBusyLabel
       : exercisePhase === 'error'
         ? 'Não foi possível enviar'
-        : 'Responda a questão'
+        : 'Responda ao exercício'
 
   const currentCell =
     content?.status === 'ok'
@@ -4478,7 +4478,7 @@ export default function PlayerPage() {
       msg.role === 'assistant' &&
       msg.stageType === 'exercise' &&
       msg.cellKey === activeExerciseCellKey
-    // Mantém a bolha do enunciado ativo para o cue "Questão abaixo…".
+    // Mantém a bolha do enunciado ativo para o cue "Exercício abaixo…".
     if (promptMovedToCard) return true
     if (
       (showLessonCard || currentCellShownAsFeedback) &&

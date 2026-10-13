@@ -39,7 +39,7 @@ Registro de melhorias que envolvem API, banco, autenticação ou regra de negóc
 7. **Config Firebase client (`VITE_FIREBASE_*`)** é pública por natureza (SDK web).  
    - Revisar `firestore.rules` periodicamente; não mover secrets Admin para o frontend.
 
-8. **`frontend/cria-frontend`** (Next.js) aparece no disco mas fora do workspace npm atual.  
+8. **`frontend/crias-aluno`** (Next.js) aparece no disco mas fora do workspace npm atual.  
    - Clarificar se faz parte do produto ou é artefato local antes de integrar à estrutura.
 
 ## Desempenho (dependem de mudança de comportamento ou UX)

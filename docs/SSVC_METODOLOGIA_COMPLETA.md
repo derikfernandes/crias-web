@@ -956,7 +956,7 @@ No Crias Trilhas, a metodologia fica assim:
 specs/ define a verdade do produto.
 skills/ define como agentes devem trabalhar.
 docs/ explica operação e arquitetura.
-frontend/trilha-admin/ contém implementação atual.
+frontend/crias-painel/ contém implementação atual.
 ```
 
 A separação operacional principal é:

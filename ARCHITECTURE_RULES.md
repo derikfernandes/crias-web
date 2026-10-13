@@ -13,13 +13,13 @@ os contratos de API, banco de dados e integrações externas.
 Seu sócio pode alterar **somente**:
 
 ```text
-frontend/trilha-admin/src/design/**
+frontend/crias-painel/src/design/**
 ```
 
 Opcionalmente, arquivos estáticos em:
 
 ```text
-frontend/trilha-admin/public/**
+frontend/crias-painel/public/**
 ```
 
 (ex.: `public/icons.svg`)
@@ -63,14 +63,14 @@ O ESLint e o comando `npm run check:design-boundaries` bloqueiam essas violaçõ
 api/
 server/
 scripts/
-frontend/trilha-admin/src/pages/
-frontend/trilha-admin/src/lib/
-frontend/trilha-admin/src/hooks/
-frontend/trilha-admin/src/contexts/
-frontend/trilha-admin/src/types/
-frontend/trilha-admin/src/layouts/
-frontend/trilha-admin/src/components/   # forms mistos (lógica + UI) — ainda protegidos
-frontend/trilha-admin/src/config/
+frontend/crias-painel/src/pages/
+frontend/crias-painel/src/lib/
+frontend/crias-painel/src/hooks/
+frontend/crias-painel/src/contexts/
+frontend/crias-painel/src/types/
+frontend/crias-painel/src/layouts/
+frontend/crias-painel/src/components/   # forms mistos (lógica + UI) — ainda protegidos
+frontend/crias-painel/src/config/
 firebase*
 firestore*
 vercel.json

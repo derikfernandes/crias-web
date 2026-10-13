@@ -60,7 +60,7 @@ describe('paridade com server/lib/trail-engine/phoneNormalize.ts', () => {
       'utf8',
     )
     const feSrc = readFileSync(
-      join(root, 'frontend/trilha-admin/src/lib/trilha/phoneNormalize.ts'),
+      join(root, 'frontend/crias-painel/src/lib/trilha/phoneNormalize.ts'),
       'utf8',
     )
 

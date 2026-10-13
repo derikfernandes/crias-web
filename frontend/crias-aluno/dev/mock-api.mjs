@@ -1,6 +1,6 @@
 // Servidor de exemplo para ver e testar o app do aluno no computador.
 // Dados fictícios (aluna "Ana", 3 trilhas). Não fala com nenhum banco nem API real.
-// Uso: node frontend/cria-frontend/dev/mock-api.mjs   (e, em outro terminal) npm run dev -w cria-frontend
+// Uso: node frontend/crias-aluno/dev/mock-api.mjs   (e, em outro terminal) npm run dev -w crias-aluno
 // Depois abra http://localhost:5174/aluno/ e entre com qualquer login e senha (6+ caracteres).
 import http from 'node:http'
 import { URL } from 'node:url'

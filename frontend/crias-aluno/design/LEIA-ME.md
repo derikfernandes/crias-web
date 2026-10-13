@@ -1,6 +1,6 @@
-# cria-frontend · design
+# crias-aluno · design
 
-Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `frontend/cria-frontend`.
+Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `frontend/crias-aluno`.
 
 ## O que tem aqui
 
@@ -14,7 +14,7 @@ Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `fronte
 | `DECISOES.md` | O que foi feito e o que falta decidir |
 | `ATUALIZACAO-DESIGN-SYSTEM.md` | O que mudou no design system (histórico da revisão anterior) |
 
-No pacote de origem (`export/repo/`), estes arquivos vivem em `crias-redesign/`. Neste repositório (`crias-web`) a cópia canônica do aluno fica aqui em `frontend/cria-frontend/design/`.
+No pacote de origem (`export/repo/`), estes arquivos vivem em `crias-redesign/`. Neste repositório (`crias-web`) a cópia canônica do aluno fica aqui em `frontend/crias-aluno/design/`.
 
 ## Como subir no GitHub
 

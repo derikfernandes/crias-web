@@ -15,7 +15,7 @@ export default defineConfig({
       {
         test: {
           name: 'aluno',
-          include: ['frontend/cria-frontend/src/lib/**/*.test.ts'],
+          include: ['frontend/crias-aluno/src/lib/**/*.test.ts'],
           environment: 'node',
         },
       },
@@ -24,11 +24,11 @@ export default defineConfig({
         test: {
           name: 'frontend',
           include: [
-            'frontend/trilha-admin/src/**/*.test.ts',
-            'frontend/trilha-admin/src/**/*.test.tsx',
+            'frontend/crias-painel/src/**/*.test.ts',
+            'frontend/crias-painel/src/**/*.test.tsx',
           ],
           environment: 'jsdom',
-          setupFiles: ['./frontend/trilha-admin/src/test/setup.ts'],
+          setupFiles: ['./frontend/crias-painel/src/test/setup.ts'],
         },
       },
     ],

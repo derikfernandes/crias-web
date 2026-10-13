@@ -4,34 +4,34 @@ Este arquivo guarda as regras da interface. Cada regra inviolável definida na r
 
 ## Como aplicar este pacote
 
-O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/cria-frontend/design/`. Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta) permanecem; tema escuro é o padrão do zip/protótipo (claro pelo botão). O TSX do pacote que regride essas decisões não se aplica cegamente. Lista de atividades aninhada no menu: **não** aplicar (decisão de produto).
+O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`, branch `design/interface`. Em `crias-web`, os documentos e o design system ficam em `frontend/crias-aluno/design/`. Copie por cima e faça o commit. Nada é apagado. Decisões aprovadas (Maria fora da trilha, login sem código, home com cards + barra Maria, halo/última aberta) permanecem; tema escuro é o padrão do zip/protótipo (claro pelo botão). O TSX do pacote que regride essas decisões não se aplica cegamente. Lista de atividades aninhada no menu: **não** aplicar (decisão de produto).
 
 | Caminho no pacote | Em crias-web | O que é |
 | --- | --- | --- |
-| `INTERFACE.md` (pacote) | `frontend/cria-frontend/design/INTERFACE.md` | Este arquivo. Regras de interface e de front-end |
-| `DECISOES.md` (pacote) | `frontend/cria-frontend/design/DECISOES.md` | Decisões em aberto, para o sócio |
+| `INTERFACE.md` (pacote) | `frontend/crias-aluno/design/INTERFACE.md` | Este arquivo. Regras de interface e de front-end |
+| `DECISOES.md` (pacote) | `frontend/crias-aluno/design/DECISOES.md` | Decisões em aberto, para o sócio |
 | `prototipo/Crias Aluno (offline).html` (pacote) | `.../design/prototipo/` | Protótipo em arquivo único. Abre com duplo clique, sem internet |
 | `prototipo/Crias Aluno.dc.html` (pacote) | idem | Fonte do protótipo. Precisa de `support.js` e `assets/` |
 | `design-system/` (pacote) | `.../design/design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
-| `frontend/cria-frontend/public/` | igual | Logotipos e favicon do app |
-| `frontend/cria-frontend/index.html` | igual | Viewport de app, título sem travessão, favicon e fontes |
-| `frontend/cria-frontend/src/styles/crias-tema.css` | igual | Visual do app: **escuro por padrão** (zip/protótipo v4), claro pelo botão Claro/Escuro (fundo branco). Outfit/Manrope, pílula verde, Horizonte, Maria sem balão |
-| `frontend/cria-frontend/src/styles/crias-ajustes.css` | igual | Correções de front-end (foco, toque, zoom, menu em tela cheia, nomes esmaecidos) |
-| `frontend/cria-frontend/src/components/ThemeToggle.tsx` | igual | Botão Claro/Escuro do menu (`crias-aluno-v2-tema`) |
-| `frontend/cria-frontend/src/main.tsx` | igual | Importa `crias-tema.css` e `crias-ajustes.css` depois de `app.css` |
-| `frontend/cria-frontend/src/layouts/ChatLayout.tsx` | igual (incremental) | Logo, ThemeToggle, sem tag MARIA, "Passo", sem travessão no `aria-label`. Mantém menu Maria + Trilhas |
-| `frontend/cria-frontend/src/pages/LoginPage.tsx` | igual (incremental) | Logo em arquivo; mantém Login sem código + seletor multi-escola |
-| `frontend/cria-frontend/src/pages/TrailsPage.tsx`, `PlayerPage.tsx`, `lib/trailMessages.ts` | igual (incremental) | Vocabulário "Passo"; home cards + barra Maria já no app |
+| `frontend/crias-aluno/public/` | igual | Logotipos e favicon do app |
+| `frontend/crias-aluno/index.html` | igual | Viewport de app, título sem travessão, favicon e fontes |
+| `frontend/crias-aluno/src/styles/crias-tema.css` | igual | Visual do app: **escuro por padrão** (zip/protótipo v4), claro pelo botão Claro/Escuro (fundo branco). Outfit/Manrope, pílula verde, Horizonte, Maria sem balão |
+| `frontend/crias-aluno/src/styles/crias-ajustes.css` | igual | Correções de front-end (foco, toque, zoom, menu em tela cheia, nomes esmaecidos) |
+| `frontend/crias-aluno/src/components/ThemeToggle.tsx` | igual | Botão Claro/Escuro do menu (`crias-aluno-v2-tema`) |
+| `frontend/crias-aluno/src/main.tsx` | igual | Importa `crias-tema.css` e `crias-ajustes.css` depois de `app.css` |
+| `frontend/crias-aluno/src/layouts/ChatLayout.tsx` | igual (incremental) | Logo, ThemeToggle, sem tag MARIA, "Passo", sem travessão no `aria-label`. Mantém menu Maria + Trilhas |
+| `frontend/crias-aluno/src/pages/LoginPage.tsx` | igual (incremental) | Logo em arquivo; mantém Login sem código + seletor multi-escola |
+| `frontend/crias-aluno/src/pages/TrailsPage.tsx`, `PlayerPage.tsx`, `lib/trailMessages.ts` | igual (incremental) | Vocabulário "Passo"; home cards + barra Maria já no app |
 
-Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-green.svg`, e esse arquivo não estava no repositório (só os PNG antigos). O app (`cria-frontend`) não tinha pasta `public/` e escrevia "Crias" em texto. Agora cada pasta leva as imagens que usa, e o protótipo offline carrega tudo dentro do próprio arquivo.
+Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-green.svg`, e esse arquivo não estava no repositório (só os PNG antigos). O app (`crias-aluno`) não tinha pasta `public/` e escrevia "Crias" em texto. Agora cada pasta leva as imagens que usa, e o protótipo offline carrega tudo dentro do próprio arquivo.
 
 ## Base de referência
 
 - A revisão parte do repositório funcional atual: `thiagocrias/crias-gpt`, branch `design/interface`. Não usar a `main`.
-- O protótipo `Crias Aluno v4.dc.html` (no repositório: `frontend/cria-frontend/design/prototipo/Crias Aluno.dc.html`) é a referência visual e de comportamento em computador e celular. A implementação final é feita no código, sobre o repositório atual.
-- Aluno: `frontend/cria-frontend` (`src/pages`, `src/layouts`, `src/components`, `src/styles/app.css`). É o app em uso.
-- O design novo (design system, protótipo e estes documentos) fica em `frontend/cria-frontend/design/` neste repositório.
-- Painel: `frontend/trilha-admin/src/design/**` e `public/**`.
+- O protótipo `Crias Aluno v4.dc.html` (no repositório: `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html`) é a referência visual e de comportamento em computador e celular. A implementação final é feita no código, sobre o repositório atual.
+- Aluno: `frontend/crias-aluno` (`src/pages`, `src/layouts`, `src/components`, `src/styles/app.css`). É o app em uso.
+- O design novo (design system, protótipo e estes documentos) fica em `frontend/crias-aluno/design/` neste repositório.
+- Painel: `frontend/crias-painel/src/design/**` e `public/**`.
 - Só camada visual. Nada de API, Firestore, rotas, autenticação ou permissões.
 - Quando um item exige lógica, ele está marcado como **CONFLITO**. Esses itens param e pedem aval antes de mexer no código.
 
@@ -148,7 +148,7 @@ F24. Celular: cards em uma coluna, saudação em 30px e a barra "Pergunte à Mar
 
 **Imagens e arquivos**
 
-F25. Logo e símbolo são sempre arquivos, nunca texto "Crias" nem desenho refeito. App: `frontend/cria-frontend/public/`. Protótipo: `frontend/cria-frontend/design/prototipo/assets/`. Design system: `frontend/cria-frontend/design/design-system/assets/`.
+F25. Logo e símbolo são sempre arquivos, nunca texto "Crias" nem desenho refeito. App: `frontend/crias-aluno/public/`. Protótipo: `frontend/crias-aluno/design/prototipo/assets/`. Design system: `frontend/crias-aluno/design/design-system/assets/`.
 F26. Wordmark: sempre `crias-logo-dark-green.svg`. No tema escuro o CSS o deixa branco (`filter: brightness(0) invert(1)`), como no protótipo. Favicon: `crias-simbolo-luz.svg`.
 F27. Todo arquivo referenciado precisa estar na mesma pasta do pacote. Nenhuma imagem aponta para outro projeto ou para fora do repositório.
 F28. No app, caminhos públicos usam a base do Vite: `` `${import.meta.env.BASE_URL}crias-logo-branco.svg` `` (a base é `/aluno/`).
@@ -205,7 +205,7 @@ Observação: os comentários do código ainda dizem "etapa" e o nome interno `p
 | Texto "Etapa" | Textos visíveis | **Resolvido** no pacote. |
 | Travessão em textos | Título, `trailMessages.ts`, `PlayerPage.tsx`, `aria-label` do menu | **Resolvido** no pacote. |
 | Tag "MARIA" no topo | `chat-topbar__maria` | **Resolvido** no pacote. |
-| Símbolo do Crias | `cria-frontend` não tinha símbolo nem favicon | Arquivos em `public/` e favicon no pacote. Falta usar o símbolo na tela inicial (item 5 da orientação). |
+| Símbolo do Crias | `crias-aluno` não tinha símbolo nem favicon | Arquivos em `public/` e favicon no pacote. Falta usar o símbolo na tela inicial (item 5 da orientação). |
 | Entrada ainda com texto antigo | `LoginPage.tsx` mostra título "Entre na sua trilha", "Telefone" e "Código da escola" | Depende do **CONFLITO** do login (decisão 9). Só o logo foi trocado. |
 
 ## Orientação para o Cursor

@@ -7,7 +7,7 @@ Produção: `https://crias-web.vercel.app/aluno/` (build copiado para `dist/alun
 
 ```bash
 npm install
-npm run dev -w cria-frontend
+npm run dev -w crias-aluno
 ```
 
 Variável opcional: `VITE_API_BASE_URL` (vazio = mesma origem / proxy Vite).

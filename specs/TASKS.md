@@ -91,7 +91,7 @@ Critério de conclusão:
 - [ ] Definir payload para `stage_type = fixed`.
 - [ ] Definir payload para `stage_type = exercise`.
 - [ ] Criar testes de conclusão de trilha.
-- [ ] Scaffold `frontend/cria-frontend`.
+- [ ] Scaffold `frontend/crias-aluno`.
 
 Critério de conclusão:
 

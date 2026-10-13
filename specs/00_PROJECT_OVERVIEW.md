@@ -15,7 +15,7 @@ Pessoa responsável por configurar instituições, alunos, trilhas, fases e cont
 Escola, cursinho, instituto ou organização que terá alunos vinculados a trilhas.
 
 ### Aluno
-Usuário final que percorre a trilha no app web do aluno (`frontend/cria-frontend`), autenticado por telefone + código da instituição.
+Usuário final que percorre a trilha no app web do aluno (`frontend/crias-aluno`), autenticado por telefone + código da instituição.
 
 ## 3. Problema
 

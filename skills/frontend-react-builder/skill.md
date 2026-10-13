@@ -13,7 +13,7 @@ Implementar UI em React respeitando a spec, o modelo de dados e o Action Routing
 - specs/02_USER_FLOWS.md
 - specs/05_ACTION_ROUTING_MAP.md
 - specs/07_ACCEPTANCE.md
-- frontend/trilha-admin/src/App.tsx
+- frontend/crias-painel/src/App.tsx
 
 ## Procedimento
 

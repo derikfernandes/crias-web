@@ -28,13 +28,13 @@ Estrutura principal:
 ```text
 crias-trilhas/
   package.json
-  frontend/trilha-admin/
-  frontend/cria-frontend/
+  frontend/crias-painel/
+  frontend/crias-aluno/
   api/
   server/lib/
 ```
 
-Workspaces: `frontend/trilha-admin` e `frontend/cria-frontend`.
+Workspaces: `frontend/crias-painel` e `frontend/crias-aluno`.
 
 ## 4. Rotas principais (admin)
 

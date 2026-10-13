@@ -94,9 +94,9 @@ test('vercel.json preserva rewrites críticos de API', () => {
   }
 })
 
-test('vercel.json continua apontando o build para frontend/trilha-admin/dist', () => {
+test('vercel.json continua apontando o build para frontend/crias-painel/dist', () => {
   const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
-  assert.equal(vercel.outputDirectory, 'frontend/trilha-admin/dist')
+  assert.equal(vercel.outputDirectory, 'frontend/crias-painel/dist')
   assert.equal(vercel.buildCommand, 'npm run build')
 })
 
@@ -122,9 +122,9 @@ test('vercel.json serve SPA do aluno em /aluno sem roubar /api', () => {
   assert.equal(last.destination, '/index.html')
 })
 
-test('build raiz copia cria-frontend para dist/aluno', () => {
+test('build raiz copia crias-aluno para dist/aluno', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  assert.match(pkg.scripts.build, /cria-frontend/)
+  assert.match(pkg.scripts.build, /crias-aluno/)
   assert.match(pkg.scripts.build, /copy-aluno-dist\.mjs/)
   assert.equal(existsSync(join(root, 'scripts/copy-aluno-dist.mjs')), true)
 })
@@ -142,7 +142,7 @@ test('handlers de API exportam default (contrato Vercel)', () => {
 
 test('frontend deleteTrailCascade mantém DELETE /api/trails?id=', () => {
   const src = readFileSync(
-    join(root, 'frontend/trilha-admin/src/lib/trailApi.ts'),
+    join(root, 'frontend/crias-painel/src/lib/trailApi.ts'),
     'utf8',
   )
   assert.match(src, /['"]\/api\/trails['"]/)
@@ -152,7 +152,7 @@ test('frontend deleteTrailCascade mantém DELETE /api/trails?id=', () => {
 
 test('frontend deleteStudentCascade mantém DELETE /api/student?id=', () => {
   const src = readFileSync(
-    join(root, 'frontend/trilha-admin/src/lib/studentApi.ts'),
+    join(root, 'frontend/crias-painel/src/lib/studentApi.ts'),
     'utf8',
   )
   assert.match(src, /['"]\/api\/student['"]/)
@@ -171,7 +171,7 @@ test('api/student DELETE faz cascade em dependentes por student_id', () => {
 
 test('dashboardSummaryApi mantém GET /api/dashboard_summary', () => {
   const src = readFileSync(
-    join(root, 'frontend/trilha-admin/src/lib/dashboardSummaryApi.ts'),
+    join(root, 'frontend/crias-painel/src/lib/dashboardSummaryApi.ts'),
     'utf8',
   )
   assert.match(src, /\/api\/dashboard_summary/)

@@ -21,7 +21,7 @@ export type ChatMessage = {
   contextCell?: string
   /** Fala do monitor vinda do histórico (rótulo "Monitor" depois de recarregar). */
   monitor?: boolean
-  /** Conteúdo de um passo entregue pelo servidor: o 1º parágrafo curto é o título do passo. */
+  /** Conteúdo de uma etapa entregue pelo servidor: o 1º parágrafo curto é o título da etapa. */
   step?: boolean
   /** Retorno do exercício: acertou (true) ou quase (false). Vem do envio ou do histórico. */
   correct?: boolean | null

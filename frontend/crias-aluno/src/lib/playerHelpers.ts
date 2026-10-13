@@ -86,10 +86,10 @@ function isSidechatAtCell(m: ChatMessage, currentCell: string): boolean {
 }
 
 /**
- * Posição do lesson-card (passo atual) na lista renderizada `chat`.
+ * Posição do lesson-card (etapa atual) na lista renderizada `chat`.
  * Ocupa o lugar da bolha da célula atual; e SEMPRE fica antes das perguntas
  * à Maria feitas nesta célula (a pergunta e a resposta vêm depois do bloco,
- * em ordem cronológica — inclusive após reload ou se a bolha do passo sumiu
+ * em ordem cronológica — inclusive após reload ou se a bolha da etapa sumiu
  * do recorte). Sem âncora nenhuma: no fim.
  */
 export function computeLessonCardSlot(
@@ -199,7 +199,7 @@ export type MainButtonInput = {
   /** “Tentar de novo” (erro de rede/sistema) vivo — recovery único. */
   canRetry: boolean
   /**
-   * Sidechat Maria: Continuar sai da conversa sem avançar o passo
+   * Sidechat Maria: Continuar sai da conversa sem avançar a etapa
    * (substitui o antigo “Voltar à trilha”).
    */
   mariaSidechat?: boolean
@@ -257,7 +257,7 @@ export function mainButtonState(i: MainButtonInput): MainButtonState {
     }
   }
 
-  // Sidechat: Continuar sai da Maria sem avançar o passo.
+  // Sidechat: Continuar sai da Maria sem avançar a etapa.
   if (i.mariaSidechat) {
     if (trailBusy) {
       return { visible: true, action: 'none', label: i.trailBusyLabel, disabled: true, busy: true }

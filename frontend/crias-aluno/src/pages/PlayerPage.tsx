@@ -169,7 +169,7 @@ function messagesForCollapsedTail(
 }
 
 /**
- * C2-R1 N02: no tail colapsado (fora do sidechat Maria), só passo da trilha —
+ * C2-R1 N02: no tail colapsado (fora do sidechat Maria), só etapa da trilha —
  * entrega/feedback/opção/resume. Histórico livre da Maria fica no expand.
  */
 function isTrailStepMessage(m: ChatMessage): boolean {
@@ -648,7 +648,7 @@ function markAnimate(msg: ChatMessage, extra?: Partial<ChatMessage>): ChatMessag
 }
 
 /**
- * Entrega visual do passo: se a célula já existe, reancora no fim
+ * Entrega visual da etapa: se a célula já existe, reancora no fim
  * (replay) em vez de no-op — corrige Continuar pós-Voltar (R01).
  * Retorna também se foi delivery nova (para evitar 2º log BE).
  */
@@ -684,7 +684,7 @@ function appendTrailMessage(
 }
 
 /**
- * Cópia do passo (entrega ou resume “Continuando a trilha”) da célula —
+ * Cópia da etapa (entrega ou resume “Continuando a trilha”) da célula —
  * não inclui Maria (sidechat), feedback nem a resposta do aluno.
  */
 function isSameCellStepCopy(m: ChatMessage, cellKey: string): boolean {
@@ -850,7 +850,7 @@ export default function PlayerPage() {
   const busyReasonRef = useRef<BusyReason>(null)
   const skipSmoothScrollRef = useRef(true)
   /**
-   * Mount/reload: ancora no passo corrente até o layout assentar.
+   * Mount/reload: ancora na etapa corrente até o layout assentar.
    * Enquanto true, scrollTop=0 NÃO vira pin (evita chip fantasma + regência).
    */
   const initialAnchorPendingRef = useRef(true)
@@ -952,7 +952,7 @@ export default function PlayerPage() {
   }, [])
 
   /**
-   * C2-R8 N01 / C3-R3 N01: âncora pós-advance — foco no passo corrente
+   * C2-R8 N01 / C3-R3 N01: âncora pós-advance — foco na etapa corrente
    * DENTRO da 1ª vista. preventScroll sozinho deixava lesson-card em y&lt;0.
    */
   const focusCurrentLessonOrExercise = useCallback(() => {
@@ -1896,11 +1896,11 @@ export default function PlayerPage() {
         stripOptions: options.length > 0,
       })
 
-      // Libera composer/CTA assim que o passo atual existe.
+      // Libera composer/CTA assim que a etapa atual existe.
       setHistoryReady(true)
       setExercisePhase('idle')
 
-      // Semeia o passo corrente sem esperar history (lesson-card + bolha).
+      // Semeia a etapa corrente sem esperar history (lesson-card + bolha).
       // Persist só depois do history (evita log duplicado no remount).
       deliveredKeyRef.current = key
       const msgId = trailMessageId(data.stage_number, data.question_number)
@@ -2670,7 +2670,7 @@ export default function PlayerPage() {
   }
 
   /**
-   * C3-10 / C2-10: ancora no passo corrente.
+   * C3-10 / C2-10: ancora na etapa corrente.
    * Preferência: fim do thread (math + CTA) — block:nearest falhava no mount
    * com scrollTop colado em 0 e conteúdo ainda crescendo.
    * C3-R8 N03: aula longa no mount → título na 1ª vista (não rodapé).
@@ -2699,7 +2699,7 @@ export default function PlayerPage() {
           block: 'end',
           behavior: reduceMotionRef.current ? 'auto' : behavior,
         })
-        // Garante que o fim do passo (e CTA abaixo) fiquem acessíveis.
+        // Garante que o fim da etapa (e CTA abaixo) fiquem acessíveis.
         if (!isScrollNearBottom(el, STICKY_BOTTOM_PX * 2)) {
           el.scrollTop = el.scrollHeight
         }
@@ -3021,7 +3021,7 @@ export default function PlayerPage() {
        * Fase IA logo após o exercício cujo texto o servidor já entregou como
        * feedback da tentativa (`exercise_feedback`) e que está no chat:
        * não renderiza de novo (nem o card por um frame) — avança direto para
-       * o próximo passo. Decisão estrutural (sem título/comando do stage).
+       * o próxima etapa. Decisão estrutural (sem título/comando do stage).
        */
       if (
         !fromMariaEject &&
@@ -3671,7 +3671,7 @@ export default function PlayerPage() {
       stripOptions: options.length > 0,
     })
     const text = `Continuando a trilha:\n\n${body}`
-    // C3-VOLTAR: se o usuário não pinou de propósito, ancora no passo/CTA.
+    // C3-VOLTAR: se o usuário não pinou de propósito, ancora na etapa/CTA.
     const wasPinned = pinnedAwayRef.current && !initialAnchorPendingRef.current
     if (!wasPinned) {
       pinnedAwayRef.current = false
@@ -3684,10 +3684,10 @@ export default function PlayerPage() {
     }
 
     /**
-     * Passo atual reexibido UMA vez: a bolha “Continuando a trilha” vira a
+     * Etapa atual reexibido UMA vez: a bolha “Continuando a trilha” vira a
      * entrega da célula (mesmo cellKey) e substitui a bolha original da etapa
      * e qualquer resume anterior desta célula. Antes era anexada sem cellKey:
-     * o passo aparecia no lesson-card + no resume e, após Continuar, a bolha
+     * a etapa aparecia no lesson-card + no resume e, após Continuar, a bolha
      * original + o resume (2×). O dedupe só olhava a última mensagem — com as
      * bolhas da Maria (ocultas no tail) no meio, cada Voltar empilhava mais um
      * resume idêntico.
@@ -3703,7 +3703,7 @@ export default function PlayerPage() {
     }
     setMessages((prev) => {
       /**
-       * Exercício: Maria só abre após o feedback, então o passo já foi
+       * Exercício: Maria só abre após o feedback, então a etapa já foi
        * respondido. A entrega da célula fica NO LUGAR (antes da resposta +
        * feedback); só cópias extras são removidas. Anexar o resume no fim
        * levava o lesson-card (que ocupa o slot da bolha da célula) para
@@ -4056,7 +4056,7 @@ export default function PlayerPage() {
   const canSend = canSubmitExercise || canSendFreeText
   /**
    * C2-R9 N01: rascunho no composer + Continuar vivos = avanço acidental.
-   * Com draft, pausa Continuar e deixa Enviar (Maria) como próximo passo.
+   * Com draft, pausa Continuar e deixa Enviar (Maria) como próxima etapa.
    */
   const hasMariaDraft = !mariaLockedOnExercise && !!draft.trim()
 
@@ -4506,7 +4506,7 @@ export default function PlayerPage() {
 
   /**
    * Ordem do chat: histórico em cima, novidade sempre no FIM.
-   * O lesson-card (passo corrente) ocupa o lugar da bolha da célula atual na
+   * O lesson-card (etapa corrente) ocupa o lugar da bolha da célula atual na
    * lista — antes ficava fixo no topo do scroller, acima de todo o histórico,
    * e cada etapa nova (aula/exercício) “aparecia em cima”. Sem bolha da
    * célula no tail (ainda gerando / fora do recorte), vai para o fim.
@@ -4551,7 +4551,7 @@ export default function PlayerPage() {
     options.length > 0 &&
     !trailShellUnavailable
 
-  /** v6: o passo atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
+  /** v6: a etapa atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
   const lessonCardNode =
     !trailShellUnavailable && showLessonCard && !hasExerciseCard ? (
       <div
@@ -4604,7 +4604,7 @@ export default function PlayerPage() {
   ) : null
 
   /**
-   * v6: no último passo de uma atividade que tem próxima, a conversa mostra
+   * v6: no última etapa de uma atividade que tem próxima, a conversa mostra
    * "Atividade concluída". Gerada aqui, no cliente. Continuar abre a próxima atividade.
    */
   const activityDoneShown =
@@ -4947,7 +4947,7 @@ export default function PlayerPage() {
                           labelId={labelId}
                         >
                           {(() => {
-                            // Passos já vistos mostram o título em negrito, igual ao passo atual.
+                            // Etapas já vistas mostram o título em negrito, igual aa etapa atual.
                             const at = msg.step ? msg.text.indexOf('\n\n') : -1
                             const head = at > 0 ? msg.text.slice(0, at).trim() : ''
                             const isTitle =

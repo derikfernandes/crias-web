@@ -1,5 +1,5 @@
 /**
- * Vocabulário INTERFACE: trilha > atividade (question) > passo (stage).
+ * Vocabulário INTERFACE: trilha > atividade (question) > etapa (stage).
  * Home/menu: "Atividade X de Y". Topo: "Atividade X de Y · Etapa A de B".
  */
 

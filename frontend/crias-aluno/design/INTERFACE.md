@@ -19,9 +19,9 @@ O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-gpt`
 | `frontend/crias-aluno/src/styles/crias-ajustes.css` | igual | Correções de front-end (foco, toque, zoom, menu em tela cheia, nomes esmaecidos) |
 | `frontend/crias-aluno/src/components/ThemeToggle.tsx` | igual | Botão Claro/Escuro do menu (`crias-aluno-v2-tema`) |
 | `frontend/crias-aluno/src/main.tsx` | igual | Importa `crias-tema.css` e `crias-ajustes.css` depois de `app.css` |
-| `frontend/crias-aluno/src/layouts/ChatLayout.tsx` | igual (incremental) | Logo, ThemeToggle, sem tag MARIA, "Passo", sem travessão no `aria-label`. Mantém menu Maria + Trilhas |
+| `frontend/crias-aluno/src/layouts/ChatLayout.tsx` | igual (incremental) | Logo, ThemeToggle, sem tag MARIA, "Etapa", sem travessão no `aria-label`. Mantém menu Maria + Trilhas |
 | `frontend/crias-aluno/src/pages/LoginPage.tsx` | igual (incremental) | Logo em arquivo; mantém Login sem código + seletor multi-escola |
-| `frontend/crias-aluno/src/pages/TrailsPage.tsx`, `PlayerPage.tsx`, `lib/trailMessages.ts` | igual (incremental) | Vocabulário "Passo"; home cards + barra Maria já no app |
+| `frontend/crias-aluno/src/pages/TrailsPage.tsx`, `PlayerPage.tsx`, `lib/trailMessages.ts` | igual (incremental) | Vocabulário "Etapa"; home cards + barra Maria já no app |
 
 Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-green.svg`, e esse arquivo não estava no repositório (só os PNG antigos). O app (`crias-aluno`) não tinha pasta `public/` e escrevia "Crias" em texto. Agora cada pasta leva as imagens que usa, e o protótipo offline carrega tudo dentro do próprio arquivo.
 
@@ -37,28 +37,28 @@ Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-g
 
 ## Vocabulário (banco para interface)
 
-Hierarquia: trilha > atividade > passo (no banco: trails > question > stage).
+Hierarquia: trilha > atividade > etapa (no banco: trails > question > stage).
 
 | Banco | Interface |
 | --- | --- |
 | tutor | parceiro de estudos |
 | trail | trilha |
 | question | atividade |
-| stage | passo |
+| stage | etapa |
 
-Dentro de uma atividade, o passo que pede resposta chama-se **exercício**. Os demais passos são texto, imagem, vídeo e link. O rótulo no cartão é "Exercício".
+Dentro de uma atividade, a etapa que pede resposta chama-se **exercício**. As demais etapas são texto, imagem, vídeo e link. O rótulo no cartão é "Exercício".
 
-Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda atividade. "Passo 3 de 4" é o terceiro passo dentro da atividade.
+Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda atividade. "Etapa 3 de 4" é a terceira etapa dentro da atividade.
 
 ## Regras invioláveis
 
-0. No painel, a conclusão (dashboard, indicadores e gráficos) é medida por **atividade**, nunca por passo.
+0. No painel, a conclusão (dashboard, indicadores e gráficos) é medida por **atividade**, nunca por etapa.
 
 
 1. Fundo branco. Bege (`#fcfbf6`, `#f7f5ec`, `#fefdfa`) só em destaques, menu lateral, campos e balões.
 2. Ação principal: verde `#00be85` com texto e ícone brancos. Hover `#00a974`, pressionado `#00925f`. Vale para Continuar, Enviar, Entrar, avatar e botões de criar.
 3. Maria é o **parceiro de estudos** (tutor). Ela conversa dentro das trilhas e também fora delas.
-4. Nunca usar "Etapa". Usar "Passo" (ex.: "Passo 3 de 12").
+4. Usar sempre "Etapa", nunca "Passo" (ex.: "Etapa 3 de 12").
 5. Nunca usar travessão (—) nem "–" em textos de interface.
 6. Nenhuma conversa mostra a tag "MARIA" no topo.
 7. Questão: o campo fica travado com "Selecione uma alternativa e continue...". Continuar só ativa com alternativa marcada. Depois de responder, as alternativas ficam travadas.
@@ -89,7 +89,7 @@ Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda ativ
     - Entrada: brilho e linha sobem 80px em 2,6s ao abrir a tela.
     - Quem usa "reduzir movimento" vê o efeito parado.
 25. Respiro entre a última mensagem e a barra de mensagem: 52px.
-19. O topo da conversa mostra o nome da trilha e "Atividade X de Y · Passo A de B".
+19. O topo da conversa mostra o nome da trilha e "Atividade X de Y · Etapa A de B".
 
 ## Regras de front-end (web e celular)
 
@@ -126,8 +126,8 @@ F14. Celular: nomes de trilha em 16px, apoio em 13px, atividades em 15px, alvos 
 
 **Topo**
 
-F15. Computador: 60px, nome da trilha e, ao lado, os pontos de passo e "Atividade X de Y · Passo A de B".
-F16. Celular: 56px. Botão de menu (três linhas) à esquerda. Nome da trilha em cima (16px) e a linha de passo embaixo (12px).
+F15. Computador: 60px, nome da trilha e, ao lado, os pontos de etapa e "Atividade X de Y · Etapa A de B".
+F16. Celular: 56px. Botão de menu (três linhas) à esquerda. Nome da trilha em cima (16px) e a linha de etapa embaixo (12px).
 
 **Conversa**
 
@@ -183,18 +183,18 @@ Feitas no pacote, sem mexer em lógica. O app passa a ter o mesmo visual do prot
 | Menu do celular estreito | `.chat-sidebar` em `max-width: 768px` | Tela cheia |
 | Visual antigo (azul-escuro, verde-neon, Fraunces) | tokens de `:root` em `app.css` | `crias-tema.css` redefine os tokens e os componentes |
 | Logo em texto | `.brand`, `.chat-sidebar__brand`, `.chat-topbar__brand` | Arquivo `crias-logo-dark-green.svg` no menu e na entrada |
-| "Etapa" e travessão em textos | `ChatLayout`, `TrailsPage`, `PlayerPage`, `trailMessages` | "Passo" e pontuação comum |
+| "Passo" e travessão em textos | `ChatLayout`, `TrailsPage`, `PlayerPage`, `trailMessages` | "Etapa" e pontuação comum |
 | Tag MARIA no topo | `chat-topbar__maria` | Removida |
 
-Observação: os comentários do código ainda dizem "etapa" e o nome interno `primaryEtapa` continua. São invisíveis para o aluno e não foram alterados.
+Observação: comentários, nomes internos e textos do app do aluno usam "etapa".
 
 ## Conflitos com o repositório atual
 
 | Item | Situação no repo | Ação |
 | --- | --- | --- |
 | Histórico por atividade | A conversa é um rolo único por trilha (`PlayerPage.tsx`, mensagens por célula) | **CONFLITO de lógica**: dividir o histórico por atividade muda como as mensagens são carregadas e exibidas. Parar e avisar. |
-| Lista de atividades no menu | `ChatLayout.tsx` só conhece trilhas e o total de passos (`fetchTrailStageTotals`) | **CONFLITO de dados**: precisa da lista de atividades (question) de cada trilha. Hoje o app não expõe isso. |
-| Vocabulário | O app usa "etapa" para o que o banco chama de stage | Usar "passo" para stage e "atividade" para question. Só texto. |
+| Lista de atividades no menu | `ChatLayout.tsx` só conhece trilhas e o total de etapas (`fetchTrailStageTotals`) | **CONFLITO de dados**: precisa da lista de atividades (question) de cada trilha. Hoje o app não expõe isso. |
+| Vocabulário | O app usa "etapa" para o que o banco chama de stage | Manter "etapa" para stage e "atividade" para question. Só texto. |
 | Entrada sem código da escola e campo Login | `LoginPage.tsx` envia telefone, código da escola e senha. O campo de telefone só aceita número | **CONFLITO de lógica e API**: tirar o código e aceitar telefone, e-mail ou ID da escola muda o login no servidor. Só o texto do rótulo ("Login") e do texto de apoio é visual. Parar e avisar. Ver decisão 9 em DECISOES.md. |
 | Tema | `styles/app.css` usa o tema escuro antigo | **Resolvido** pelo `crias-tema.css`: escuro novo por padrão e claro pelo botão. O `app.css` antigo não foi alterado. |
 | Menu "Minhas trilhas" e "Continuar aula" | `ChatLayout.tsx` monta o menu com esses itens | Ajustar o JSX do menu. A rota `/` continua como está. |
@@ -202,7 +202,7 @@ Observação: os comentários do código ainda dizem "etapa" e o nome interno `p
 | Barra "Pergunte à Maria" na tela inicial | Hoje não existe na tela inicial | **CONFLITO de lógica**: mesmo motivo acima. |
 | Halo na primeira abertura de cada trilha | Não há controle de "primeira vez" | **CONFLITO de lógica**: precisa guardar a primeira abertura (localStorage ou dado do servidor). |
 | Ordem por última aberta e limite de 3 | Não há registro de última abertura | **CONFLITO de lógica**: mesmo tipo de persistência. |
-| Texto "Etapa" | Textos visíveis | **Resolvido** no pacote. |
+| Texto "Passo" | Textos visíveis | **Resolvido**: o termo oficial é "Etapa". |
 | Travessão em textos | Título, `trailMessages.ts`, `PlayerPage.tsx`, `aria-label` do menu | **Resolvido** no pacote. |
 | Tag "MARIA" no topo | `chat-topbar__maria` | **Resolvido** no pacote. |
 | Símbolo do Crias | `crias-aluno` não tinha símbolo nem favicon | Arquivos em `public/` e favicon no pacote. Falta usar o símbolo na tela inicial (item 5 da orientação). |
@@ -214,7 +214,7 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 
 0. **Pacote:** copiar o pacote por cima da raiz do repositório. Conferir que `public/` tem os SVG e que `main.tsx` importa `crias-ajustes.css`. Rodar o checklist de teste no celular.
 1. **Tema:** já está no pacote (`crias-tema.css`). Conferir os dois temas.
-2. **Texto:** já está no pacote. Conferir que não sobrou "Etapa" nem travessão em textos visíveis.
+2. **Texto:** já está no pacote. Conferir que não sobrou "Passo" nem travessão em textos visíveis.
 3. **Topo:** já está no pacote.
 4. **Menu:** em `ChatLayout.tsx`, remover "Minhas trilhas" e "Continuar aula". Criar o grupo "Parceiro de estudos" com "Conversar com Maria" (link para a rota da Maria, a definir após o aval).
 5. **Tela inicial (`TrailsPage.tsx`):** montar o layout do protótipo: fundo Horizonte, saudação, cards de 1 a 3 trilhas e barra de pergunta. Aplicar a regra 12 e as regras F9 a F11 e F24.
@@ -224,9 +224,9 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 ## Histórico de decisões
 
 - Revisão 6: varredura de web e celular. Menu em tela cheia no celular. Nomes de trilha em uma linha com esmaecimento no fim. Anel de foco só na caixa (fim do retângulo dentro da barra). Viewport de app, sem zoom. Barra "Pergunte à Maria" fixa no rodapé da tela inicial no celular. Logos e favicon entram no repositório. Regras F1 a F29. Protótipo v4.
-- Revisão 1: Continuar no lugar do Enviar, com halo na primeira abertura. Questão travada com texto próprio. Número de passo sobe a cada Continuar.
+- Revisão 1: Continuar no lugar do Enviar, com halo na primeira abertura. Questão travada com texto próprio. Número de etapa sobe a cada Continuar.
 - Revisão 5: Horizonte vira o fundo padrão de todas as telas do aluno. Verde do brilho mais baixo e transparente. Símbolo da tela inicial sem pulsar. Respiro de 52px acima da barra.
 - Revisão 4: entrada só com Login e Senha. Login aceita telefone, e-mail ou ID da escola. Entrada refeita. Foram testadas três propostas (A · Logo, B · Horizonte, C · Dois tempos). Escolhida a B · Horizonte.
-- Revisão 3: hierarquia trilha > atividade > passo. Menu com seta abrir/recolher e lista de atividades. Histórico por atividade. Trilha Frações removida do exemplo; Matemática básica com 5 atividades e Leitura e interpretação com 3.
+- Revisão 3: hierarquia trilha > atividade > etapa. Menu com seta abrir/recolher e lista de atividades. Histórico por atividade. Trilha Frações removida do exemplo; Matemática básica com 5 atividades e Leitura e interpretação com 3.
 - Revisão 2b: esfumaçado centralizado na tela inicial. Símbolo removido do menu lateral.
 - Revisão 2: Maria vira "Parceiro de estudos". Tela inicial em estilo Gemini, com até 3 trilhas e barra de pergunta.

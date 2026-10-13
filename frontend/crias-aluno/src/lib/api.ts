@@ -395,7 +395,7 @@ export async function fetchTrailNames(): Promise<Record<string, string>> {
 
 /**
  * Totais de atividades (question) por trilha — vocab INTERFACE.
- * Usa action=max no stage 1 (mesma contagem de questões em cada passo).
+ * Usa action=max no stage 1 (mesma contagem de questões em cada etapa).
  */
 export async function fetchTrailQuestionTotals(
   trailIds: string[],
@@ -431,7 +431,7 @@ export async function fetchTrailQuestionTotals(
               : 0
         if (n > 0) map[tid] = n
       } catch {
-        /* ignore — UI cai para Passo-only */
+        /* ignore — UI cai para Etapa-only */
       }
     }),
   )
@@ -447,7 +447,7 @@ export type TrailActivity = {
 
 /**
  * Títulos das atividades de uma trilha.
- * Lê as atividades do passo 1 (cada atividade existe uma vez por passo, com o mesmo título).
+ * Lê as atividades da etapa 1 (cada atividade existe uma vez por etapa, com o mesmo título).
  * Só leitura, usa a rota pública que já existe. Falha vira lista vazia.
  */
 export async function fetchTrailActivities(

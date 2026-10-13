@@ -28,7 +28,7 @@ function log(p: Partial<ConversationLogRow> & { id: string; message_text: string
   } as ConversationLogRow
 }
 
-const step = (cell: string, text = `passo ${cell}`): ChatMessage => ({
+const step = (cell: string, text = `etapa ${cell}`): ChatMessage => ({
   id: `trail-${cell}`,
   role: 'assistant',
   text,
@@ -81,19 +81,19 @@ describe('mergeHistoryIntoMessages', () => {
 })
 
 describe('computeLessonCardSlot — Maria sempre depois do bloco atual', () => {
-  it('card no lugar da bolha do passo; Maria abaixo', () => {
+  it('card no lugar da bolha da etapa; Maria abaixo', () => {
     const visible = [step('1-1'), step('4-1'), maria('u1', 'user', '4-1'), maria('m1', 'assistant', '4-1')]
-    const chat = visible.filter((m) => m.cellKey !== '4-1') // bolha do passo vira card
+    const chat = visible.filter((m) => m.cellKey !== '4-1') // bolha da etapa vira card
     expect(computeLessonCardSlot(visible, chat, '4-1')).toBe(1)
   })
 
-  it('bolha do passo fora do recorte: card antes da conversa da célula (não no fim)', () => {
+  it('bolha da etapa fora do recorte: card antes da conversa da célula (não no fim)', () => {
     const visible = [step('1-1'), maria('u1', 'user', '4-1'), maria('m1', 'assistant', '4-1')]
     const chat = visible
     expect(computeLessonCardSlot(visible, chat, '4-1')).toBe(1)
   })
 
-  it('passo reancorado depois da Maria (replay/reload): card volta para antes dela', () => {
+  it('etapa reancorado depois da Maria (replay/reload): card volta para antes dela', () => {
     const visible = [maria('u1', 'user', '4-1'), maria('m1', 'assistant', '4-1'), step('4-1')]
     const chat = visible.slice(0, 2)
     expect(computeLessonCardSlot(visible, chat, '4-1')).toBe(0)

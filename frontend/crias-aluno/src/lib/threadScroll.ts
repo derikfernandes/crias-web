@@ -118,10 +118,10 @@ export function attachThreadScroll(
     const an = c.animate(
       [
         { transform: 'translateY(0)' },
-        { transform: `translateY(${5 * sg}px)`, offset: 0.45 },
+        { transform: `translateY(${3 * sg}px)`, offset: 0.45 },
         { transform: 'translateY(0)' },
       ],
-      { duration: 900, easing: 'cubic-bezier(.37,0,.63,1)' },
+      { duration: 500, easing: 'cubic-bezier(.37,0,.63,1)' },
     )
     const end = () => {
       const id = window.setTimeout(() => {

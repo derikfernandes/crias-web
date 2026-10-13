@@ -603,7 +603,7 @@ export default function ChatLayout() {
     }
   }
 
-  // Topo: título, pontos dos passos e "Atividade X de Y · Etapa A de B".
+  // Topo: título, pontos das etapas e "Atividade X de Y · Etapa A de B".
   const topTitle = activeTrailId
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria

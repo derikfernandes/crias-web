@@ -14,7 +14,7 @@ const STUDENT = {
   phone_number: '5511999999999',
 }
 
-// trilha -> { nome, atividades (question), passos (stage) }
+// trilha -> { nome, atividades (question), etapas (stage) }
 const TRAILS = {
   t1: { name: 'Matemática básica', questions: 4, stages: 4 },
   t2: { name: 'Português: leitura e texto', questions: 3, stages: 4 },

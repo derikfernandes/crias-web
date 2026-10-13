@@ -24,7 +24,7 @@ No pacote de origem (`export/repo/`), estes arquivos vivem em `crias-redesign/`.
 
 ## Regras rápidas
 
-- Vocabulário: trilha > atividade > passo. "Exercício" é o passo que pede resposta. "Parceiro de estudos" é o tutor. Nunca usar "etapa".
+- Vocabulário: trilha > atividade > etapa. "Exercício" é a etapa que pede resposta. "Parceiro de estudos" é o tutor. Nunca usar "passo".
 - Tema escuro por padrão (igual ao protótipo v4); tema claro pelo botão do menu (fundo branco na área de conteúdo).
 - Verde `#00be85` com texto branco na ação principal.
 - Maria fora da trilha; login sem código da escola; sem histórico/lista/pulo por atividade.

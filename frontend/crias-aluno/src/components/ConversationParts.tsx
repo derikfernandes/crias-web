@@ -63,7 +63,7 @@ export function BotMessage({
   )
 }
 
-/** Carregando resposta ou passo novo: símbolo em movimento e três pontos. */
+/** Carregando resposta ou etapa nova: símbolo em movimento e três pontos. */
 export function TypingRow() {
   return (
     <div className="v6-typing" role="status" aria-live="polite" aria-label="Aguarde">

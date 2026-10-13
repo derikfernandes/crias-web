@@ -6,27 +6,27 @@ O teste de aplicar o design system atual no protótipo foi descartado. O protót
 
 ## 1. Vocabulário (prioridade máxima)
 
-O design system usa "etapa" e "bloco". Os dois saem.
+O design system usa "bloco" no lugar de atividade. Esse termo sai.
 
-Hierarquia: **trilha > atividade > passo**.
+Hierarquia: **trilha > atividade > etapa**.
 
 | Banco | Interface | Exemplo |
 | --- | --- | --- |
 | tutor | parceiro de estudos | Maria |
 | trail | trilha | Matemática básica |
 | question | atividade | Atividade 2 de 5 |
-| stage | passo | Passo 3 de 4 |
+| stage | etapa | Etapa 3 de 4 |
 
-- Dentro de uma atividade, o passo que pede resposta se chama **exercício**. Os demais passos são texto, imagem, vídeo e link.
-- Nunca usar "etapa" em interface.
+- Dentro de uma atividade, a etapa que pede resposta se chama **exercício**. As demais etapas são texto, imagem, vídeo e link.
+- O termo da interface é "etapa". Não usar "passo".
 - "Parceiro de estudos" vai no plural ("estudos"). O design system hoje usa "parceiro de estudo".
 - Sem travessão (—) e sem "–" em textos de interface.
 - Campos vazios mostram "Não informado".
 
 **Trocar no design system:**
-- No readme, a frase "números de etapa" vira "números de passo".
-- Em "Escrita", a lista de termos fixos fica "escola, professor, aluno, trilha, atividade, passo, exercício, habilidade, parceiro de estudos".
-- As classes `.etapas` e `.etapa-num` viram `.passos` e `.passo-num`.
+- No readme, a frase "números de passo" vira "números de etapa".
+- Em "Escrita", a lista de termos fixos fica "escola, professor, aluno, trilha, atividade, etapa, exercício, habilidade, parceiro de estudos".
+- As classes `.passos` e `.passo-num` viram `.etapas` e `.etapa-num`.
 - Em `components/chat.html`, o rótulo "Conteúdo" sai, e o rótulo do exercício fica "Exercício".
 
 ## 2. Fundos e tons

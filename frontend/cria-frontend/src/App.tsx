@@ -1,10 +1,11 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getSession } from './lib/session'
+import { useOverflowFade } from './lib/useOverflowFade'
 import ChatLayout from './layouts/ChatLayout'
 import LoginPage from './pages/LoginPage'
 import TrailsPage from './pages/TrailsPage'
 import PlayerPage from './pages/PlayerPage'
-import MariaPage from './pages/MariaPage'
+import MonitoriaPage from './pages/MonitoriaPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const session = getSession()
@@ -17,24 +18,25 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useOverflowFade()
   return (
-    <div className="app-shell">
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <ChatLayout />
-            </RequireAuth>
-          }
-        >
-          <Route index element={<TrailsPage />} />
-          <Route path="maria" element={<MariaPage />} />
-          <Route path="trilha/:trailId" element={<PlayerPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <ChatLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<TrailsPage />} />
+        <Route path="monitoria" element={<MonitoriaPage />} />
+        {/* Maria foi aposentada: o tutor se chama monitor. Links antigos continuam funcionando. */}
+        <Route path="maria" element={<Navigate to="/monitoria" replace />} />
+        <Route path="trilha/:trailId" element={<PlayerPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }

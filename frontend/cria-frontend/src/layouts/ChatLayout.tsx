@@ -1,6 +1,7 @@
-import ThemeToggle from '../components/ThemeToggle'
-import MariaFace from '../components/MariaFace'
-import TrailOrb, { TrailChevron } from '../components/TrailOrb'
+import Horizon from '../components/Horizon'
+import EdgeFade from '../components/EdgeFade'
+import LogoutDialog from '../components/LogoutDialog'
+import { aplicarTema, temaAtual, type Tema } from '../lib/tema'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   useCallback,
@@ -11,12 +12,14 @@ import {
   useState,
 } from 'react'
 import {
+  fetchTrailActivities,
   fetchTrailNames,
   fetchTrailQuestionTotals,
   fetchTrailStageTotals,
   isAuthError,
   listStudentTrails,
   type StudentTrailRow,
+  type TrailActivity,
 } from '../lib/api'
 import { confirmOnline } from '../lib/connectivity'
 import { toUserFacingError } from '../lib/networkError'
@@ -40,13 +43,10 @@ const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
 }
 
 /**
- * Shell compacto (= drawer): portrait estreito OU landscape curto.
- * R24-LS01: só max-width:768 falhava em 844×390 (sidebar desktop sem ☰).
- * R20-N02 / P30: max-height 500→600 — evita cliff 800×501 sidebar ↔ 800×500
- * drawer (e 769/768×501) quando a barra do browser come 1px de vh.
+ * Shell compacto (= menu em tela cheia). v6, seção 3: ponto de quebra único, 768px.
+ * Até 768px é celular. Acima disso o menu fica fixo, de 280px, e é recolhível.
  */
-const COMPACT_MQ =
-  '(max-width: 768px), (max-height: 600px) and (orientation: landscape)'
+const COMPACT_MQ = '(max-width: 768px)'
 
 function isCompactViewport() {
   if (typeof window === 'undefined') return false
@@ -57,26 +57,6 @@ function isCompactViewport() {
 function initialSidebarOpen() {
   if (typeof window === 'undefined') return true
   return !isCompactViewport()
-}
-
-function LogoutIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M10 4.75H6.75A2 2 0 0 0 4.75 6.75v10.5a2 2 0 0 0 2 2H10"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 8l4 4-4 4M18 12H9.5"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
 }
 
 function focusableIn(root: HTMLElement): HTMLElement[] {
@@ -133,6 +113,14 @@ export default function ChatLayout() {
   const drawerClosingFromPopRef = useRef(false)
   /** Só a resposta mais recente de /student_trails aplica (sem stale fora de ordem). */
   const trailsReqSeqRef = useRef(0)
+  /** Títulos das atividades de cada trilha (menu e "AGORA" do Início). */
+  const [activities, setActivities] = useState<Record<string, TrailActivity[]>>(
+    {},
+  )
+  /** Trilhas com a lista de atividades aberta no menu. */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const [tema, setTema] = useState<Tema>(() => temaAtual())
 
   // ER05: sessão sumiu mid-app → login (guarda rota para pós-login).
   useEffect(() => {
@@ -404,6 +392,25 @@ export default function ChatLayout() {
     }
   }, [rows])
 
+  // Títulos das atividades de cada trilha (só leitura, rota pública existente).
+  useEffect(() => {
+    if (!rows?.length) return
+    let cancelled = false
+    for (const r of rows) {
+      void fetchTrailActivities(r.trail_id)
+        .then((list) => {
+          if (cancelled || list.length === 0) return
+          setActivities((prev) => ({ ...prev, [r.trail_id]: list }))
+        })
+        .catch(() => {
+          /* sem títulos: o menu mostra "Atividade N" */
+        })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [rows])
+
   // Player / rotas compactas: nunca reabrir drawer só por navegar.
   useEffect(() => {
     if (isCompactViewport()) {
@@ -412,14 +419,16 @@ export default function ChatLayout() {
     }
   }, [location.pathname])
 
-  function logout() {
-    // R15-Y02: confirm antes de Sair (chrome; progresso já está na escola).
-    const ok = window.confirm(
-      'Sair da conta? Seu progresso na trilha fica salvo.',
-    )
-    if (!ok) return
+  function confirmLogout() {
+    setLogoutOpen(false)
     clearSession('logout')
     navigate('/login', { replace: true })
+  }
+
+  function alternarTema() {
+    const next: Tema = tema === 'escuro' ? 'claro' : 'escuro'
+    aplicarTema(next)
+    setTema(next)
   }
 
   const trailMatch = location.pathname.match(/^\/trilha\/([^/]+)/)
@@ -427,6 +436,20 @@ export default function ChatLayout() {
     ? decodeURIComponent(trailMatch[1])
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
+  /** v6: atividade passada sendo vista (?atividade=N). Vazio = atividade atual. */
+  const viewActivityRaw = new URLSearchParams(location.search).get('atividade')
+  const viewActivity =
+    viewActivityRaw && /^\d+$/.test(viewActivityRaw)
+      ? Number.parseInt(viewActivityRaw, 10)
+      : null
+
+  useEffect(() => {
+    if (activeTrailId) {
+      setExpanded((prev) =>
+        prev[activeTrailId] ? prev : { ...prev, [activeTrailId]: true },
+      )
+    }
+  }, [activeTrailId])
 
   // Layout effect: listener ativo antes do layout effect do player que despacha.
   useLayoutEffect(() => {
@@ -499,359 +522,457 @@ export default function ChatLayout() {
 
   if (!session) return null
 
-  // R03-A01 / F05: sidebar fechada no mobile não entra no Tab; main inerte com drawer aberto.
-  const sidebarInert = isNarrow && !sidebarOpen
+  // Menu em tela cheia (celular): o conteúdo atrás fica inerte enquanto o menu está aberto.
   const mainInert = drawerAsModal
+  const onHome = location.pathname === '/'
+  const onMonitoria = location.pathname === '/monitoria'
+
+  /** Dados de uma trilha para o menu (mesma regra de progresso de antes). */
+  function rowInfo(row: StudentTrailRow) {
+    const rowCompleted =
+      row.status === 'completed' ||
+      (row.trail_id === activeTrailId && playerCompleted)
+    const stageNumberRaw =
+      row.trail_id === activeTrailId &&
+      playerStageNumber != null &&
+      row.status !== 'completed'
+        ? playerStageNumber
+        : row.current_stage_number
+    const questionNumberRaw =
+      row.trail_id === activeTrailId &&
+      playerQuestionNumber != null &&
+      row.status !== 'completed'
+        ? playerQuestionNumber
+        : row.current_question_number
+    const totalStepsRaw =
+      stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
+        ? stageTotals[row.trail_id]
+        : null
+    const totalActivitiesRaw =
+      questionTotals[row.trail_id] && questionTotals[row.trail_id] > 0
+        ? questionTotals[row.trail_id]
+        : null
+    const stageNumber =
+      rowCompleted && totalStepsRaw != null
+        ? Math.max(totalStepsRaw, stageNumberRaw)
+        : stageNumberRaw
+    const questionNumber =
+      rowCompleted && totalActivitiesRaw != null
+        ? Math.max(totalActivitiesRaw, questionNumberRaw)
+        : questionNumberRaw
+    const pct =
+      activityProgressPct({
+        activity: questionNumber,
+        totalActivities: totalActivitiesRaw,
+        completed: rowCompleted,
+      }) ??
+      (totalStepsRaw != null
+        ? rowCompleted
+          ? 100
+          : Math.min(
+              100,
+              Math.max(
+                0,
+                Math.round(
+                  ((Math.max(stageNumber, 1) - 1) /
+                    Math.max(totalStepsRaw, stageNumber)) *
+                    100,
+                ),
+              ),
+            )
+        : null)
+    const rowStatus = rowCompleted ? 'completed' : row.status
+    const label = trailNames[row.trail_id] || row.trail_id || 'Trilha'
+    const meta =
+      formatAtividadeLabel(questionNumber, totalActivitiesRaw) ||
+      formatTrailChromeProgress({
+        activity: questionNumber,
+        totalActivities: totalActivitiesRaw,
+        step: stageNumber,
+        totalSteps: totalStepsRaw,
+      }) ||
+      `Atividade ${Math.max(questionNumber, 1)}`
+    return {
+      rowCompleted,
+      rowStatus,
+      questionNumber,
+      totalActivities: totalActivitiesRaw,
+      pct,
+      label,
+      meta,
+    }
+  }
+
+  // Topo: título, pontos dos passos e "Atividade X de Y · Passo A de B".
+  const topTitle = activeTrailId
+    ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
+    : onMonitoria
+      ? 'Monitoria'
+      : ''
+  const totalStepsTop =
+    activeTrailId && stageTotals[activeTrailId] > 0
+      ? stageTotals[activeTrailId]
+      : 0
+  const currentActivityTop = activeTrailId
+    ? playerCompleted && questionTotals[activeTrailId] > 0
+      ? Math.max(
+          questionTotals[activeTrailId],
+          playerQuestionNumber ?? activeRow?.current_question_number ?? 1,
+        )
+      : (playerQuestionNumber ?? activeRow?.current_question_number ?? null)
+    : null
+  const viewingPast =
+    viewActivity != null &&
+    currentActivityTop != null &&
+    viewActivity < currentActivityTop &&
+    !playerCompleted
+  const shownActivityTop = viewingPast ? viewActivity : currentActivityTop
+  const stepTop = viewingPast
+    ? totalStepsTop || null
+    : playerCompleted && totalStepsTop > 0
+      ? Math.max(totalStepsTop, playerStageNumber ?? 1)
+      : (playerStageNumber ?? activeRow?.current_stage_number ?? null)
+  const topStage = onMonitoria
+    ? 'Conversar com seu monitor'
+    : activeTrailId
+      ? formatTrailChromeProgress({
+          activity: shownActivityTop,
+          totalActivities:
+            questionTotals[activeTrailId] > 0
+              ? questionTotals[activeTrailId]
+              : null,
+          step: stepTop,
+          totalSteps: totalStepsTop > 0 ? totalStepsTop : null,
+        })
+      : null
+  const dotIndex =
+    totalStepsTop > 0 && stepTop != null
+      ? Math.min(totalStepsTop, Math.max(1, stepTop)) - 1
+      : -1
+  const dotsDone = playerCompleted || viewingPast
+
+  const closeIcon = (
+    <>
+      <svg className="v6-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+        <rect x="3" y="4" width="18" height="16" rx="3" />
+        <path d="M9 4v16" />
+      </svg>
+      <svg className="v6-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <path d="M6 6l12 12M18 6L6 18" />
+      </svg>
+    </>
+  )
+  const openIcon = (
+    <>
+      <svg className="v6-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+        <rect x="3" y="4" width="18" height="16" rx="3" />
+        <path d="M9 4v16" />
+      </svg>
+      <svg className="v6-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+        <path d="M4 7h16M4 12h16M4 17h10" />
+      </svg>
+    </>
+  )
 
   return (
-    <div
-      className={`chat-shell${offline ? ' chat-shell--offline' : ''}${
-        drawerAsModal ? ' chat-shell--drawer-open' : ''
-      }`}
-    >
-      <aside
-        id="crias-sidebar"
-        ref={sidebarRef}
-        className={`chat-sidebar ${sidebarOpen ? 'chat-sidebar--open' : ''}`}
-        aria-label="Trilhas"
-        aria-modal={drawerAsModal ? true : undefined}
-        role={drawerAsModal ? 'dialog' : 'navigation'}
-        inert={sidebarInert || undefined}
-      >
-        <nav className="chat-sidebar__nav" aria-label="Menu do aluno">
-          {/* C2-R17 N02: Fechar dentro do dialog (trap); N01: ☰ topbar sobe via CSS. */}
-          {drawerAsModal ? (
+    <div className="v6-shell">
+      {sidebarOpen ? (
+        <aside
+          id="crias-sidebar"
+          ref={sidebarRef}
+          className="v6-sidebar"
+          aria-label="Menu"
+          aria-modal={drawerAsModal ? true : undefined}
+          role={drawerAsModal ? 'dialog' : 'navigation'}
+        >
+          <div className="v6-sidebar__plate" aria-hidden="true" />
+          <div className="v6-sidebar__head">
+            <Link
+              to="/"
+              className="v6-sidebar__logo"
+              aria-label="Ir para o início"
+              onClick={() => closeDrawerForNav()}
+            >
+              <img
+                data-logo="1"
+                src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
+                alt="Crias"
+                height={20}
+              />
+            </Link>
             <button
               type="button"
-              className="chat-sidebar__close"
+              className="v6-iconbtn"
               aria-label="Fechar menu"
               onClick={() => closeDrawer(true)}
             >
-              Fechar
+              {closeIcon}
             </button>
-          ) : null}
-
-          <Link
-            to="/"
-            className="chat-sidebar__logo cr-logo-link"
-            aria-label="Crias, ir para o início"
-            onClick={() => closeDrawerForNav()}
-          >
-            <img
-              className="cr-logo"
-              src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
-              alt="Crias"
-              height={28}
-            />
-          </Link>
-
-          <p className="chat-sidebar__group-label">Parceiro de estudos</p>
-          <Link
-            to="/maria"
-            className={`chat-sidebar__maria${
-              location.pathname === '/maria' ? ' is-active' : ''
-            }`}
-            aria-current={location.pathname === '/maria' ? 'page' : undefined}
-            onClick={() => closeDrawerForNav()}
-          >
-            <MariaFace size="nav" />
-            <span className="chat-sidebar__maria-copy">
-              <span className="chat-sidebar__maria-title">Conversar com Maria</span>
-              <span className="chat-sidebar__maria-sub">
-                Tire dúvidas a qualquer hora
-              </span>
-            </span>
-          </Link>
-
-          <p className="chat-sidebar__group-label">Trilhas</p>
-
-          {trailsLoading && rows === null ? (
-            <p
-              className="muted chat-sidebar__empty"
-              role="status"
-              aria-busy="true"
-              aria-live="polite"
-            >
-              Carregando trilhas…
+          </div>
+          <nav className="v6-sidebar__nav" aria-label="Menu do aluno">
+            <p className="v6-group">
+              <span className="v6-group__text">Acompanhamento</span>
+              <span className="v6-group__line" />
             </p>
-          ) : trailsError ? (
-            <div className="chat-sidebar__error" role="alert">
-              <p className="muted">{trailsError}</p>
+            {/* Painel de dados: fora do app do aluno, abre o painel da plataforma. */}
+            <a href="/" className="v6-navitem">
+              <span className="v6-navitem__copy">
+                <span className="v6-navitem__name">Painel</span>
+                <span className="v6-navitem__meta">Ver seus dados de estudo</span>
+              </span>
+            </a>
+            <Link
+              to="/monitoria"
+              className={`v6-navitem${onMonitoria ? ' is-active' : ''}`}
+              aria-current={onMonitoria ? 'page' : undefined}
+              onClick={() => closeDrawerForNav()}
+            >
+              <span className="v6-navitem__copy">
+                <span className="v6-navitem__name">Monitoria</span>
+                <span className="v6-navitem__meta">Conversar com seu monitor</span>
+              </span>
+            </Link>
+
+            <p className="v6-group v6-group--next">
+              <span className="v6-group__text">Trilhas</span>
+              <span className="v6-group__line" />
+            </p>
+            {trailsLoading && rows === null ? (
+              <div className="v6-skel-list" role="status" aria-busy="true" aria-live="polite">
+                <div className="v6-skel-row" />
+                <div className="v6-skel-row" />
+              </div>
+            ) : trailsError ? (
+              <div role="alert">
+                <p className="v6-menu-status v6-menu-status--err">
+                  Não foi possível carregar suas trilhas
+                </p>
+                <button
+                  type="button"
+                  className="v6-menu-retry"
+                  onClick={() => void reloadTrails()}
+                >
+                  Tentar de novo
+                </button>
+              </div>
+            ) : rows && rows.length === 0 ? (
+              <p className="v6-menu-status v6-menu-status--empty">
+                Nenhuma trilha liberada
+              </p>
+            ) : rows ? (
+              <ul className="v6-trails">
+                {rows.map((row) => {
+                  const href = `/trilha/${encodeURIComponent(row.trail_id)}`
+                  const active = location.pathname === href
+                  const info = rowInfo(row)
+                  const isOpen = Boolean(expanded[row.trail_id])
+                  const titles = activities[row.trail_id] ?? []
+                  const total = Math.max(info.totalActivities ?? 0, titles.length)
+                  const acts = Array.from({ length: total }, (_, i) => {
+                    const n = i + 1
+                    const found = titles.find((t) => t.number === n)
+                    return { n, title: found?.title || `Atividade ${n}` }
+                  })
+                  const viewingNow =
+                    active && (viewingPast ? viewActivity : info.questionNumber)
+                  return (
+                    <li
+                      key={row.id}
+                      className={`v6-trailrow${active ? ' is-active' : ''}`}
+                    >
+                      <div className="v6-trailrow__top">
+                        <Link
+                          to={href}
+                          className="v6-trailrow__open"
+                          aria-current={active ? 'page' : undefined}
+                          title={info.label}
+                          aria-label={`${info.label}. ${STATUS_LABEL[info.rowStatus]}. ${info.meta}`}
+                          onClick={() => {
+                            writeFocusedTrailId(row.trail_id)
+                            setExpanded((prev) => ({ ...prev, [row.trail_id]: true }))
+                            closeDrawerForNav()
+                          }}
+                        >
+                          <span className="v6-trailrow__text">
+                            <span className="v6-trailrow__name" data-fade="1">
+                              {info.label}
+                            </span>
+                            <span className="v6-bar">
+                              <span
+                                className="v6-bar__fill"
+                                style={{ width: `${info.pct ?? 0}%` }}
+                              />
+                            </span>
+                            <span className="v6-trailrow__meta" data-fade="1">
+                              {info.meta}
+                            </span>
+                          </span>
+                        </Link>
+                        <button
+                          type="button"
+                          className="v6-trailrow__toggle"
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? 'Recolher' : 'Abrir'} atividades de ${info.label}`}
+                          onClick={() =>
+                            setExpanded((prev) => ({
+                              ...prev,
+                              [row.trail_id]: !prev[row.trail_id],
+                            }))
+                          }
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d={isOpen ? 'M6 9l6 6 6-6' : 'M9 6l6 6-6 6'} />
+                          </svg>
+                        </button>
+                      </div>
+                      {isOpen && acts.length > 0 ? (
+                        <ul className="v6-acts">
+                          {acts.map((a) => {
+                            const st =
+                              info.rowCompleted || a.n < info.questionNumber
+                                ? 'done'
+                                : a.n === info.questionNumber
+                                  ? 'cur'
+                                  : 'future'
+                            return (
+                              <li key={a.n}>
+                                <button
+                                  type="button"
+                                  className={`v6-act${viewingNow === a.n ? ' is-viewing' : ''}`}
+                                  disabled={st === 'future'}
+                                  onClick={() => {
+                                    writeFocusedTrailId(row.trail_id)
+                                    closeDrawerForNav()
+                                    navigate(
+                                      st === 'cur' || info.rowCompleted && a.n === info.questionNumber
+                                        ? href
+                                        : `${href}?atividade=${a.n}`,
+                                    )
+                                  }}
+                                >
+                                  <span className={`v6-act__dot is-${st}`}>
+                                    {st === 'done' ? '✓' : String(a.n)}
+                                  </span>
+                                  <span className="v6-act__title" data-fade="1">
+                                    {a.title}
+                                  </span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+          </nav>
+
+          <div className="v6-sidebar__foot">
+            <div className="v6-sidebar__user">
               <button
                 type="button"
-                className="chat-sidebar__retry"
-                onClick={() => void reloadTrails()}
+                className="v6-profile"
+                aria-label={`Abrir perfil de ${firstName}`}
               >
-                Tentar de novo
+                <span className="v6-avatar" aria-hidden>
+                  {(firstName || 'A').charAt(0).toUpperCase()}
+                </span>
+                <span className="v6-profile__name">{firstName}</span>
+                <svg className="v6-profile__chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="v6-iconbtn"
+                aria-label={tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
+                title={tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
+                onClick={alternarTema}
+              >
+                {tema === 'escuro' ? (
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                  </svg>
+                ) : (
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                className="v6-iconbtn"
+                aria-label="Salvar e sair"
+                title="Salvar e sair"
+                onClick={() => setLogoutOpen(true)}
+              >
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M14 8l4 4-4 4M18 12H9.5" />
+                </svg>
               </button>
             </div>
-          ) : rows && rows.length === 0 ? (
-            <p className="muted chat-sidebar__empty">Nenhuma trilha liberada.</p>
-          ) : rows ? (
-            <ul className="chat-sidebar__list">
-              {rows.map((row) => {
-                const href = `/trilha/${encodeURIComponent(row.trail_id)}`
-                const active = location.pathname === href
-                const rowCompleted =
-                  row.status === 'completed' ||
-                  (row.trail_id === activeTrailId && playerCompleted)
-                const stageNumberRaw =
-                  row.trail_id === activeTrailId &&
-                  playerStageNumber != null &&
-                  row.status !== 'completed'
-                    ? playerStageNumber
-                    : row.current_stage_number
-                const questionNumberRaw =
-                  row.trail_id === activeTrailId &&
-                  playerQuestionNumber != null &&
-                  row.status !== 'completed'
-                    ? playerQuestionNumber
-                    : row.current_question_number
-                const totalStepsRaw =
-                  stageTotals[row.trail_id] && stageTotals[row.trail_id] > 0
-                    ? stageTotals[row.trail_id]
-                    : null
-                const totalActivitiesRaw =
-                  questionTotals[row.trail_id] &&
-                  questionTotals[row.trail_id] > 0
-                    ? questionTotals[row.trail_id]
-                    : null
-                const stageNumber =
-                  rowCompleted && totalStepsRaw != null
-                    ? Math.max(totalStepsRaw, stageNumberRaw)
-                    : stageNumberRaw
-                const questionNumber =
-                  rowCompleted && totalActivitiesRaw != null
-                    ? Math.max(totalActivitiesRaw, questionNumberRaw)
-                    : questionNumberRaw
-                // INTERFACE 15: progresso por atividade; fallback por passo.
-                const pct =
-                  activityProgressPct({
-                    activity: questionNumber,
-                    totalActivities: totalActivitiesRaw,
-                    completed: rowCompleted,
-                  }) ??
-                  (totalStepsRaw != null
-                    ? rowCompleted
-                      ? 100
-                      : Math.min(
-                          100,
-                          Math.max(
-                            0,
-                            Math.round(
-                              ((Math.max(stageNumber, 1) - 1) /
-                                Math.max(totalStepsRaw, stageNumber)) *
-                                100,
-                            ),
-                          ),
-                        )
-                    : null)
-                const rowStatus = rowCompleted ? 'completed' : row.status
-                const label =
-                  trailNames[row.trail_id] || row.trail_id || 'Trilha'
-                const atividadeMeta =
-                  formatAtividadeLabel(questionNumber, totalActivitiesRaw) ||
-                  formatTrailChromeProgress({
-                    activity: questionNumber,
-                    totalActivities: totalActivitiesRaw,
-                    step: stageNumber,
-                    totalSteps: totalStepsRaw,
-                  }) ||
-                  `Atividade ${Math.max(questionNumber, 1)}`
-                const metaLine =
-                  pct != null
-                    ? `${atividadeMeta} · ${pct}\u00a0%`
-                    : atividadeMeta
-                const orbHue =
-                  rows.findIndex((r) => r.id === row.id) % 2 === 0 ? 'g' : 'y'
-                return (
-                  <li key={row.id}>
-                    <Link
-                      to={href}
-                      className={`trail-card trail-card--v4${active ? ' is-active' : ''}`}
-                      aria-current={active ? 'page' : undefined}
-                      title={label}
-                      aria-label={`${label}. ${STATUS_LABEL[rowStatus]}. ${metaLine}`}
-                      onClick={() => {
-                        writeFocusedTrailId(row.trail_id)
-                        closeDrawerForNav()
-                      }}
-                    >
-                      <TrailOrb pct={pct} hue={orbHue} size={20} />
-                      <span className="trail-card__head">
-                        <span className="trail-card__id cr-fade">{label}</span>
-                        <span className="trail-card__meta cr-fade">{metaLine}</span>
-                      </span>
-                      {/* Chevron só visual/navegação — sem lista aninhada (decisão produto). */}
-                      <TrailChevron className="trail-card__chev" />
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-        </nav>
-
-        <div className="chat-sidebar__foot">
-          <ThemeToggle />
-          <button type="button" className="chat-sidebar__logout" onClick={logout}>
-            <span className="chat-sidebar__avatar" aria-hidden>
-              {(firstName || 'A').charAt(0).toUpperCase()}
-            </span>
-            <span className="chat-sidebar__logout-copy">
-              <span className="chat-sidebar__user">{firstName}</span>
-              <span className="chat-sidebar__logout-hint">
-                Sair · seu progresso fica salvo
-              </span>
-            </span>
-            <LogoutIcon />
-          </button>
-        </div>
-      </aside>
-
-      {drawerAsModal ? (
-        <div
-          className="chat-sidebar__backdrop"
-          aria-hidden="true"
-          onClick={() => closeDrawer(true)}
-        />
+          </div>
+        </aside>
       ) : null}
 
-      <div className="chat-main horizonte">
-        <span className="hz hz-brilho" aria-hidden />
-        <span className="hz hz-linha" aria-hidden />
-        <span className="hz hz-arco" aria-hidden />
-        {/* C2-R6 N01: faixa in-flow — empurra topbar; não tapa brand/☰. */}
+      <div className="v6-main">
+        <Horizon mode={onHome ? 'home' : 'chat'} />
+        <EdgeFade />
         {offline ? (
-          <div className="chat-offline-banner" role="status" aria-live="polite">
-            {/* C3-R12 N03: CTAs já hard-disabled — copy alinhada ao login OM04. */}
+          <div className="v6-offline" role="status" aria-live="polite">
             Sem conexão. Reconecte para continuar.
           </div>
         ) : null}
-        <header className="chat-topbar">
-          <button
-            ref={menuBtnRef}
-            type="button"
-            className="chat-topbar__menu"
-            aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
-            aria-expanded={sidebarOpen}
-            aria-controls="crias-sidebar"
-            aria-haspopup="dialog"
-            tabIndex={drawerAsModal ? -1 : undefined}
-            onClick={() => {
-              if (sidebarOpen) closeDrawer(true)
-              else setSidebarOpen(true)
-            }}
-          >
-            ☰
-          </button>
-          <div className="chat-topbar__titles">
-            {(() => {
-              /* Topbar = trilha · Atividade · Passo (sem tag MARIA). */
-              const onMaria = location.pathname === '/maria'
-              const trailLabel = activeTrailId
-                ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
-                : null
-              const progress =
-                activeTrailId != null
-                  ? formatTrailChromeProgress({
-                      activity:
-                        playerCompleted &&
-                        questionTotals[activeTrailId] > 0
-                          ? Math.max(
-                              questionTotals[activeTrailId],
-                              playerQuestionNumber ??
-                                activeRow?.current_question_number ??
-                                1,
-                            )
-                          : (playerQuestionNumber ??
-                            activeRow?.current_question_number ??
-                            null),
-                      totalActivities:
-                        questionTotals[activeTrailId] > 0
-                          ? questionTotals[activeTrailId]
-                          : null,
-                      step:
-                        playerCompleted && stageTotals[activeTrailId] > 0
-                          ? Math.max(
-                              stageTotals[activeTrailId],
-                              playerStageNumber ??
-                                activeRow?.current_stage_number ??
-                                1,
-                            )
-                          : (playerStageNumber ??
-                            activeRow?.current_stage_number ??
-                            null),
-                      totalSteps:
-                        stageTotals[activeTrailId] > 0
-                          ? stageTotals[activeTrailId]
-                          : null,
-                    })
-                  : null
-              const topbarTitle = activeTrailId
-                ? trailLabel || 'Trilha'
-                : onMaria
-                  ? 'Conversar com Maria'
-                  : 'Início'
-              const pct = (() => {
-                if (!activeTrailId) return null
-                const byAct = activityProgressPct({
-                  activity:
-                    playerQuestionNumber ??
-                    activeRow?.current_question_number ??
-                    1,
-                  totalActivities:
-                    questionTotals[activeTrailId] > 0
-                      ? questionTotals[activeTrailId]
-                      : null,
-                  completed: !!playerCompleted,
-                })
-                if (byAct != null) return byAct
-                const step =
-                  playerStageNumber ?? activeRow?.current_stage_number ?? null
-                const total =
-                  stageTotals[activeTrailId] > 0
-                    ? stageTotals[activeTrailId]
-                    : null
-                if (step == null || total == null) return null
-                if (playerCompleted) return 100
-                return Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    Math.round(((Math.max(step, 1) - 1) / Math.max(total, step)) * 100),
-                  ),
-                )
-              })()
-              const fullLabel = [topbarTitle, progress].filter(Boolean).join(' · ')
-              return (
-                <>
-                  <span
-                    className="chat-topbar__title cr-fade"
-                    title={fullLabel}
-                    aria-label={fullLabel}
-                  >
-                    {topbarTitle}
+        <header className="v6-topbar">
+          {!sidebarOpen ? (
+            <button
+              ref={menuBtnRef}
+              type="button"
+              className="v6-iconbtn"
+              aria-label="Abrir menu"
+              aria-expanded={false}
+              aria-controls="crias-sidebar"
+              aria-haspopup="dialog"
+              onClick={() => setSidebarOpen(true)}
+            >
+              {openIcon}
+            </button>
+          ) : null}
+          <div className="v6-topbar__titles">
+            {topTitle ? (
+              <span className="v6-topbar__title" data-fade="1" title={topTitle}>
+                {topTitle}
+              </span>
+            ) : null}
+            {topStage ? (
+              <span className="v6-topbar__stage">
+                {onMonitoria || dotIndex < 0 ? (
+                  <span className="v6-dot v6-dot--single" aria-hidden="true" />
+                ) : (
+                  <span className="v6-topbar__dots" aria-hidden="true">
+                    {Array.from({ length: totalStepsTop }, (_, i) => {
+                      const done = i < dotIndex || (i === dotIndex && dotsDone)
+                      const now = i === dotIndex && !dotsDone
+                      return (
+                        <span
+                          key={i}
+                          className={`v6-dot${done ? ' is-done' : ''}${now ? ' is-now' : ''}`}
+                        />
+                      )
+                    })}
                   </span>
-                  {activeTrailId && progress ? (
-                    <div className="chat-topbar__progress" aria-hidden>
-                      <span className="chat-topbar__progress-meta">{progress}</span>
-                      {pct != null ? (
-                        <span className="chat-topbar__progress-track">
-                          <span
-                            className="chat-topbar__progress-fill"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </>
-              )
-            })()}
+                )}
+                <span className="v6-topbar__stagetext" data-fade="1">
+                  {topStage}
+                </span>
+              </span>
+            ) : null}
           </div>
         </header>
-        <div className="chat-main__content" inert={mainInert || undefined}>
+        <div className="v6-content" inert={mainInert || undefined}>
           <Outlet
             context={{
               trailRows: rows,
@@ -862,10 +983,19 @@ export default function ChatLayout() {
               trailNames,
               stageTotals,
               questionTotals,
+              activities,
+              viewActivity,
             }}
           />
         </div>
       </div>
+
+      {logoutOpen ? (
+        <LogoutDialog
+          onCancel={() => setLogoutOpen(false)}
+          onConfirm={confirmLogout}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="pt-BR" data-tema="escuro">
+<html lang="pt-BR" data-v2="light">
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="theme-color" content="#07110c" />
+    <meta name="theme-color" content="#ffffff" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
@@ -16,14 +16,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <script>
+      /* Tema claro é o padrão. Escuro só pela escolha do aluno (chave crias-aluno-v2-tema). */
       try {
-        var t = localStorage.getItem('crias-aluno-v2-tema') === 'claro' ? 'claro' : 'escuro'
-        document.documentElement.dataset.tema = t
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', t === 'escuro' ? '#07110c' : '#ffffff')
+        var escuro = localStorage.getItem('crias-aluno-v2-tema') === 'escuro'
+        document.documentElement.dataset.v2 = escuro ? 'dark' : 'light'
+        document
+          .querySelector('meta[name="theme-color"]')
+          .setAttribute('content', escuro ? '#000000' : '#ffffff')
       } catch (e) {}
     </script>
   </head>

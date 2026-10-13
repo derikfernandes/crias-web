@@ -1,9 +1,9 @@
 const GREETINGS = [
   (name: string) => `Vamos avançar mais, ${name}?`,
-  (name: string) => `Olá, ${name}. Continue sua atividade...`,
-  (name: string) => `Oi, ${name}. Vamos aprender mais hoje?`,
+  (name: string) => `Bora continuar de onde parou, ${name}?`,
+  (name: string) => `Oi, ${name}. O que vamos aprender hoje?`,
   (name: string) => `Qual trilha você quer seguir, ${name}?`,
-  (name: string) => `Ei, ${name}. Vamos em frente nos estudos...`,
+  (name: string) => `Mais um passo hoje, ${name}?`,
 ] as const
 
 function visitKey(studentId: string): string {

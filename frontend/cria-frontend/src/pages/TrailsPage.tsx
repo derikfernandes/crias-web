@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { getSession } from '../lib/session'
-import type { StudentTrailRow } from '../lib/api'
+import type { StudentTrailRow, TrailActivity } from '../lib/api'
 import { nextHomeGreeting } from '../lib/homeGreeting'
 import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
 import { sortTrailsByLastOpened } from '../lib/trailOpenState'
@@ -11,9 +11,8 @@ import {
   formatAtividadeLabel,
   formatPassoLabel,
 } from '../lib/trailProgressLabel'
-import MariaFace from '../components/MariaFace'
-import TrailOrb, { TrailChevron } from '../components/TrailOrb'
-import SendArrowIcon from '../components/SendArrowIcon'
+import CriasSymbol from '../components/CriasSymbol'
+import MonitorBox from '../components/MonitorBox'
 
 type LayoutOutlet = {
   trailRows: StudentTrailRow[] | null
@@ -23,6 +22,7 @@ type LayoutOutlet = {
   trailNames?: Record<string, string>
   stageTotals?: Record<string, number>
   questionTotals?: Record<string, number>
+  activities?: Record<string, TrailActivity[]>
 }
 
 function progressMeta(
@@ -85,12 +85,13 @@ export default function TrailsPage() {
     trailNames,
     stageTotals,
     questionTotals,
+    activities,
   } = useOutletContext<LayoutOutlet>()
+  const firstName = session.name.split(' ')[0] || 'aluno'
   const [greeting] = useState(() =>
-    nextHomeGreeting(session.student_id, session.name.split(' ')[0] || 'aluno'),
+    nextHomeGreeting(session.student_id, firstName),
   )
-  const [mariaDraft, setMariaDraft] = useState('')
-  const firstCardRef = useRef<HTMLAnchorElement>(null)
+  const [draft, setDraft] = useState('')
 
   const empty =
     !trailsLoading && !trailsError && Array.isArray(trailRows) && trailRows.length === 0
@@ -102,152 +103,136 @@ export default function TrailsPage() {
     )
   }, [trailRows, session.student_id])
 
-  /* Proto: 2 cards por linha; 3ª trilha fica no menu. */
-  const visible = ordered.slice(0, 2)
-  const hasMore = ordered.length > 2
+  /* v6, seção 9: até 3 trilhas, a última aberta primeiro. */
+  const visible = ordered.slice(0, 3)
   const homeLoading = trailsLoading && visible.length === 0 && !trailsError && !empty
-  const firstName = session.name.split(' ')[0] || 'aluno'
 
-  useEffect(() => {
-    if (!visible.length || homeLoading) return
-    const ae = document.activeElement
-    if (ae && ae !== document.body && ae !== document.documentElement) return
-    const id = window.requestAnimationFrame(() => {
-      /* preventScroll: foco no card não pode empurrar a Maria para fora. */
-      firstCardRef.current?.focus({ preventScroll: true })
-    })
-    return () => window.cancelAnimationFrame(id)
-  }, [visible[0]?.trail_id, homeLoading])
-
-  function onAskMaria(e: FormEvent) {
-    e.preventDefault()
-    const message = mariaDraft.trim()
-    if (message) {
-      try {
-        sessionStorage.setItem(
-          `crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`,
-          message,
-        )
-      } catch {
-        /* ignore */
-      }
+  /** v6: Enviar abre a Monitoria já com a pergunta enviada. */
+  function onAsk() {
+    const message = draft.trim()
+    if (!message) return
+    try {
+      sessionStorage.setItem(`crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`, message)
+    } catch {
+      /* ignore */
     }
-    navigate('/maria')
+    navigate('/monitoria')
   }
 
+  function tilt(e: MouseEvent<HTMLElement>) {
+    const el = e.currentTarget
+    const r = el.getBoundingClientRect()
+    const x = (e.clientX - r.left) / r.width
+    const y = (e.clientY - r.top) / r.height
+    el.style.transform = `rotateX(${((0.5 - y) * 14).toFixed(2)}deg) rotateY(${((x - 0.5) * 16).toFixed(2)}deg) translateZ(8px)`
+    el.style.setProperty('--gx', `${(x * 100).toFixed(1)}%`)
+    el.style.setProperty('--gy', `${(y * 100).toFixed(1)}%`)
+  }
+
+  function untilt(e: MouseEvent<HTMLElement>) {
+    const el = e.currentTarget
+    el.style.transform = 'rotateX(0deg) rotateY(0deg)'
+    el.style.setProperty('--gy', '-30%')
+  }
+
+  const title = empty ? `Olá, ${firstName}.` : greeting
+
   return (
-    <div
-      className={`chat-home chat-home--v4 chat-home--cards-${Math.min(visible.length || 1, 2)}`}
-      aria-busy={homeLoading || undefined}
-    >
-      <div className="chat-home__body">
-        <div className="chat-home__hero">
-          <MariaFace size="hero" mood="oi" />
-          <p className="chat-home__bubble" aria-hidden>
-            Oi, {firstName}!
-          </p>
-        </div>
-        <h1 className="chat-home__greeting titulo-leve">{greeting}</h1>
-        {trailsError ? (
-          <>
-            <p className="lede error" role="alert">
-              {trailsError}
-            </p>
-            <button type="button" className="chat-home__retry" onClick={retryTrails}>
-              Tentar de novo
-            </button>
-          </>
-        ) : empty ? (
-          <>
-            <p className="lede">Nenhuma trilha liberada para você.</p>
-            <p className="muted chat-home__hint">
-              Fale com a escola para liberar uma trilha. O menu também mostra quando
-              a escola ainda não liberou.
-            </p>
-          </>
-        ) : homeLoading ? (
-          <div className="chat-home__loading" role="status" aria-live="polite">
-            <div className="chat-home__cta-skeleton" aria-hidden="true" />
-            <p className="muted chat-home__hint">Carregando suas trilhas…</p>
+    <>
+      <section className="v6-home" aria-busy={homeLoading || undefined}>
+        <div className="v6-home__inner">
+          <div className="v6-home__sym">
+            <CriasSymbol size={64} />
           </div>
-        ) : (
-          <>
-            <div className="chat-home__cards">
-              {visible.map((row, i) => {
-                const label =
-                  trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
+          <h1 className="v6-home__title">{title}</h1>
+          {trailsError ? (
+            <>
+              <p className="v6-home__err" role="alert">
+                Não foi possível carregar suas trilhas.
+              </p>
+              <button type="button" className="v6-home__retry" onClick={retryTrails}>
+                Tentar de novo
+              </button>
+            </>
+          ) : empty ? (
+            <p className="v6-home__empty">Nenhuma trilha liberada para você.</p>
+          ) : homeLoading ? (
+            <p className="v6-home__loading" role="status">
+              Carregando suas trilhas…
+            </p>
+          ) : (
+            <div
+              className={`v6-grid${visible.length === 1 ? ' v6-grid--1' : ''}`}
+              style={{ ['--cols' as string]: Math.max(visible.length, 1) }}
+            >
+              {visible.map((row) => {
+                const label = trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
                 const { label: progresso, pct, cta } = progressMeta(
                   row,
                   questionTotals?.[row.trail_id],
                   stageTotals?.[row.trail_id],
                 )
-                const href = `/trilha/${encodeURIComponent(row.trail_id)}`
-                const meta =
-                  pct != null ? `${progresso} · ${pct}\u00a0%` : progresso
+                const completed = row.status === 'completed'
+                const titles = activities?.[row.trail_id] ?? []
+                const now = completed
+                  ? 'Trilha concluída'
+                  : titles.find((t) => t.number === row.current_question_number)
+                      ?.title || `Atividade ${Math.max(row.current_question_number, 1)}`
                 return (
                   <Link
                     key={row.id}
-                    ref={i === 0 ? firstCardRef : undefined}
-                    to={href}
-                    className="chat-home__card chat-home__card--v4"
+                    to={`/trilha/${encodeURIComponent(row.trail_id)}`}
+                    className="v6-tcard"
                     title={label}
-                    aria-label={`${label}. ${meta}. ${cta}`}
+                    aria-label={`${label}. ${progresso}. ${cta}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
+                    onMouseMove={tilt}
+                    onMouseLeave={untilt}
                   >
-                    <span className="chat-home__card-main">
-                      <TrailOrb
-                        pct={pct}
-                        hue={i % 2 === 0 ? 'g' : 'y'}
-                        size={44}
-                      />
-                      <span className="chat-home__card-text">
-                        <span className="chat-home__card-name">{label}</span>
-                        <span className="chat-home__card-meta">{meta}</span>
-                      </span>
-                      <TrailChevron className="chat-home__card-chev" />
-                    </span>
-                    <span className="chat-home__card-foot">
-                      <span className="chat-home__card-now">
-                        <span className="chat-home__card-now-label">AGORA</span>
-                        <span className="chat-home__card-now-value">
+                    <span className="v6-tcard__glow" aria-hidden="true" />
+                    <span className="v6-tcard__head">
+                      <span className="v6-tcard__main">
+                        <span className="v6-tcard__titlerow">
+                          <span className="v6-tcard__name" data-fade="1">
+                            {label}
+                          </span>
+                          <svg className="v6-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffd500" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                            <title>{cta}</title>
+                            <path d="M9 5l7 7-7 7" />
+                          </svg>
+                        </span>
+                        <span className="v6-bar">
+                          <span
+                            className="v6-bar__fill"
+                            style={{ width: `${pct ?? 0}%` }}
+                          />
+                        </span>
+                        <span className="v6-tcard__meta" data-fade="1">
                           {progresso}
                         </span>
                       </span>
-                      <span className="chat-home__card-cta">
-                        {cta}
-                        <TrailChevron />
+                    </span>
+                    <span className="v6-tcard__foot">
+                      <span className="v6-tcard__now">
+                        <span className="v6-tcard__nowlabel">AGORA</span>
+                        <span className="v6-tcard__nowvalue" data-fade="1">
+                          {now}
+                        </span>
                       </span>
                     </span>
                   </Link>
                 )
               })}
             </div>
-            {hasMore ? (
-              <p className="muted chat-home__hint">
-                Outras trilhas no menu ao lado
-              </p>
-            ) : null}
-          </>
-        )}
-        {/* Proto home: pílula slim sem face (face fica no composer da trilha/Maria). */}
-        <form className="chat-home__maria chat-home__maria--v4" onSubmit={onAskMaria}>
-          <input
-            type="text"
-            value={mariaDraft}
-            onChange={(e) => setMariaDraft(e.target.value)}
-            placeholder="Pergunte à Maria…"
-            aria-label="Pergunte à Maria…"
-          />
-          <button
-            type="submit"
-            className="chat-home__maria-send"
-            aria-label="Abrir chat com Maria"
-            title="Abrir chat com Maria"
-          >
-            <SendArrowIcon />
-          </button>
-        </form>
+          )}
+          <div className="v6-home__composer">
+            <MonitorBox draft={draft} onDraft={setDraft} onSend={onAsk} idSuffix="desk" />
+          </div>
+        </div>
+      </section>
+      <div className="v6-home__dock">
+        <MonitorBox draft={draft} onDraft={setDraft} onSend={onAsk} idSuffix="mob" />
       </div>
-    </div>
+    </>
   )
 }

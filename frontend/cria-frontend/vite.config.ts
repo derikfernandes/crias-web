@@ -18,6 +18,8 @@ export default defineConfig({
       // Nomes / totais de etapa (chrome home + topbar — C3-N03 tip).
       '/trails': { target: tipApi, changeOrigin: true },
       '/trail_stages': { target: tipApi, changeOrigin: true },
+      // Títulos e totais de atividades (menu e "AGORA" do Início).
+      '/trail_stage_questions': { target: tipApi, changeOrigin: true },
       '/conversation_logs': { target: tipApi, changeOrigin: true },
       '/exercise_attempts': { target: tipApi, changeOrigin: true },
       '/api': { target: tipApi, changeOrigin: true },

@@ -438,6 +438,49 @@ export async function fetchTrailQuestionTotals(
   return map
 }
 
+/** Atividade (question) de uma trilha, para o menu e para o "AGORA" do Início. */
+export type TrailActivity = {
+  /** question_number: posição da atividade na trilha. */
+  number: number
+  title: string
+}
+
+/**
+ * Títulos das atividades de uma trilha.
+ * Lê as atividades do passo 1 (cada atividade existe uma vez por passo, com o mesmo título).
+ * Só leitura, usa a rota pública que já existe. Falha vira lista vazia.
+ */
+export async function fetchTrailActivities(
+  trailId: string,
+): Promise<TrailActivity[]> {
+  const tid = trailId.trim()
+  if (!tid) return []
+  const url = new URL(
+    `${API_BASE}/trail_stage_questions`,
+    window.location.origin,
+  )
+  url.searchParams.set('trail_id', tid)
+  url.searchParams.set('stage_number', '1')
+  url.searchParams.set('simple', '1')
+  const res = await fetchWithTimeout(url.pathname + url.search)
+  const body = await parseJson(res)
+  if (!res.ok || !Array.isArray(body)) return []
+  const byNumber = new Map<number, string>()
+  for (const row of body as Array<{
+    question_number?: number
+    title?: string
+    is_released?: boolean
+  }>) {
+    const n = row.question_number
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 1) continue
+    const title = typeof row.title === 'string' ? row.title.trim() : ''
+    if (!byNumber.has(n)) byNumber.set(n, title)
+  }
+  return Array.from(byNumber.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([number, title]) => ({ number, title: title || `Atividade ${number}` }))
+}
+
 export async function fetchNextContent(
   studentId: string,
   trailId: string,

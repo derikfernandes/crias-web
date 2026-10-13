@@ -19,6 +19,8 @@ export type ChatMessage = {
    * feedback do exercício. Ordena o lesson-card antes da conversa da célula.
    */
   contextCell?: string
+  /** Retorno do exercício: acertou (true) ou quase (false). Vem do envio ou do histórico. */
+  correct?: boolean | null
 }
 
 /** Formata HH:MM a partir de ms / ISO / agora. */
@@ -171,6 +173,15 @@ function metaSource(
   return typeof source === 'string' ? source : ''
 }
 
+/** metadata.is_correct do log de retorno do exercício (selo Acertou / Quase). */
+function feedbackCorrect(
+  metadata: ConversationLogRow['metadata'],
+): boolean | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  const v = (metadata as { is_correct?: unknown }).is_correct
+  return typeof v === 'boolean' ? v : null
+}
+
 /** Entrega de célula da trilha (fixed/exercise/ai) — não sidechat/feedback. */
 export function isTrailDeliveryLog(l: ConversationLogRow): boolean {
   if (l.sender !== 'system') return false
@@ -294,6 +305,7 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
           ? 'feedback'
           : undefined,
       stageType: isExerciseAnswer || isFeedback ? 'exercise' : undefined,
+      correct: isFeedback ? feedbackCorrect(l.metadata) : undefined,
       contextCell:
         typeof l.stage_number === 'number' &&
         typeof l.question_number === 'number'

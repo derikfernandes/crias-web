@@ -21,7 +21,9 @@ import {
   bindVisualViewport,
   scrollFocusedIntoView,
 } from '../lib/visualViewport'
-import MariaFace from '../components/MariaFace'
+import Horizon from '../components/Horizon'
+import EdgeFade from '../components/EdgeFade'
+import CriasSymbol from '../components/CriasSymbol'
 
 type LoginLocationState = {
   message?: string
@@ -85,7 +87,7 @@ export default function LoginPage() {
     const onVvResize = () => {
       const el = document.activeElement
       if (!(el instanceof HTMLElement)) return
-      if (!el.closest('.login-page')) return
+      if (!el.closest('.v6-login')) return
       if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')
         return
       scrollFocusedIntoView(el)
@@ -179,8 +181,15 @@ export default function LoginPage() {
       applySession(result)
       navigate(resolvePostLoginPath(loginState), { replace: true })
     } catch (err) {
-      setError(toUserFacingError(err, 'Não foi possível entrar.'))
-      setCanRetry(isRetryableSystemError(err))
+      const retryable = isRetryableSystemError(err)
+      // v6, seção 6: falha de credenciais usa o texto do desenho. Erro de rede mantém a
+      // mensagem própria, porque ali o aluno precisa saber que pode tentar de novo.
+      setError(
+        retryable
+          ? toUserFacingError(err, 'Não foi possível entrar.')
+          : 'Não foi possível entrar. Confira os dados.',
+      )
+      setCanRetry(retryable)
     } finally {
       setLoading(false)
     }
@@ -196,124 +205,117 @@ export default function LoginPage() {
     (institutions.length > 1 && !selectedInstitution)
 
   return (
-    <main className="login-page horizonte">
-      <span className="hz hz-brilho" aria-hidden />
-      <span className="hz hz-linha" aria-hidden />
-      <span className="hz hz-arco" aria-hidden />
-      {offline ? (
-        <div className="chat-offline-banner" role="status" aria-live="polite">
-          Você está offline. Conecte-se para entrar.
-        </div>
-      ) : null}
-      <form className="login-panel login-panel--v4" onSubmit={(e) => void onSubmit(e)}>
-        <div className="login-brand">
-          <div className="login-brand__hero">
-            <MariaFace size="login" mood="oi" />
-            <p className="login-brand__bubble" aria-hidden>
-              Oi!
-            </p>
-          </div>
+    <main className="v6-login">
+      <Horizon mode="login" />
+      <EdgeFade />
+      <form className="v6-login__form" onSubmit={(e) => void onSubmit(e)}>
+        <div className="v6-login__brand">
+          <CriasSymbol size={72} animated={false} />
           <img
-            className="login-wordmark cr-logo cr-logo--entrada"
+            className="v6-wordmark"
+            data-logo="1"
             src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
             alt="Crias"
             height={30}
           />
         </div>
-        {institutions.length > 1 ? (
-          <label className="login-institution">
-            Escola
-            <select
-              value={selectedInstitution}
-              onChange={(e) => setSelectedInstitution(e.target.value)}
-              onFocus={onFieldFocus}
-              required
-            >
-              {institutions.map((inst) => (
-                <option key={inst.institution_id} value={inst.institution_id}>
-                  {inst.institution_name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label>
-          Login
-          <input
-            type="text"
-            autoComplete="username"
-            value={login}
-            onChange={(e) => {
-              setLogin(e.target.value)
-              if (institutions.length) {
-                setInstitutions([])
-                setSelectedInstitution('')
-              }
-            }}
-            onFocus={onFieldFocus}
-            placeholder="DDD + telefone, e-mail ou ID da escola"
-            required
-          />
-        </label>
-        <label>
-          Senha
-          <div className="login-password-row">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={onFieldFocus}
-              required
-              minLength={6}
-            />
-            <button
-              type="button"
-              className="login-password-toggle"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-pressed={showPassword}
-              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-            >
-              {showPassword ? 'Ocultar' : 'Mostrar'}
-            </button>
-          </div>
-        </label>
-        {error ? (
-          <div className="login-error" role="alert">
-            <p className="error">{error}</p>
-            {canRetry ? (
-              <button
-                ref={retryBtnRef}
-                type="button"
-                className="login-retry"
-                onClick={() => void onSubmit()}
-                disabled={entrarDisabled}
-              >
-                Tentar de novo
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <button
-          type="submit"
-          className="login-submit"
-          disabled={entrarDisabled}
-          aria-disabled={entrarDisabled || undefined}
-          aria-busy={loading || undefined}
-        >
-          {loading ? 'Entrando…' : 'Entrar'}
-          {!loading ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M5 12h12M13 6l6 6-6 6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+        <div className="v6-login__card">
+          {offline ? (
+            <div className="v6-alert" role="status" aria-live="polite">
+              <p>Você está offline. Conecte-se para entrar.</p>
+            </div>
           ) : null}
-        </button>
+          {institutions.length > 1 ? (
+            <label className="v6-field">
+              Escola
+              <select
+                className="v6-login__select"
+                value={selectedInstitution}
+                onChange={(e) => setSelectedInstitution(e.target.value)}
+                onFocus={onFieldFocus}
+                required
+              >
+                {institutions.map((inst) => (
+                  <option key={inst.institution_id} value={inst.institution_id}>
+                    {inst.institution_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="v6-field">
+            Login
+            <input
+              className="v6-input"
+              type="text"
+              autoComplete="off"
+              autoCapitalize="none"
+              value={login}
+              onChange={(e) => {
+                setLogin(e.target.value)
+                if (institutions.length) {
+                  setInstitutions([])
+                  setSelectedInstitution('')
+                }
+              }}
+              onFocus={onFieldFocus}
+              required
+            />
+          </label>
+          <label className="v6-field">
+            Senha
+            <span className="v6-pw">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={onFieldFocus}
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                className="v6-pw__toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-pressed={showPassword}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPassword ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </span>
+          </label>
+          {error ? (
+            <div className="v6-alert" role="alert">
+              <p>{error}</p>
+              {canRetry ? (
+                <button
+                  ref={retryBtnRef}
+                  type="button"
+                  className="v6-login__retry"
+                  onClick={() => void onSubmit()}
+                  disabled={entrarDisabled}
+                >
+                  Tentar de novo
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            type="submit"
+            className="v6-btn v6-login__submit"
+            disabled={entrarDisabled}
+            aria-disabled={entrarDisabled || undefined}
+            aria-busy={loading || undefined}
+          >
+            {loading ? 'Entrando…' : 'Entrar'}
+            {!loading ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            ) : null}
+          </button>
+        </div>
       </form>
     </main>
   )

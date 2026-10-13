@@ -30,10 +30,18 @@ import {
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
-import MariaMascot from '../components/MariaMascot'
-import MariaFace from '../components/MariaFace'
-import SendArrowIcon from '../components/SendArrowIcon'
-import TrailOrb from '../components/TrailOrb'
+import CriasSymbol from '../components/CriasSymbol'
+import {
+  ArrowRightIcon,
+  ArrowUpIcon,
+  BotMessage,
+  LockIcon,
+  ScrollArrows,
+  TypingRow,
+  UserBubble,
+} from '../components/ConversationParts'
+import { autoGrow, isMobileViewport } from '../lib/autoGrow'
+import { useThreadScroll } from '../lib/useThreadScroll'
 import { activityProgressPct } from '../lib/trailProgressLabel'
 import {
   isRetryableSystemError,
@@ -63,11 +71,11 @@ import {
 import { bindVisualViewport } from '../lib/visualViewport'
 import {
   computeLessonCardSlot,
-  computeMariaEntranceSlot,
   isFeedbackCellAlreadyShown,
   mainButtonState,
   mergeHistoryIntoMessages,
 } from '../lib/playerHelpers'
+import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
 import { writeFocusedTrailId } from '../lib/trailFocus'
 import {
   markContinueHaloDone,
@@ -516,7 +524,7 @@ function LazyEmbedFrame({
   }, [active])
 
   return (
-    <div ref={hostRef} className="chat-bubble__embed-frame">
+    <div ref={hostRef} className="v6-embed__frame">
       {active ? (
         <iframe
           src={src}
@@ -528,7 +536,7 @@ function LazyEmbedFrame({
           referrerPolicy="strict-origin-when-cross-origin"
         />
       ) : (
-        <div className="chat-bubble__embed-skeleton" aria-hidden="true" />
+        <div className="v6-embed__skel" aria-hidden="true" />
       )}
     </div>
   )
@@ -540,39 +548,28 @@ function renderMessagePart(
 ): ReactNode {
   if (part.kind === 'image') {
     return (
-      <p key={part.key} className="chat-bubble__media">
+      <p key={part.key} className="v6-media">
         <img src={part.value} alt="" loading="lazy" decoding="async" />
       </p>
     )
   }
   if (part.kind === 'embed' && part.embedUrl) {
-    const openLabel = externalLinkLabel(part.label, part.value)
-    const openAria = externalLinkAriaLabel(part.label, part.value)
+    // v6: o player original do link, 16:9, sem botão de play próprio.
     return (
       <div
         key={part.key}
-        className="chat-bubble__embed"
+        className="v6-embed"
         data-embed-kind={part.embedKind || undefined}
       >
         <LazyEmbedFrame
           src={part.embedUrl}
           title={part.label || 'Mídia da aula'}
         />
-        <a
-          href={part.value}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="chat-bubble__link chat-bubble__link--chip"
-          aria-label={openAria}
-          onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
-        >
-          {openLabel}
-        </a>
       </div>
     )
   }
   if (part.kind === 'link') {
-    const openLabel = externalLinkLabel(part.label, part.value)
+    // v6: material de apoio é uma pílula que abre o link em nova aba.
     const openAria = externalLinkAriaLabel(part.label, part.value)
     return (
       <p key={part.key}>
@@ -580,11 +577,15 @@ function renderMessagePart(
           href={part.value}
           target="_blank"
           rel="noopener noreferrer"
-          className="chat-bubble__link chat-bubble__link--chip"
+          className="v6-chip"
           aria-label={openAria}
           onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
-          {openLabel}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+            <path d="M14 3v5h5M9 13h6M9 17h6" />
+          </svg>
+          Abrir material de apoio
         </a>
       </p>
     )
@@ -700,20 +701,6 @@ function isSameCellStepCopy(m: ChatMessage, cellKey: string): boolean {
   return m.kind === 'resume' && m.id.startsWith(`trail-resume-${cellKey}-`)
 }
 
-function bubbleClassName(msg: ChatMessage): string {
-  const parts = [`chat-bubble`, `chat-bubble--${msg.role}`]
-  if (msg.kind === 'exercise-answer') {
-    parts.push('chat-bubble--exercise-answer')
-  }
-  if (msg.animate) {
-    parts.push('chat-bubble--enter')
-    if (msg.role === 'user') parts.push('chat-bubble--enter-user')
-    else if (msg.role === 'assistant') parts.push('chat-bubble--enter-assistant')
-    if (msg.kind === 'resume') parts.push('chat-bubble--resume-flash')
-  }
-  return parts.join(' ')
-}
-
 function typingCopy(
   reason: BusyReason,
   opts?: { trailLabel?: string; mariaLongWait?: boolean },
@@ -726,15 +713,15 @@ function typingCopy(
     // C2-R4 N03: estágio longo — não só dots eternas.
     if (opts?.mariaLongWait) {
       return {
-        label: 'Maria',
-        aria: 'Maria ainda está pensando',
-        reduced: 'Maria ainda está pensando…',
+        label: 'Monitor',
+        aria: 'O monitor ainda está pensando',
+        reduced: 'O monitor ainda está pensando…',
       }
     }
     return {
-      label: 'Maria',
-      aria: 'Maria está digitando',
-      reduced: 'Maria está digitando…',
+      label: 'Monitor',
+      aria: 'O monitor está digitando',
+      reduced: 'O monitor está digitando…',
     }
   }
   if (reason === 'exercise') {
@@ -759,19 +746,18 @@ export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { trailNames, trailRows, questionTotals } = useOutletContext<{
-    trailNames?: Record<string, string>
-    trailRows?: { trail_id: string }[]
-    questionTotals?: Record<string, number>
-  }>()
+  const { trailNames, questionTotals, stageTotals, viewActivity } =
+    useOutletContext<{
+      trailNames?: Record<string, string>
+      questionTotals?: Record<string, number>
+      stageTotals?: Record<string, number>
+      /** v6: atividade passada sendo vista (?atividade=N). */
+      viewActivity?: number | null
+    }>()
   const session = getSession()!
   /** C2-R3 N03: H1 SR com nome humano — nunca ID cru (`t47`). */
   const trailHeading =
     (trailId && trailNames?.[trailId]?.trim()) || 'Trilha'
-  const trailOrbHue: 'g' | 'y' =
-    (trailRows?.findIndex((r) => r.trail_id === trailId) ?? 0) % 2 === 0
-      ? 'g'
-      : 'y'
   const [content, setContent] = useState<NextContentOk | NextContentStatus | null>(
     null,
   )
@@ -806,16 +792,16 @@ export default function PlayerPage() {
     () => readMariaPersist(trailId).mariaSidechat,
   )
   /** Entrada Clippy da Maria — persiste após a 1ª chamada na sessão do player. */
-  const [mariaEntrance, setMariaEntrance] = useState(false)
+  const [, setMariaEntrance] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** WS-D: colapsa bolhas antigas; expandir revela páginas anteriores. */
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [historyHasMore, setHistoryHasMore] = useState(false)
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   /** Chip de jump: visível quando longe do fim (R19-H03). */
-  const [jumpChip, setJumpChip] = useState(false)
+  const [, setJumpChip] = useState(false)
   /** true só quando conteúdo novo chegou abaixo enquanto pinado (R19-H04). */
-  const [unseenBelow, setUnseenBelow] = useState(false)
+  const [, setUnseenBelow] = useState(false)
   const [continuarLeaving, setContinuarLeaving] = useState(false)
   /** R23-L01/L02/L07: anúncios SR de etapa / feedback / Continuar. */
   const [srAnnounce, setSrAnnounce] = useState('')
@@ -825,7 +811,19 @@ export default function PlayerPage() {
   )
   /** R08-M05: bolha com cue visual ao voltar de mídia externa. */
   const [mediaResumeMsgId, setMediaResumeMsgId] = useState<string | null>(null)
+  /**
+   * Rolagem antiga: este ref NÃO é ligado a nenhum elemento, então toda a lógica antiga de
+   * ancoragem e pin fica inerte. Quem rola a conversa agora é a rolagem do desenho (v6).
+   */
   const threadRef = useRef<HTMLDivElement>(null)
+  const { threadRef: v6ThreadRef, upRef, downRef, toBottom } = useThreadScroll()
+  /** Retorno do exercício enviado: marca a alternativa certa e a errada no cartão. */
+  const [answerMark, setAnswerMark] = useState<{
+    cellKey: string
+    picked: string
+    correct: string | null
+    isCorrect: boolean
+  } | null>(null)
   /** R08-M05: última saída YT/Drive externa (aba/popup). */
   const externalMediaOpenRef = useRef<{
     msgId: string
@@ -3602,7 +3600,7 @@ export default function PlayerPage() {
       if (!mariaCancelledRef.current) {
         setDraft(askLine)
         setMariaSidechat(false)
-        reportError(err, 'Erro ao falar com Maria.', () => {
+        reportError(err, 'Erro ao falar com o monitor.', () => {
           void doMaria(askLine)
         })
       }
@@ -3884,6 +3882,7 @@ export default function PlayerPage() {
               text: feedbackText,
               stageType: 'exercise',
               kind: 'feedback',
+              correct: attempt.is_correct,
               questionNumber: q,
               contextCell: cellKey,
             }),
@@ -3925,6 +3924,15 @@ export default function PlayerPage() {
           })
         }
       })()
+      setAnswerMark({
+        cellKey,
+        picked: option.key,
+        correct:
+          typeof attempt.correct_option === 'string'
+            ? attempt.correct_option
+            : null,
+        isCorrect: attempt.is_correct,
+      })
       setExerciseDone(true)
       setExercisePhase('done')
       setSelectedOptionKey(null)
@@ -4090,7 +4098,7 @@ export default function PlayerPage() {
     exercisePhase === 'submitting'
       ? 'Aguarde…'
       : exercisePhase === 'error'
-        ? 'Falha ao enviar — toque de novo'
+        ? 'Falha ao enviar. Toque de novo'
         : selectedOptionKey
           ? 'Toque para enviar a resposta'
           : 'Selecione uma alternativa e continue…'
@@ -4253,7 +4261,7 @@ export default function PlayerPage() {
         ? statusToSystemText(content)
         : content.status !== 'ok'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte à Maria…'
+          : 'Pergunte ao seu monitor…'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -4446,12 +4454,7 @@ export default function PlayerPage() {
       busyReason === 'exercise' ||
       (busyReason === 'trail' && !showLessonCard))
 
-  const showMariaEntrance =
-    mariaEntrance ||
-    mariaSidechat ||
-    visibleMessages.some((m) => m.kind === 'sidechat')
-
-  const chatMessages = visibleMessages.filter((msg) => {
+  const chatMessagesAll = visibleMessages.filter((msg) => {
     if (!String(msg.text ?? '').trim()) return false
     // C3-R5 N02: na passagem atual (ainda sem Enviar), não renderizar
     // answer/feedback históricos da célula — retângulos vazios (content-
@@ -4486,6 +4489,32 @@ export default function PlayerPage() {
     return true
   })
 
+  /** v6: o histórico é separado por atividade (a atividade atual ou a que está sendo revista). */
+  const parseCellQuestion = (key?: string): number | null => {
+    const mm = key?.match(/^(\d+)-(\d+)$/)
+    return mm ? Number.parseInt(mm[2], 10) : null
+  }
+  const questionOfMsg = (m: ChatMessage): number | null =>
+    m.questionNumber ??
+    parseCellQuestion(m.cellKey) ??
+    parseCellQuestion(m.contextCell)
+  const latestQuestionSeen = chatMessagesAll.reduce<number | null>(
+    (acc, m) => {
+      const q = questionOfMsg(m)
+      return q != null && (acc == null || q > acc) ? q : acc
+    },
+    null,
+  )
+  const activeQuestion = currentQuestion ?? latestQuestionSeen
+  const viewingPast =
+    viewActivity != null && activeQuestion != null && viewActivity < activeQuestion
+  const viewQuestion = viewingPast ? (viewActivity as number) : activeQuestion
+  const chatMessages = chatMessagesAll.filter((m) => {
+    if (viewQuestion == null) return true
+    const q = questionOfMsg(m)
+    return q == null ? !viewingPast : q === viewQuestion
+  })
+
   /**
    * Ordem do chat: histórico em cima, novidade sempre no FIM.
    * O lesson-card (passo corrente) ocupa o lugar da bolha da célula atual na
@@ -4496,12 +4525,6 @@ export default function PlayerPage() {
   const lessonCardSlot = computeLessonCardSlot(
     visibleMessages,
     chatMessages,
-    currentCell,
-  )
-  const mariaEntranceSlot = computeMariaEntranceSlot(
-    chatMessages,
-    lessonCardSlot,
-    mariaSidechat || mariaEntrance,
     currentCell,
   )
 
@@ -4515,108 +4538,248 @@ export default function PlayerPage() {
     )
   }
 
+  /**
+   * Valores do visual antigo que a lógica ainda calcula e o visual v6 não usa mais
+   * (chips de "Nova mensagem", dicas do rodapé, avatar da Maria). Mantidos para não
+   * mexer na lógica; podem ser removidos numa limpeza futura.
+   */
+  void [
+    updateNearBottom,
+    showContinuar,
+    exerciseLockLabel,
+    exercisePromptHasMedia,
+    trailEmptyCopy,
+    hintKey,
+    typing,
+    showCtaSlot,
+    trailOrbPct,
+    exerciseLegend,
+  ]
+
+  /** v6: no exercício, o enunciado fica só no cartão do exercício (sem mensagem repetida). */
+  const hasExerciseCard =
+    onExerciseStep &&
+    options.length > 0 &&
+    !viewingPast &&
+    !trailShellUnavailable
+
+  /** v6: o passo atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
   const lessonCardNode =
-    !trailShellUnavailable && showLessonCard ? (
-      <section
+    !trailShellUnavailable && showLessonCard && !viewingPast && !hasExerciseCard ? (
+      <div
         ref={(node) => {
           lessonCardRef.current = node
         }}
-        className="lesson-card"
+        className="v6-lesson"
         tabIndex={-1}
-        aria-label={
-          lessonTitle ? `Passo: ${lessonTitle}` : 'Conteúdo do passo'
-        }
+        aria-label={lessonTitle ? `Passo: ${lessonTitle}` : 'Conteúdo do passo'}
         data-current-step="true"
       >
-        <span className="lesson-card__icon" aria-hidden>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M4.5 5.25c1.6-.9 3.4-1.35 5.25-1.35.95 0 1.9.15 2.8.45v14.4a9.3 9.3 0 0 0-2.8-.45c-1.85 0-3.65.45-5.25 1.35V5.25z"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M19.5 5.25c-1.6-.9-3.4-1.35-5.25-1.35-.95 0-1.9.15-2.8.45v14.4c.9-.3 1.85-.45 2.8-.45 1.85 0 3.65.45 5.25 1.35V5.25z"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <div className="lesson-card__copy">
+        <BotMessage label={trailHeading}>
           {lessonTitle ? (
-            <h2 className="lesson-card__title">{lessonTitle}</h2>
-          ) : null}
-          {lessonBody ? (
-            <div className="lesson-card__body">
-              {renderBubbleParts(lessonBody)}
-            </div>
-          ) : null}
-        </div>
-      </section>
-    ) : null
-
-  /**
-   * Trilha concluída: card final no FIM do thread (histórico fica acima).
-   * Texto vem do backend (`message`) ou do fallback já existente.
-   */
-  const trailCompletedNode =
-    !trailShellUnavailable && historyReady && content?.status === 'completed' ? (
-      <section
-        className="lesson-card trail-complete"
-        role="status"
-        tabIndex={-1}
-        data-current-step="true"
-        data-trail-completed="true"
-      >
-        <span className="lesson-card__icon trail-complete__icon" aria-hidden>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M5 12.5l4.5 4.5L19 7.5"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <div className="lesson-card__copy">
-          <h2 className="lesson-card__title trail-complete__title">
-            {statusToSystemText(content)}
-          </h2>
-        </div>
-      </section>
-    ) : null
-
-  const mariaEntranceNode =
-    !trailShellUnavailable && showMariaEntrance ? (
-      <div className="maria-entrance" aria-live="polite">
-        <div className="maria-entrance__divider">
-          <span className="maria-entrance__pill">
-            <span aria-hidden>✦</span> Parceiro de estudo chamado
-          </span>
-        </div>
-        <div className="maria-entrance__row">
-          <MariaMascot
-            className={`maria-mascot${
-              mariaBusyWaiting ? ' maria-mascot--static' : ''
-            }`}
-          />
-          <div className="maria-entrance__intro">
-            <p className="maria-entrance__intro-label">MARIA</p>
-            <p className="maria-entrance__intro-text">
-              Oi, eu sou a Maria.
-              <span>Vim te ajudar.</span>
+            <p>
+              <strong>{lessonTitle}</strong>
             </p>
-          </div>
-        </div>
+          ) : null}
+          {lessonBody ? renderBubbleParts(lessonBody) : null}
+        </BotMessage>
       </div>
     ) : null
 
+  const totalActivitiesHere = questionTotals?.[trailId] ?? 0
+  const totalStepsHere = stageTotals?.[trailId] ?? 0
+
+  /** v6, seção 10: cartão Trilha concluída, no fim da conversa. */
+  const trailDone =
+    !trailShellUnavailable &&
+    historyReady &&
+    content?.status === 'completed' &&
+    !viewingPast
+  const trailCompletedNode = trailDone ? (
+    <div
+      className="v6-done"
+      role="status"
+      tabIndex={-1}
+      data-current-step="true"
+      data-trail-completed="true"
+    >
+      <CriasSymbol size={64} />
+      <span className="v6-done__title">Trilha concluída</span>
+      <span className="v6-done__text">
+        {totalActivitiesHere > 0
+          ? `Você concluiu as ${totalActivitiesHere} atividades de ${trailHeading}.`
+          : `Você concluiu ${trailHeading}.`}
+      </span>
+      <Link to="/" className="v6-btn">
+        Voltar para o início
+      </Link>
+    </div>
+  ) : null
+
+  /**
+   * v6: no último passo de uma atividade que tem próxima, a conversa mostra
+   * "Atividade concluída". Gerada aqui, no cliente. Continuar abre a próxima atividade.
+   */
+  const activityDoneShown =
+    !trailShellUnavailable &&
+    !viewingPast &&
+    historyReady &&
+    content?.status === 'ok' &&
+    totalStepsHere > 0 &&
+    totalActivitiesHere > 0 &&
+    content.stage_number >= totalStepsHere &&
+    content.question_number < totalActivitiesHere &&
+    (content.stage_type !== 'exercise' || exerciseDone)
+
+  /** v6, seção 10: cartão do exercício. Depois de enviar, marca a certa e a errada. */
+  const exerciseMark =
+    answerMark && answerMark.cellKey === currentCell ? answerMark : null
+  const exerciseCard = hasExerciseCard ? (
+      <fieldset
+        className="v6-ex"
+        aria-label="Responda o exercício"
+        aria-busy={exerciseSubmitting || exerciseResyncLock || undefined}
+        data-exercise-phase={exerciseResyncLock ? 'resyncing' : exercisePhase}
+      >
+        <span className="v6-ex__tag">Exercício</span>
+        {exercisePromptParts.length > 0 ? (
+          <div className="v6-ex__prompt">
+            {exercisePromptParts.map((part) => renderMessagePart(part))}
+          </div>
+        ) : null}
+        <div
+          className="v6-ex__options"
+          role="radiogroup"
+          aria-label="Opções do exercício"
+        >
+          {options.map((opt, optIndex) => {
+            const selected = highlightOptionKey === opt.key
+            // C2-R8 N02: um tab stop — marcada (ou a 1ª se nenhuma).
+            const rovingTabIndex = highlightOptionKey
+              ? selected
+                ? 0
+                : -1
+              : optIndex === 0
+                ? 0
+                : -1
+            const { letter, text: optLabel } = optionBadgeAndText(opt, optIndex)
+            let state = ''
+            if (exerciseDone) {
+              if (exerciseMark) {
+                const rightKey =
+                  exerciseMark.correct ??
+                  (exerciseMark.isCorrect ? exerciseMark.picked : null)
+                state =
+                  opt.key === rightKey
+                    ? 'is-right'
+                    : opt.key === exerciseMark.picked
+                      ? 'is-wrong'
+                      : 'is-off'
+              }
+            } else if (selected) {
+              state = 'is-on'
+            }
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                role="radio"
+                aria-checked={exerciseDone ? exerciseMark?.picked === opt.key : selected}
+                tabIndex={rovingTabIndex}
+                className={`v6-opt${state ? ` ${state}` : ''}`}
+                disabled={
+                  busy || exerciseSubmitting || exerciseResyncLock || exerciseDone
+                }
+                onClick={() => onOptionSelect(opt)}
+                onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
+              >
+                <span className="v6-opt__key" aria-hidden>
+                  {letter}
+                </span>
+                <span className="v6-opt__text">{optLabel}</span>
+              </button>
+            )
+          })}
+        </div>
+        {exercisePhase === 'error' && !exerciseResyncLock ? (
+          <p className="v6-ex__note" role="status">
+            Não foi possível enviar. Sua escolha foi mantida.
+          </p>
+        ) : null}
+      </fieldset>
+    ) : null
+
+  const isExerciseMsg = (m: ChatMessage) =>
+    m.role === 'assistant' &&
+    m.stageType === 'exercise' &&
+    m.kind !== 'feedback' &&
+    Boolean(m.cellKey) &&
+    m.cellKey === currentCell
+  let exerciseCardAt = -1
+  if (exerciseCard) {
+    exerciseCardAt = chatMessages.findIndex(isExerciseMsg)
+    if (exerciseCardAt < 0) {
+      exerciseCardAt = chatMessages.findIndex(
+        (m) => m.kind === 'exercise-answer' && m.contextCell === currentCell,
+      )
+    }
+    if (exerciseCardAt < 0) exerciseCardAt = chatMessages.length
+  }
+
+  /** Estados da barra de mensagem (v6, seção 11). */
+  const composerWaiting =
+    !trailDone &&
+    (trailBusy ||
+      mariaBusyWaiting ||
+      mariaBusyPending ||
+      exerciseSubmitting ||
+      exerciseResyncLock)
+  const composerLocked =
+    !trailDone && !composerWaiting && exerciseLockedComposer
+  const composerHasText = draft.trim().length > 0
+
+  /** Trilha concluída: a barra continua disponível e leva a pergunta para a Monitoria. */
+  function askMonitorFromDone() {
+    const message = draft.trim()
+    if (!message) return
+    try {
+      sessionStorage.setItem(`crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`, message)
+    } catch {
+      /* ignore */
+    }
+    navigate('/monitoria')
+  }
+
+  // v6, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
+  useEffect(() => {
+    toBottom()
+  }, [
+    chatMessages.length,
+    showTypingBubble,
+    trailDone,
+    exerciseDone,
+    answerMark,
+    activityDoneShown,
+    currentCell,
+    toBottom,
+  ])
+  // Ao abrir outra trilha ou atividade, a conversa abre no fim.
+  useEffect(() => {
+    toBottom(true)
+  }, [trailId, viewQuestion, historyReady, toBottom])
+  // O campo cresce com o texto e volta a uma linha quando esvazia.
+  useEffect(() => {
+    autoGrow(inputRef.current)
+  }, [draft])
+  // Atividade passada: carrega o histórico para ela aparecer completa.
+  useEffect(() => {
+    if (viewingPast && !historyExpanded) void onExpandHistory()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingPast, historyExpanded])
+
   return (
     <main
-      className="chat-thread"
+      className="v6-conv"
       aria-busy={busy || !historyReady || undefined}
       aria-labelledby="crias-player-heading"
     >
@@ -4626,635 +4789,332 @@ export default function PlayerPage() {
       <div className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {srAnnounce}
       </div>
-      {error && !trailShellUnavailable ? (
-        <div className="error chat-thread__banner" role="alert">
-          <p className="chat-thread__banner-text">{error}</p>
-          {canRetry ? (
-            <button
-              ref={retryBtnRef}
-              type="button"
-              className="chat-thread__retry"
-              onClick={() => {
-                if (offline) return
-                const fn = retryFnRef.current
-                clearError()
-                fn?.()
-              }}
-              disabled={offline}
-              aria-disabled={offline || undefined}
-            >
-              Tentar de novo
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
-      <div className="chat-thread__body">
-        <div
-          id="crias-thread-log"
-          className="chat-thread__scroll"
-          ref={threadRef}
-          onScroll={updateNearBottom}
-          role="log"
-          aria-relevant="additions"
-          aria-busy={historyLoadingMore || !historyReady || undefined}
-        >
-        {/* R04-L06: busy observável no expand/prepend do histórico. */}
-        {historyLoadingMore && !trailShellUnavailable ? (
-          <div
-            className="chat-thread__skeleton chat-thread__skeleton--prepend"
-            aria-hidden="true"
-          >
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" />
-            <p className="muted chat-thread__skeleton__label">
-              Carregando mensagens…
-            </p>
-          </div>
-        ) : null}
-        {!trailShellUnavailable && !historyExpanded && showHistoryCollapse ? (
-          <div className="chat-history-collapse">
-            <button
-              type="button"
-              className="chat-history-collapse__btn"
-              disabled={historyLoadingMore}
-              aria-expanded={false}
-              aria-controls="crias-thread-log"
-              onClick={() => void onExpandHistory()}
-            >
-              {historyLoadingMore
-                ? 'Carregando mensagens…'
-                : `Ver mensagens anteriores${
-                    hiddenHistoryCount > 0
-                      ? ` (${hiddenHistoryCount}${historyHasMore ? '+' : ''})`
-                      : historyHasMore
-                        ? ''
-                        : ''
-                  }`}
-            </button>
-          </div>
-        ) : null}
-        {!trailShellUnavailable &&
-        historyExpanded &&
-        (showHistoryCollapse || historyHasMore) ? (
-          <div className="chat-history-collapse">
-            {historyHasMore ? (
+      <div
+        id="crias-thread-log"
+        className="v6-thread"
+        data-thread="1"
+        ref={v6ThreadRef}
+        role="log"
+        aria-relevant="additions"
+        aria-busy={historyLoadingMore || !historyReady || undefined}
+      >
+        <div className="v6-thread__col">
+          {/* Histórico: carregar mensagens antigas (a lógica de dados é a de sempre). */}
+          {/* v6: o histórico é por atividade e fica no menu; sem botão de mensagens anteriores. */}
+          {!trailShellUnavailable &&
+          viewQuestion == null &&
+          !historyExpanded &&
+          showHistoryCollapse ? (
+            <div className="v6-history">
               <button
                 type="button"
-                className="chat-history-collapse__btn"
+                className="v6-history-btn"
                 disabled={historyLoadingMore}
-                aria-busy={historyLoadingMore || undefined}
-                onClick={() => void loadOlderHistory()}
+                aria-expanded={false}
+                aria-controls="crias-thread-log"
+                onClick={() => void onExpandHistory()}
               >
                 {historyLoadingMore
                   ? 'Carregando mensagens…'
-                  : 'Carregar mensagens mais antigas'}
+                  : `Ver mensagens anteriores${
+                      hiddenHistoryCount > 0
+                        ? ` (${hiddenHistoryCount}${historyHasMore ? '+' : ''})`
+                        : ''
+                    }`}
               </button>
-            ) : null}
-            <button
-              type="button"
-              className="chat-history-collapse__btn"
-              aria-expanded={true}
-              aria-controls="crias-thread-log"
-              onClick={() => setHistoryExpanded(false)}
-            >
-              Recolher mensagens anteriores
-            </button>
-          </div>
-        ) : null}
-        {!trailShellUnavailable &&
-          chatMessages.map((msg, msgIdx) => {
-          const promptMovedToCard =
-            Boolean(activeExerciseCellKey) &&
-            msg.role === 'assistant' &&
-            msg.stageType === 'exercise' &&
-            msg.cellKey === activeExerciseCellKey
-          /** Slide da trilha: orb + nome (não avatar “M” / MARIA). */
-          const speaker =
-            msg.role === 'assistant'
-              ? trailHeading
-              : msg.role === 'user'
-                ? 'Você'
-                : 'Sistema'
-          const labelId = `bubble-label-${msg.id}`
-          const isFeedback = msg.kind === 'feedback'
-          const mediaResume = mediaResumeMsgId === msg.id
-          const isTrailSlide = msg.role === 'assistant' || msg.role === 'system'
-          return (
-            <Fragment key={msg.id}>
-            {msgIdx === lessonCardSlot ? lessonCardNode : null}
-            {msgIdx === mariaEntranceSlot ? mariaEntranceNode : null}
-            <article
-              className={`${bubbleClassName(msg)}${
-                promptMovedToCard ? ' chat-bubble--prompt-in-card' : ''
-              }${mediaResume ? ' chat-bubble--media-resume' : ''}${
-                isTrailSlide ? ' chat-bubble--slide' : ''
-              }`}
-              data-msg-id={msg.id}
-              data-stage-type={msg.stageType}
-              data-cell-key={msg.cellKey || undefined}
-              data-animate={msg.animate ? 'true' : undefined}
-              data-media-resume={mediaResume ? 'true' : undefined}
-              aria-labelledby={msg.role !== 'user' ? labelId : undefined}
-              aria-label={msg.role === 'user' ? 'Você' : undefined}
-              tabIndex={-1}
-              {...(isFeedback
-                ? { role: 'status', 'aria-live': 'polite' as const }
-                : {})}
-            >
-              <div className="chat-bubble__row">
-                {isTrailSlide ? (
-                  <>
-                    <div className="chat-bubble__slide-head">
-                      <span className="chat-bubble__orb" aria-hidden>
-                        <TrailOrb
-                          pct={trailOrbPct}
-                          hue={trailOrbHue}
-                          size={22}
-                        />
-                      </span>
-                      <p className="chat-bubble__label" id={labelId}>
-                        {speaker}
-                      </p>
-                    </div>
-                    <div className="chat-bubble__stack">
-                      <div className="chat-bubble__text">
-                        {promptMovedToCard ? (
-                          <p className="muted">
-                            Questão abaixo — escolha uma opção.
-                          </p>
-                        ) : (
-                          renderBubbleParts(msg.text, msg.id)
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span className="chat-bubble__avatar" aria-hidden>
-                      V
-                    </span>
-                    <div className="chat-bubble__stack">
-                      <div className="chat-bubble__text">
-                        {renderBubbleParts(msg.text, msg.id)}
-                      </div>
-                      <div className="chat-bubble__meta">
-                        <span>
-                          {msg.timeLabel || formatBubbleTime(null, true) || ''}
-                        </span>
-                        <span
-                          className="chat-bubble__checks"
-                          aria-label="Mensagem enviada"
-                        >
-                          ✓✓
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </article>
-            </Fragment>
-          )
-        })}
-        {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
-        {mariaEntranceSlot >= chatMessages.length ? mariaEntranceNode : null}
-        {trailCompletedNode}
-
-        {showTypingBubble ? (
-          <article
-            className={`chat-bubble chat-bubble--assistant chat-bubble--slide chat-bubble--typing chat-bubble--typing-${busyReason || 'trail'}${
-              mariaLongWait && busyReason === 'maria'
-                ? ' chat-bubble--typing-long'
-                : ''
-            }`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            data-busy-reason={busyReason || undefined}
-            data-long-wait={
-              mariaLongWait && busyReason === 'maria' ? 'true' : undefined
-            }
-          >
-            <div className="chat-bubble__row">
-              <div className="chat-bubble__slide-head">
-                <span className="chat-bubble__orb" aria-hidden>
-                  <TrailOrb pct={trailOrbPct} hue={trailOrbHue} size={22} />
-                </span>
-                <p className="chat-bubble__label" aria-hidden="true">
-                  {busyReason === 'maria' ? typing.label : trailHeading}
-                </p>
-              </div>
-              <div className="chat-bubble__stack">
-                <div className="chat-bubble__text">
-                  <span className="typing-dots" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                  <span className="typing-dots__reduced">{typing.reduced}</span>
-                  {mariaLongWait && busyReason === 'maria' ? (
-                    <p className="typing-dots__status" aria-hidden="true">
-                      Ainda pensando…
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </article>
-        ) : null}
-
-        {!historyReady ? (
-          <div
-            className="chat-thread__skeleton"
-            role="status"
-            aria-live="polite"
-          >
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--short" aria-hidden="true" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--long" aria-hidden="true" />
-            <div className="chat-thread__skeleton-line chat-thread__skeleton-line--mid" aria-hidden="true" />
-            <p className="muted chat-thread__loading">Carregando a trilha…</p>
-          </div>
-        ) : null}
-        {historyReady && !content && !error ? (
-          <p className="muted chat-thread__loading">Carregando…</p>
-        ) : null}
-        {trailShellUnavailable ? (
-          <div className="chat-thread__empty" role="status">
-            <p className="chat-thread__empty-title">Trilha indisponível</p>
-            <p className="lede">{trailEmptyCopy}</p>
-            <Link to="/" className="chat-home__cta">
-              Voltar ao início
-            </Link>
-          </div>
-        ) : null}
-        {exerciseOptionsMissing ? (
-          <div className="chat-exercise chat-exercise--error" role="alert">
-            <p className="chat-exercise__legend">Questão indisponível</p>
-            <p>
-              Não foi possível carregar as opções. Toque em “Tentar de novo” no
-              aviso acima.
-            </p>
-          </div>
-        ) : null}
-
-        {optionsVisible ? (
-          <div
-            className={[
-              'chat-exercise',
-              exerciseSubmitting || exerciseResyncLock
-                ? 'chat-exercise--pending'
-                : '',
-              exercisePhase === 'error' && !exerciseResyncLock
-                ? 'chat-exercise--error-state'
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            role="group"
-            aria-label="Responda a questão"
-            aria-busy={
-              exerciseSubmitting || exerciseResyncLock || undefined
-            }
-            data-exercise-phase={
-              exerciseResyncLock ? 'resyncing' : exercisePhase
-            }
-          >
-            <p className="chat-exercise__legend">{exerciseLegend}</p>
-            {exercisePromptParts.length > 0 ? (
-              <div
-                className={`chat-exercise__prompt${
-                  exercisePromptHasMedia ? ' chat-exercise__prompt--media' : ''
-                }`}
-              >
-                {exercisePromptParts.map((part) => renderMessagePart(part))}
-              </div>
-            ) : null}
-            <div
-              className="chat-exercise__options"
-              role="radiogroup"
-              aria-label="Opções da questão"
-            >
-              {options.map((opt, optIndex) => {
-                const selected = highlightOptionKey === opt.key
-                const dimmed =
-                  (exerciseSubmitting || exerciseResyncLock) && !selected
-                // C2-R8 N02: um tab stop — marcada (ou a 1ª se nenhuma).
-                const rovingTabIndex = highlightOptionKey
-                  ? selected
-                    ? 0
-                    : -1
-                  : optIndex === 0
-                    ? 0
-                    : -1
-                const { letter, text: optLabel } = optionBadgeAndText(
-                  opt,
-                  optIndex,
-                )
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    tabIndex={rovingTabIndex}
-                    className={[
-                      'chat-exercise__option',
-                      selected ? 'is-selected' : '',
-                      dimmed ? 'is-dimmed' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    disabled={busy || exerciseSubmitting || exerciseResyncLock}
-                    onClick={() => onOptionSelect(opt)}
-                    onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
-                  >
-                    <span className="chat-exercise__option-badge" aria-hidden>
-                      {letter}
-                    </span>
-                    <span className="chat-exercise__option-text">{optLabel}</span>
-                  </button>
-                )
-              })}
-            </div>
-            {exercisePhase === 'error' && !exerciseResyncLock ? (
-              <div className="chat-exercise__retry" role="status">
-                <p>
-                  Não foi possível enviar. Sua escolha foi mantida. Toque em
-                  Enviar para tentar de novo.
-                </p>
-              </div>
-            ) : null}
-            {/* C3-R16 N02: sem pending-label “Enviando…” — CTA já anuncia busy. */}
-            {exerciseResyncLock ? (
-              <p className="chat-exercise__pending-label" aria-live="polite">
-                {trailBusyLabel}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-      </div>
-
-      {/* CTA fora do scroller: só hint de mídia (Enviar/Continuar no pill). */}
-      {showCtaSlot && !trailShellUnavailable ? (
-        <div
-          className={`chat-cta-slot${trailBusy ? ' chat-cta-slot--busy' : ''}`}
-        >
-          {/* Proto: sem chip “Ir para o fim”; só “Nova mensagem” quando há unseen. */}
-          {jumpChip && unseenBelow ? (
-            <button
-              type="button"
-              className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
-              data-unseen="true"
-              onClick={() => scrollToBottom('smooth')}
-            >
-              Nova mensagem
-            </button>
-          ) : null}
-          {mainButton.action === 'advance' &&
-          currentStageMediaHint &&
-          !hasMariaDraft &&
-          !mainButton.busy ? (
-            <div
-              className={`chat-continue chat-continue--enter${
-                currentStageHasEmbed ? ' chat-continue--with-media' : ''
-              }`}
-            >
-              <p className="chat-cta-slot__media-hint">
-                {currentStageMediaHint}
-              </p>
             </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {/* R2-N02: chip discreto docked acima do composer (nunca absolute sobre a aula). */}
-      {jumpChip && unseenBelow && !showCtaSlot && !trailShellUnavailable ? (
-        <div className="chat-cta-slot chat-cta-slot--chip-only">
-          <button
-            type="button"
-            className="chat-new-msg-chip chat-new-msg-chip--docked chat-new-msg-chip--quiet"
-            data-unseen="true"
-            onClick={() => scrollToBottom('smooth')}
-          >
-            Nova mensagem
-          </button>
-        </div>
-      ) : null}
-      {/* C2-R7 N02: CTA some sob KB (display:none) — chip docked some junto;
-          fallback absoluto só visível com data-keyboard=open. */}
-      {jumpChip && unseenBelow && showCtaSlot && !trailShellUnavailable ? (
-        <button
-          type="button"
-          className="chat-new-msg-chip chat-new-msg-chip--kb-fallback chat-new-msg-chip--quiet"
-          data-unseen="true"
-          onClick={() => scrollToBottom('smooth')}
-        >
-          Nova mensagem
-        </button>
-      ) : null}
-      </div>
-
-      {/* R1-N05: trilha concluída — CTA claro de saída (Início). */}
-      {!trailShellUnavailable &&
-      historyReady &&
-      content?.status === 'completed' ? (
-        <footer className="chat-composer chat-composer--trail-done">
-          <Link to="/" className="chat-continue__btn chat-composer__home-cta">
-            Ir ao início
-          </Link>
-        </footer>
-      ) : null}
-
-      {/* C2-R12 N05: sem composer/Enviar competindo com skeleton no mount. */}
-      {!trailShellUnavailable && historyReady && content?.status !== 'completed' ? (
-      <footer
-        className={`chat-composer chat-composer--v4${
-          exerciseLockedComposer ? ' chat-composer--locked' : ''
-        }${canSubmitExercise ? ' chat-composer--ready-submit' : ''}${
-          composerPrimaryAction || mariaBusyPending
-            ? ' chat-composer--with-continue'
-            : ''
-        }`}
-      >
-{/* Proto: face à esquerda da pílula; campo largo + CTA embutido. */}
-        <div className="chat-composer__dock">
-          <MariaFace size="composer" />
-          <form
-            className="chat-composer__form"
-            onSubmit={(e) => {
-              if (composerPrimaryAction) {
-                e.preventDefault()
-                if (composerPrimaryAction.disabled) return
-                if (composerPrimaryAction.action === 'exit_maria') {
-                  onVoltarParaTrilha()
-                } else if (composerPrimaryAction.action === 'advance') {
-                  markContinueHaloDone(session.student_id, trailId)
-                  void doAdvance()
-                } else if (composerPrimaryAction.action === 'submit') {
-                  void submitSelectedOption()
-                }
-                return
-              }
-              if (sendAriaDisabled) {
-                e.preventDefault()
-                return
-              }
-              void onSend(e)
-            }}
-          >
-            {exerciseLockedComposer ? (
-              <span
-                className="chat-composer__lock"
-                aria-hidden="true"
-                title={exerciseLockLabel}
-              >
-                <svg
-                  className="chat-composer__lock-icon"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+          {!trailShellUnavailable &&
+          viewQuestion == null &&
+          historyExpanded &&
+          (showHistoryCollapse || historyHasMore) ? (
+            <div className="v6-history">
+              {historyHasMore ? (
+                <button
+                  type="button"
+                  className="v6-history-btn"
+                  disabled={historyLoadingMore}
+                  aria-busy={historyLoadingMore || undefined}
+                  onClick={() => void loadOlderHistory()}
                 >
-                  <path
-                    d="M7 11V8a5 5 0 0 1 10 0v3"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                  />
-                  <rect
-                    x="5"
-                    y="11"
-                    width="14"
-                    height="10"
-                    rx="2"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                  />
-                </svg>
-                <span className="chat-composer__lock-label">
-                  {exerciseLockLabel}
-                </span>
-              </span>
-            ) : null}
-            <textarea
-              ref={inputRef}
-              className="chat-composer__input"
-              rows={1}
-              value={draft}
-              disabled={composerBlocked && !exerciseLockedComposer}
-              readOnly={exerciseLockedComposer}
-              /* C3-R3 N03: lock readOnly fora do Tab — radiogroup permanece no ciclo. */
-              tabIndex={exerciseLockedComposer ? -1 : undefined}
-              placeholder={exerciseLockedComposer ? '' : placeholder}
-              aria-label={
-                exerciseLockedComposer ? exerciseLockLabel : 'Pergunte à Maria…'
-              }
-              enterKeyHint={canSubmitExercise ? 'send' : 'send'}
-              inputMode="text"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={onComposerKeyDown}
-            />
-            {/* Continuar (texto) / Enviar (seta circular no exercício) no pill. */}
-            {composerPrimaryAction ? (
+                  {historyLoadingMore
+                    ? 'Carregando mensagens…'
+                    : 'Carregar mensagens mais antigas'}
+                </button>
+              ) : null}
               <button
-                ref={(node) => {
-                  continuarBtnRef.current = node
-                  voltarBtnRef.current = node
-                }}
-                type="submit"
-                className={`chat-composer__continue${
-                  composerPrimaryAction.action === 'submit' ||
-                  (exerciseLockedComposer &&
-                    composerPrimaryAction.action === 'none')
-                    ? ' chat-composer__continue--icon'
-                    : ''
-                }${
-                  continueHalo &&
-                  (composerPrimaryAction.action === 'advance' ||
-                    composerPrimaryAction.action === 'submit')
-                    ? ' chat-composer__continue--halo'
-                    : ''
-                }`}
-                data-action={composerPrimaryAction.action}
-                disabled={composerPrimaryAction.disabled}
-                aria-busy={composerPrimaryAction.busy || undefined}
-                aria-label={composerPrimaryAction.label}
-                title={
-                  composerPrimaryAction.action === 'submit' && !selectedOptionKey
-                    ? 'Escolha uma opção primeiro'
-                    : composerPrimaryAction.label
-                }
+                type="button"
+                className="v6-history-btn"
+                aria-expanded={true}
+                aria-controls="crias-thread-log"
+                onClick={() => setHistoryExpanded(false)}
               >
-                {composerPrimaryAction.action === 'submit' ||
-                (exerciseLockedComposer &&
-                  composerPrimaryAction.action === 'none') ? (
-                  <SendArrowIcon direction="right" size={18} />
-                ) : (
-                  <>
-                    <span className="chat-composer__continue-label">
-                      {composerPrimaryAction.label}
-                    </span>
-                    <SendArrowIcon direction="right" size={16} />
-                  </>
-                )}
+                Recolher mensagens anteriores
               </button>
-            ) : !exerciseLockedComposer ? (
-              <button
-                type="submit"
-                className={`chat-composer__send${
-                  sendAriaDisabled ? ' is-aria-disabled' : ''
-                }`}
-                disabled={sendDisabledHard}
-                aria-disabled={sendAriaDisabled || undefined}
-                aria-label="Enviar pergunta à Maria"
-              >
-                <SendArrowIcon />
-              </button>
-            ) : null}
-          </form>
+            </div>
+          ) : null}
+
+          {!trailShellUnavailable &&
+            chatMessages.map((msg, msgIdx) => {
+              const labelId = `bubble-label-${msg.id}`
+              const mediaResume = mediaResumeMsgId === msg.id
+              const exerciseSlot = Boolean(exerciseCard) && isExerciseMsg(msg)
+              const isFeedback = msg.kind === 'feedback'
+              const fb = isFeedback
+                ? msg.correct === true
+                  ? 'ok'
+                  : msg.correct === false
+                    ? 'no'
+                    : null
+                : null
+              return (
+                <Fragment key={msg.id}>
+                  {msgIdx === lessonCardSlot ? lessonCardNode : null}
+                  {msgIdx === exerciseCardAt ? exerciseCard : null}
+                  {exerciseSlot ? null : (
+                    <div
+                      data-msg-id={msg.id}
+                      data-stage-type={msg.stageType}
+                      data-cell-key={msg.cellKey || undefined}
+                      data-media-resume={mediaResume ? 'true' : undefined}
+                      tabIndex={-1}
+                      {...(isFeedback
+                        ? { role: 'status', 'aria-live': 'polite' as const }
+                        : {})}
+                    >
+                      {msg.role === 'user' ? (
+                        <UserBubble>
+                          {(() => {
+                            if (msg.kind !== 'exercise-answer') return msg.text
+                            const at = options.findIndex(
+                              (o) => optionBadgeAndText(o, 0).text === msg.text,
+                            )
+                            return at >= 0
+                              ? `${optionBadgeAndText(options[at], at).letter}) ${msg.text}`
+                              : msg.text
+                          })()}
+                        </UserBubble>
+                      ) : (
+                        <BotMessage
+                          label={msg.kind === 'sidechat' ? 'Monitor' : trailHeading}
+                          feedback={fb}
+                          labelId={labelId}
+                        >
+                          {renderBubbleParts(msg.text, msg.id)}
+                        </BotMessage>
+                      )}
+                    </div>
+                  )}
+                </Fragment>
+              )
+            })}
+          {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
+          {exerciseCardAt >= chatMessages.length ? exerciseCard : null}
+
+          {activityDoneShown ? (
+            <BotMessage label="Atividade concluída" animatedSymbol={!showTypingBubble}>
+              <p>Continue para a próxima atividade.</p>
+            </BotMessage>
+          ) : null}
+
+          {showTypingBubble && !viewingPast ? <TypingRow /> : null}
+          {trailCompletedNode}
+
+          {error && !trailShellUnavailable ? (
+            <div className="v6-errbox" role="alert">
+              <p>{error}</p>
+              {canRetry ? (
+                <button
+                  ref={retryBtnRef}
+                  type="button"
+                  onClick={() => {
+                    if (offline) return
+                    const fn = retryFnRef.current
+                    clearError()
+                    fn?.()
+                  }}
+                  disabled={offline}
+                  aria-disabled={offline || undefined}
+                >
+                  Tentar de novo
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!historyReady || (historyReady && !content && !error) ? (
+            <div className="v6-skel" role="status" aria-busy="true" aria-live="polite">
+              <div style={{ width: '30%' }} />
+              <div style={{ width: '90%' }} />
+              <div style={{ width: '65%' }} />
+            </div>
+          ) : null}
+          {trailShellUnavailable ? (
+            <div className="v6-empty" role="status">
+              <p>Trilha indisponível</p>
+            </div>
+          ) : null}
         </div>
-        {content?.status === 'ok' ? (
-          <p key={hintKey} className="muted chat-composer__hint chat-composer__hint--fade">
-            {/* R01-F06 / R01-F09 / R14-L01 + C2-R1 N03 */}
-            {trailBusy
-              ? // C2-R4 N01 / C3-R16 N01: rodapé na mesma fase do CTA/typing
-                trailBusyLabel.startsWith('Salvando')
-                ? 'Aguarde — salvando progresso'
-                : trailBusyLabel.startsWith('Conferindo')
-                  ? 'Aguarde — conferindo a etapa'
-                  : 'Aguarde — carregando a próxima etapa'
-              : mariaBusyWaiting
-                ? // C3-R6 N02: mid-flight / long-wait — não “Continue a conversa” com CTA off
-                  'Aguarde — Maria está respondendo'
-                : mariaBusyPending
-                  ? // C2-R26 N01: pós-Voltar mid-flight — sem mentir “botão verde”
-                    'Aguarde — finalizando conversa com Maria'
-                  : exerciseLockedComposer
-                    ? 'Envie sua pergunta ou selecione continuar para avançar'
-                  : hasMariaDraft && showContinuar
-                    ? // C2-R9 N01: draft pausa Continuar
-                      'Enviar a dúvida à Maria — Continuar pausado'
-                    : content.stage_type === 'exercise'
-                      ? showContinuar
-                        ? // C3-R17 N03: microcopy clara (não “Continuar trilha avança”)
-                          'Pergunte à Maria · toque Continuar para avançar'
-                        : 'Pergunte à Maria'
-                      : mariaSidechat
-                        ? 'Responda no composer · Continuar avança o passo'
-                        : // R01-F06 / R01-F09 / R14-L01 / C3-R17 N03: hierarquia Continuar × Enviar
-                          showContinuar
-                          ? 'Envie à Maria · toque Continuar para avançar'
-                          : 'Envie à Maria'}
-          </p>
-        ) : null}
-      </footer>
+      </div>
+      <ScrollArrows upRef={upRef} downRef={downRef} />
+
+      {!trailShellUnavailable && historyReady ? (
+        <div className="v6-dock">
+          <div className="v6-dock__col">
+            {viewingPast && !trailDone ? (
+              <div className="v6-past">
+                <span>{`Você está revendo a Atividade ${viewActivity}.`}</span>
+                <button
+                  type="button"
+                  className="v6-continue"
+                  onClick={() => navigate(`/trilha/${encodeURIComponent(trailId)}`)}
+                >
+                  Voltar para a atividade atual
+                </button>
+              </div>
+            ) : (
+              <div className="v6-dock__row">
+                <form
+                  className={`v6-composer v6-composer--thread${
+                    composerWaiting || composerLocked
+                      ? ' is-locked'
+                      : composerHasText
+                        ? ' has-text'
+                        : ''
+                  }`}
+                  onSubmit={(e) => {
+                    if (trailDone) {
+                      e.preventDefault()
+                      askMonitorFromDone()
+                      return
+                    }
+                    if (composerPrimaryAction) {
+                      e.preventDefault()
+                      if (composerPrimaryAction.disabled) return
+                      if (composerPrimaryAction.action === 'exit_maria') {
+                        onVoltarParaTrilha()
+                      } else if (composerPrimaryAction.action === 'advance') {
+                        markContinueHaloDone(session.student_id, trailId)
+                        void doAdvance()
+                      } else if (composerPrimaryAction.action === 'submit') {
+                        void submitSelectedOption()
+                      }
+                      return
+                    }
+                    if (sendAriaDisabled) {
+                      e.preventDefault()
+                      return
+                    }
+                    void onSend(e)
+                  }}
+                >
+                  {composerWaiting ? (
+                    <div
+                      className="v6-composer__lock v6-composer__wait"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <LockIcon />
+                      <span>Aguarde...</span>
+                    </div>
+                  ) : composerLocked ? (
+                    <>
+                      <div className="v6-composer__lock" aria-live="polite">
+                        <LockIcon />
+                        <span className="visually-hidden">
+                          Selecione uma alternativa e continue
+                        </span>
+                      </div>
+                      <button
+                        ref={(node) => {
+                          continuarBtnRef.current = node
+                          voltarBtnRef.current = node
+                        }}
+                        type="submit"
+                        className="v6-continue"
+                        data-action="submit"
+                        disabled={!selectedOptionKey || composerPrimaryAction?.disabled}
+                        aria-disabled={!selectedOptionKey || undefined}
+                      >
+                        {selectedOptionKey
+                          ? 'Enviar resposta'
+                          : 'Selecione uma alternativa'}
+                        <ArrowRightIcon />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <textarea
+                        ref={inputRef}
+                        className="v6-composer__input"
+                        rows={1}
+                        value={draft}
+                        disabled={trailDone ? false : composerBlocked}
+                        placeholder={placeholder}
+                        aria-label="Pergunte ao seu monitor"
+                        enterKeyHint="send"
+                        inputMode="text"
+                        autoCorrect="off"
+                        autoComplete="off"
+                        spellCheck={false}
+                        onChange={(e) => {
+                          setDraft(e.target.value)
+                          autoGrow(e.target)
+                        }}
+                        onKeyDown={(e) => {
+                          // v6: no celular, Enter quebra linha.
+                          if (e.key === 'Enter' && !e.shiftKey && isMobileViewport()) return
+                          if (trailDone && e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            askMonitorFromDone()
+                            return
+                          }
+                          onComposerKeyDown(e)
+                        }}
+                      />
+                      {!composerHasText &&
+                      !trailDone &&
+                      composerPrimaryAction &&
+                      composerPrimaryAction.action !== 'none' &&
+                      composerPrimaryAction.action !== 'submit' ? (
+                        <button
+                          ref={(node) => {
+                            continuarBtnRef.current = node
+                            voltarBtnRef.current = node
+                          }}
+                          type="submit"
+                          className={`v6-continue${
+                            continueHalo && composerPrimaryAction.action === 'advance'
+                              ? ' v6-continue--halo'
+                              : ''
+                          }`}
+                          data-action={composerPrimaryAction.action}
+                          disabled={composerPrimaryAction.disabled}
+                          aria-busy={composerPrimaryAction.busy || undefined}
+                          aria-label="Continuar"
+                        >
+                          Continuar
+                          <ArrowRightIcon />
+                        </button>
+                      ) : (
+                        <button
+                          type="submit"
+                          className="v6-sendbtn"
+                          disabled={trailDone ? false : sendDisabledHard}
+                          aria-disabled={trailDone ? undefined : sendAriaDisabled || undefined}
+                          aria-label="Enviar pergunta ao monitor"
+                        >
+                          <ArrowUpIcon />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
       ) : null}
     </main>
   )

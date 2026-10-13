@@ -45,7 +45,7 @@ export function QuestionsCharts({
     <div className="dashboard-q-charts">
       <div className="dashboard-q-charts__kpis">
         <div className="dashboard-q-charts__kpi">
-          <span className="dashboard-q-charts__kpi-label">Questões</span>
+          <span className="dashboard-q-charts__kpi-label">Atividades</span>
           <span className="dashboard-q-charts__kpi-value">{questionCount}</span>
         </div>
         <div className="dashboard-q-charts__kpi">
@@ -64,7 +64,7 @@ export function QuestionsCharts({
         <section className="dashboard-q-charts__card">
           <h3>Distribuição de % de acerto</h3>
           <p className="muted dashboard-q-charts__hint">
-            Quantas questões caem em cada faixa.
+            Quantas atividades caem em cada faixa.
           </p>
           <ul className="dashboard-q-charts__bars">
             {accuracyBuckets.map((bucket) => (
@@ -74,7 +74,7 @@ export function QuestionsCharts({
                 </span>
                 <div
                   className="dashboard-q-charts__bar-track"
-                  aria-label={`${bucket.label}: ${bucket.count} questões`}
+                  aria-label={`${bucket.label}: ${bucket.count} atividades`}
                 >
                   <div
                     className="dashboard-q-charts__bar-fill dashboard-q-charts__bar-fill--accent"

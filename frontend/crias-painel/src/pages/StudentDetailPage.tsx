@@ -356,8 +356,8 @@ export function StudentDetailPage() {
     setEditBusy(true)
     setEditError(null)
     try {
-      const nextStage = parsePositiveInteger(editStage, 'Stage atual')
-      const nextQuestion = parsePositiveInteger(editQuestion, 'Questão atual')
+      const nextStage = parsePositiveInteger(editStage, 'Etapa atual')
+      const nextQuestion = parsePositiveInteger(editQuestion, 'Atividade atual')
       const nextStatus = parseStudentTrailStatus(editStatus)
       const firestore = db
       await runTransaction(firestore, async (tx) => {

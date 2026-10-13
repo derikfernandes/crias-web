@@ -46,7 +46,7 @@ describe('glanceNowLabel', () => {
     ).toEqual({ primary: 'Trilha concluída', status: null })
   })
 
-  it('em progresso: Etapa · Questão + status', () => {
+  it('em progresso: Etapa · Atividade + status', () => {
     expect(
       glanceNowLabel({
         stageNumber: 2,
@@ -55,7 +55,7 @@ describe('glanceNowLabel', () => {
         completed: false,
       }),
     ).toEqual({
-      primary: 'Etapa 2 · Questão 1',
+      primary: 'Etapa 2 · Atividade 1',
       status: 'Em progresso',
     })
   })

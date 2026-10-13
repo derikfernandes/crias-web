@@ -22,7 +22,7 @@ export type TrilhaHistoryPageViewProps = {
   errorMessage?: string
   onBack: () => void
   onRetry?: () => void
-  /** Deep-link para o passo atual (cursor Firebase) — não reabre questão antiga. */
+  /** Deep-link para a etapa atual (cursor Firebase) — não reabre atividade antiga. */
   onContinueCurrent?: () => void
 }
 
@@ -144,7 +144,7 @@ export function TrilhaHistoryPageView({
       ) : (
         <>
           <p className="trilha-history__summary" role="status">
-            {items.length} passo{items.length === 1 ? '' : 's'} concluído
+            {items.length} atividade{items.length === 1 ? '' : 's'} concluída
             {items.length === 1 ? '' : 's'}
             {exerciseCount > 0
               ? ` · ${correctCount} corretos`
@@ -159,7 +159,7 @@ export function TrilhaHistoryPageView({
                 className="btn btn--primary trilha-cta"
                 onClick={onContinueCurrent}
               >
-                Continuar no passo atual
+                Continuar na etapa atual
               </button>
             </p>
           ) : null}
@@ -203,7 +203,7 @@ export function TrilhaHistoryPageView({
                       Etapa {group.stageNumber}
                       <span className="trilha-history__stage-count muted">
                         {' '}
-                        · {group.items.length} passo
+                        · {group.items.length} atividade
                         {group.items.length === 1 ? '' : 's'}
                       </span>
                     </span>
@@ -249,7 +249,7 @@ export function TrilhaHistoryPageView({
                                       Última conquista
                                     </span>
                                   ) : null}
-                                  Questão {item.questionNumber}
+                                  Atividade {item.questionNumber}
                                   {typeLabel ? (
                                     <span className="trilha-player__type">
                                       {typeLabel}

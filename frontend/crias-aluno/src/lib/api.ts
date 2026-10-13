@@ -395,7 +395,7 @@ export async function fetchTrailNames(): Promise<Record<string, string>> {
 
 /**
  * Totais de atividades (question) por trilha — vocab INTERFACE.
- * Usa action=max no stage 1 (mesma contagem de questões em cada etapa).
+ * Usa action=max no stage 1 (mesma contagem de atividades em cada etapa).
  */
 export async function fetchTrailQuestionTotals(
   trailIds: string[],

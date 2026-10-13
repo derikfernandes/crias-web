@@ -6,17 +6,17 @@ describe('habitLineFromAttempts', () => {
     expect(habitLineFromAttempts([])).toMatch(/sem pressão/i)
   })
 
-  it('conta passos de hoje', () => {
+  it('conta etapas de hoje', () => {
     const now = new Date('2026-09-21T15:00:00')
     expect(
       habitLineFromAttempts(['2026-09-21T10:00:00Z'], now),
-    ).toMatch(/Hoje: 1 passo/)
+    ).toMatch(/Hoje: 1 etapa/)
   })
 
-  it('sem passo hoje', () => {
+  it('sem etapa hoje', () => {
     const now = new Date('2026-09-21T15:00:00')
     expect(
       habitLineFromAttempts(['2026-09-20T10:00:00Z'], now),
-    ).toMatch(/Ainda sem passo hoje/)
+    ).toMatch(/Ainda sem etapa hoje/)
   })
 })

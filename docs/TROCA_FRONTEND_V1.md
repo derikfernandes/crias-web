@@ -20,23 +20,23 @@ Voltar ao antigo, se algo der errado em produção: fazer o deploy da etiqueta `
 | `api/` (funções da Vercel) | Idêntico | `git diff --stat frontend-v0 frontend-v1 -- api` não mostra nada |
 | `server/` (lógica, prompts, motor de trilhas) | Idêntico, exceto um caminho de arquivo num teste (`trilha-admin` virou `crias-painel`) | `git diff frontend-v0 frontend-v1 -- server` |
 | `firestore.rules` | Idêntico | `git diff --stat frontend-v0 frontend-v1 -- firestore.rules` |
-| Painel da escola | Mesmo código, só a pasta mudou de nome (`trilha-admin` virou `crias-painel`) | `git diff -M --stat frontend-v0 frontend-v1 -- frontend/crias-painel` mostra apenas renomeações |
+| Painel da escola | Mesma lógica, mesmos dados. A pasta mudou de nome (`trilha-admin` virou `crias-painel`) e os **textos de tela** seguem o vocabulário trilha, atividade, etapa (`docs/VOCABULARIO.md`). Nenhum nome de campo, coleção ou rota mudou | `git diff -M frontend-v0 frontend-v1 -- frontend/crias-painel` mostra renomeações e troca de palavras em textos |
 | Rotas de API chamadas pelo aluno | As mesmas 11 | `conversation_logs`, `exercise_attempts`, `student/identify`, `student_trails`, `student_trails/advance`, `student_trails/history`, `student_trails/maria`, `student_trails/next-content`, `trail_stage_questions`, `trail_stages`, `trails` |
 | `vercel.json` | Só o `outputDirectory` (`frontend/crias-painel/dist`) | O build raiz copia o app do aluno para `dist/aluno`, como antes |
 | Variável de ambiente do aluno | A mesma (`VITE_API_BASE_URL`) | `frontend/crias-aluno/.env.example` |
 | Endereço do app do aluno | Continua `/aluno/` | `base: '/aluno/'` no `vite.config.ts` |
 
-Alterações fora de `frontend/crias-aluno` (todas são nome de pasta): `package.json`, `package-lock.json`, `vercel.json`, `vitest.config.ts`, scripts de contrato, `CODEOWNERS`, `docs/architecture.md`, `specs/`.
+Alterações fora de `frontend/` (todas são nome de pasta): `package.json`, `package-lock.json`, `vercel.json`, `vitest.config.ts`, scripts de contrato, `CODEOWNERS`, `docs/architecture.md`, `specs/`.
 
 ## 3. O que mudou de propósito
 
 - Visual novo do aluno (tema claro e escuro, fundo animado, símbolo animado).
-- Vocabulário: trilha > atividade > **etapa**. O tutor aparece como **Monitor** (a Maria saiu da interface).
+- Vocabulário: trail = trilha, question = atividade, stage = etapa (ver `docs/VOCABULARIO.md`). Só texto de tela: nomes de campos, coleções e rotas continuam iguais. O tutor aparece como **Monitor** (a Maria saiu da interface).
 - A conversa mostra a trilha inteira. Ao subir, carrega as atividades anteriores sozinha. O menu lateral leva ao começo de cada atividade.
 - A Home mostra só as 2 primeiras trilhas **não concluídas**. Trilhas concluídas não aparecem. Se todas estiverem concluídas, mostra "Você concluiu todas as suas trilhas."
 - Conversa direto com o Monitor fora de uma trilha: continua gravada com o id `Tutor - Maria` (está na lista permitida do uso de agente do servidor). Não renomear sem mexer no servidor.
 - Falas do Monitor no histórico são reconhecidas por `metadata.source === 'maria-tutor'`, que o servidor já grava.
-- Pasta `frontend/cria-frontend` virou `frontend/crias-aluno`; `frontend/trilha-admin` virou `frontend/crias-painel`.
+- Os dois apps continuam dentro da pasta `frontend/`: `frontend/cria-frontend` virou `frontend/crias-aluno` e `frontend/trilha-admin` virou `frontend/crias-painel`.
 
 ## 4. Verificado antes da troca
 
@@ -82,6 +82,7 @@ Se qualquer item de 1 a 9 falhar, não promover. Voltar à `frontend-v0` (seçã
 
 ## 7. Pendências conhecidas
 
+- Vocabulário no editor de trilhas, nos prompts do servidor e nas planilhas: ver "Onde ainda não vale" em `docs/VOCABULARIO.md`.
 - Link "Painel" no menu do aluno leva a `/`; botão "Abrir perfil" ainda não tem destino.
 - Renomear `maria-tutor` e `Tutor - Maria` no servidor é decisão do sócio (o servidor precisaria ler os dois nomes durante a transição).
 - As 68 branches antigas do sócio foram mantidas.

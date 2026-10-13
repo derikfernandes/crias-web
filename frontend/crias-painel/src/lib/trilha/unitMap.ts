@@ -11,7 +11,7 @@ export type UnitStepNode = {
   questionNumber: number
   state: TrailPathNodeState
   stepType: UnitStepType
-  /** Título só para passos done (histórico) — sem spoiler de futuros. */
+  /** Título só para atividades done (histórico) — sem spoiler de futuros. */
   title: string | null
 }
 
@@ -46,14 +46,14 @@ export function stepTypeLabel(t: UnitStepType): string | null {
 /** Secções = fases (`stage_number`); paginação mockup v2 — ver `trilha-data-model-student-view.md` §8. */
 export const UNIT_MAP_STAGE_PAGE_SIZE = 3
 
-/** Passos = aulas (`question_number`) dentro da etapa corrente. */
+/** Atividades (`question_number`) dentro da etapa corrente. */
 export const UNIT_MAP_QUESTION_PAGE_SIZE = 5
 
 /**
  * Constrói secções por etapa.
- * - Etapas &lt; current: done, colapsadas, passos do histórico
- * - Etapa current: expandida; questões 1..totalQuestions (ou janela)
- * - Etapas &gt; current: ahead, colapsadas, sem passos (sem spoiler)
+ * - Etapas &lt; current: done, colapsadas, atividades do histórico
+ * - Etapa current: expandida; atividades 1..totalQuestions (ou janela)
+ * - Etapas &gt; current: ahead, colapsadas, sem atividades (sem spoiler)
  */
 export function buildUnitSections(input: {
   currentStage: number
@@ -117,7 +117,7 @@ export function buildUnitSections(input: {
         steps,
         summary:
           steps.length > 0
-            ? `Etapa ${s} · Concluída · ${steps.length} passo${steps.length === 1 ? '' : 's'}`
+            ? `Etapa ${s} · Concluída · ${steps.length} atividade${steps.length === 1 ? '' : 's'}`
             : `Etapa ${s} · Concluída`,
       })
       continue

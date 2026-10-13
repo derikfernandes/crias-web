@@ -16,7 +16,7 @@ export function habitLineFromAttempts(
     .filter((d): d is Date => d != null)
 
   if (dates.length === 0) {
-    return 'Quando quiser: um passo curto (~3–5 min). Sem pressão de sequência.'
+    return 'Quando quiser: uma etapa curta (~3–5 min). Sem pressão de sequência.'
   }
 
   const y = now.getFullYear()
@@ -27,7 +27,7 @@ export function habitLineFromAttempts(
   ).length
 
   if (todayCount > 0) {
-    return `Hoje: ${todayCount} passo${todayCount === 1 ? '' : 's'} registado${todayCount === 1 ? '' : 's'}.`
+    return `Hoje: ${todayCount} etapa${todayCount === 1 ? '' : 's'} registada${todayCount === 1 ? '' : 's'}.`
   }
-  return 'Ainda sem passo hoje — ~3–5 min quando puder.'
+  return 'Ainda sem etapa hoje — ~3–5 min quando puder.'
 }

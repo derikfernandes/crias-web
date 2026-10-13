@@ -220,7 +220,7 @@ export function TrailStageQuestionsPage() {
   const trailLede =
     trail ? (
       <p className="admin__lede muted">
-        Trilha <strong>{trail.name || trailId}</strong> · stage{' '}
+        Trilha <strong>{trail.name || trailId}</strong> · etapa{' '}
         <strong>{stageNumber}</strong>
         {trailStage ? (
           <>
@@ -229,7 +229,7 @@ export function TrailStageQuestionsPage() {
             {trailStage.stage_type === 'ai' ? (
               <>
                 {' '}
-                (prompt no stage: {trailStage.prompt ? 'definido' : 'ausente'})
+                (prompt na etapa: {trailStage.prompt ? 'definido' : 'ausente'})
               </>
             ) : null}
           </>

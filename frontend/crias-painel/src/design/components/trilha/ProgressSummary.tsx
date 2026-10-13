@@ -9,7 +9,7 @@ export type ProgressSummaryProps = {
   completed?: boolean
   /** Resumo curto do que já foi feito (derivado do cursor / completed). */
   doneSummary?: string | null
-  /** Label do “Agora”; se omitido, deriva de etapa/questão ou “Trilha concluída”. */
+  /** Label do “Agora”; se omitido, deriva de etapa/atividade ou “Trilha concluída”. */
   nowPrimary?: string | null
   nowStatus?: string | null
 }
@@ -52,7 +52,7 @@ export function ProgressSummary({
     nowPrimary ??
     (completed
       ? 'Trilha concluída'
-      : `Etapa ${stageNumber} · Questão ${questionNumber}`)
+      : `Etapa ${stageNumber} · Atividade ${questionNumber}`)
   const agoraStatus =
     nowStatus !== undefined
       ? nowStatus

@@ -77,9 +77,9 @@ export function GabaritoPageView({
       <header className="admin__header">
         <h1>Gabarito</h1>
         <p className="admin__lede muted">
-          Preencha a resposta correta (<code>correct_option</code>) das questões
+          Preencha a resposta correta (<code>correct_option</code>) das atividades
           de exercício em massa. Sem gabarito, as respostas dos alunos não geram
-          acertos/erros. Questões anuladas ficam rastreadas e fora do
+          acertos/erros. Atividades anuladas ficam rastreadas e fora do
           denominador de acerto/erro.
         </p>
         <div className="gerenciamento-toolbar">
@@ -126,7 +126,7 @@ export function GabaritoPageView({
       {!selectedTrailId ? (
         <section className="panel">
           <p className="muted gerenciamento-placeholder">
-            Selecione uma trilha para listar as questões de exercício e
+            Selecione uma trilha para listar as atividades de exercício e
             preencher o gabarito.
           </p>
         </section>
@@ -202,7 +202,7 @@ export function GabaritoPageView({
               </select>
             </label>
             <label className="gabarito-filter-select">
-              <span className="muted">Questão</span>
+              <span className="muted">Atividade</span>
               <select
                 value={filterQuestion === '' ? '' : String(filterQuestion)}
                 onChange={(e) => {
@@ -264,7 +264,7 @@ export function GabaritoPageView({
                       onClick={() => onToggleSort('question')}
                       disabled={loadingData}
                     >
-                      Questão
+                      Atividade
                       <span className="gabarito-sort-indicator" aria-hidden>
                         {sortBy === 'question'
                           ? sortDir === 'asc'
@@ -285,7 +285,7 @@ export function GabaritoPageView({
                 {loadingData ? (
                   <tr>
                     <td colSpan={7} className="muted table__empty">
-                      Carregando questões…
+                      Carregando atividades…
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
@@ -343,7 +343,7 @@ export function GabaritoPageView({
                           title={
                             q.annulled
                               ? 'Remover anulação e voltar a contar no gabarito'
-                              : 'Anular questão (não conta como acerto/erro)'
+                              : 'Anular atividade (não conta como acerto/erro)'
                           }
                         >
                           {annullingId === q.id

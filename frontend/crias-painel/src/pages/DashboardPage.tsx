@@ -251,7 +251,7 @@ function scoreStudentFromAnswerMap(
     if (stageRec?.stage_type !== 'exercise') continue
 
     const questionRec = questionByKey.get(`${trailId}|${stage}|${question}`)
-    // Questão anulada: fora do denominador (nem acerto nem erro).
+    // Atividade anulada: fora do denominador (nem acerto nem erro).
     if (questionRec?.annulled === true) continue
     const gabarito = (questionRec?.correct_option ?? '').trim()
     if (!gabarito) continue
@@ -264,7 +264,7 @@ function scoreStudentFromAnswerMap(
 }
 
 const DATA_SOURCES = 3
-/** Stages e questões (carregados por trilha) também entram no gate de loading. */
+/** Stages e atividades (carregados por trilha) também entram no gate de loading. */
 const META_SOURCES = 2
 /** Passos de progresso: fontes de dados + metadados + 1 passo de métricas (logs). */
 const TOTAL_LOAD_STEPS = DATA_SOURCES + META_SOURCES + 1
@@ -587,7 +587,7 @@ export function DashboardPage() {
   const [deselectedStages, setDeselectedStages] = useState<Set<string>>(
     new Set(),
   )
-  /** Questões desmarcadas (número da questão no stage). Vazio = todas incluídas. */
+  /** Atividades desmarcadas (número da atividade na etapa). Vazio = todas incluídas. */
   const [deselectedQuestions, setDeselectedQuestions] = useState<Set<number>>(
     new Set(),
   )
@@ -604,7 +604,7 @@ export function DashboardPage() {
   }>({ key: 'name', dir: 'asc' })
   const [studentPage, setStudentPage] = useState(1)
 
-  // Filtros do ranking de pílulas / aba Questões
+  // Filtros do ranking de pílulas / aba Atividades
   const [pillSearch, setPillSearch] = useState('')
   const [pillTrailFilter, setPillTrailFilter] = useState('')
   const [pillMinResponses, setPillMinResponses] = useState(1)
@@ -776,7 +776,7 @@ export function DashboardPage() {
     [trails],
   )
 
-  // Stages e questões filtrados pelas trilhas da instituição (em chunks de 30
+  // Stages e atividades filtrados pelas trilhas da instituição (em chunks de 30
   // IDs por limitação do operador "in"), em vez de baixar as coleções inteiras.
   // One-shot (getDocs): conteúdo muda pouco durante a sessão do dashboard.
   useEffect(() => {
@@ -1006,8 +1006,8 @@ export function DashboardPage() {
   }, [questions])
 
   /**
-   * Posições (stage/question) de todas as questões ativas, por trilha.
-   * Não filtra por is_released: uma questão respondida e bloqueada depois
+   * Posições (stage/question) de todas as atividades ativas, por trilha.
+   * Não filtra por is_released: uma atividade respondida e bloqueada depois
    * continua contando.
    */
   const questionsByTrail = useMemo(() => {
@@ -1021,7 +1021,7 @@ export function DashboardPage() {
     return map
   }, [questions])
 
-  /** Questões de exercício sem gabarito nas trilhas ativas da instituição. */
+  /** Atividades de exercício sem gabarito nas trilhas ativas da instituição. */
   const missingGabaritoCount = useMemo(() => {
     const activeIds = new Set(activeTrails.map((t) => t.id))
     let count = 0
@@ -1035,7 +1035,7 @@ export function DashboardPage() {
     return count
   }, [questions, activeTrails, stageByKey])
 
-  /** Questões de exercício anuladas nas trilhas ativas (visíveis no cálculo). */
+  /** Atividades de exercício anuladas nas trilhas ativas (visíveis no cálculo). */
   const annulledQuestionKeys = useMemo(() => {
     const activeIds = new Set(activeTrails.map((t) => t.id))
     const keys = new Set<string>()
@@ -1083,7 +1083,7 @@ export function DashboardPage() {
     [availableStages, deselectedStages],
   )
 
-  /** Números de questão (q1, q2…) presentes nas trilhas relevantes. */
+  /** Números de atividade (q1, q2…) presentes nas trilhas relevantes. */
   const availableQuestions = useMemo(() => {
     const relevantIds = new Set(relevantTrails.map((t) => t.id))
     const nums = new Set<number>()
@@ -1180,7 +1180,7 @@ export function DashboardPage() {
   }, [forcedCompletions])
 
   /**
-   * Quantas respostas de alunos estão em questão anulada e saem do
+   * Quantas respostas de alunos estão em atividade anulada e saem do
    * denominador de acerto/erro.
    */
   const annulledAnswersExcluded = useMemo(() => {
@@ -1197,8 +1197,8 @@ export function DashboardPage() {
   }, [studentAnswerMap, annulledQuestionKeys])
 
   /**
-   * Todas as questões ativas da trilha (colunas de resposta no XLSX), agrupadas
-   * por número da questão: Q1.S1, Q1.S2, …, Q2.S1, Q2.S2, …
+   * Todas as atividades ativas da trilha (colunas de resposta no XLSX), agrupadas
+   * por número da atividade: Q1.S1, Q1.S2, …, Q2.S1, Q2.S2, …
    */
   const allQuestionColumnsByTrail = useMemo(() => {
     const map = new Map<string, { stage: number; question: number }[]>()

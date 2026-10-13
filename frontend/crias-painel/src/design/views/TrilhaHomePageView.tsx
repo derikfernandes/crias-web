@@ -151,7 +151,7 @@ function TrailCard({
           </div>
           {typeof card.totalQuestions === 'number' ? (
             <div>
-              <dt>Questões na grade</dt>
+              <dt>Atividades na grade</dt>
               <dd>{card.totalQuestions}</dd>
             </div>
           ) : null}

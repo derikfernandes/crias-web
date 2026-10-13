@@ -726,7 +726,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
         type: 'number (inteiro)',
         required: false,
         description:
-          'Valor padrão de passos por stage (o backend usa `8` se omitido).',
+          'Valor padrão de atividades por etapa (o backend usa `8` se omitido).',
         example: '8',
       },
       {
@@ -773,7 +773,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'default_total_steps_per_stage',
         type: 'number (inteiro)',
         required: false,
-        description: 'Novo valor padrão de passos por stage.',
+        description: 'Novo valor padrão de atividades por etapa.',
       },
       {
         name: 'active',
@@ -816,32 +816,32 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-list',
     method: 'GET',
     path: '/trail_stages/',
-    title: 'Listar stages (com filtros)',
+    title: 'Listar etapas (com filtros)',
     description:
-      'Retorna a lista de stages. Use query params para filtrar por `trail_id`, `active` e `is_released`.',
+      'Retorna a lista de etapas. Use query params para filtrar por `trail_id`, `active` e `is_released`.',
     auth: true,
     queryParams: [
       {
         name: 'trail_id',
         type: 'string',
         required: false,
-        description: 'Filtra stages pertencentes à trilha.',
+        description: 'Filtra etapas pertencentes à trilha.',
       },
       {
         name: 'active',
         type: 'boolean',
         required: false,
-        description: 'Filtra apenas stages ativas/inativas.',
+        description: 'Filtra apenas etapas ativas/inativas.',
       },
       {
         name: 'is_released',
         type: 'boolean',
         required: false,
-        description: 'Filtra apenas stages liberadas/não liberadas.',
+        description: 'Filtra apenas etapas liberadas/não liberadas.',
       },
     ],
     responses: [
-      { code: '200', description: 'Lista de stages (array JSON).' },
+      { code: '200', description: 'Lista de etapas (array JSON).' },
       { code: '401', description: 'Não autenticado.' },
     ],
   },
@@ -849,7 +849,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-simple',
     method: 'GET',
     path: '/trail_stages/simple',
-    title: 'Listar stages (formato simplificado)',
+    title: 'Listar etapas (formato simplificado)',
     description: 'Versão reduzida da listagem.',
     auth: true,
     queryParams: [
@@ -857,7 +857,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'trail_id',
         type: 'string',
         required: false,
-        description: 'Filtra stages pertencentes à trilha.',
+        description: 'Filtra etapas pertencentes à trilha.',
       },
     ],
     responses: [
@@ -869,18 +869,18 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-id',
     method: 'GET',
     path: '/trail_stages/{id}',
-    title: 'Buscar stage por ID',
-    description: 'Obtém os dados de um único stage.',
+    title: 'Buscar etapa por ID',
+    description: 'Obtém os dados de uma única etapa.',
     auth: true,
     pathParams: [
       {
         name: 'id',
         type: 'string',
-        description: 'Identificador do stage (docId).',
+        description: 'Identificador da etapa (docId).',
       },
     ],
     responses: [
-      { code: '200', description: 'Objeto do stage encontrado.' },
+      { code: '200', description: 'Objeto da etapa encontrado.' },
       { code: '404', description: 'Stage não encontrado.' },
       { code: '401', description: 'Não autenticado.' },
     ],
@@ -905,14 +905,14 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número do stage (>= 1), único dentro da trilha.',
+        description: 'Número da etapa (>= 1), único dentro da trilha.',
         example: '1',
       },
     ],
     responses: [
-      { code: '200', description: 'Objeto do stage (mesmo formato do GET por id).' },
+      { code: '200', description: 'Objeto da etapa (mesmo formato do GET por id).' },
       { code: '400', description: 'trail_id ausente ou stage_number inválido.' },
-      { code: '404', description: 'Nenhum stage com esse par na trilha.' },
+      { code: '404', description: 'Nenhuma etapa com esse par na trilha.' },
       { code: '401', description: 'Não autenticado.' },
     ],
   },
@@ -920,30 +920,30 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'post-trail-stage',
     method: 'POST',
     path: '/trail_stages/',
-    title: 'Criar novo stage',
+    title: 'Criar nova etapa',
     description:
-      'Cria um novo stage de uma trilha. `is_released` inicia como `false` e `active` inicia como `true`.',
+      'Cria uma nova etapa de uma trilha. `is_released` inicia como `false` e `active` inicia como `true`.',
     auth: true,
     bodyFields: [
       {
         name: 'trail_id',
         type: 'string',
         required: true,
-        description: 'ID da trilha a que o stage pertence.',
+        description: 'ID da trilha a que a etapa pertence.',
         example: 'trail_001',
       },
       {
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número sequencial do stage (começa em 1). Deve ser único dentro da mesma trail.',
+        description: 'Número sequencial da etapa (começa em 1). Deve ser único dentro da mesma trail.',
         example: '1',
       },
       {
         name: 'title',
         type: 'string',
         required: true,
-        description: 'Nome do stage.',
+        description: 'Nome da etapa.',
         example: 'Frações básicas',
       },
       {
@@ -951,7 +951,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         type: '"ai" | "fixed" | "exercise"',
         required: true,
         description:
-          'Tipo do stage (player do aluno). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
+          'Tipo da etapa (player do aluno). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
         example: 'ai',
       },
       {
@@ -973,14 +973,14 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'put-trail-stage-id',
     method: 'PUT',
     path: '/trail_stages/{id}',
-    title: 'Atualizar stage',
-    description: 'Atualiza campos do stage. `stage_number` e `trail_id` não são suportados para mudança.',
+    title: 'Atualizar etapa',
+    description: 'Atualiza campos da etapa. `stage_number` e `trail_id` não são suportados para mudança.',
     auth: true,
     pathParams: [
       {
         name: 'id',
         type: 'string',
-        description: 'Identificador do stage a ser atualizado.',
+        description: 'Identificador da etapa a ser atualizado.',
       },
     ],
     bodyFields: [
@@ -988,14 +988,14 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'title',
         type: 'string',
         required: false,
-        description: 'Novo título do stage.',
+        description: 'Novo título da etapa.',
       },
       {
         name: 'stage_type',
         type: '"ai" | "fixed" | "exercise"',
         required: false,
         description:
-          'Novo tipo do stage. Se mudar para `fixed` ou `exercise`, o servidor grava `prompt` como null.',
+          'Novo tipo da etapa. Se mudar para `fixed` ou `exercise`, o servidor grava `prompt` como null.',
       },
       {
         name: 'prompt',
@@ -1008,13 +1008,13 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'is_released',
         type: 'boolean',
         required: false,
-        description: 'Define se o stage está liberado para os alunos.',
+        description: 'Define se a etapa está liberada para os alunos.',
       },
       {
         name: 'active',
         type: 'boolean',
         required: false,
-        description: 'Define se o stage está ativo no sistema.',
+        description: 'Define se a etapa está ativa no sistema.',
       },
     ],
     responses: [
@@ -1028,14 +1028,14 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     id: 'delete-trail-stage-id',
     method: 'DELETE',
     path: '/trail_stages/{id}',
-    title: 'Deletar stage',
-    description: 'Remove permanentemente o stage.',
+    title: 'Deletar etapa',
+    description: 'Remove permanentemente a etapa.',
     auth: true,
     pathParams: [
       {
         name: 'id',
         type: 'string',
-        description: 'Identificador do stage a ser removido.',
+        description: 'Identificador da etapa a ser removido.',
       },
     ],
     responses: [
@@ -1051,7 +1051,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-question-max',
     method: 'GET',
     path: '/trail_stage_questions/',
-    title: 'Obter maior question_number do stage',
+    title: 'Obter maior question_number da etapa',
     description:
       'Use `action=max` com `trail_id` e `stage_number`. Retorna `max_question_number`, `next_question_number` e `total_questions` (aceita filtros opcionais `active` e `is_released`).',
     auth: true,
@@ -1073,19 +1073,19 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número do stage.',
+        description: 'Número da etapa.',
       },
       {
         name: 'active',
         type: 'boolean',
         required: false,
-        description: 'Opcional: calcula o maior apenas entre questões ativas/inativas.',
+        description: 'Opcional: calcula o maior apenas entre atividades ativas/inativas.',
       },
       {
         name: 'is_released',
         type: 'boolean',
         required: false,
-        description: 'Opcional: calcula o maior apenas entre questões liberadas/não liberadas.',
+        description: 'Opcional: calcula o maior apenas entre atividades liberadas/não liberadas.',
       },
     ],
     responses: [
@@ -1102,9 +1102,9 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-question-list',
     method: 'GET',
     path: '/trail_stage_questions/',
-    title: 'Listar questões de um stage',
+    title: 'Listar atividades de uma etapa',
     description:
-      'Retorna questões ordenadas por `question_number` quando `trail_id` e `stage_number` são informados. Opcional: `active` (filtra ativas/inativas), `simple=1`.',
+      'Retorna atividades ordenadas por `question_number` quando `trail_id` e `stage_number` são informados. Opcional: `active` (filtra ativas/inativas), `simple=1`.',
     auth: true,
     queryParams: [
       {
@@ -1118,26 +1118,26 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: false,
-        description: 'Número do stage (obrigatório para listar / buscar por tríade).',
+        description: 'Número da etapa (obrigatório para listar / buscar por tríade).',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: false,
         description:
-          'Se informado junto com trail_id e stage_number, retorna uma única questão (em vez da lista).',
+          'Se informado junto com trail_id e stage_number, retorna uma única atividade (em vez da lista).',
       },
       {
         name: 'active',
         type: 'boolean',
         required: false,
-        description: 'Filtra apenas questões ativas ou inativas.',
+        description: 'Filtra apenas atividades ativas ou inativas.',
       },
       {
         name: 'is_released',
         type: 'boolean',
         required: false,
-        description: 'Filtra questões liberadas ou não liberadas para o aluno.',
+        description: 'Filtra atividades liberadas ou não liberadas para o aluno.',
       },
       {
         name: 'simple',
@@ -1155,7 +1155,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     responses: [
       { code: '200', description: 'Lista ou um único objeto JSON (sempre inclui is_released).' },
       { code: '400', description: 'Parâmetros insuficientes ou inválidos.' },
-      { code: '404', description: 'Questão não encontrada.' },
+      { code: '404', description: 'Atividade não encontrada.' },
       { code: '401', description: 'Não autenticado.' },
     ],
   },
@@ -1180,7 +1180,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     id: 'get-trail-stage-question-id',
     method: 'GET',
     path: '/trail_stage_questions/{id}',
-    title: 'Buscar questão por ID do documento',
+    title: 'Buscar atividade por ID do documento',
     description:
       'O `id` segue o padrão `{trail_id}_stage_{stage_number}_q_{question_number}`.',
     auth: true,
@@ -1192,7 +1192,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
       },
     ],
     responses: [
-      { code: '200', description: 'Objeto da questão.' },
+      { code: '200', description: 'Objeto da atividade.' },
       { code: '404', description: 'Não encontrado.' },
     ],
   },
@@ -1200,7 +1200,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     id: 'post-trail-stage-question',
     method: 'POST',
     path: '/trail_stage_questions/',
-    title: 'Criar questão / etapa',
+    title: 'Criar atividade / etapa',
     description:
       'Opcionalmente envie `is_released` (boolean). Se omitido, vale `true` só para `question_number === 1`, senão `false`. `active` inicia como `true`. O servidor usa `trail_stages.stage_type` para validar correção. Não envie `question_type` nem `prompt`.',
     auth: true,
@@ -1216,14 +1216,14 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número do stage (>= 1); o documento deve existir em trail_stages.',
+        description: 'Número da etapa (>= 1); o documento deve existir em trail_stages.',
         example: '1',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Ordem da questão dentro do stage (>= 1).',
+        description: 'Ordem da atividade dentro da etapa (>= 1).',
         example: '5',
       },
       {
@@ -1281,16 +1281,16 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
   "is_released": true
 }`,
     responses: [
-      { code: '201', description: 'Criado (corpo com dados da questão).' },
+      { code: '201', description: 'Criado (corpo com dados da atividade).' },
       { code: '400', description: 'Stage ausente, validação ou JSON inválido.' },
-      { code: '409', description: 'Conflito: question_number já existe no stage.' },
+      { code: '409', description: 'Conflito: question_number já existe na etapa.' },
     ],
   },
   {
     id: 'put-trail-stage-question-id',
     method: 'PUT',
     path: '/trail_stage_questions/{id}',
-    title: 'Atualizar questão',
+    title: 'Atualizar atividade',
     description:
       'Atualização parcial. Não altere trail_id, stage_number nem question_number. Revalida usando o `stage_type` atual do `trail_stages`. Remove campos legados `question_type` e `prompt` do documento se existirem.',
     auth: true,
@@ -1355,7 +1355,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     id: 'put-trail-stage-question-deactivate',
     method: 'PUT',
     path: '/trail_stage_questions/{id}?deactivate=1',
-    title: 'Desativar questão (sem deletar)',
+    title: 'Desativar atividade (sem deletar)',
     description:
       'Atalho: query `deactivate=1` e corpo JSON vazio `{}`. Equivale a `active: false`.',
     auth: true,
@@ -1470,7 +1470,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     path: '/student_trails/',
     title: 'Buscar posição atual do aluno em uma trilha',
     description:
-      'Retorna o estado atual do aluno dentro de uma trilha (stage, questão e status) a partir de `student_id` + `trail_id`.',
+      'Retorna o estado atual do aluno dentro de uma trilha (etapa, atividade e status) a partir de `student_id` + `trail_id`.',
     auth: true,
     queryParams: [
       {
@@ -1490,7 +1490,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
       {
         code: '200',
         description:
-          'Objeto com stage/questão/status atuais, além de timestamps (started_at, completed_at, last_interaction_at, created_at, updated_at).',
+          'Objeto com etapa/atividade/status atuais, além de timestamps (started_at, completed_at, last_interaction_at, created_at, updated_at).',
       },
       { code: '400', description: 'Parâmetros obrigatórios ausentes.' },
       { code: '404', description: 'Progresso não encontrado para student_id + trail_id.' },
@@ -1538,7 +1538,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'current_question_number',
         type: 'number (inteiro)',
         required: false,
-        description: 'Questão atual dentro do stage (default 1 quando omitido).',
+        description: 'Atividade atual dentro da etapa (default 1 quando omitido).',
         example: '1',
       },
       {
@@ -1577,7 +1577,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     id: 'put-student-trail-advance-question',
     method: 'PUT',
     path: '/student_trails/?action=advance_question',
-    title: 'Avançar para a próxima questão',
+    title: 'Avançar para a próxima atividade',
     description:
       'Incrementa `current_question_number` do aluno em uma trilha. Se o status estiver `not_started`, passa para `in_progress` e preenche `started_at` se ainda estiver null.',
     auth: true,
@@ -1605,7 +1605,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
       {
         code: '200',
         description:
-          'Objeto com posição atualizada (stage, questão e status). `last_interaction_at` é atualizado.',
+          'Objeto com posição atualizada (etapa, atividade e status). `last_interaction_at` é atualizado.',
       },
       {
         code: '400',
@@ -1620,9 +1620,9 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     id: 'put-student-trail-advance-stage',
     method: 'PUT',
     path: '/student_trails/?action=advance_stage',
-    title: 'Avançar para o próximo stage',
+    title: 'Avançar para a próxima etapa',
     description:
-      'Incrementa `current_stage_number` e mantém `current_question_number` como está. Mesma regra de status/started_at do avanço de questão.',
+      'Incrementa `current_stage_number` e mantém `current_question_number` como está. Mesma regra de status/started_at do avanço de atividade.',
     auth: true,
     queryParams: [
       {
@@ -1648,7 +1648,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
       {
         code: '200',
         description:
-          'Objeto com novo stage atual; `current_question_number` inalterado. `last_interaction_at` é atualizado.',
+          'Objeto com nova etapa atual; `current_question_number` inalterado. `last_interaction_at` é atualizado.',
       },
       {
         code: '400',
@@ -1809,7 +1809,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     id: 'put-student-trail-update-position',
     method: 'PUT',
     path: '/student_trails/?action=update_position',
-    title: 'Ajustar manualmente stage/questão atuais',
+    title: 'Ajustar manualmente etapa/atividade atuais',
     description:
       'Atualiza diretamente `current_stage_number` e/ou `current_question_number` para correções pontuais, sem alterar o histórico de conversas.',
     auth: true,
@@ -1838,14 +1838,14 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'current_stage_number',
         type: 'number (inteiro)',
         required: false,
-        description: 'Novo stage atual (>= 1).',
+        description: 'Nova etapa atual (>= 1).',
         example: '2',
       },
       {
         name: 'current_question_number',
         type: 'number (inteiro)',
         required: false,
-        description: 'Nova questão atual (>= 1).',
+        description: 'Nova atividade atual (>= 1).',
         example: '3',
       },
     ],
@@ -1869,7 +1869,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     path: '/exercise_attempts/',
     title: 'Registrar tentativa de exercício',
     description:
-      'Cria um registro em `exercise_attempts` para uma questão do tipo exercise. A API busca a questão em `trail_stage_questions`, copia `correct_option`, calcula `is_correct`, define `score` (1 ou 0) e incrementa `attempt_number` para a combinação student_id + trail_id + stage_number + question_number. Questões com `annulled: true` não aceitam tentativa.',
+      'Cria um registro em `exercise_attempts` para uma atividade do tipo exercise. A API busca a atividade em `trail_stage_questions`, copia `correct_option`, calcula `is_correct`, define `score` (1 ou 0) e incrementa `attempt_number` para a combinação student_id + trail_id + stage_number + question_number. Atividades com `annulled: true` não aceitam tentativa.',
     auth: true,
     bodyFields: [
       {
@@ -1897,14 +1897,14 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Stage onde está a questão (>= 1).',
+        description: 'Etapa onde está a atividade (>= 1).',
         example: '2',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número da questão dentro do stage (>= 1).',
+        description: 'Número da atividade dentro da etapa (>= 1).',
         example: '5',
       },
       {
@@ -1945,12 +1945,12 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
       {
         code: '404',
         description:
-          'Questão não encontrada em trail_stage_questions com os parâmetros informados.',
+          'Atividade não encontrada em trail_stage_questions com os parâmetros informados.',
       },
       {
         code: '409',
         description:
-          'Questão não é do tipo exercise, está sem correct_option configurado, ou está anulada.',
+          'Atividade não é do tipo exercise, está sem correct_option configurado, ou está anulada.',
       },
     ],
   },
@@ -1960,7 +1960,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     path: '/exercise_attempts/?student_id={student_id}',
     title: 'Listar tentativas por aluno',
     description:
-      'Lista todas as tentativas de exercícios de um aluno (qualquer trilha/questão), ordenadas por attempted_at (mais antigas primeiro).',
+      'Lista todas as tentativas de exercícios de um aluno (qualquer trilha/atividade), ordenadas por attempted_at (mais antigas primeiro).',
     auth: true,
     queryParams: [
       {
@@ -1984,9 +1984,9 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     id: 'get-exercise-attempts-by-question',
     method: 'GET',
     path: '/exercise_attempts/?trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
-    title: 'Listar tentativas por questão',
+    title: 'Listar tentativas por atividade',
     description:
-      'Lista todas as tentativas registradas para uma questão específica (qualquer aluno), ordenadas por attempt_number (1, 2, 3, ...). Útil para análise pedagógica da questão.',
+      'Lista todas as tentativas registradas para uma atividade específica (qualquer aluno), ordenadas por attempt_number (1, 2, 3, ...). Útil para análise pedagógica da atividade.',
     auth: true,
     queryParams: [
       {
@@ -1999,20 +1999,20 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Stage da questão.',
+        description: 'Etapa da atividade.',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número da questão dentro do stage.',
+        description: 'Número da atividade dentro da etapa.',
       },
     ],
     responses: [
       {
         code: '200',
         description:
-          'Array de exercise_attempts para a questão informada (cada item com student_id, is_correct, score, feedback, attempt_number, timestamps etc.).',
+          'Array de exercise_attempts para a atividade informada (cada item com student_id, is_correct, score, feedback, attempt_number, timestamps etc.).',
       },
       { code: '400', description: 'Parâmetros inválidos.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2022,9 +2022,9 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     id: 'get-exercise-attempt-count',
     method: 'GET',
     path: '/exercise_attempts/?action=count&student_id={student_id}&trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
-    title: 'Contar tentativas de um aluno em uma questão',
+    title: 'Contar tentativas de um aluno em uma atividade',
     description:
-      'Retorna quantas tentativas já foram registradas pelo aluno em uma questão específica. Útil para regras de limite de tentativas ou desbloqueio de avanço.',
+      'Retorna quantas tentativas já foram registradas pelo aluno em uma atividade específica. Útil para regras de limite de tentativas ou desbloqueio de avanço.',
     auth: true,
     queryParams: [
       {
@@ -2049,13 +2049,13 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Stage da questão.',
+        description: 'Etapa da atividade.',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número da questão.',
+        description: 'Número da atividade.',
       },
     ],
     responses: [
@@ -2072,9 +2072,9 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     id: 'get-exercise-attempt-last',
     method: 'GET',
     path: '/exercise_attempts/?action=last&student_id={student_id}&trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
-    title: 'Obter última tentativa do aluno na questão',
+    title: 'Obter última tentativa do aluno na atividade',
     description:
-      'Retorna apenas a tentativa mais recente (maior attempt_number) do aluno em uma questão específica. Útil para saber se o aluno acertou por último e qual feedback recebeu.',
+      'Retorna apenas a tentativa mais recente (maior attempt_number) do aluno em uma atividade específica. Útil para saber se o aluno acertou por último e qual feedback recebeu.',
     auth: true,
     queryParams: [
       {
@@ -2099,20 +2099,20 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Stage da questão.',
+        description: 'Etapa da atividade.',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número da questão.',
+        description: 'Número da atividade.',
       },
     ],
     responses: [
       {
         code: '200',
         description:
-          'Documento único de exercise_attempts representando a última tentativa do aluno na questão.',
+          'Documento único de exercise_attempts representando a última tentativa do aluno na atividade.',
       },
       {
         code: '404',
@@ -2153,14 +2153,14 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número do stage em que a interação ocorreu (>= 1).',
+        description: 'Número da etapa em que a interação ocorreu (>= 1).',
         example: '1',
       },
       {
         name: 'question_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número da questão dentro do stage (>= 1).',
+        description: 'Número da atividade dentro da etapa (>= 1).',
         example: '2',
       },
       {
@@ -2303,9 +2303,9 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     id: 'get-conversation-logs-by-student-trail-stage',
     method: 'GET',
     path: '/conversation_logs/',
-    title: 'Listar histórico por aluno, trilha e stage',
+    title: 'Listar histórico por aluno, trilha e etapa',
     description:
-      'Filtra o histórico de um aluno para uma trilha e um stage específicos (útil para auditoria de um trecho da jornada).',
+      'Filtra o histórico de um aluno para uma trilha e uma etapa específicas (útil para auditoria de um trecho da jornada).',
     auth: true,
     queryParams: [
       {
@@ -2324,11 +2324,11 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_number',
         type: 'number (inteiro)',
         required: true,
-        description: 'Número do stage.',
+        description: 'Número da etapa.',
       },
     ],
     responses: [
-      { code: '200', description: 'Array de logs para o stage informado.' },
+      { code: '200', description: 'Array de logs para a etapa informada.' },
       { code: '400', description: 'Parâmetros obrigatórios ausentes ou inválidos.' },
       { code: '401', description: 'Não autenticado.' },
     ],
@@ -2400,10 +2400,10 @@ export function DocPageView({
         <p className="admin__lede">
           Referência dos endpoints REST dos recursos{' '}
           <strong>Institution</strong>, <strong>Student</strong>, <strong>Trails</strong>,{' '}
-          <strong>Trail stages</strong>, <strong>Trail stage questions</strong>,{' '}
+          <strong>Etapas da trilha (trail stages)</strong>, <strong>Atividades da etapa (trail stage questions)</strong>,{' '}
           <strong>Student trails</strong>, <strong>Conversation logs</strong> e{' '}
           <strong>Exercise attempts</strong>{' '}
-          (instituições, alunos, trilhas, stages, questões, progresso de trilhas,
+          (instituições, alunos, trilhas, etapas, atividades, progresso de trilhas,
           histórico de conversa e tentativas de exercícios). Cada
           bloco indica o <strong>método HTTP</strong>, o <strong>caminho</strong>, o
           que a rota faz e os parâmetros ou corpo esperados.
@@ -2609,7 +2609,7 @@ export function DocPageView({
         <h2>Exercise attempts — endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>exercise_attempts</code>: histórico de tentativas de resposta
-          dos alunos em questões do tipo <code>exercise</code> dentro das trilhas
+          dos alunos em atividades do tipo <code>exercise</code> dentro das trilhas
           pedagógicas. Cada tentativa é um documento independente — não há sobrescrita,
           permitindo análise fina de acertos, erros, número de tentativas e evolução.
         </p>
@@ -3075,9 +3075,9 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Trail stages — endpoints</h2>
+        <h2>Etapas da trilha (trail stages) — endpoints</h2>
         <p className="doc__section-intro muted">
-          Rotas para cadastrar e gerenciar stages de trilhas pedagógicas.
+          Rotas para cadastrar e gerenciar etapas de trilhas pedagógicas.
         </p>
 
         <div className="doc__endpoints">
@@ -3217,12 +3217,12 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Trail stage questions — endpoints</h2>
+        <h2>Atividades da etapa (trail stage questions) — endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>trail_stage_questions</code>: só o conteúdo sequencial das
-          etapas (título, texto, correção quando o stage for exercício). Comportamento (
+          etapas (título, texto, correção quando a etapa for exercício). Comportamento (
           <code>stage_type</code>, <code>prompt</code>) fica em <code>trail_stages</code>.
-          A API valida contra o <code>stage_type</code> do stage referenciado.
+          A API valida contra o <code>stage_type</code> da etapa referenciado.
         </p>
 
         <div className="doc__endpoints">
@@ -3378,7 +3378,7 @@ export function DocPageView({
         <h2>Student trails — endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>student_trails</code>: estado atual do aluno em cada trilha
-          pedagógica (stage, questão e status). Esta collection é a fonte de verdade
+          pedagógica (etapa, atividade e status). Esta collection é a fonte de verdade
           para o player saber onde continuar a jornada — o histórico detalhado de
           conversa/exercícios fica em outras collections.
         </p>
@@ -3531,8 +3531,8 @@ export function DocPageView({
         <h2>Conversation logs — endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>conversation_logs</code>: histórico imutável das interações
-          de sessão do aluno (mensagens enviadas/recebidas, stage,
-          questão e metadados). Esta collection não guarda o estado atual da trilha —
+          de sessão do aluno (mensagens enviadas/recebidas, etapa,
+          atividade e metadados). Esta collection não guarda o estado atual da trilha —
           apenas o histórico, para auditoria, debug e análises.
         </p>
 

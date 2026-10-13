@@ -89,7 +89,7 @@ export function TrailStageForm({
 
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
-      setFormError('Informe o nome do stage.')
+      setFormError('Informe o nome da etapa.')
       return
     }
 
@@ -100,7 +100,7 @@ export function TrailStageForm({
 
     if (isEdit) {
       if (!docId || !initial) {
-        setFormError('Stage inicial ausente para edição.')
+        setFormError('Etapa inicial ausente para edição.')
         return
       }
 
@@ -187,7 +187,7 @@ export function TrailStageForm({
     if (!dataLayerReady || !docId) return
     if (!initial) return
     const ok = window.confirm(
-      `Excluir stage "${initial.title || docId}"? Esta ação não pode ser desfeita.`,
+      `Excluir etapa "${initial.title || docId}"? Esta ação não pode ser desfeita.`,
     )
     if (!ok) return
 
@@ -205,11 +205,11 @@ export function TrailStageForm({
 
   return (
     <section className="panel">
-      <h2>{isEdit ? 'Editar stage' : 'Novo stage'}</h2>
+      <h2>{isEdit ? 'Editar etapa' : 'Nova etapa'}</h2>
       <p className="admin__lede muted">
         {isEdit
           ? stageNumberLabel
-          : 'Defina tipo e prompt conforme o chatbot vai processar este stage.'}
+          : 'Defina tipo e prompt conforme o chatbot vai processar esta etapa.'}
       </p>
 
       {formError ? (
@@ -283,7 +283,7 @@ export function TrailStageForm({
                 checked={isReleased}
                 onChange={(e) => setIsReleased(e.target.checked)}
               />
-              <span>stage liberado para alunos</span>
+              <span>etapa liberada para alunos</span>
             </label>
 
             <label className="field field--inline">
@@ -292,7 +292,7 @@ export function TrailStageForm({
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
               />
-              <span>stage ativo no sistema</span>
+              <span>etapa ativa no sistema</span>
             </label>
           </>
         ) : (
@@ -334,7 +334,7 @@ export function TrailStageForm({
               onClick={() => void handleDelete()}
               disabled={saving}
             >
-              Excluir stage
+              Excluir etapa
             </button>
           ) : null}
         </div>

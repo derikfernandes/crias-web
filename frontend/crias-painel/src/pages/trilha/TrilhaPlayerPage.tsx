@@ -176,7 +176,7 @@ export function TrilhaPlayerPage() {
         return
       }
       setErrorMessage(
-        e instanceof Error ? e.message : 'Erro ao carregar o passo.',
+        e instanceof Error ? e.message : 'Erro ao carregar a etapa.',
       )
       setLoadState('error')
     }
@@ -249,7 +249,7 @@ export function TrilhaPlayerPage() {
 
       if (outcome.kind === 'conflict') {
         setConflictMessage(
-          'Atualizámos o passo (também avançou no WhatsApp). Aqui está onde ficou.',
+          'Atualizámos a etapa (também avançou no WhatsApp). Aqui está onde ficou.',
         )
         const next = await outcome.resync()
         const resolved = await ensureIfContinue(
@@ -341,7 +341,7 @@ export function TrilhaPlayerPage() {
       } catch (e) {
         if (e instanceof TrilhaApiError && e.isConflict) {
           setConflictMessage(
-            'Atualizámos o passo (também avançou no WhatsApp). Aqui está onde ficou.',
+            'Atualizámos a etapa (também avançou no WhatsApp). Aqui está onde ficou.',
           )
           const next = await fetchNextContent(
             session.student.student_id,
@@ -429,7 +429,7 @@ export function TrilhaPlayerPage() {
           : 'Conteúdo da aula ainda não disponível.')
       : content?.content?.trim() ||
         content?.prompt?.trim() ||
-        'Conteúdo indisponível neste passo.'
+        'Conteúdo indisponível nesta etapa.'
   const resolved =
     content?.next_action === 'await_answer'
       ? resolveExerciseOptions(content?.content ?? content?.prompt, content?.options)

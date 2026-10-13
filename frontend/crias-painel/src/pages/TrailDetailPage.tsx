@@ -644,11 +644,11 @@ export function TrailDetailPage() {
     const nextStage = Number(bulkStage)
     const nextQuestion = Number(bulkQuestion)
     if (!Number.isInteger(nextStage) || nextStage < 1) {
-      setBulkError('Escolha um stage válido.')
+      setBulkError('Escolha uma etapa válida.')
       return
     }
     if (!Number.isInteger(nextQuestion) || nextQuestion < 1) {
-      setBulkError('Escolha uma questão válida.')
+      setBulkError('Escolha uma atividade válida.')
       return
     }
 
@@ -672,7 +672,7 @@ export function TrailDetailPage() {
         await batch.commit()
       }
       setBulkSuccess(
-        `${ids.length} aluno(s) movido(s) para stage ${nextStage}, questão ${nextQuestion}.`,
+        `${ids.length} aluno(s) movido(s) para etapa ${nextStage}, atividade ${nextQuestion}.`,
       )
       setSelectedStudentTrailIds(new Set())
     } catch (e) {

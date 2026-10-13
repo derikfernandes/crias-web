@@ -12,7 +12,7 @@ type OptionRow = { key: string; text: string }
 type Props = {
   trailId: string
   stageNumber: number
-  /** Tipo do stage em `trail_stages` — define se há correção obrigatória. */
+  /** Tipo da etapa em `trail_stages` — define se há correção obrigatória. */
   stageType: TrailStageType
   docId?: string
   initial?: TrailStageQuestion
@@ -73,7 +73,7 @@ export function TrailStageQuestionForm({
   const [formError, setFormError] = useState<string | null>(null)
 
   const heading = useMemo(
-    () => (isEdit ? `Editar questão #${questionNumber}` : 'Nova questão / etapa'),
+    () => (isEdit ? `Editar atividade #${questionNumber}` : 'Nova atividade'),
     [isEdit, questionNumber],
   )
 
@@ -237,8 +237,8 @@ export function TrailStageQuestionForm({
       <h2>{heading}</h2>
       <p className="admin__lede muted">
         {isEdit
-          ? 'Altere conteúdo e resposta (se o stage for exercício). O tipo do stage e o prompt ficam em trail_stages.'
-          : `Stage ${stageNumber} (${stageType}) · apenas conteúdo sequencial.`}
+          ? 'Altere conteúdo e resposta (se a etapa for exercício). O tipo e o prompt da etapa ficam em trail_stages.'
+          : `Etapa ${stageNumber} (${stageType}) · apenas conteúdo sequencial.`}
       </p>
 
       {formError ? (
@@ -364,7 +364,7 @@ export function TrailStageQuestionForm({
               checked={active}
               onChange={(e) => setActive(e.target.checked)}
             />
-            <span>questão ativa no sistema</span>
+            <span>atividade ativa no sistema</span>
           </label>
         ) : (
           <p className="muted">

@@ -172,7 +172,7 @@ describe('DashboardPageView — colocação Tutores', () => {
       screen.getByRole('heading', { name: 'Tutores de IA' }),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'Questões' }))
+    await user.click(screen.getByRole('tab', { name: 'Atividades' }))
     expect(onActiveTabChange).toHaveBeenCalledWith('questions')
 
     rerender(

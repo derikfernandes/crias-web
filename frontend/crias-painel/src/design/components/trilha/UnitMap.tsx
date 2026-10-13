@@ -52,9 +52,8 @@ export function UnitMap({
         Percurso por etapa
       </h2>
       <p className="trilha-unit__lead muted">
-        Cada <strong>etapa</strong> é uma fase da trilha; cada{' '}
-        <strong>questão</strong> é uma aula. Só a etapa atual lista aulas — sem
-        spoiler do conteúdo futuro.
+        Cada <strong>etapa</strong> reúne <strong>atividades</strong>. Só a etapa
+        atual lista as atividades — sem spoiler do conteúdo futuro.
       </p>
       {sections.length > stagePageSize ? (
         <ListPager

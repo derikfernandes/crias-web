@@ -295,7 +295,7 @@ export function DashboardPageView({
               }`}
               onClick={() => onActiveTabChange('questions')}
             >
-              Questões
+              Atividades
             </button>
           </nav>
 
@@ -338,7 +338,7 @@ export function DashboardPageView({
             {annulledGabaritoCount > 0 ? (
               <Link to="/gabarito" className="dashboard-card dashboard-card--muted">
                 <span className="dashboard-card__label">
-                  Questões anuladas
+                  Atividades anuladas
                 </span>
                 <span className="dashboard-card__value">
                   {annulledGabaritoCount}
@@ -346,7 +346,7 @@ export function DashboardPageView({
                 <span className="dashboard-card__hint">
                   {annulledAnswersExcluded > 0
                     ? `${annulledAnswersExcluded} resposta${annulledAnswersExcluded === 1 ? '' : 's'} fora do % de acerto`
-                    : 'Nenhuma resposta de aluno nessas questões ainda'}
+                    : 'Nenhuma resposta de aluno nessas atividades ainda'}
                 </span>
               </Link>
             ) : null}
@@ -689,7 +689,7 @@ export function DashboardPageView({
                     aria-hidden="true"
                   />
                   <div>
-                    <strong>Carregando desempenho das questões…</strong>
+                    <strong>Carregando desempenho das atividades…</strong>
                     <p className="muted">
                       Calculando acertos, erros e percentuais.
                     </p>
@@ -734,7 +734,7 @@ export function DashboardPageView({
               <>
                 <div className="dashboard-filters dashboard-question-filters">
                   <label className="field dashboard-filter-name">
-                    <span>Buscar questão</span>
+                    <span>Buscar atividade</span>
                     <input
                       type="text"
                       value={pillSearch}

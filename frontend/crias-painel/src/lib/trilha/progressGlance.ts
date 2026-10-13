@@ -45,7 +45,7 @@ export function glanceNowLabel(input: {
     return { primary: 'Trilha concluída', status: null }
   }
   return {
-    primary: `Etapa ${input.stageNumber} · Questão ${input.questionNumber}`,
+    primary: `Etapa ${input.stageNumber} · Atividade ${input.questionNumber}`,
     status: input.statusLabel,
   }
 }

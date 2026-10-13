@@ -84,7 +84,7 @@ export function UnitMapSectionSteps({
                           : `Aula ${step.questionNumber}`}
                 </span>
                 <span className="trilha-unit__step-meta muted">
-                  Questão {step.questionNumber}
+                  Atividade {step.questionNumber}
                   {typeLabel ? ` · ${typeLabel}` : null}
                 </span>
               </span>

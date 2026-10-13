@@ -274,7 +274,7 @@ export function GerenciamentoPageView({
                       <th>Nome</th>
                       <th>Trilha atual</th>
                       <th>Stage</th>
-                      <th>Questão</th>
+                      <th>Atividade</th>
                       <th>Status</th>
                       <th>Telefone</th>
                       <th>Escolaridade</th>

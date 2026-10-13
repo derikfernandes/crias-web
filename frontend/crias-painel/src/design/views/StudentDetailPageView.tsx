@@ -121,8 +121,8 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
               <thead>
                 <tr>
                   <th>Trilha</th>
-                  <th>Stage atual</th>
-                  <th>Questão atual</th>
+                  <th>Etapa atual</th>
+                  <th>Atividade atual</th>
                   <th>Status</th>
                   <th>Início</th>
                   <th>Última interação</th>

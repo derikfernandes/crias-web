@@ -365,7 +365,7 @@ export function GabaritoPage() {
 
     if (q.annulled) {
       const ok = window.confirm(
-        `Desanular a questão s${q.stage_number} q${q.question_number}? Ela voltará a contar no gabarito.`,
+        `Desanular a atividade s${q.stage_number} q${q.question_number}? Ela voltará a contar no gabarito.`,
       )
       if (!ok) return
       setAnnullingId(questionId)
@@ -381,7 +381,7 @@ export function GabaritoPage() {
         setSaveState({
           kind: 'error',
           message:
-            err instanceof Error ? err.message : 'Erro ao desanular questão.',
+            err instanceof Error ? err.message : 'Erro ao desanular atividade.',
         })
       } finally {
         setAnnullingId(null)
@@ -390,7 +390,7 @@ export function GabaritoPage() {
     }
 
     const reasonRaw = window.prompt(
-      `Motivo da anulação (s${q.stage_number} q${q.question_number}). A questão não contará como acerto nem erro.`,
+      `Motivo da anulação (s${q.stage_number} q${q.question_number}). A atividade não contará como acerto nem erro.`,
       q.annulled_reason ?? '',
     )
     if (reasonRaw === null) return
@@ -398,7 +398,7 @@ export function GabaritoPage() {
     if (!reason) {
       setSaveState({
         kind: 'error',
-        message: 'Informe um motivo para anular a questão.',
+        message: 'Informe um motivo para anular a atividade.',
       })
       return
     }
@@ -421,7 +421,7 @@ export function GabaritoPage() {
     } catch (err) {
       setSaveState({
         kind: 'error',
-        message: err instanceof Error ? err.message : 'Erro ao anular questão.',
+        message: err instanceof Error ? err.message : 'Erro ao anular atividade.',
       })
     } finally {
       setAnnullingId(null)
@@ -448,8 +448,8 @@ export function GabaritoPage() {
           kind: 'saved',
           message:
             saveState.count === 1
-              ? 'Gabarito de 1 questão salvo.'
-              : `Gabarito de ${saveState.count} questões salvo.`,
+              ? 'Gabarito de 1 atividade salvo.'
+              : `Gabarito de ${saveState.count} atividades salvo.`,
         }
       : saveState.kind === 'error'
         ? { kind: 'error', message: saveState.message }
@@ -459,11 +459,11 @@ export function GabaritoPage() {
 
   const filtersSummaryParts: string[] = []
   if (exerciseQuestions.length === 0) {
-    filtersSummaryParts.push('Nenhuma questão de exercício nesta trilha.')
+    filtersSummaryParts.push('Nenhuma atividade de exercício nesta trilha.')
   } else {
     if (missingCount === 0) {
       filtersSummaryParts.push(
-        `Todas as questões não anuladas têm gabarito (${exerciseQuestions.length} no total).`,
+        `Todas as atividades não anuladas têm gabarito (${exerciseQuestions.length} no total).`,
       )
     } else {
       filtersSummaryParts.push(
@@ -486,12 +486,12 @@ export function GabaritoPage() {
 
   const emptyMessage =
     exerciseQuestions.length === 0
-      ? 'Esta trilha não tem questões em stages do tipo exercise.'
+      ? 'Esta trilha não tem atividades em etapas do tipo exercise.'
       : onlyAnnulled
-        ? 'Nenhuma questão anulada com os filtros atuais.'
+        ? 'Nenhuma atividade anulada com os filtros atuais.'
         : onlyMissing
-          ? 'Nenhuma questão sem gabarito com os filtros atuais.'
-          : 'Nenhuma questão corresponde aos filtros.'
+          ? 'Nenhuma atividade sem gabarito com os filtros atuais.'
+          : 'Nenhuma atividade corresponde aos filtros.'
 
   const rows: GabaritoQuestionRow[] = visibleQuestions.map((q) => {
     const saved = (q.correct_option ?? '').trim()
@@ -510,7 +510,7 @@ export function GabaritoPage() {
         q.options && q.options.length > 0
           ? `Ex.: ${q.options[0].key}`
           : 'Resposta correta',
-      ariaLabel: `Resposta correta de stage ${q.stage_number} questão ${q.question_number}`,
+      ariaLabel: `Resposta correta de etapa ${q.stage_number} atividade ${q.question_number}`,
       inputError: err,
       inputDisabled: q.annulled || annullingId === q.id,
       statusBadge: q.annulled
@@ -570,11 +570,11 @@ export function GabaritoPage() {
       onFilterQuestionChange={setFilterQuestion}
       availableStages={availableStages.map((n) => ({
         value: n,
-        label: `Stage ${n}`,
+        label: `Etapa ${n}`,
       }))}
       availableQuestions={availableQuestions.map((n) => ({
         value: n,
-        label: `Questão ${n}`,
+        label: `Atividade ${n}`,
       }))}
       filtersSummary={filtersSummary}
       sortBy={sortBy}

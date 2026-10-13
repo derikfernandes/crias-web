@@ -49,7 +49,7 @@ export function TrailStageQuestionsPageView(
   return (
     <>
       <header className="admin__header">
-        <h1>Questões do stage</h1>
+        <h1>Atividades da etapa</h1>
         <p className="admin__actions">
           <Link className="btn btn--ghost" to={trailBackHref}>
             ← Trilha: {trailBackLabel}
@@ -83,7 +83,7 @@ export function TrailStageQuestionsPageView(
         <p className="muted">Carregando stage…</p>
       ) : stageNotFound ? (
         <p className="banner banner--error" role="alert">
-          Stage não encontrado. Cadastre-o na trilha antes das questões.
+          Etapa não encontrada. Cadastre-a na trilha antes das atividades.
         </p>
       ) : (
         <section className="panel">
@@ -95,21 +95,21 @@ export function TrailStageQuestionsPageView(
                 className="btn btn--primary"
                 onClick={onNewQuestion}
               >
-                + Nova questão
+                + Nova atividade
               </button>
             </p>
           </div>
 
           {showForm ? (
             formLoading ? (
-              <p className="muted">Carregando questão…</p>
+              <p className="muted">Carregando atividade…</p>
             ) : (
               formSlot
             )
           ) : null}
 
           {loadingQuestions ? (
-            <p className="muted">Carregando questões…</p>
+            <p className="muted">Carregando atividades…</p>
           ) : questionsError ? (
             <p className="banner banner--error" role="alert">
               {questionsError}
@@ -131,7 +131,7 @@ export function TrailStageQuestionsPageView(
                   {questionRows.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="muted table__empty">
-                        Nenhuma questão neste stage. Link direto desta tela:{' '}
+                        Nenhuma atividade nesta etapa. Link direto desta tela:{' '}
                         <code>{emptyListPath}</code>
                       </td>
                     </tr>

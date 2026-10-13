@@ -13,7 +13,7 @@ export type StudentChatBubble = ChatLogLike & {
   message_text: string
   stage_number?: number
   question_number?: number
-  /** Bolha efémera do passo atual (ainda sem log — resume sem ensure). */
+  /** Bolha efémera da etapa atual (ainda sem log — resume sem ensure). */
   ephemeral?: boolean
 }
 
@@ -46,7 +46,7 @@ export function StudentConversationChat({
       <div className="trilha-chat__empty" role="status">
         <p className="trilha-chat__empty-title">A conversa começa aqui</p>
         <p className="trilha-chat__empty-lede">
-          Quando a trilha entregar o próximo passo, ele aparece como mensagem —
+          Quando a trilha entregar o próxima etapa, ele aparece como mensagem —
           como no WhatsApp.
         </p>
       </div>

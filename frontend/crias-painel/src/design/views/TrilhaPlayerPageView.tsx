@@ -16,7 +16,7 @@ export type TrilhaPlayerPageViewProps = {
   totalStages?: number | null
   stageType: 'fixed' | 'exercise' | 'ai'
   title?: string
-  /** Corpo do passo atual (para bolha efémera se ainda não estiver nos logs). */
+  /** Corpo da etapa atual (para bolha efémera se ainda não estiver nos logs). */
   body: string
   options: { key: string; label: string }[] | null
   nextAction:
@@ -54,7 +54,7 @@ function normText(s: string): string {
 }
 
 /**
- * Une conversation_logs + bolha efémera do passo atual (resume sem ensure-ai).
+ * Une conversation_logs + bolha efémera da etapa atual (resume sem ensure-ai).
  */
 export function buildChatTimeline(input: {
   messages: StudentChatBubble[]
@@ -180,7 +180,7 @@ export function TrilhaPlayerPageView({
   const hasTitle = Boolean(title?.trim())
   const heading = hasTitle
     ? title!.trim()
-    : `Etapa ${stageNumber}, questão ${questionNumber}`
+    : `Etapa ${stageNumber}, atividade ${questionNumber}`
   const unitPos = unitPositionLabel(questionNumber, totalQuestions)
   const stagePos =
     typeof totalStages === 'number' && totalStages >= 1
@@ -202,7 +202,7 @@ export function TrilhaPlayerPageView({
           <p className="trilha-chat__brand">Crias</p>
           <p className="trilha-chat__pos">
             {stagePos}
-            {unitPos ? ` · ${unitPos}` : ` · Questão ${questionNumber}`}
+            {unitPos ? ` · ${unitPos}` : ` · Atividade ${questionNumber}`}
             {nextAction === 'deliver_content' || nextAction === 'await_answer' ? (
               <span className="trilha-player__type">{TYPE_LABEL[stageType]}</span>
             ) : nextAction === 'await_release' ? (
@@ -299,7 +299,7 @@ export function TrilhaPlayerPageView({
                   ? 'Boa! Resposta correta.'
                   : feedbackState === 'incorrect'
                     ? 'Ainda não — mas o progresso segue. Pode rever depois na Revisão.'
-                    : 'Resposta registada. Pode seguir para o próximo passo.'}
+                    : 'Resposta registada. Pode seguir para o próxima etapa.'}
               </p>
               <button
                 type="button"

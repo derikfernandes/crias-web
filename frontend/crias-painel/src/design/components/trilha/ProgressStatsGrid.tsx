@@ -45,7 +45,7 @@ export function ProgressStatsGrid({
     nowPrimary ??
     (completed
       ? 'Trilha concluída'
-      : `Etapa ${stageNumber} · Questão ${questionNumber}`)
+      : `Etapa ${stageNumber} · Atividade ${questionNumber}`)
   const agoraStatus = completed ? null : (nowStatus ?? null)
 
   return (

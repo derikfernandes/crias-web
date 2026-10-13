@@ -285,7 +285,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                 >
                   {showBulkEditor
                     ? 'Fechar alteração em lote'
-                    : 'Alterar em lote stage e questão'}
+                    : 'Alterar em lote etapa e atividade'}
                 </button>
                 <button
                   type="button"
@@ -385,7 +385,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
               <div className="trail-add-students">
                 <p className="muted" style={{ margin: '0 0 0.75rem' }}>
                   Use os filtros da tabela e marque os alunos desejados. Em seguida
-                  escolha o stage e a questão de destino e aplique. A alteração grava
+                  escolha a etapa e a atividade de destino e aplique. A alteração grava
                   direto em <code>student_trails</code>.
                 </p>
                 <div className="trail-bulk-edit">
@@ -406,7 +406,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                     </select>
                   </label>
                   <label className="trail-bulk-edit__field">
-                    <span className="muted">Questão de destino</span>
+                    <span className="muted">Atividade de destino</span>
                     <select
                       value={bulkQuestion}
                       onChange={(e) => onBulkQuestionChange(e.target.value)}
@@ -475,7 +475,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                     />
                   </label>
                   <label className="trail-bulk-edit__field">
-                    <span className="muted">Filtrar por stage</span>
+                    <span className="muted">Filtrar por etapa</span>
                     <select
                       value={filterStage}
                       onChange={(e) => onFilterStageChange(e.target.value)}
@@ -489,7 +489,7 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                     </select>
                   </label>
                   <label className="trail-bulk-edit__field">
-                    <span className="muted">Filtrar por questão</span>
+                    <span className="muted">Filtrar por atividade</span>
                     <select
                       value={filterQuestion}
                       onChange={(e) => onFilterQuestionChange(e.target.value)}
@@ -538,8 +538,8 @@ export function TrailDetailPageView(props: TrailDetailPageViewProps) {
                               </th>
                             ) : null}
                             <th>Aluno</th>
-                            <th>Stage atual</th>
-                            <th>Questão atual</th>
+                            <th>Etapa atual</th>
+                            <th>Atividade atual</th>
                             <th>Status</th>
                             <th>Início</th>
                             <th>Última interação</th>

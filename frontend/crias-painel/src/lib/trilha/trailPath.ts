@@ -79,13 +79,13 @@ export function sessionEffortHint(
     return null
   }
   if (nextAction === 'await_answer' || stageType === 'exercise') {
-    return 'Próximo passo: 1 exercício (~3–5 min)'
+    return 'Próxima etapa: 1 exercício (~3–5 min)'
   }
   if (stageType === 'ai') {
-    return 'Próximo passo: atividade com IA (leitura curta)'
+    return 'Próxima etapa: atividade com IA (leitura curta)'
   }
   if (nextAction === 'deliver_content' || stageType === 'fixed') {
-    return 'Próximo passo: leitura curta (~3–5 min)'
+    return 'Próxima etapa: leitura curta (~3–5 min)'
   }
   return null
 }
@@ -103,7 +103,7 @@ export function nowFocusCopy(
   questionNumber: number,
   stageType?: StageTypeHint,
 ): { title: string; detail: string; cta: string | null } {
-  const pos = `Etapa ${stageNumber} · Questão ${questionNumber}`
+  const pos = `Etapa ${stageNumber} · Atividade ${questionNumber}`
   switch (nextAction) {
     case 'deliver_content':
       return {
@@ -123,7 +123,7 @@ export function nowFocusCopy(
     case 'await_release':
       return {
         title: 'Pausa — aguardando liberação',
-        detail: `O próximo passo (${pos}) ainda não foi liberado. O seu progresso está seguro.`,
+        detail: `A próxima etapa (${pos}) ainda não foi liberado. O seu progresso está seguro.`,
         cta: null,
       }
     case 'blocked':
@@ -136,7 +136,7 @@ export function nowFocusCopy(
       return {
         title: 'Trilha concluída',
         detail:
-          'Você percorreu todos os passos. Revise o que aprendeu quando quiser.',
+          'Você percorreu todas as etapas. Revise o que aprendeu quando quiser.',
         cta: null,
       }
     default:

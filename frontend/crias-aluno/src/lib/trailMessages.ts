@@ -21,6 +21,8 @@ export type ChatMessage = {
   contextCell?: string
   /** Fala do monitor vinda do histórico (rótulo "Monitor" depois de recarregar). */
   monitor?: boolean
+  /** Conteúdo de um passo entregue pelo servidor: o 1º parágrafo curto é o título do passo. */
+  step?: boolean
   /** Retorno do exercício: acertou (true) ou quase (false). Vem do envio ou do histórico. */
   correct?: boolean | null
 }
@@ -266,6 +268,7 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
         id: `trail-${cell}`,
         role: 'assistant',
         text,
+        step: true,
         cellKey: cell,
         questionNumber: l.question_number,
         timeLabel: formatBubbleTime(
@@ -381,9 +384,9 @@ export function mediaHintForText(text: string): string | null {
   const onlyVideo = [...kinds].every(
     (k) => k === 'youtube' || k === 'youtube-shorts',
   )
-  if (onlyDrive) return 'Material no passo. Continuar trilha quando quiser'
-  if (onlyVideo) return 'Vídeo no passo. Continuar trilha quando quiser'
-  return 'Mídia no passo. Continuar trilha quando quiser'
+  if (onlyDrive) return 'Material na etapa. Continuar trilha quando quiser'
+  if (onlyVideo) return 'Vídeo na etapa. Continuar trilha quando quiser'
+  return 'Mídia na etapa. Continuar trilha quando quiser'
 }
 
 /** URL de embed in-app para YT/Drive; null se não suportado. */

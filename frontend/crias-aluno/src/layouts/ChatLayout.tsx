@@ -603,7 +603,7 @@ export default function ChatLayout() {
     }
   }
 
-  // Topo: título, pontos dos passos e "Atividade X de Y · Passo A de B".
+  // Topo: título, pontos dos passos e "Atividade X de Y · Etapa A de B".
   const topTitle = activeTrailId
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria
@@ -621,15 +621,9 @@ export default function ChatLayout() {
         )
       : (playerQuestionNumber ?? activeRow?.current_question_number ?? null)
     : null
-  const viewingPast =
-    viewActivity != null &&
-    currentActivityTop != null &&
-    viewActivity < currentActivityTop &&
-    !playerCompleted
-  const shownActivityTop = viewingPast ? viewActivity : currentActivityTop
-  const stepTop = viewingPast
-    ? totalStepsTop || null
-    : playerCompleted && totalStepsTop > 0
+  const shownActivityTop = currentActivityTop
+  const stepTop =
+    playerCompleted && totalStepsTop > 0
       ? Math.max(totalStepsTop, playerStageNumber ?? 1)
       : (playerStageNumber ?? activeRow?.current_stage_number ?? null)
   const topStage = onMonitoria
@@ -649,7 +643,7 @@ export default function ChatLayout() {
     totalStepsTop > 0 && stepTop != null
       ? Math.min(totalStepsTop, Math.max(1, stepTop)) - 1
       : -1
-  const dotsDone = playerCompleted || viewingPast
+  const dotsDone = playerCompleted
 
   const closeIcon = (
     <>
@@ -773,8 +767,7 @@ export default function ChatLayout() {
                     const found = titles.find((t) => t.number === n)
                     return { n, title: found?.title || `Atividade ${n}` }
                   })
-                  const viewingNow =
-                    active && (viewingPast ? viewActivity : info.questionNumber)
+                  const viewingNow = active && info.questionNumber
                   return (
                     <li
                       key={row.id}

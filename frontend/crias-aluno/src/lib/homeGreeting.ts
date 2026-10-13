@@ -3,7 +3,7 @@ const GREETINGS = [
   (name: string) => `Bora continuar de onde parou, ${name}?`,
   (name: string) => `Oi, ${name}. O que vamos aprender hoje?`,
   (name: string) => `Qual trilha você quer seguir, ${name}?`,
-  (name: string) => `Mais um passo hoje, ${name}?`,
+  (name: string) => `Mais uma etapa hoje, ${name}?`,
 ] as const
 
 function visitKey(studentId: string): string {

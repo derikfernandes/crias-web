@@ -627,14 +627,14 @@ function contentToAssistantText(
   if (title) parts.push(title)
   if (body) parts.push(body)
   // Preserva markdown inline (_em_ / **bold**) para o renderer.
-  return parts.join('\n\n') || 'Conteúdo do passo.'
+  return parts.join('\n\n') || 'Conteúdo da etapa.'
 }
 
 function statusToSystemText(content: NextContentStatus): string {
   if (content.status === 'blocked') {
     return (
       content.message ||
-      'Este passo ainda não foi liberado pela instituição.'
+      'Esta etapa ainda não foi liberada pela instituição.'
     )
   }
   if (content.status === 'completed') {
@@ -734,7 +734,7 @@ function typingCopy(
   }
   // C2-R4 N01: status alinhado ao CTA (Salvando… → Carregando etapa…).
   // C2-R13 N03: falante estável (`Aula`); frase de busy só no corpo/aria.
-  const trailLabel = opts?.trailLabel?.trim() || 'Carregando passo…'
+  const trailLabel = opts?.trailLabel?.trim() || 'Carregando etapa…'
   return {
     label: 'Aula',
     aria: trailLabel.replace(/…$/, ''),
@@ -784,7 +784,7 @@ export default function PlayerPage() {
     'idle' | 'selected' | 'submitting' | 'error' | 'done'
   >('idle')
   /** R04-L05: progresso multi-etapa no Continuar. */
-  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando passo…')
+  const [trailBusyLabel, setTrailBusyLabel] = useState('Preparando etapa…')
   /** C2-R4 N03: Maria em espera longa (>3s) — estágio “ainda pensando”. */
   const [mariaLongWait, setMariaLongWait] = useState(false)
   /** Sidechat Maria: esconde Continuar e mostra Voltar. */
@@ -1030,8 +1030,8 @@ export default function PlayerPage() {
             ? stripDecorTitle(next.stage_title)
             : ''
         const stageBit = title
-          ? `Novo passo: ${title}`
-          : 'Novo passo da trilha disponível'
+          ? `Nova etapa: ${title}`
+          : 'Nova etapa da trilha disponível'
         setSrAnnounce(`Progresso salvo. ${stageBit}`)
       }
 
@@ -1249,16 +1249,20 @@ export default function PlayerPage() {
   canRetryRef.current = canRetry
   mariaSidechatRef.current = mariaSidechat
 
+  // Ref: mudar só a URL (?atividade=N) não pode recriar os callbacks e recarregar a conversa.
+  const locationRef = useRef(location)
+  locationRef.current = location
+
   const goLoginAuth = useCallback(
     (message?: string) => {
       clearSession('auth')
       // C3-R15 N01: preservar deep-link (não sobrescrever from do ChatLayout).
       navigate('/login', {
         replace: true,
-        state: { reason: 'auth', message, from: location },
+        state: { reason: 'auth', message, from: locationRef.current },
       })
     },
-    [navigate, location],
+    [navigate],
   )
 
   const reportError = useCallback(
@@ -1394,7 +1398,7 @@ export default function PlayerPage() {
         setBusyReason(null)
         busyReasonRef.current = null
         setContinuarLeaving(false)
-        setTrailBusyLabel('Preparando passo…')
+        setTrailBusyLabel('Preparando etapa…')
       })()
     }
     window.addEventListener('offline', goOffline)
@@ -1470,7 +1474,7 @@ export default function PlayerPage() {
         setBusy(true)
         setBusyReason('trail')
         busyReasonRef.current = 'trail'
-        setTrailBusyLabel('Atualizando passo…')
+        setTrailBusyLabel('Atualizando etapa…')
       }
       void resyncIfStale()
     }
@@ -1789,7 +1793,7 @@ export default function PlayerPage() {
     // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
     // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
-    setTrailBusyLabel('Preparando passo…')
+    setTrailBusyLabel('Preparando etapa…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     setMariaEntrance(false)
     mariaCancelledRef.current = false
@@ -2929,9 +2933,9 @@ export default function PlayerPage() {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando passo…')
+      setTrailBusyLabel('Atualizando etapa…')
     } else if (!mariaActive && prelockedTrail) {
-      setTrailBusyLabel('Atualizando passo…')
+      setTrailBusyLabel('Atualizando etapa…')
     }
     try {
       const data =
@@ -2968,7 +2972,7 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando passo…')
+        setTrailBusyLabel('Preparando etapa…')
       }
     }
   }
@@ -3211,7 +3215,7 @@ export default function PlayerPage() {
       } catch {
         /* ignore */
       }
-      reportError(err, 'Erro ao carregar o passo.', () => {
+      reportError(err, 'Erro ao carregar a etapa.', () => {
         void loadNextAfterAdvance()
       })
       throw err
@@ -3225,7 +3229,7 @@ export default function PlayerPage() {
     setBusy(true)
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
-    setTrailBusyLabel('Carregando passo…')
+    setTrailBusyLabel('Carregando etapa…')
     clearError()
     try {
       deliveredKeyRef.current = null
@@ -3240,14 +3244,14 @@ export default function PlayerPage() {
         window.dispatchEvent(new CustomEvent('crias:trail-progress'))
       }
     } catch (err) {
-      reportError(err, 'Passo salvo. Recarregando…', () => {
+      reportError(err, 'Etapa salva. Recarregando…', () => {
         void resyncAfterAdvance()
       })
     } finally {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando passo…')
+      setTrailBusyLabel('Preparando etapa…')
       setContinuarLeaving(false)
       advanceInFlightRef.current = false
     }
@@ -3286,7 +3290,7 @@ export default function PlayerPage() {
     setBusyReason('trail')
     busyReasonRef.current = 'trail'
     // C3-R16 N01: GET de revalidação ≠ mutate — “Salvando…” só no POST advance.
-    setTrailBusyLabel('Conferindo passo…')
+    setTrailBusyLabel('Conferindo etapa…')
     markContinueHaloDone(liveSession.student_id, trailId)
     clearError()
     // Modo Maria: o mesmo Continuar fecha a conversa e avança (um clique).
@@ -3318,9 +3322,9 @@ export default function PlayerPage() {
         setBusy(false)
         setBusyReason(null)
         busyReasonRef.current = null
-        setTrailBusyLabel('Preparando passo…')
+        setTrailBusyLabel('Preparando etapa…')
         setContinuarLeaving(false)
-        reportError(err, 'Erro ao conferir o passo.', () => {
+        reportError(err, 'Erro ao conferir a etapa.', () => {
           void doAdvance()
         })
         return
@@ -3338,7 +3342,7 @@ export default function PlayerPage() {
           livePos.question_number,
         )
         if (uiKey !== liveKey) {
-          setTrailBusyLabel('Atualizando passo…')
+          setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance(livePos)
           publishTrailProgress(trailId, {
@@ -3363,7 +3367,7 @@ export default function PlayerPage() {
         advanceClaimId = tryClaimTrailAdvance(trailId, cellKey)
         if (!advanceClaimId) {
           // Outra aba pode ter avançado — re-fetch fresco (não reusar livePos stale).
-          setTrailBusyLabel('Atualizando passo…')
+          setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3394,7 +3398,7 @@ export default function PlayerPage() {
       } catch (err) {
         // 409 conflict / versão divergente → só resync, sem segundo advance.
         if (err instanceof ApiRequestError && err.status === 409) {
-          setTrailBusyLabel('Atualizando passo…')
+          setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
           advancedContent = await loadNextAfterAdvance()
           if (advancedContent && advancedContent.status === 'ok') {
@@ -3433,7 +3437,7 @@ export default function PlayerPage() {
       } else if (result.status === 'ok') {
         advanceCommittedRef.current = true
         deliveredKeyRef.current = null
-        setTrailBusyLabel('Carregando passo…')
+        setTrailBusyLabel('Carregando etapa…')
         advancedContent = await loadNextAfterAdvance()
         advanceCommittedRef.current = false
         advanceSucceeded = true
@@ -3454,7 +3458,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando passo…')
+      setTrailBusyLabel('Preparando etapa…')
       setContinuarLeaving(false)
       setShowTyping(false)
       reportError(err, 'Erro ao avançar a trilha.', () => {
@@ -3484,7 +3488,7 @@ export default function PlayerPage() {
       setBusy(false)
       setBusyReason(null)
       busyReasonRef.current = null
-      setTrailBusyLabel('Preparando passo…')
+      setTrailBusyLabel('Preparando etapa…')
       setContinuarLeaving(false)
       // Mantém lock ~1.2s — paint/focus pós-busy ainda tentam puxar o scroll.
       if (pinnedAwayRef.current && threadRef.current) {
@@ -3796,7 +3800,7 @@ export default function PlayerPage() {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
-      setTrailBusyLabel('Atualizando passo…')
+      setTrailBusyLabel('Atualizando etapa…')
       deliveredKeyRef.current = null
       try {
         await resyncIfStale()
@@ -3841,7 +3845,7 @@ export default function PlayerPage() {
         if (err instanceof ApiRequestError && err.status === 409) {
           setBusyReason('trail')
           busyReasonRef.current = 'trail'
-          setTrailBusyLabel('Atualizando passo…')
+          setTrailBusyLabel('Atualizando etapa…')
           deliveredKeyRef.current = null
           await resyncIfStale()
           setExercisePhase(option.key ? 'selected' : 'idle')
@@ -4489,7 +4493,7 @@ export default function PlayerPage() {
     return true
   })
 
-  /** v6: o histórico é separado por atividade (a atividade atual ou a que está sendo revista). */
+  /** v6: a conversa é a da trilha toda. Ao subir, carrega e mostra as atividades anteriores. */
   const parseCellQuestion = (key?: string): number | null => {
     const mm = key?.match(/^(\d+)-(\d+)$/)
     return mm ? Number.parseInt(mm[2], 10) : null
@@ -4498,22 +4502,7 @@ export default function PlayerPage() {
     m.questionNumber ??
     parseCellQuestion(m.cellKey) ??
     parseCellQuestion(m.contextCell)
-  const latestQuestionSeen = chatMessagesAll.reduce<number | null>(
-    (acc, m) => {
-      const q = questionOfMsg(m)
-      return q != null && (acc == null || q > acc) ? q : acc
-    },
-    null,
-  )
-  const activeQuestion = currentQuestion ?? latestQuestionSeen
-  const viewingPast =
-    viewActivity != null && activeQuestion != null && viewActivity < activeQuestion
-  const viewQuestion = viewingPast ? (viewActivity as number) : activeQuestion
-  const chatMessages = chatMessagesAll.filter((m) => {
-    if (viewQuestion == null) return true
-    const q = questionOfMsg(m)
-    return q == null ? !viewingPast : q === viewQuestion
-  })
+  const chatMessages = chatMessagesAll
 
   /**
    * Ordem do chat: histórico em cima, novidade sempre no FIM.
@@ -4560,19 +4549,18 @@ export default function PlayerPage() {
   const hasExerciseCard =
     onExerciseStep &&
     options.length > 0 &&
-    !viewingPast &&
     !trailShellUnavailable
 
   /** v6: o passo atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
   const lessonCardNode =
-    !trailShellUnavailable && showLessonCard && !viewingPast && !hasExerciseCard ? (
+    !trailShellUnavailable && showLessonCard && !hasExerciseCard ? (
       <div
         ref={(node) => {
           lessonCardRef.current = node
         }}
         className="v6-lesson"
         tabIndex={-1}
-        aria-label={lessonTitle ? `Passo: ${lessonTitle}` : 'Conteúdo do passo'}
+        aria-label={lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'}
         data-current-step="true"
       >
         <BotMessage label={trailHeading}>
@@ -4593,8 +4581,7 @@ export default function PlayerPage() {
   const trailDone =
     !trailShellUnavailable &&
     historyReady &&
-    content?.status === 'completed' &&
-    !viewingPast
+    content?.status === 'completed'
   const trailCompletedNode = trailDone ? (
     <div
       className="v6-done"
@@ -4622,7 +4609,6 @@ export default function PlayerPage() {
    */
   const activityDoneShown =
     !trailShellUnavailable &&
-    !viewingPast &&
     historyReady &&
     content?.status === 'ok' &&
     totalStepsHere > 0 &&
@@ -4750,8 +4736,127 @@ export default function PlayerPage() {
     navigate('/monitoria')
   }
 
+  /**
+   * v6: a conversa é a da trilha toda. Chegando perto do topo, carrega as atividades
+   * anteriores e mantém a posição de leitura (o texto não pula).
+   */
+  const threadMetricsRef = useRef<{
+    h: number
+    top: number
+    first?: string
+    last?: string
+  }>({ h: 0, top: 0 })
+  const prependedRef = useRef(false)
+  const requestOlderHistory = (): boolean => {
+    if (historyLoadingMore) return false
+    if (showHistoryCollapse && !historyExpanded) {
+      void onExpandHistory()
+      return true
+    }
+    if (historyHasMore) {
+      void loadOlderHistory()
+      return true
+    }
+    return false
+  }
+  const requestOlderRef = useRef(requestOlderHistory)
+  requestOlderRef.current = requestOlderHistory
+
+  useEffect(() => {
+    const el = v6ThreadRef.current
+    if (!el) return
+    const onScroll = () => {
+      threadMetricsRef.current.top = el.scrollTop
+      threadMetricsRef.current.h = el.scrollHeight
+      if (el.scrollTop < 200) requestOlderRef.current()
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [v6ThreadRef])
+
+  // Conversa curta que cabe na tela: não há o que rolar, então busca o histórico antigo sozinho.
+  useEffect(() => {
+    const el = v6ThreadRef.current
+    if (!el || !historyReady) return
+    if (el.scrollHeight <= el.clientHeight + 60) requestOlderRef.current()
+  }, [
+    chatMessages.length,
+    historyReady,
+    historyLoadingMore,
+    historyExpanded,
+    historyHasMore,
+    v6ThreadRef,
+  ])
+
+  // Mensagens antigas entraram no topo: mantém onde o aluno estava lendo.
+  useLayoutEffect(() => {
+    const el = v6ThreadRef.current
+    if (!el) return
+    const first = chatMessages[0]?.id
+    const last = chatMessages[chatMessages.length - 1]?.id
+    const m = threadMetricsRef.current
+    prependedRef.current = Boolean(
+      m.first && m.last && first !== m.first && last === m.last,
+    )
+    if (prependedRef.current) {
+      el.scrollTop = m.top + (el.scrollHeight - m.h)
+    }
+    threadMetricsRef.current = {
+      h: el.scrollHeight,
+      top: el.scrollTop,
+      first,
+      last,
+    }
+  })
+
+  // Clicar numa atividade do menu leva até o começo dela na conversa (?atividade=N).
+  useEffect(() => {
+    if (viewActivity == null || !historyReady) return
+    const el = v6ThreadRef.current
+    if (!el || historyLoadingMore) return
+    let cancelled = false
+    let timer = 0
+    const back = `/trilha/${encodeURIComponent(trailId)}`
+    const attempt = (n: number) => {
+      if (cancelled) return
+      // No celular a conversa fica inerte enquanto o menu em tela cheia fecha: espera.
+      if (el.closest('[inert]') && n < 30) {
+        timer = window.setTimeout(() => attempt(n + 1), 100)
+        return
+      }
+      const target = el.querySelector<HTMLElement>(
+        `[data-question="${viewActivity}"]`,
+      )
+      if (target) {
+        target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        navigate(back, { replace: true })
+        return
+      }
+      if (!requestOlderRef.current()) navigate(back, { replace: true })
+    }
+    attempt(0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    viewActivity,
+    historyReady,
+    historyLoadingMore,
+    historyExpanded,
+    historyHasMore,
+    chatMessages.length,
+    trailId,
+    navigate,
+    v6ThreadRef,
+  ])
+
   // v6, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
   useEffect(() => {
+    if (prependedRef.current) {
+      prependedRef.current = false
+      return
+    }
     toBottom()
   }, [
     chatMessages.length,
@@ -4766,17 +4871,11 @@ export default function PlayerPage() {
   // Ao abrir outra trilha ou atividade, a conversa abre no fim.
   useEffect(() => {
     toBottom(true)
-  }, [trailId, viewQuestion, historyReady, toBottom])
+  }, [trailId, historyReady, toBottom])
   // O campo cresce com o texto e volta a uma linha quando esvazia.
   useEffect(() => {
     autoGrow(inputRef.current)
   }, [draft])
-  // Atividade passada: carrega o histórico para ela aparecer completa.
-  useEffect(() => {
-    if (viewingPast && !historyExpanded) void onExpandHistory()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewingPast, historyExpanded])
-
   return (
     <main
       className="v6-conv"
@@ -4800,61 +4899,6 @@ export default function PlayerPage() {
         aria-busy={historyLoadingMore || !historyReady || undefined}
       >
         <div className="v6-thread__col">
-          {/* Histórico: carregar mensagens antigas (a lógica de dados é a de sempre). */}
-          {/* v6: o histórico é por atividade e fica no menu; sem botão de mensagens anteriores. */}
-          {!trailShellUnavailable &&
-          viewQuestion == null &&
-          !historyExpanded &&
-          showHistoryCollapse ? (
-            <div className="v6-history">
-              <button
-                type="button"
-                className="v6-history-btn"
-                disabled={historyLoadingMore}
-                aria-expanded={false}
-                aria-controls="crias-thread-log"
-                onClick={() => void onExpandHistory()}
-              >
-                {historyLoadingMore
-                  ? 'Carregando mensagens…'
-                  : `Ver mensagens anteriores${
-                      hiddenHistoryCount > 0
-                        ? ` (${hiddenHistoryCount}${historyHasMore ? '+' : ''})`
-                        : ''
-                    }`}
-              </button>
-            </div>
-          ) : null}
-          {!trailShellUnavailable &&
-          viewQuestion == null &&
-          historyExpanded &&
-          (showHistoryCollapse || historyHasMore) ? (
-            <div className="v6-history">
-              {historyHasMore ? (
-                <button
-                  type="button"
-                  className="v6-history-btn"
-                  disabled={historyLoadingMore}
-                  aria-busy={historyLoadingMore || undefined}
-                  onClick={() => void loadOlderHistory()}
-                >
-                  {historyLoadingMore
-                    ? 'Carregando mensagens…'
-                    : 'Carregar mensagens mais antigas'}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="v6-history-btn"
-                aria-expanded={true}
-                aria-controls="crias-thread-log"
-                onClick={() => setHistoryExpanded(false)}
-              >
-                Recolher mensagens anteriores
-              </button>
-            </div>
-          ) : null}
-
           {!trailShellUnavailable &&
             chatMessages.map((msg, msgIdx) => {
               const labelId = `bubble-label-${msg.id}`
@@ -4877,6 +4921,7 @@ export default function PlayerPage() {
                       data-msg-id={msg.id}
                       data-stage-type={msg.stageType}
                       data-cell-key={msg.cellKey || undefined}
+                      data-question={questionOfMsg(msg) ?? undefined}
                       data-media-resume={mediaResume ? 'true' : undefined}
                       tabIndex={-1}
                       {...(isFeedback
@@ -4901,7 +4946,28 @@ export default function PlayerPage() {
                           feedback={fb}
                           labelId={labelId}
                         >
-                          {renderBubbleParts(msg.text, msg.id)}
+                          {(() => {
+                            // Passos já vistos mostram o título em negrito, igual ao passo atual.
+                            const at = msg.step ? msg.text.indexOf('\n\n') : -1
+                            const head = at > 0 ? msg.text.slice(0, at).trim() : ''
+                            const isTitle =
+                              head.length > 0 &&
+                              head.length <= 60 &&
+                              !head.includes('\n') &&
+                              !/[.?!:]$/.test(head)
+                            if (!isTitle) return renderBubbleParts(msg.text, msg.id)
+                            return (
+                              <>
+                                <p>
+                                  <strong>{stripDecorTitle(head)}</strong>
+                                </p>
+                                {renderBubbleParts(
+                                  msg.text.slice(at).trim(),
+                                  msg.id,
+                                )}
+                              </>
+                            )
+                          })()}
                         </BotMessage>
                       )}
                     </div>
@@ -4918,7 +4984,7 @@ export default function PlayerPage() {
             </BotMessage>
           ) : null}
 
-          {showTypingBubble && !viewingPast ? <TypingRow /> : null}
+          {showTypingBubble ? <TypingRow /> : null}
           {trailCompletedNode}
 
           {error && !trailShellUnavailable ? (
@@ -4962,18 +5028,7 @@ export default function PlayerPage() {
       {!trailShellUnavailable && historyReady ? (
         <div className="v6-dock">
           <div className="v6-dock__col">
-            {viewingPast && !trailDone ? (
-              <div className="v6-past">
-                <span>{`Você está revendo a Atividade ${viewActivity}.`}</span>
-                <button
-                  type="button"
-                  className="v6-continue"
-                  onClick={() => navigate(`/trilha/${encodeURIComponent(trailId)}`)}
-                >
-                  Voltar para a atividade atual
-                </button>
-              </div>
-            ) : (
+            {(
               <div className="v6-dock__row">
                 <form
                   className={`v6-composer v6-composer--thread${

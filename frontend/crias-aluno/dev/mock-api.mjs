@@ -28,6 +28,28 @@ const pos = {
 const logs = []
 let logId = 1
 
+// Conversa antiga na trilha t1 (atividade 1 completa, mais perguntas ao monitor), para ver o
+// histórico da trilha toda e a carga automática ao subir.
+;(function seed() {
+  const t0 = Date.now() - 1000 * 60 * 60 * 24
+  let i = 0
+  const add = (o) => logs.push({ id: `seed${i}`, created_at_ms: t0 + i++ * 1000, student_id: 's1', trail_id: 't1', institution_id: 'i1', ...o })
+  for (let st = 1; st <= 4; st++) {
+    if (st === 3) {
+      add({ stage_number: 3, question_number: 1, sender: 'system', message_type: 'exercise', message_text: 'Qual fração representa um quarto de uma barra de chocolate com 8 pedaços?\n\nA) 1/8\nB) 2/8\nC) 4/8\nD) 8/8', metadata: { source: 'next-content', stage_type: 'exercise' } })
+      add({ stage_number: 3, question_number: 1, sender: 'student', message_type: 'exercise', message_text: '2/8', metadata: { source: 'exercise_attempt', is_correct: true } })
+      add({ stage_number: 3, question_number: 1, sender: 'system', message_type: 'feedback', message_text: 'Isso mesmo! 2/8 é igual a 1/4.', metadata: { source: 'exercise_feedback', is_correct: true } })
+    } else {
+      add({ stage_number: st, question_number: 1, sender: 'system', message_type: 'instruction', message_text: `Etapa ${st}\n\nTexto de apoio ${st}: frações representam partes de um todo, e aparecem no dia a dia.`, metadata: { source: 'next-content', stage_type: 'fixed' } })
+    }
+    for (let k = 1; k <= 12; k++) {
+      add({ stage_number: st, question_number: 1, sender: 'student', message_type: 'text', message_text: `Pergunta ${st}.${k} ao monitor`, metadata: { source: 'maria-tutor', channel: 'app' } })
+      add({ stage_number: st, question_number: 1, sender: 'system', message_type: 'text', message_text: `Resposta ${st}.${k} do monitor, explicando com calma.`, metadata: { source: 'maria-tutor', channel: 'app' } })
+    }
+  }
+  add({ stage_number: 1, question_number: 2, sender: 'system', message_type: 'instruction', message_text: 'Etapa 1\n\nVamos comparar frações.', metadata: { source: 'next-content', stage_type: 'fixed' } })
+})()
+
 function titleFor(trail, q) {
   const names = ['Frações no dia a dia', 'Comparando frações', 'Operações com frações', 'Revisão geral']
   return `${names[(q - 1) % names.length]}`
@@ -71,7 +93,7 @@ function content(trail, stage, question) {
     stage_number: stage,
     question_number: question,
     stage_type: 'fixed',
-    stage_title: `Passo ${stage}`,
+    stage_title: `Etapa ${stage}`,
     prompt: null,
     content: body,
     options: null,
@@ -207,7 +229,7 @@ http
       const b = await readBody(req)
       return send(res, 200, {
         status: 'ok',
-        reply: `Boa pergunta! Sobre "${String(b.message || '').slice(0, 60)}": vamos pensar juntos, passo a passo. Qual parte você já entendeu?`,
+        reply: `Boa pergunta! Sobre "${String(b.message || '').slice(0, 60)}": vamos pensar juntos, etapa por etapa. Qual parte você já entendeu?`,
         model: 'mock',
         stage_number: b.stage_number || 1,
         question_number: b.question_number || 1,

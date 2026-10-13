@@ -9,7 +9,7 @@ import { writeFocusedTrailId } from '../lib/trailFocus'
 import {
   activityProgressPct,
   formatAtividadeLabel,
-  formatPassoLabel,
+  formatEtapaLabel,
 } from '../lib/trailProgressLabel'
 import CriasSymbol from '../components/CriasSymbol'
 import MonitorBox from '../components/MonitorBox'
@@ -37,7 +37,7 @@ function progressMeta(
       : row.current_question_number
   const label =
     formatAtividadeLabel(activity, totalActivities) ||
-    formatPassoLabel(
+    formatEtapaLabel(
       completed && totalSteps != null && totalSteps > 0
         ? Math.max(totalSteps, row.current_stage_number)
         : row.current_stage_number,
@@ -103,9 +103,15 @@ export default function TrailsPage() {
     )
   }, [trailRows, session.student_id])
 
-  /* v6, seção 9: até 3 trilhas, a última aberta primeiro. */
-  const visible = ordered.slice(0, 3)
-  const homeLoading = trailsLoading && visible.length === 0 && !trailsError && !empty
+  /**
+   * Regra do Início: até 2 trilhas, a última aberta primeiro, e só as que ainda não foram
+   * concluídas. Trilha já concluída não aparece (continua no menu lateral).
+   */
+  const visible = ordered.filter((r) => r.status !== 'completed').slice(0, 2)
+  /** Todas concluídas: o Início não mostra cards, só um aviso. */
+  const allDone = ordered.length > 0 && visible.length === 0
+  const homeLoading =
+    trailsLoading && visible.length === 0 && !trailsError && !empty && !allDone
 
   /** v6: Enviar abre a Monitoria já com a pergunta enviada. */
   function onAsk() {
@@ -135,7 +141,7 @@ export default function TrailsPage() {
     el.style.setProperty('--gy', '-30%')
   }
 
-  const title = empty ? `Olá, ${firstName}.` : greeting
+  const title = empty || allDone ? `Olá, ${firstName}.` : greeting
 
   return (
     <>
@@ -156,6 +162,8 @@ export default function TrailsPage() {
             </>
           ) : empty ? (
             <p className="v6-home__empty">Nenhuma trilha liberada para você.</p>
+          ) : allDone ? (
+            <p className="v6-home__empty">Você concluiu todas as suas trilhas.</p>
           ) : homeLoading ? (
             <p className="v6-home__loading" role="status">
               Carregando suas trilhas…

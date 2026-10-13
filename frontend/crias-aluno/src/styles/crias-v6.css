@@ -313,9 +313,6 @@ textarea::placeholder,input::placeholder{color:var(--v-t3)}
 .v6-dock{position:relative;flex:none;padding:0 var(--r-gutter) max(var(--r-comp-pb),env(safe-area-inset-bottom,0px))}
 .v6-dock__col{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
 .v6-dock__row{display:flex;align-items:flex-end;gap:var(--r-dock-gap)}
-.v6-past{display:flex;flex-direction:var(--r-past-dir);align-items:var(--r-past-ai);justify-content:space-between;gap:10px;background:var(--v-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--v-line);border-radius:24px;padding:var(--r-past-pad)}
-.v6-past span{font-size:15px;color:var(--v-t2);text-align:var(--r-past-ta)}
-.v6-past .v6-continue{padding:0 16px 0 20px}
 
 /* Setas de topo e fim */
 .v6-arrow{position:absolute;left:50%;z-index:30;width:40px;height:40px;margin-left:-20px;border-radius:999px;border:1px solid var(--v-line);background:var(--v-raise);color:var(--v-ink);box-shadow:0 6px 18px rgba(0,28,14,.14);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}

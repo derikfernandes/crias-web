@@ -1,6 +1,6 @@
 /**
  * Vocabulário INTERFACE: trilha > atividade (question) > passo (stage).
- * Home/menu: "Atividade X de Y". Topo: "Atividade X de Y · Passo A de B".
+ * Home/menu: "Atividade X de Y". Topo: "Atividade X de Y · Etapa A de B".
  */
 
 export function formatAtividadeLabel(
@@ -20,7 +20,7 @@ export function formatAtividadeLabel(
   return `Atividade ${n}`
 }
 
-export function formatPassoLabel(
+export function formatEtapaLabel(
   step: number | null | undefined,
   totalSteps: number | null | undefined,
 ): string | null {
@@ -28,12 +28,12 @@ export function formatPassoLabel(
   const n = Math.max(1, Math.floor(step))
   if (totalSteps != null && Number.isFinite(totalSteps) && totalSteps > 0) {
     const total = Math.max(totalSteps, n)
-    return `Passo ${n} de ${total}`
+    return `Etapa ${n} de ${total}`
   }
-  return `Passo ${n}`
+  return `Etapa ${n}`
 }
 
-/** Topbar do player: "Atividade X de Y · Passo A de B". */
+/** Topbar do player: "Atividade X de Y · Etapa A de B". */
 export function formatTrailChromeProgress(input: {
   activity: number | null | undefined
   totalActivities: number | null | undefined
@@ -41,9 +41,9 @@ export function formatTrailChromeProgress(input: {
   totalSteps: number | null | undefined
 }): string | null {
   const atividade = formatAtividadeLabel(input.activity, input.totalActivities)
-  const passo = formatPassoLabel(input.step, input.totalSteps)
-  if (atividade && passo) return `${atividade} · ${passo}`
-  return atividade || passo
+  const etapa = formatEtapaLabel(input.step, input.totalSteps)
+  if (atividade && etapa) return `${atividade} · ${etapa}`
+  return atividade || etapa
 }
 
 /** % de progresso por atividade (0 no 1º; 100 se concluída). */

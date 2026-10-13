@@ -4897,7 +4897,7 @@ export default function PlayerPage() {
                         </UserBubble>
                       ) : (
                         <BotMessage
-                          label={msg.kind === 'sidechat' ? 'Monitor' : trailHeading}
+                          label={msg.kind === 'sidechat' || msg.monitor ? 'Monitor' : trailHeading}
                           feedback={fb}
                           labelId={labelId}
                         >

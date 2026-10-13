@@ -19,6 +19,8 @@ export type ChatMessage = {
    * feedback do exercício. Ordena o lesson-card antes da conversa da célula.
    */
   contextCell?: string
+  /** Fala do monitor vinda do histórico (rótulo "Monitor" depois de recarregar). */
+  monitor?: boolean
   /** Retorno do exercício: acertou (true) ou quase (false). Vem do envio ou do histórico. */
   correct?: boolean | null
 }
@@ -304,6 +306,9 @@ export function logsToMessages(logs: ConversationLogRow[]): ChatMessage[] {
         : isFeedback
           ? 'feedback'
           : undefined,
+      // O servidor marca a pergunta e a resposta do monitor com source = maria-tutor.
+      // Campo à parte (não é `kind`): a junção do histórico depende de `kind` vazio.
+      monitor: source === 'maria-tutor' ? true : undefined,
       stageType: isExerciseAnswer || isFeedback ? 'exercise' : undefined,
       correct: isFeedback ? feedbackCorrect(l.metadata) : undefined,
       contextCell:

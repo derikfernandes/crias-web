@@ -534,7 +534,7 @@ const C = {
 function msgOf(id, a, s) { return Object.assign({ id: id + '-' + a + '-' + s + '-' + Date.now(), role: 'assistant', label: C[id].title }, C[id].acts[a].steps[s]); }
 function blank(id) { return { act: 0, step: 0, done: false, picked: null, submitted: false, advanced: false, view: 0, answers: {}, hist: [[msgOf(id, 0, 0)]] }; }
 function optText(ex, k) { const o = ex.options.filter(x => x[0] === k)[0]; return o ? o[1] : ''; }
-const GREET = ['Vamos avançar mais, Ana?', 'Bora continuar de onde parou, Ana?', 'Oi, Ana. O que vamos aprender hoje?', 'Qual trilha você quer seguir, Ana?', 'Mais um passo hoje, Ana?'];
+const GREET = ['Vamos avançar mais, Ana?', 'Bora continuar de onde parou, Ana?', 'Oi, Ana. O que vamos aprender hoje?', 'Qual trilha você quer seguir, Ana?', 'Mais uma etapa hoje, Ana?'];
 const MOODS = [
   ['idle', 'Atenta', 'Em repouso. Pisca de vez em quando.'],
   ['oi', 'Oi', 'Ao entrar no app.'],
@@ -905,7 +905,7 @@ class Component extends DCLogic {
       lightStyle: pill(s.theme !== 'escuro'), darkStyle: pill(s.theme === 'escuro'),
       logout: () => { if (window.confirm('Sair da conta? Seu progresso na trilha fica salvo.')) this.setState({ screen: 'login' }); },
       topTitle: isMaria ? 'Conversar com Maria' : isPlayer ? ((pr.nomeLongo && cid === 'lei') ? LONG_NAME : T.title) : '',
-      topStage: !isMaria && isPlayer && hasTrails ? 'Atividade ' + (view + 1) + ' de ' + nAct + ' · Passo ' + (stepNow + 1) + ' de ' + stepsN : '',
+      topStage: !isMaria && isPlayer && hasTrails ? 'Atividade ' + (view + 1) + ' de ' + nAct + ' · Etapa ' + (stepNow + 1) + ' de ' + stepsN : '',
       stepDots: Array.from({ length: stepsN }, (_, i) => ({ width: i === stepNow ? 22 : 8, height: 8, borderRadius: 999, background: i < stepNow || (i === stepNow && (p.done || !isCur)) ? '#00be85' : i === stepNow ? '#ffd500' : 'var(--v-line)', transition: 'width .3s, background .3s', boxShadow: i === stepNow ? '0 0 10px rgba(255,213,0,.5)' : 'none' })),
       homeTitle: isEmpty ? 'Olá, Ana.' : GREET[s.greet % GREET.length],
       trailGridStyle: s.mob ? { display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 12, width: '100%' } : cols === 1 ? { display: 'grid', gridTemplateColumns: 'minmax(0,420px)', justifyContent: 'center', width: '100%', perspective: '1000px' } : { display: 'grid', gridTemplateColumns: 'repeat(' + cols + ', minmax(0,1fr))', gap: 14, width: '100%', perspective: '1000px' },

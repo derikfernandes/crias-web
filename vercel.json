@@ -95,6 +95,14 @@
       "destination": "/api/student?id=:id"
     },
     {
+      "source": "/student_passwords/",
+      "destination": "/api/student_passwords"
+    },
+    {
+      "source": "/student_passwords",
+      "destination": "/api/student_passwords"
+    },
+    {
       "source": "/trails/",
       "destination": "/api/trails"
     },

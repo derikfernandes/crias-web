@@ -13,6 +13,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const EXPECTED_API_FILES = [
   'institution.ts',
   'student.ts',
+  'student_passwords.ts',
   'trails.ts',
   'trail_stages.ts',
   'trail_stage_questions.ts',
@@ -52,6 +53,10 @@ const CRITICAL_REWRITES = [
   {
     source: '/student/identify',
     destination: '/api/student?action=identify',
+  },
+  {
+    source: '/student_passwords',
+    destination: '/api/student_passwords',
   },
   {
     source: '/student_trails/home',

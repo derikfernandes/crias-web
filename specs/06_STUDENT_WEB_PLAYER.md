@@ -12,7 +12,7 @@ Login por:
 
 - `phone_number` (normalizado, só dígitos)
 - `institution_code` — código da instituição (o `institution_id` já existente)
-- `password` — senha definida pelo admin (hash `password_hash` em Firestore via scrypt; ver `server/lib/studentPassword.ts`)
+- `password` — senha definida pelo admin/Master (hash `password_hash` scrypt + opcional `password_encrypted` AES-256-GCM; ver `server/lib/studentPassword.ts`). Formato gerado: 6 chars (minúsculas+dígitos, sem 0/o/1/l/i). Senhas legadas (≥6 chars, ex. `@Marina12`) continuam válidas no login.
 
 Endpoint:
 

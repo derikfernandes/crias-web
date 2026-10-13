@@ -33,8 +33,27 @@ Campos:
 - student_level: 1 | 2 | 3
 - active: boolean
 - password_hash: string opcional (scrypt; definido via API/admin; nunca exposto em GET)
+- password_encrypted: string opcional (AES-256-GCM `v1.iv.tag.ct`; chave `STUDENT_PASSWORD_KEY`; só Master decifra server-side)
 - created_at: timestamp
 - updated_at: timestamp
+
+### student_password_audit
+
+```text
+student_password_audit/{auto_id}
+```
+
+Campos:
+
+- actor_email: string
+- actor_uid: string
+- action: view_list | export_csv | regenerate | bulk_generate | bulk_import
+- institution_id: string opcional
+- student_id: string opcional
+- student_ids: string[] opcional
+- student_count: number opcional
+- meta: map opcional (sem plaintext de senha)
+- created_at: timestamp
 
 ### trails
 

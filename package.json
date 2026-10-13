@@ -17,7 +17,8 @@
     "test": "node --test scripts/contract-*.test.mjs scripts/check-design-boundaries.mjs scripts/agent-usage.test.mjs && vitest run",
     "check:design-boundaries": "node --test scripts/check-design-boundaries.mjs",
     "preview": "npm run preview -w crias-painel",
-    "audit:trilha-integrity": "node scripts/audit-trilha-integrity.js"
+    "audit:trilha-integrity": "node scripts/audit-trilha-integrity.js",
+    "passwords:generate": "node scripts/generate-student-passwords.mjs"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.11",

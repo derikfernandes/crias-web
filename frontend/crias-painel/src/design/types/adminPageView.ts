@@ -23,6 +23,7 @@ export type AdminFormViewModel = {
   email: string
   active: boolean
   is_super_admin: boolean
+  is_master: boolean
   all_institutions: boolean
   nav_permissions: string[]
   institution_ids: string[]
@@ -47,6 +48,7 @@ export type AdminPageViewOkProps = AdminPageViewBase & {
   onEmailChange: (value: string) => void
   onActiveChange: (checked: boolean) => void
   onSuperAdminChange: (checked: boolean) => void
+  onMasterChange: (checked: boolean) => void
   onAllInstitutionsChange: (checked: boolean) => void
   onToggleNav: (key: string) => void
   onToggleInstitution: (id: string) => void

@@ -1,6 +1,7 @@
 export {
   AI_PROMPT_IDS,
   AI_PROMPT_META,
+  RETIRED_AI_PROMPT_IDS,
   isAiPromptId,
   type AiPromptId,
 } from './ids.js'
@@ -12,6 +13,7 @@ export {
   getPromptBody,
   listAiPromptVersions,
   listAiPrompts,
+  retireObsoleteAiPrompts,
   seedAiPrompts,
   updateAiPrompt,
   type AiPromptRecord,

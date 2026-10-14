@@ -1,7 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
 import { getPromptBody } from '../ai-prompts/index.js'
-import { TRAIL_AI_SPACING_RULES } from './formatAiAnswer'
 import { GERADOR_TRILHA_SYSTEM_PROMPT } from './geradorSystemPrompt'
 
 export type TrailAiPromptInput = {
@@ -13,9 +12,8 @@ export type TrailAiPromptInput = {
   /** Conversas recentes tutor/trilha (conversation_logs). */
   context: string
   trail_title?: string | null
-  /** Overrides (Firestore). Se omitidos, usa fallback em código. */
+  /** Override (Firestore). Se omitido, usa fallback em código. */
   geradorSystemPrompt?: string
-  spacingRules?: string
 }
 
 export type BuiltTrailAiPrompt = {
@@ -43,6 +41,7 @@ function applyVars(
 /**
  * Monta o pedido Gemini com o prompt gerador + variáveis:
  * NAME, SCHOOL_GRADE, STUDENT_LEVEL, CONTEXT, PROMPT, CONTENT.
+ * Espaçamento: regras 6.6 do gerador (linhas vazias reais). Sem marcador |||.
  */
 export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPrompt {
   const name = firstName(String(input.name ?? '').trim())
@@ -54,8 +53,6 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
   const title = String(input.trail_title ?? '').trim()
   const gerador =
     (input.geradorSystemPrompt?.trim() || GERADOR_TRILHA_SYSTEM_PROMPT).trim()
-  const spacing =
-    (input.spacingRules?.trim() || TRAIL_AI_SPACING_RULES).trim()
 
   const systemInstruction = [
     applyVars(gerador, {
@@ -66,7 +63,6 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
       PROMPT: prompt || '(vazio)',
       CONTENT: content || '(vazio)',
     }),
-    spacing,
     title ? `Título da etapa: ${title}` : '',
   ]
     .filter(Boolean)
@@ -86,18 +82,14 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
   return { systemInstruction, userText }
 }
 
-/** Carrega gerador + spacing do Firestore (fallback em código se ausente). */
+/** Carrega o gerador do Firestore (fallback em código se ausente). */
 export async function loadTrailAiPromptParts(
   db: Firestore,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<{ geradorSystemPrompt: string; spacingRules: string }> {
-  const [gerador, spacing] = await Promise.all([
-    getPromptBody(db, 'gerador_trilha', env),
-    getPromptBody(db, 'spacing_rules', env),
-  ])
+): Promise<{ geradorSystemPrompt: string }> {
+  const gerador = await getPromptBody(db, 'gerador_trilha', env)
   return {
     geradorSystemPrompt: gerador.body,
-    spacingRules: spacing.body,
   }
 }
 

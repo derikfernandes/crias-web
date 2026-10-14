@@ -3,7 +3,7 @@
  *
  * O projeto Vercel legado `crias-painel` (Vite) procura Output Directory
  * `dist` na raiz; o monorepo gera em `frontend/crias-painel/dist`.
- * `crias-web` continua usando `frontend/crias-painel/dist` via vercel.json.
+ * `crias-web` e o painel legado passam a usar `./dist` (vercel.json na raiz).
  */
 import { cpSync, existsSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'

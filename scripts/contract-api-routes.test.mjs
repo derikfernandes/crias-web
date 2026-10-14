@@ -99,9 +99,9 @@ test('vercel.json preserva rewrites críticos de API', () => {
   }
 })
 
-test('vercel.json continua apontando o build para frontend/crias-painel/dist', () => {
+test('vercel.json aponta o build para dist na raiz (espelho do painel)', () => {
   const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
-  assert.equal(vercel.outputDirectory, 'frontend/crias-painel/dist')
+  assert.equal(vercel.outputDirectory, 'dist')
   assert.equal(vercel.buildCommand, 'npm run build')
 })
 

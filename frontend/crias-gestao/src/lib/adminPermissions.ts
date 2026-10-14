@@ -8,10 +8,12 @@ export const NAV_ITEMS: {
   { key: 'home', label: 'Início', path: '/' },
   { key: 'institution_new', label: 'Criar instituição', path: '/instituicoes/novo' },
   { key: 'student_new', label: 'Alunos', path: '/alunos' },
+  { key: 'student_passwords', label: 'Senhas (Master)', path: '/alunos/senhas' },
   { key: 'trail_new', label: 'Trilhas', path: '/trilhas' },
   { key: 'gerenciamento', label: 'Visão por instituição', path: '/gerenciamento' },
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { key: 'gabarito', label: 'Gabaritos', path: '/gabarito' },
+  { key: 'ai_prompts', label: 'Prompts', path: '/prompts' },
   { key: 'doc', label: 'API e documentação', path: '/doc' },
   { key: 'admin', label: 'Usuários e permissões', path: '/admin' },
 ]
@@ -49,6 +51,11 @@ export const SIDEBAR_NAV: SidebarNavEntry[] = [
     children: [
       { key: 'student_new', label: 'Alunos', path: '/alunos' },
       {
+        key: 'student_passwords',
+        label: 'Senhas (Master)',
+        path: '/alunos/senhas',
+      },
+      {
         key: 'gerenciamento',
         label: 'Visão por instituição',
         path: '/gerenciamento',
@@ -70,6 +77,7 @@ export const SIDEBAR_NAV: SidebarNavEntry[] = [
     label: 'Administração',
     children: [
       { key: 'admin', label: 'Usuários e permissões', path: '/admin' },
+      { key: 'ai_prompts', label: 'Prompts', path: '/prompts' },
       { key: 'doc', label: 'API e documentação', path: '/doc' },
     ],
   },
@@ -79,6 +87,8 @@ const ROUTE_NAV_MAP: { prefix: string; permission: NavPermission }[] = [
   { prefix: '/admin', permission: 'admin' },
   { prefix: '/instituicoes/novo', permission: 'institution_new' },
   { prefix: '/instituicoes/', permission: 'home' },
+  { prefix: '/alunos/senhas', permission: 'student_passwords' },
+  { prefix: '/prompts', permission: 'ai_prompts' },
   { prefix: '/alunos/novo', permission: 'student_new' },
   { prefix: '/alunos', permission: 'student_new' },
   { prefix: '/trilhas/novo', permission: 'trail_new' },
@@ -108,10 +118,38 @@ export function hasFullAccess(profile: AdminUser | null): boolean {
   return Boolean(profile?.active && profile.is_super_admin)
 }
 
+/** E-mails Master via Vite env (espelho de MASTER_ADMIN_EMAILS no servidor). */
+export function parseMasterAdminEmailsFromEnv(): string[] {
+  const raw = import.meta.env.VITE_MASTER_ADMIN_EMAILS?.trim()
+  if (!raw || typeof raw !== 'string') return []
+  return raw
+    .split(',')
+    .map((e) => normalizeAdminEmail(e))
+    .filter(Boolean)
+}
+
+/**
+ * Master: env list OU `admin_users.is_master`.
+ * Sem perfil (acesso irrestrito legado) NÃO é Master — exige config explícita.
+ */
+export function isMasterAccess(
+  profile: AdminUser | null,
+  userEmail: string | null | undefined,
+): boolean {
+  const email = userEmail ? normalizeAdminEmail(userEmail) : ''
+  if (email && parseMasterAdminEmailsFromEnv().includes(email)) return true
+  if (profile?.active && profile.is_master) return true
+  return false
+}
+
 export function canAccessNav(
   profile: AdminUser | null,
   permission: NavPermission,
+  opts?: { userEmail?: string | null },
 ): boolean {
+  if (permission === 'student_passwords' || permission === 'ai_prompts') {
+    return isMasterAccess(profile, opts?.userEmail ?? profile?.email ?? null)
+  }
   if (profile === null) return true
   if (!profile.active) return false
   if (profile.is_super_admin) return true
@@ -154,5 +192,7 @@ export function navPermissionForPath(pathname: string): NavPermission {
 }
 
 export function defaultNavPermissions(): NavPermission[] {
-  return NAV_ITEMS.map((item) => item.key).filter((key) => key !== 'admin')
+  return NAV_ITEMS.map((item) => item.key).filter(
+    (key) => key !== 'admin' && key !== 'student_passwords',
+  )
 }

@@ -35,6 +35,7 @@ export function AdminPageView(props: AdminPageViewProps) {
     onEmailChange,
     onActiveChange,
     onSuperAdminChange,
+    onMasterChange,
     onAllInstitutionsChange,
     onToggleNav,
     onToggleInstitution,
@@ -105,6 +106,15 @@ export function AdminPageView(props: AdminPageViewProps) {
                 onChange={(e) => onSuperAdminChange(e.target.checked)}
               />
               <span>Super admin (acesso total)</span>
+            </label>
+
+            <label className="field field--inline">
+              <input
+                type="checkbox"
+                checked={form.is_master}
+                onChange={(e) => onMasterChange(e.target.checked)}
+              />
+              <span>Master (senhas dos alunos)</span>
             </label>
 
             {!form.is_super_admin ? (

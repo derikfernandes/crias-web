@@ -7,6 +7,7 @@ import { trailStageQuestionDocId } from '../trailStageQuestionService'
 import {
   buildTrailAiPrompt,
   formatContextFromLogs,
+  loadTrailAiPromptParts,
 } from './buildTrailAiPrompt'
 import {
   blocoMismatchesSubject,
@@ -568,6 +569,7 @@ export async function ensureTrailAiContent(
       })
     }
 
+    const promptParts = await loadTrailAiPromptParts(db, env)
     const built = buildTrailAiPrompt({
       name,
       school_grade,
@@ -576,6 +578,7 @@ export async function ensureTrailAiContent(
       content: meta.enrichedContent,
       context,
       trail_title: meta.title,
+      ...promptParts,
     })
 
     let rawText: string
@@ -875,6 +878,7 @@ export async function generateExerciseAttemptFeedback(
     },
   )
 
+  const promptParts = await loadTrailAiPromptParts(db, env)
   const built = buildTrailAiPrompt({
     name,
     school_grade,
@@ -883,6 +887,7 @@ export async function generateExerciseAttemptFeedback(
     content,
     context,
     trail_title: meta.title,
+    ...promptParts,
   })
 
   let timer: ReturnType<typeof setTimeout> | undefined

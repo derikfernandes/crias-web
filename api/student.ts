@@ -446,13 +446,21 @@ async function handleRequest(request: Request): Promise<Response> {
         const active = typeof body.active === 'boolean' ? body.active : true
 
         let password_hash: string | undefined
+        let password_encrypted: string | undefined
         const plainPassword = sanitizeString(body.password)
-        if (plainPassword) {
-          const { hashStudentPassword } = await import(
+        const autoGeneratePassword = body.auto_generate_password === true
+        if (plainPassword || autoGeneratePassword) {
+          const { buildStudentPasswordFields } = await import(
             '../server/lib/studentPassword.js'
           )
           try {
-            password_hash = hashStudentPassword(plainPassword)
+            const fields = buildStudentPasswordFields(
+              plainPassword,
+              process.env,
+              { generateIfEmpty: autoGeneratePassword },
+            )
+            password_hash = fields.password_hash
+            password_encrypted = fields.password_encrypted ?? undefined
           } catch (e) {
             return respond(400, {
               error: e instanceof Error ? e.message : 'Senha inválida.',
@@ -495,6 +503,7 @@ async function handleRequest(request: Request): Promise<Response> {
             student_level: studentLevel,
             active,
             ...(password_hash ? { password_hash } : {}),
+            ...(password_encrypted ? { password_encrypted } : {}),
             created_at: now,
             updated_at: now,
           })
@@ -589,11 +598,21 @@ async function handleRequest(request: Request): Promise<Response> {
         if ('password' in body && body.password !== undefined) {
           const plainPassword = sanitizeString(body.password)
           if (plainPassword) {
-            const { hashStudentPassword } = await import(
+            const { buildStudentPasswordFields } = await import(
               '../server/lib/studentPassword.js'
             )
             try {
-              updates.password_hash = hashStudentPassword(plainPassword)
+              // Mantém login compatível com senhas legadas (≥6 chars) e
+              // passa a guardar ciphertext AES-GCM para revelação Master.
+              const fields = buildStudentPasswordFields(
+                plainPassword,
+                process.env,
+                { generateIfEmpty: false },
+              )
+              updates.password_hash = fields.password_hash
+              if (fields.password_encrypted) {
+                updates.password_encrypted = fields.password_encrypted
+              }
             } catch (e) {
               return respond(400, {
                 error: e instanceof Error ? e.message : 'Senha inválida.',

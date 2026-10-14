@@ -11,6 +11,8 @@ export const NAV_PERMISSIONS = [
   'gabarito',
   'doc',
   'admin',
+  'student_passwords',
+  'ai_prompts',
 ] as const
 
 export type NavPermission = (typeof NAV_PERMISSIONS)[number]
@@ -20,6 +22,12 @@ export interface AdminUser {
   email: string
   active: boolean
   is_super_admin: boolean
+  /**
+   * Master: revelar/exportar/gerar senhas de alunos.
+   * Também concedido via env `VITE_MASTER_ADMIN_EMAILS` (espelho do servidor).
+   * Nunca hardcode e-mails de pessoas no código.
+   */
+  is_master: boolean
   /** Tópicos do menu que o login pode ver. Ignorado se `is_super_admin`. */
   nav_permissions: NavPermission[]
   /** Instituições permitidas. Ignorado se `is_super_admin` ou `all_institutions`. */

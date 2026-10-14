@@ -13,6 +13,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const EXPECTED_API_FILES = [
   'institution.ts',
   'student.ts',
+  'student_passwords.ts',
+  'ai_prompts.ts',
   'trails.ts',
   'trail_stages.ts',
   'trail_stage_questions.ts',
@@ -52,6 +54,14 @@ const CRITICAL_REWRITES = [
   {
     source: '/student/identify',
     destination: '/api/student?action=identify',
+  },
+  {
+    source: '/student_passwords',
+    destination: '/api/student_passwords',
+  },
+  {
+    source: '/ai_prompts',
+    destination: '/api/ai_prompts',
   },
   {
     source: '/student_trails/home',
@@ -94,9 +104,9 @@ test('vercel.json preserva rewrites críticos de API', () => {
   }
 })
 
-test('vercel.json continua apontando o build para frontend/crias-gestao/dist', () => {
+test('vercel.json aponta o build para dist na raiz (espelho da gestão)', () => {
   const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
-  assert.equal(vercel.outputDirectory, 'frontend/crias-gestao/dist')
+  assert.equal(vercel.outputDirectory, 'dist')
   assert.equal(vercel.buildCommand, 'npm run build')
 })
 

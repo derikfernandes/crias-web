@@ -391,6 +391,33 @@
   gap: 0.5rem;
 }
 
+.list-pagination__pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list-pagination__page {
+  min-width: 2.25rem;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.list-pagination__page.is-active {
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.list-pagination__ellipsis {
+  padding: 0 0.2rem;
+  color: var(--muted);
+  user-select: none;
+}
+
 .admin__actions {
   margin: 1rem 0 0;
 }

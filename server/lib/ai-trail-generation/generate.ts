@@ -1,3 +1,6 @@
+import type { Firestore } from 'firebase-admin/firestore'
+
+import { getPromptBody } from '../ai-prompts/index.js'
 import {
   generateContentWithGemini,
   type GeminiGenerateResult,
@@ -17,6 +20,8 @@ export type GenerateAiTrailInput = {
   files: UploadedDoc[]
   /** Prompt editável; se vazio, usa o padrão. */
   prompt?: string
+  /** Firestore para carregar prompts (fonte de verdade). */
+  db?: Firestore | null
 }
 
 export type GenerateAiTrailResult = {
@@ -95,7 +100,19 @@ export async function generateAiTrail(
 ): Promise<GenerateAiTrailResult> {
   const extracted = await extractDocuments(input.files)
   const sources = formatSourcesForPrompt(extracted.docs)
-  const prompt = (input.prompt?.trim() || getDefaultAiTrailPrompt()).trim()
+
+  let defaultPrompt = getDefaultAiTrailPrompt()
+  let systemWrapper = SYSTEM_WRAPPER
+  if (input.db) {
+    const [criar, sys] = await Promise.all([
+      getPromptBody(input.db, 'criar_trilha_ia', env),
+      getPromptBody(input.db, 'criar_trilha_ia_system', env),
+    ])
+    if (criar.body.trim()) defaultPrompt = criar.body
+    if (sys.body.trim()) systemWrapper = sys.body
+  }
+
+  const prompt = (input.prompt?.trim() || defaultPrompt).trim()
   const userText = buildUserMessage(prompt, sources)
 
   let model = ''
@@ -103,7 +120,7 @@ export async function generateAiTrail(
   let repaired = false
 
   try {
-    const first = await callModel(SYSTEM_WRAPPER, userText, env, generateImpl)
+    const first = await callModel(systemWrapper, userText, env, generateImpl)
     model = first.model
     rawText = first.text
   } catch (err) {
@@ -155,7 +172,7 @@ export async function generateAiTrail(
       '\n\nJSON anterior:\n' +
       JSON.stringify(trail)
     try {
-      const second = await callModel(SYSTEM_WRAPPER, repairUser, env, generateImpl)
+      const second = await callModel(systemWrapper, repairUser, env, generateImpl)
       model = second.model
       rawText = second.text
       trail = parseTrailJson(rawText)

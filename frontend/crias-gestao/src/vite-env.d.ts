@@ -18,6 +18,11 @@ interface ImportMetaEnv {
   readonly VITE_PUBLIC_APP_ORIGIN?: string
   /** Versão do app (branch/tag do GitHub, injetada no build). */
   readonly VITE_APP_VERSION: string
+  /**
+   * CSV de e-mails Master (espelho de MASTER_ADMIN_EMAILS no servidor).
+   * Controla o menu “Senhas (Master)” na gestão.
+   */
+  readonly VITE_MASTER_ADMIN_EMAILS?: string
 }
 
 interface ImportMeta {

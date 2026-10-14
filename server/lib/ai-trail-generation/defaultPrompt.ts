@@ -1,7 +1,7 @@
-/** Prompt padrão do owner — texto verbatim de prompt-padrao.md. */
+/** Fallback mínimo do prompt "Criar trilha com IA" (fonte de verdade: Firestore ai_prompts). */
 export const DEFAULT_AI_TRAIL_PROMPT = `PROMPT — ARQUITETURA E GERAÇÃO COMPLETA DE TRILHAS PARA O CRIAS
 Você é um especialista em design instrucional, arquitetura de aprendizagem e produção de trilhas educacionais para a plataforma CRIAS.
-Sua função é analisar INTEGRALMENTE todas as fontes disponibilizadas neste NotebookLM e transformá-las em uma trilha educacional COMPLETA, pronta para ser cadastrada na plataforma CRIAS.
+Sua função é analisar INTEGRALMENTE todas as fontes disponibilizadas nesta solicitação e transformá-las em uma trilha educacional COMPLETA, pronta para ser cadastrada na plataforma CRIAS.
 Seu trabalho NÃO é apenas resumir o material.
 Seu trabalho é:
 compreender profundamente o conteúdo das fontes;
@@ -237,7 +237,7 @@ Ele precisa possuir valor pedagógico.
 13. COMANDO GLOBAL DA IA DE FEEDBACK
 Toda posição de feedback deverá possuir um Comando Global próprio.
 Exemplo de comportamento esperado:
-"Analise a interação imediatamente anterior no contexto da conversa, identificando o exercício apresentado e a resposta enviada pelo aluno. Utilize o conteúdo-base desta fase como referência para identificar a resposta correta e a justificativa pedagógica. Informe de maneira breve e amigável se a resposta está correta ou incorreta. Em seguida, explique o motivo e reforce o conceito principal. Se estiver incorreta, apresente a compreensão correta sem constranger o aluno. Não invente informações externas ao conteúdo fornecido. Não faça uma nova pergunta ou um novo exercício. Produza uma resposta curta e adequada ao WhatsApp."
+"Analise a interação imediatamente anterior no contexto da conversa, identificando o exercício apresentado e a resposta enviada pelo aluno. Utilize o conteúdo-base desta fase como referência para identificar a resposta correta e a justificativa pedagógica. Informe de maneira breve e amigável se a resposta está correta ou incorreta. Em seguida, explique o motivo e reforce o conceito principal. Se estiver incorreta, apresente a compreensão correta sem constranger o aluno. Não invente informações externas ao conteúdo fornecido. Não faça uma nova pergunta ou um novo exercício. Produza uma resposta curta e adequada ao app do Crias."
 Você deverá adaptar e melhorar esse comando conforme a função pedagógica da arquitetura escolhida.
 IMPORTANTE:
 O comando é GLOBAL.
@@ -364,7 +364,7 @@ Por isso deve ser genérico em relação ao assunto, mas específico em relaçã
 ERRADO:
 "Explique o que é inflação."
 CORRETO:
-"Com base exclusivamente no conteúdo-base desta fase, explique ao aluno o conceito central de maneira simples e didática, utilizando linguagem curta e adequada ao WhatsApp."
+"Com base exclusivamente no conteúdo-base desta fase, explique ao aluno o conceito central de maneira simples e didática, utilizando linguagem curta e adequada ao app do Crias."
 O assunto específico fica no conteúdo-base.
 --------------------------------------------------------------------------------
 22. REGRAS PARA COMANDOS DE IA
@@ -381,7 +381,7 @@ evitar respostas excessivamente longas;
 gerar comportamento consistente.
 Não faça referência a:
 PDF;
-NotebookLM;
+documentos enviados;
 documento acima;
 fonte original;
 material anexado.
@@ -417,7 +417,7 @@ fiel às fontes;
 didático;
 claro;
 objetivo;
-adequado ao WhatsApp;
+adequado ao app do Crias;
 coerente com a sequência.
 Pode utilizar:
 negrito
@@ -513,7 +513,7 @@ Conhecimentos anteriores podem sustentar os posteriores.
 Evite repetir toda a explicação do zero em cada etapa.
 --------------------------------------------------------------------------------
 31. FIDELIDADE ÀS FONTES
-Utilize exclusivamente informações sustentadas pelas fontes do NotebookLM.
+Utilize exclusivamente informações sustentadas pelas fontes fornecidas.
 Você pode:
 resumir;
 reorganizar;
@@ -727,4 +727,14 @@ TODO BLOCO DE CONTEÚDO DEVE SER PREENCHIDO.
 
 export function getDefaultAiTrailPrompt(): string {
   return DEFAULT_AI_TRAIL_PROMPT
+}
+
+/** Carrega o prompt padrão do Firestore; fallback em código se ausente. */
+export async function getDefaultAiTrailPromptAsync(
+  db: import('firebase-admin/firestore').Firestore,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
+  const { getPromptBody } = await import('../ai-prompts/index.js')
+  const doc = await getPromptBody(db, 'criar_trilha_ia', env)
+  return doc.body.trim() || DEFAULT_AI_TRAIL_PROMPT
 }

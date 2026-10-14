@@ -33,6 +33,7 @@ type FormState = {
   email: string
   active: boolean
   is_super_admin: boolean
+  is_master: boolean
   all_institutions: boolean
   nav_permissions: NavPermission[]
   institution_ids: string[]
@@ -43,6 +44,7 @@ function emptyForm(): FormState {
     email: '',
     active: true,
     is_super_admin: false,
+    is_master: false,
     all_institutions: false,
     nav_permissions: defaultNavPermissions(),
     institution_ids: [],
@@ -54,6 +56,7 @@ function formFromUser(user: AdminUser): FormState {
     email: user.email,
     active: user.active,
     is_super_admin: user.is_super_admin,
+    is_master: user.is_master,
     all_institutions: user.all_institutions,
     nav_permissions: [...user.nav_permissions],
     institution_ids: [...user.institution_ids],
@@ -191,10 +194,15 @@ export function AdminPage() {
         email,
         active: form.active,
         is_super_admin: form.is_super_admin,
+        is_master: form.is_master,
         all_institutions: form.is_super_admin ? true : form.all_institutions,
         nav_permissions: form.is_super_admin
-          ? NAV_ITEMS.map((item) => item.key)
-          : form.nav_permissions,
+          ? NAV_ITEMS.map((item) => item.key).filter(
+              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
+            )
+          : form.nav_permissions.filter(
+              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
+            ),
         institution_ids: form.is_super_admin || form.all_institutions ? [] : form.institution_ids,
         updated_at: serverTimestamp(),
       }
@@ -276,7 +284,11 @@ export function AdminPage() {
       formError={formError}
       saving={saving}
       loadingUsers={loadingUsers}
-      navItems={NAV_ITEMS.map((item) => ({ key: item.key, label: item.label }))}
+      navItems={NAV_ITEMS.filter(
+        (item) => item.key !== 'student_passwords' && item.key !== 'ai_prompts',
+      ).map(
+        (item) => ({ key: item.key, label: item.label }),
+      )}
       institutions={sortedInstitutions.map((inst) => ({
         id: inst.id,
         label: inst.name || inst.id,
@@ -293,6 +305,9 @@ export function AdminPage() {
           is_super_admin: checked,
           all_institutions: checked ? true : prev.all_institutions,
         }))
+      }
+      onMasterChange={(checked) =>
+        setForm((prev) => ({ ...prev, is_master: checked }))
       }
       onAllInstitutionsChange={(checked) =>
         setForm((prev) => ({

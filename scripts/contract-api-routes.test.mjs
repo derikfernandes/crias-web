@@ -14,6 +14,7 @@ const EXPECTED_API_FILES = [
   'institution.ts',
   'student.ts',
   'student_passwords.ts',
+  'ai_prompts.ts',
   'trails.ts',
   'trail_stages.ts',
   'trail_stage_questions.ts',
@@ -57,6 +58,10 @@ const CRITICAL_REWRITES = [
   {
     source: '/student_passwords',
     destination: '/api/student_passwords',
+  },
+  {
+    source: '/ai_prompts',
+    destination: '/api/ai_prompts',
   },
   {
     source: '/student_trails/home',

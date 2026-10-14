@@ -1,4 +1,8 @@
-export { buildTrailAiPrompt, formatContextFromLogs } from './buildTrailAiPrompt'
+export {
+  buildTrailAiPrompt,
+  formatContextFromLogs,
+  loadTrailAiPromptParts,
+} from './buildTrailAiPrompt'
 export type { BuiltTrailAiPrompt, TrailAiPromptInput } from './buildTrailAiPrompt'
 export { ensureTrailAiContent } from './ensureTrailAiContent'
 export type { EnsureTrailAiResult } from './ensureTrailAiContent'
@@ -11,6 +15,7 @@ export {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_VERTEX_LOCATION,
   DEFAULT_VERTEX_MODEL,
+  PINNED_GEMINI_MODEL,
   generateContentWithGemini,
   GOOGLE_OAUTH_SCOPES,
   isGeminiFlashFamilyModel,

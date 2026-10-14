@@ -74,7 +74,7 @@ export const GENERATED_TRAIL_JSON_SCHEMA = {
 } as const
 
 export const SYSTEM_WRAPPER = `Você gera trilhas educacionais para a plataforma CRIAS.
-As "fontes" / "fontes do NotebookLM" mencionadas no prompt do usuário são EXCLUSIVAMENTE os documentos enviados nesta requisição (texto extraído abaixo). Ignore qualquer referência a NotebookLM como produto externo — use só o material anexado.
+As "fontes" / "fontes fornecidas" mencionadas no prompt do usuário são EXCLUSIVAMENTE os documentos enviados nesta requisição (texto extraído abaixo). Ignore qualquer referência a documentos enviados; como produto externo — use só o material anexado.
 Responda APENAS com JSON válido conforme o schema. Sem markdown, sem comentários, sem texto fora do JSON.
 correctOption em exercícios deve ser "1", "2" ou "3" (A=1, B=2, C=3).
 type das fases: apenas "ai", "fixed" ou "exercise".

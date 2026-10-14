@@ -1,6 +1,6 @@
 /**
  * POST /api/ai_trail_generate — gera rascunho de trilha via LLM (não grava no Firestore).
- * GET  /api/ai_trail_generate — devolve o prompt padrão.
+ * GET  /api/ai_trail_generate — devolve o prompt padrão (Firestore → fallback).
  *
  * Body JSON:
  * {
@@ -8,11 +8,15 @@
  *   files: [{ filename, mimeType, base64 }]
  * }
  */
+import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
+
 import {
   generateAiTrail,
   getDefaultAiTrailPrompt,
   type UploadedDoc,
 } from '../server/lib/ai-trail-generation/index.js'
+import { getDefaultAiTrailPromptAsync } from '../server/lib/ai-trail-generation/defaultPrompt.js'
 
 export const config = {
   maxDuration: 300,
@@ -38,14 +42,42 @@ function respond(status: number, body: Json): Response {
   })
 }
 
+let cachedDb: ReturnType<typeof getFirestore> | null = null
+
+function tryGetDb(): ReturnType<typeof getFirestore> | null {
+  try {
+    if (cachedDb) return cachedDb
+    const saJson = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON
+    if (!saJson) return null
+    const serviceAccount = JSON.parse(saJson) as ServiceAccount
+    if (!getApps().length) {
+      initializeApp({ credential: cert(serviceAccount) })
+    }
+    cachedDb = getFirestore()
+    return cachedDb
+  } catch {
+    return null
+  }
+}
+
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders() })
   }
 
+  const db = tryGetDb()
+
   if (request.method === 'GET') {
+    let defaultPrompt = getDefaultAiTrailPrompt()
+    if (db) {
+      try {
+        defaultPrompt = await getDefaultAiTrailPromptAsync(db)
+      } catch {
+        // fallback já atribuído
+      }
+    }
     return respond(200, {
-      defaultPrompt: getDefaultAiTrailPrompt(),
+      defaultPrompt,
       limits: {
         maxFiles: 8,
         maxFileBytes: 4 * 1024 * 1024,
@@ -98,7 +130,7 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await generateAiTrail({ files, prompt })
+    const result = await generateAiTrail({ files, prompt, db })
     if (!result.ok) {
       return respond(422, {
         ok: false,

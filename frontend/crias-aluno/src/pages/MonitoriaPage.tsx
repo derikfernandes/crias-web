@@ -122,7 +122,7 @@ export default function MonitoriaPage() {
     void loadHistory()
   }, [loadHistory])
 
-  /** Pergunta vinda da barra "Pergunte ao seu monitor…" do Início. */
+  /** Pergunta vinda da barra "Pergunte ao seu parceiro de estudo…" do Início. */
   useEffect(() => {
     try {
       const key = `crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`
@@ -226,7 +226,7 @@ export default function MonitoriaPage() {
           ) : (
             <>
               {lines.length === 0 ? (
-                <BotMessage label="Monitor">
+                <BotMessage label="Parceiro de estudo">
                   <p>{MONITOR_INTRO}</p>
                 </BotMessage>
               ) : null}
@@ -234,7 +234,7 @@ export default function MonitoriaPage() {
                 line.role === 'student' ? (
                   <UserBubble key={line.id}>{line.text}</UserBubble>
                 ) : (
-                  <BotMessage key={line.id} label="Monitor">
+                  <BotMessage key={line.id} label="Parceiro de estudo">
                     <p>
                       {renderInlineSegments(
                         parseInlineMarkdown(line.text),
@@ -286,8 +286,8 @@ export default function MonitoriaPage() {
                     className="v6-composer__input"
                     rows={1}
                     value={draft}
-                    placeholder="Pergunte ao seu monitor…"
-                    aria-label="Pergunte ao seu monitor"
+                    placeholder="Pergunte ao seu parceiro de estudo…"
+                    aria-label="Pergunte ao seu parceiro de estudo"
                     autoComplete="off"
                     onChange={(e) => {
                       setDraft(e.target.value)
@@ -298,7 +298,7 @@ export default function MonitoriaPage() {
                   <button
                     type="submit"
                     className="v6-sendbtn"
-                    aria-label="Enviar pergunta ao monitor"
+                    aria-label="Enviar pergunta ao parceiro de estudo"
                   >
                     <ArrowUpIcon />
                   </button>

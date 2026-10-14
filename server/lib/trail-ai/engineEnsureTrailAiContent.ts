@@ -17,6 +17,7 @@ import { defaultCollectionNames } from '../trail-engine/types'
 import {
   buildTrailAiPrompt,
   formatContextFromLogs,
+  loadTrailAiPromptParts,
 } from './buildTrailAiPrompt'
 import { formatAiAnswer } from './formatAiAnswer'
 import {
@@ -156,6 +157,7 @@ export async function ensureTrailAiContentForEngine(
   const context = formatContextFromLogs(recent, contextLimit(env))
   const school_grade =
     typeof studentData.school_grade === 'string' ? studentData.school_grade : ''
+  const promptParts = await loadTrailAiPromptParts(db, env)
   const built = buildTrailAiPrompt({
     name,
     school_grade,
@@ -164,6 +166,7 @@ export async function ensureTrailAiContentForEngine(
     content,
     context,
     trail_title: title,
+    ...promptParts,
   })
 
   let rawText: string

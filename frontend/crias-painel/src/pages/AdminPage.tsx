@@ -198,9 +198,11 @@ export function AdminPage() {
         all_institutions: form.is_super_admin ? true : form.all_institutions,
         nav_permissions: form.is_super_admin
           ? NAV_ITEMS.map((item) => item.key).filter(
-              (key) => key !== 'student_passwords',
+              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
             )
-          : form.nav_permissions.filter((key) => key !== 'student_passwords'),
+          : form.nav_permissions.filter(
+              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
+            ),
         institution_ids: form.is_super_admin || form.all_institutions ? [] : form.institution_ids,
         updated_at: serverTimestamp(),
       }
@@ -282,7 +284,9 @@ export function AdminPage() {
       formError={formError}
       saving={saving}
       loadingUsers={loadingUsers}
-      navItems={NAV_ITEMS.filter((item) => item.key !== 'student_passwords').map(
+      navItems={NAV_ITEMS.filter(
+        (item) => item.key !== 'student_passwords' && item.key !== 'ai_prompts',
+      ).map(
         (item) => ({ key: item.key, label: item.label }),
       )}
       institutions={sortedInstitutions.map((inst) => ({

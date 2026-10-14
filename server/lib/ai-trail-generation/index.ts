@@ -1,4 +1,8 @@
-export { getDefaultAiTrailPrompt, DEFAULT_AI_TRAIL_PROMPT } from './defaultPrompt.js'
+export {
+  getDefaultAiTrailPrompt,
+  getDefaultAiTrailPromptAsync,
+  DEFAULT_AI_TRAIL_PROMPT,
+} from './defaultPrompt.js'
 export {
   extractDocuments,
   formatSourcesForPrompt,

@@ -19,19 +19,21 @@ function profile(partial: Partial<AdminUser>): AdminUser {
 }
 
 describe('Master access', () => {
-  it('is_master no perfil libera senhas', () => {
+  it('is_master no perfil libera senhas e prompts IA', () => {
     const p = profile({ is_master: true, email: 'master@exemplo.com' })
     expect(isMasterAccess(p, 'master@exemplo.com')).toBe(true)
     expect(canAccessNav(p, 'student_passwords', { userEmail: p.email })).toBe(
       true,
     )
+    expect(canAccessNav(p, 'ai_prompts', { userEmail: p.email })).toBe(true)
   })
 
-  it('super admin sem is_master não vê senhas', () => {
+  it('super admin sem is_master não vê senhas nem prompts IA', () => {
     const p = profile({ is_super_admin: true, is_master: false })
     expect(canAccessNav(p, 'student_passwords', { userEmail: p.email })).toBe(
       false,
     )
+    expect(canAccessNav(p, 'ai_prompts', { userEmail: p.email })).toBe(false)
   })
 
   it('perfil inativo não é Master', () => {

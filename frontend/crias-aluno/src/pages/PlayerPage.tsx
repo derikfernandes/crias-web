@@ -713,15 +713,15 @@ function typingCopy(
     // C2-R4 N03: estágio longo — não só dots eternas.
     if (opts?.mariaLongWait) {
       return {
-        label: 'Monitor',
-        aria: 'O monitor ainda está pensando',
-        reduced: 'O monitor ainda está pensando…',
+        label: 'Parceiro de estudo',
+        aria: 'O parceiro de estudo ainda está pensando',
+        reduced: 'O parceiro de estudo ainda está pensando…',
       }
     }
     return {
-      label: 'Monitor',
-      aria: 'O monitor está digitando',
-      reduced: 'O monitor está digitando…',
+      label: 'Parceiro de estudo',
+      aria: 'O parceiro de estudo está digitando',
+      reduced: 'O parceiro de estudo está digitando…',
     }
   }
   if (reason === 'exercise') {
@@ -4265,7 +4265,7 @@ export default function PlayerPage() {
         ? statusToSystemText(content)
         : content.status !== 'ok'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte ao seu monitor…'
+          : 'Pergunte ao seu parceiro de estudo…'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -4942,7 +4942,7 @@ export default function PlayerPage() {
                         </UserBubble>
                       ) : (
                         <BotMessage
-                          label={msg.kind === 'sidechat' || msg.monitor ? 'Monitor' : trailHeading}
+                          label={msg.kind === 'sidechat' || msg.monitor ? 'Parceiro de estudo' : trailHeading}
                           feedback={fb}
                           labelId={labelId}
                         >
@@ -5107,7 +5107,7 @@ export default function PlayerPage() {
                         value={draft}
                         disabled={trailDone ? false : composerBlocked}
                         placeholder={placeholder}
-                        aria-label="Pergunte ao seu monitor"
+                        aria-label="Pergunte ao seu parceiro de estudo"
                         enterKeyHint="send"
                         inputMode="text"
                         autoCorrect="off"
@@ -5158,7 +5158,7 @@ export default function PlayerPage() {
                           className="v6-sendbtn"
                           disabled={trailDone ? false : sendDisabledHard}
                           aria-disabled={trailDone ? undefined : sendAriaDisabled || undefined}
-                          aria-label="Enviar pergunta ao monitor"
+                          aria-label="Enviar pergunta ao parceiro de estudo"
                         >
                           <ArrowUpIcon />
                         </button>

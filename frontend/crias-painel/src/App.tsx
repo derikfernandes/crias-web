@@ -69,6 +69,11 @@ const StudentPasswordsPage = lazy(() =>
     default: m.StudentPasswordsPage,
   })),
 )
+const AiPromptsPage = lazy(() =>
+  import('./pages/AiPromptsPage').then((m) => ({
+    default: m.AiPromptsPage,
+  })),
+)
 const TrailsListPage = lazy(() =>
   import('./pages/TrailsListPage').then((m) => ({
     default: m.TrailsListPage,
@@ -186,6 +191,14 @@ function AppRoutes() {
             element={
               <ProtectedPage>
                 <StudentPasswordsPage />
+              </ProtectedPage>
+            }
+          />
+          <Route
+            path="/prompts"
+            element={
+              <ProtectedPage>
+                <AiPromptsPage />
               </ProtectedPage>
             }
           />

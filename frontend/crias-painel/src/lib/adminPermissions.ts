@@ -9,6 +9,7 @@ export const NAV_ITEMS: {
   { key: 'institution_new', label: 'Criar instituição', path: '/instituicoes/novo' },
   { key: 'student_new', label: 'Alunos', path: '/alunos' },
   { key: 'student_passwords', label: 'Senhas (Master)', path: '/alunos/senhas' },
+  { key: 'ai_prompts', label: 'Prompts IA (Master)', path: '/prompts' },
   { key: 'trail_new', label: 'Trilhas', path: '/trilhas' },
   { key: 'gerenciamento', label: 'Visão por instituição', path: '/gerenciamento' },
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard' },
@@ -68,6 +69,11 @@ export const SIDEBAR_NAV: SidebarNavEntry[] = [
     children: [
       { key: 'trail_new', label: 'Trilhas', path: '/trilhas' },
       { key: 'gabarito', label: 'Gabaritos', path: '/gabarito' },
+      {
+        key: 'ai_prompts',
+        label: 'Prompts IA (Master)',
+        path: '/prompts',
+      },
     ],
   },
   {
@@ -86,6 +92,7 @@ const ROUTE_NAV_MAP: { prefix: string; permission: NavPermission }[] = [
   { prefix: '/instituicoes/novo', permission: 'institution_new' },
   { prefix: '/instituicoes/', permission: 'home' },
   { prefix: '/alunos/senhas', permission: 'student_passwords' },
+  { prefix: '/prompts', permission: 'ai_prompts' },
   { prefix: '/alunos/novo', permission: 'student_new' },
   { prefix: '/alunos', permission: 'student_new' },
   { prefix: '/trilhas/novo', permission: 'trail_new' },
@@ -144,7 +151,7 @@ export function canAccessNav(
   permission: NavPermission,
   opts?: { userEmail?: string | null },
 ): boolean {
-  if (permission === 'student_passwords') {
+  if (permission === 'student_passwords' || permission === 'ai_prompts') {
     return isMasterAccess(profile, opts?.userEmail ?? profile?.email ?? null)
   }
   if (profile === null) return true

@@ -35,10 +35,16 @@ export const GOOGLE_OAUTH_SCOPES = {
 /** Default Vertex quando VERTEX_LOCATION omitido — caminho global (Gemini 3.x). */
 export const DEFAULT_VERTEX_LOCATION = 'global'
 
-/** Default Vertex quando VERTEX_MODEL omitido. */
-export const DEFAULT_VERTEX_MODEL = 'gemini-3.7-flash'
+/**
+ * Modelo pinado em produção (crias-web): Vertex global + este ID.
+ * Prod tem VERTEX_PROJECT_ID e não define VERTEX_MODEL/GEMINI_MODEL → cai aqui.
+ */
+export const PINNED_GEMINI_MODEL = 'gemini-3.7-flash'
 
-/** Default Generative Language / AI Studio. */
+/** Default Vertex quando VERTEX_MODEL omitido (= pin de produção). */
+export const DEFAULT_VERTEX_MODEL = PINNED_GEMINI_MODEL
+
+/** Default Generative Language / AI Studio (sem VERTEX_PROJECT_ID). */
 export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash'
 
 function readEnv(name: string, env: NodeJS.ProcessEnv = process.env): string {

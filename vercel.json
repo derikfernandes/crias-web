@@ -18,6 +18,9 @@
     },
     "api/student_passwords.ts": {
       "maxDuration": 60
+    },
+    "api/ai_prompts.ts": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -104,6 +107,14 @@
     {
       "source": "/student_passwords",
       "destination": "/api/student_passwords"
+    },
+    {
+      "source": "/ai_prompts/",
+      "destination": "/api/ai_prompts"
+    },
+    {
+      "source": "/ai_prompts",
+      "destination": "/api/ai_prompts"
     },
     {
       "source": "/trails/",

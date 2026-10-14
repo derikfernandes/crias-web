@@ -12,6 +12,7 @@ export const NAV_PERMISSIONS = [
   'doc',
   'admin',
   'student_passwords',
+  'ai_prompts',
 ] as const
 
 export type NavPermission = (typeof NAV_PERMISSIONS)[number]

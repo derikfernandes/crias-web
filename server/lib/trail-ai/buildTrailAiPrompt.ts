@@ -1,3 +1,6 @@
+import type { Firestore } from 'firebase-admin/firestore'
+
+import { getPromptBody } from '../ai-prompts/index.js'
 import { TRAIL_AI_SPACING_RULES } from './formatAiAnswer'
 import { GERADOR_TRILHA_SYSTEM_PROMPT } from './geradorSystemPrompt'
 
@@ -10,6 +13,9 @@ export type TrailAiPromptInput = {
   /** Conversas recentes tutor/trilha (conversation_logs). */
   context: string
   trail_title?: string | null
+  /** Overrides (Firestore). Se omitidos, usa fallback em código. */
+  geradorSystemPrompt?: string
+  spacingRules?: string
 }
 
 export type BuiltTrailAiPrompt = {
@@ -46,9 +52,13 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
   const content = String(input.content ?? '').trim()
   const context = String(input.context ?? '').trim()
   const title = String(input.trail_title ?? '').trim()
+  const gerador =
+    (input.geradorSystemPrompt?.trim() || GERADOR_TRILHA_SYSTEM_PROMPT).trim()
+  const spacing =
+    (input.spacingRules?.trim() || TRAIL_AI_SPACING_RULES).trim()
 
   const systemInstruction = [
-    applyVars(GERADOR_TRILHA_SYSTEM_PROMPT, {
+    applyVars(gerador, {
       NAME: name,
       SCHOOL_GRADE: schoolGrade,
       STUDENT_LEVEL: level,
@@ -56,7 +66,7 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
       PROMPT: prompt || '(vazio)',
       CONTENT: content || '(vazio)',
     }),
-    TRAIL_AI_SPACING_RULES,
+    spacing,
     title ? `Título da etapa: ${title}` : '',
   ]
     .filter(Boolean)
@@ -74,6 +84,21 @@ export function buildTrailAiPrompt(input: TrailAiPromptInput): BuiltTrailAiPromp
   ].join('\n\n')
 
   return { systemInstruction, userText }
+}
+
+/** Carrega gerador + spacing do Firestore (fallback em código se ausente). */
+export async function loadTrailAiPromptParts(
+  db: Firestore,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ geradorSystemPrompt: string; spacingRules: string }> {
+  const [gerador, spacing] = await Promise.all([
+    getPromptBody(db, 'gerador_trilha', env),
+    getPromptBody(db, 'spacing_rules', env),
+  ])
+  return {
+    geradorSystemPrompt: gerador.body,
+    spacingRules: spacing.body,
+  }
 }
 
 export type ContextLogLine = {

@@ -1,5 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
+import { getPromptBody } from '../ai-prompts/index.js'
 import { isAgentTrailId } from '../agentUsage'
 import { createConversationLog } from '../conversationLogService'
 import { formatAiAnswer } from '../trail-ai/formatAiAnswer'
@@ -144,7 +145,11 @@ export async function askMariaTutor(
 
   const context = formatContextFromLogs(recent, contextLimit(env))
 
-  const systemInstruction = applyVars(MARIA_TUTORA_SYSTEM_PROMPT, {
+  const promptDoc = await getPromptBody(db, 'parceiro_estudo', env)
+  const systemTemplate =
+    promptDoc.body.trim() || MARIA_TUTORA_SYSTEM_PROMPT.trim()
+
+  const systemInstruction = applyVars(systemTemplate, {
     NAME: name,
     SCHOOL_GRADE: school_grade,
     STUDENT_LEVEL: student_level,
@@ -183,7 +188,7 @@ export async function askMariaTutor(
   await studentLog
   const reply = formatAiAnswer(gen.text)
   if (!reply) {
-    throw new Error('Resposta da Maria vazia.')
+    throw new Error('Resposta do parceiro de estudo vazia.')
   }
 
   await createConversationLog(db, logsCollection, {

@@ -607,7 +607,7 @@ export default function ChatLayout() {
   const topTitle = activeTrailId
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria
-      ? 'Monitoria'
+      ? 'Parceiro de estudo'
       : ''
   const totalStepsTop =
     activeTrailId && stageTotals[activeTrailId] > 0
@@ -627,7 +627,7 @@ export default function ChatLayout() {
       ? Math.max(totalStepsTop, playerStageNumber ?? 1)
       : (playerStageNumber ?? activeRow?.current_stage_number ?? null)
   const topStage = onMonitoria
-    ? 'Conversar com seu monitor'
+    ? 'Conversar com seu parceiro de estudo'
     : activeTrailId
       ? formatTrailChromeProgress({
           activity: shownActivityTop,
@@ -722,8 +722,10 @@ export default function ChatLayout() {
               onClick={() => closeDrawerForNav()}
             >
               <span className="v6-navitem__copy">
-                <span className="v6-navitem__name">Monitoria</span>
-                <span className="v6-navitem__meta">Conversar com seu monitor</span>
+                <span className="v6-navitem__name">Parceiro de estudo</span>
+                <span className="v6-navitem__meta">
+                  Conversar com seu parceiro de estudo
+                </span>
               </span>
             </Link>
 

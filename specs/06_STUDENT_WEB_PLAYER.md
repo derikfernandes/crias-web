@@ -130,7 +130,7 @@ Exibir `content` (e `stage_title` se houver). Botão **Continuar** → `POST adv
 
 ### `ai`
 
-Gerar conteúdo com o prompt gerador (`specs/prompts/prompt_gerador_trilha_maria_unica_tutora.md`) + variáveis:
+Gerar conteúdo com o prompt gerador (Firestore `ai_prompts/gerador_trilha`, fallback em `server/lib/trail-ai/geradorSystemPrompt.ts`) + variáveis:
 
 | Variável | Fonte |
 |---|---|
@@ -189,7 +189,7 @@ Body:
 }
 ```
 
-Usa o prompt tutora (`specs/prompts/prompt_maria_tutora_crias.md`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
+Usa o prompt do parceiro de estudo (Firestore `ai_prompts/parceiro_estudo`, fallback em `server/lib/maria/mariaTutoraPrompt.ts`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
 
 Após a resposta da Maria, a UI entra em modo sidechat: botão **Voltar para trilha** (restaura Continuar da etapa) e Continuar fica oculto/desenfocado até o aluno voltar.
 

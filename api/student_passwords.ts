@@ -218,12 +218,32 @@ async function handleRequest(request: Request): Promise<Response> {
             body.institution_id.trim()) ||
           url.searchParams.get('institution_id')?.trim() ||
           null
+        if (!institutionId) {
+          return respond(400, {
+            error:
+              'institution_id é obrigatório para gerar senhas em lote da escola.',
+            code: 'invalid_payload',
+          })
+        }
         const dryRun = body.dry_run === true || body.dryRun === true
+        // Master UI nunca sobrescreve; force só via script/admin explícito.
         const force = body.force === true
+        const limitRaw =
+          typeof body.limit === 'number'
+            ? body.limit
+            : typeof body.limit === 'string'
+              ? Number(body.limit)
+              : undefined
+        const cursor =
+          (typeof body.cursor === 'string' && body.cursor.trim()) ||
+          url.searchParams.get('cursor')?.trim() ||
+          null
         const result = await bulkGenerateMissingPasswords(db, {
           institutionId,
           dryRun,
           force,
+          limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
+          cursor,
           actor: master.principal,
         })
         if (
@@ -242,6 +262,7 @@ async function handleRequest(request: Request): Promise<Response> {
             'Content-Disposition': 'attachment; filename="senhas-geradas.csv"',
             'X-Dry-Run': dryRun ? '1' : '0',
             'X-Updated': String(result.updated),
+            'X-Done': result.done ? '1' : '0',
           })
         }
         return respond(200, result)

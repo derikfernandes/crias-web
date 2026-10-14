@@ -173,14 +173,27 @@ export type BulkGenerateOptions = {
   force?: boolean
   dryRun?: boolean
   actor?: { email: string; uid: string } | null
+  /**
+   * Máximo de alunos a gerar/gravar nesta chamada (evita timeout Vercel).
+   * Ignorado em dryRun. Default 100; teto 200.
+   */
+  limit?: number
+  /** Retoma após este student id (exclusivo), ordem estável por id. */
+  cursor?: string | null
 }
 
 export type BulkGenerateResult = {
   dry_run: boolean
   scanned: number
+  /** Total de candidatos na escola (sem senha, ou todos se force). */
   would_update: number
+  /** Quantos foram gravados nesta chamada. */
   updated: number
   skipped_existing: number
+  /** Candidatos ainda pendentes após esta chamada (0 em dryRun completo). */
+  remaining: number
+  next_cursor: string | null
+  done: boolean
   rows: Array<{
     id: string
     school: string
@@ -189,6 +202,75 @@ export type BulkGenerateResult = {
     password: string
     action: 'create' | 'overwrite' | 'skip'
   }>
+}
+
+/** Default e teto por request — ~100 scrypt + writes cabem em maxDuration 60s. */
+export const BULK_GENERATE_DEFAULT_LIMIT = 100
+export const BULK_GENERATE_MAX_LIMIT = 200
+
+export type BulkCandidateDoc = {
+  id: string
+  hasPasswordHash: boolean
+}
+
+/**
+ * Seleciona candidatos a gerar senha e fatia por cursor/limit.
+ * Pure — usada pelo serviço e pelos testes (sem Firestore).
+ */
+export function selectBulkGenerateSlice(
+  docs: BulkCandidateDoc[],
+  opts: { force?: boolean; cursor?: string | null; limit?: number },
+): {
+  skippedExisting: number
+  candidateIds: string[]
+  sliceIds: string[]
+  nextCursor: string | null
+  done: boolean
+  limit: number
+} {
+  const limit = Math.min(
+    BULK_GENERATE_MAX_LIMIT,
+    Math.max(
+      1,
+      Math.floor(
+        typeof opts.limit === 'number' && Number.isFinite(opts.limit)
+          ? opts.limit
+          : BULK_GENERATE_DEFAULT_LIMIT,
+      ),
+    ),
+  )
+  let skippedExisting = 0
+  const candidateIds: string[] = []
+  for (const doc of docs) {
+    if (doc.hasPasswordHash && !opts.force) {
+      skippedExisting += 1
+      continue
+    }
+    candidateIds.push(doc.id)
+  }
+  candidateIds.sort((a, b) => a.localeCompare(b, 'en'))
+
+  const cursor = typeof opts.cursor === 'string' ? opts.cursor.trim() : ''
+  let start = 0
+  if (cursor) {
+    const idx = candidateIds.findIndex((id) => id > cursor)
+    start = idx < 0 ? candidateIds.length : idx
+  }
+  const sliceIds = candidateIds.slice(start, start + limit)
+  const exhausted = start + sliceIds.length >= candidateIds.length
+  const nextCursor =
+    !exhausted && sliceIds.length > 0
+      ? sliceIds[sliceIds.length - 1]!
+      : null
+
+  return {
+    skippedExisting,
+    candidateIds,
+    sliceIds,
+    nextCursor,
+    done: exhausted,
+    limit,
+  }
 }
 
 export async function bulkGenerateMissingPasswords(
@@ -207,13 +289,70 @@ export async function bulkGenerateMissingPasswords(
   const snap = await query.get()
 
   const schoolNameById = new Map<string, string>()
+  const candidates: BulkCandidateDoc[] = []
+  const docById = new Map<
+    string,
+    {
+      ref: DocumentReference
+      data: Record<string, unknown>
+      hasHash: boolean
+    }
+  >()
+
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>
+    const hasHash =
+      typeof data.password_hash === 'string' && data.password_hash.length > 0
+    candidates.push({ id: doc.id, hasPasswordHash: hasHash })
+    docById.set(doc.id, { ref: doc.ref, data, hasHash })
+  }
+
+  const slice = selectBulkGenerateSlice(candidates, {
+    force: opts.force,
+    cursor: opts.cursor,
+    limit: opts.limit,
+  })
+
   const result: BulkGenerateResult = {
     dry_run: Boolean(opts.dryRun),
     scanned: snap.size,
-    would_update: 0,
+    would_update: slice.candidateIds.length,
     updated: 0,
-    skipped_existing: 0,
+    skipped_existing: slice.skippedExisting,
+    remaining: slice.candidateIds.length,
+    next_cursor: null,
+    done: true,
     rows: [],
+  }
+
+  // dryRun: só conta — não gera senha nem grava (confirmação rápida na UI).
+  if (opts.dryRun) {
+    result.remaining = slice.candidateIds.length
+    result.next_cursor = null
+    result.done = true
+    return result
+  }
+
+  const schoolFor = async (institutionId: string): Promise<string> => {
+    if (!institutionId) return ''
+    if (schoolNameById.has(institutionId)) {
+      return schoolNameById.get(institutionId)!
+    }
+    try {
+      const inst = await db
+        .collection(institutionsCollection)
+        .doc(institutionId)
+        .get()
+      const name =
+        typeof inst.data()?.name === 'string'
+          ? (inst.data()!.name as string)
+          : institutionId
+      schoolNameById.set(institutionId, name)
+      return name
+    } catch {
+      schoolNameById.set(institutionId, institutionId)
+      return institutionId
+    }
   }
 
   const batchWrites: Array<{
@@ -222,33 +361,14 @@ export async function bulkGenerateMissingPasswords(
     row: BulkGenerateResult['rows'][number]
   }> = []
 
-  for (const doc of snap.docs) {
-    const data = (doc.data() ?? {}) as Record<string, unknown>
-    const hasHash =
-      typeof data.password_hash === 'string' && data.password_hash.length > 0
-    if (hasHash && !opts.force) {
-      result.skipped_existing += 1
-      continue
-    }
-
+  for (const id of slice.sliceIds) {
+    const entry = docById.get(id)
+    if (!entry) continue
     const institutionId =
-      typeof data.institution_id === 'string' ? data.institution_id : ''
-    if (institutionId && !schoolNameById.has(institutionId)) {
-      try {
-        const inst = await db
-          .collection(institutionsCollection)
-          .doc(institutionId)
-          .get()
-        const name =
-          typeof inst.data()?.name === 'string'
-            ? (inst.data()!.name as string)
-            : institutionId
-        schoolNameById.set(institutionId, name)
-      } catch {
-        schoolNameById.set(institutionId, institutionId)
-      }
-    }
-
+      typeof entry.data.institution_id === 'string'
+        ? entry.data.institution_id
+        : ''
+    const school = await schoolFor(institutionId)
     const fields = buildStudentPasswordFields(null, env, {
       generateIfEmpty: true,
       requireEncryption: true,
@@ -256,24 +376,20 @@ export async function bulkGenerateMissingPasswords(
     if (!fields.password_encrypted) {
       throw new Error('STUDENT_PASSWORD_KEY ausente — impossível cifrar senha.')
     }
-    const action = hasHash ? 'overwrite' : 'create'
+    const action = entry.hasHash ? 'overwrite' : 'create'
     const row = {
-      id: doc.id,
-      school: schoolNameById.get(institutionId) ?? institutionId,
-      name: typeof data.name === 'string' ? data.name : '',
-      phone_number: phoneFromData(data),
+      id,
+      school,
+      name: typeof entry.data.name === 'string' ? entry.data.name : '',
+      phone_number: phoneFromData(entry.data),
       password: fields.password_plain,
       action,
     }
-    result.would_update += 1
     result.rows.push(row)
-
-    if (!opts.dryRun) {
-      batchWrites.push({ ref: doc.ref, fields, row })
-    }
+    batchWrites.push({ ref: entry.ref, fields, row })
   }
 
-  if (!opts.dryRun && batchWrites.length > 0) {
+  if (batchWrites.length > 0) {
     // Firestore batch limit 500
     const CHUNK = 400
     for (let i = 0; i < batchWrites.length; i += CHUNK) {
@@ -291,19 +407,35 @@ export async function bulkGenerateMissingPasswords(
     }
 
     if (opts.actor) {
-      await writeStudentPasswordAudit(db, {
-        actor_email: opts.actor.email,
-        actor_uid: opts.actor.uid,
-        action: 'bulk_generate',
-        institution_id: opts.institutionId ?? null,
-        student_ids: result.rows.map((r) => r.id),
-        meta: {
-          force: Boolean(opts.force),
-          updated: result.updated,
-          skipped_existing: result.skipped_existing,
+      await writeStudentPasswordAudit(
+        db,
+        {
+          actor_email: opts.actor.email,
+          actor_uid: opts.actor.uid,
+          action: 'bulk_generate',
+          institution_id: opts.institutionId ?? null,
+          student_ids: result.rows.map((r) => r.id),
+          meta: {
+            force: Boolean(opts.force),
+            updated: result.updated,
+            skipped_existing: result.skipped_existing,
+            would_update: result.would_update,
+            done: slice.done,
+            batch_limit: slice.limit,
+          },
         },
-      }, env)
+        env,
+      )
     }
+  }
+
+  result.next_cursor = slice.nextCursor
+  result.done = slice.done
+  if (slice.sliceIds.length === 0) {
+    result.remaining = 0
+  } else {
+    const last = slice.sliceIds[slice.sliceIds.length - 1]!
+    result.remaining = slice.candidateIds.filter((id) => id > last).length
   }
 
   return result

@@ -15,6 +15,9 @@
     },
     "api/ai_trail_generate.ts": {
       "maxDuration": 300
+    },
+    "api/student_passwords.ts": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

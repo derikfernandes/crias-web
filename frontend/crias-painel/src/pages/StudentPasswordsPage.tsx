@@ -9,6 +9,8 @@ import {
   snapshotToInstitution,
 } from '../lib/institutionFirestore'
 import {
+  bulkGenerateStudentPasswords,
+  countMissingStudentPasswords,
   downloadBlob,
   downloadTextFile,
   exportStudentPasswordsCsv,
@@ -18,15 +20,24 @@ import {
 } from '../lib/studentPasswordsApi'
 import type { Institution } from '../types/institution'
 
+const PAGE_SIZE = 50
+/** Lotes no servidor — evita timeout Vercel em escolas ~1000. */
+const BULK_BATCH_LIMIT = 100
+
 export function StudentPasswordsPage() {
   const { isMaster, filterInstitutions } = usePermissions()
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [selectedInstitutionId, setSelectedInstitutionId] = useState('')
   const [rows, setRows] = useState<StudentPasswordsRow[]>([])
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
+  const [bulkResultMessage, setBulkResultMessage] = useState<string | null>(
+    null,
+  )
   const [importCsvText, setImportCsvText] = useState('')
   const [importResultMessage, setImportResultMessage] = useState<string | null>(
     null,
@@ -102,14 +113,29 @@ export function StudentPasswordsPage() {
     void loadPasswords(selectedInstitutionId)
   }, [isMaster, selectedInstitutionId, loadPasswords])
 
-  const displayRows = useMemo(
-    () =>
-      rows.map((r) => ({
-        ...r,
-        regenerating: regeneratingId === r.id,
-      })),
-    [rows, regeneratingId],
-  )
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage)
+  }, [page, safePage])
+
+  const pageRows = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE
+    return rows.slice(start, start + PAGE_SIZE).map((r) => ({
+      ...r,
+      regenerating: regeneratingId === r.id,
+    }))
+  }, [rows, safePage, regeneratingId])
+
+  const pageStart = rows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
+  const pageEnd = Math.min(safePage * PAGE_SIZE, rows.length)
+
+  function handleSelectInstitution(id: string) {
+    setSelectedInstitutionId(id)
+    setPage(1)
+    setBulkResultMessage(null)
+  }
 
   async function handleExportCsv() {
     if (!selectedInstitutionId) return
@@ -125,6 +151,57 @@ export function StudentPasswordsPage() {
       setError(e instanceof Error ? e.message : 'Falha ao exportar.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleBulkGenerateMissing() {
+    if (!selectedInstitutionId) return
+    setBulkBusy(true)
+    setError(null)
+    setBulkResultMessage(null)
+    try {
+      const preview = await countMissingStudentPasswords(selectedInstitutionId)
+      const count = preview.would_update
+      if (count <= 0) {
+        setBulkResultMessage(
+          'Nenhum aluno sem senha nesta escola. Nada foi alterado.',
+        )
+        return
+      }
+      const ok = window.confirm(
+        `Gerar senhas para ${count} aluno${count === 1 ? '' : 's'} sem senha nesta escola?\n\nAlunos que já têm senha não serão alterados.`,
+      )
+      if (!ok) return
+
+      let cursor: string | null = null
+      let totalUpdated = 0
+      let done = false
+      let guard = 0
+      while (!done && guard < 50) {
+        guard += 1
+        const batch = await bulkGenerateStudentPasswords({
+          institutionId: selectedInstitutionId,
+          dryRun: false,
+          limit: BULK_BATCH_LIMIT,
+          cursor,
+        })
+        totalUpdated += batch.updated
+        done = batch.done
+        cursor = batch.next_cursor
+        if (batch.updated === 0 && !batch.done) {
+          // Evita loop infinito se o servidor não avançar.
+          break
+        }
+      }
+
+      setBulkResultMessage(
+        `${totalUpdated} senha${totalUpdated === 1 ? '' : 's'} gerada${totalUpdated === 1 ? '' : 's'}. Você pode exportar o CSV da escola inteira.`,
+      )
+      await loadPasswords(selectedInstitutionId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha na geração em lote.')
+    } finally {
+      setBulkBusy(false)
     }
   }
 
@@ -186,18 +263,31 @@ export function StudentPasswordsPage() {
     }
   }
 
+  const bulkGenerateLabel = bulkBusy
+    ? 'Gerando senhas…'
+    : 'Gerar senhas para alunos sem senha'
+
   return (
     <StudentPasswordsPageView
       isMaster={isMaster}
       institutionOptions={institutionOptions}
       selectedInstitutionId={selectedInstitutionId}
-      onSelectInstitution={setSelectedInstitutionId}
-      rows={displayRows}
+      onSelectInstitution={handleSelectInstitution}
+      rows={pageRows}
       loading={loading}
       error={error}
-      busy={busy || Boolean(regeneratingId)}
+      busy={busy || bulkBusy || Boolean(regeneratingId)}
       onExportCsv={() => void handleExportCsv()}
+      onBulkGenerateMissing={() => void handleBulkGenerateMissing()}
+      bulkGenerateLabel={bulkGenerateLabel}
+      bulkResultMessage={bulkResultMessage}
       onRegenerate={(id) => void handleRegenerate(id)}
+      page={safePage}
+      totalPages={totalPages}
+      totalRows={rows.length}
+      pageStart={pageStart}
+      pageEnd={pageEnd}
+      onPageChange={setPage}
       importCsvText={importCsvText}
       onImportCsvTextChange={setImportCsvText}
       onImportFile={(file) => void handleImportFile(file)}

@@ -7,6 +7,7 @@ export {
 export { getFallbackPromptBody } from './fallbacks.js'
 export {
   clearAiPromptCache,
+  ensureAiPromptsSeededOnce,
   getAiPrompt,
   getPromptBody,
   listAiPromptVersions,

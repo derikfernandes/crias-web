@@ -25,6 +25,12 @@ export type AiPromptRecord = {
   updated_by_uid: string | null
 }
 
+export type SeedAiPromptsResult = {
+  seeded: AiPromptId[]
+  skipped: AiPromptId[]
+  forced: AiPromptId[]
+}
+
 export type AiPromptVersion = {
   version: number
   body: string
@@ -85,6 +91,27 @@ function readBodyFromSnap(data: Record<string, unknown> | undefined): string | n
 }
 
 /**
+ * Seed automático (só docs ausentes) na primeira leitura de prompts neste
+ * processo. Não sobrescreve edits do Master. Garante que produção não fica
+ * sem docs no Firestore após deploy (fallback de código cobre o intervalo).
+ */
+let ensureSeedOnce: Promise<SeedAiPromptsResult | null> | null = null
+
+export async function ensureAiPromptsSeededOnce(
+  db: Firestore,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<SeedAiPromptsResult | null> {
+  if (!ensureSeedOnce) {
+    ensureSeedOnce = seedAiPrompts(
+      db,
+      { email: 'auto-seed@deploy', uid: 'auto-seed' },
+      { force: false, env },
+    ).catch(() => null)
+  }
+  return ensureSeedOnce
+}
+
+/**
  * Carrega o corpo do prompt (Firestore → fallback). Cache curto em memória.
  */
 export async function getPromptBody(
@@ -104,6 +131,9 @@ export async function getPromptBody(
       }
     }
   }
+
+  // Best-effort: popula docs ausentes uma vez por cold start.
+  await ensureAiPromptsSeededOnce(db, env)
 
   try {
     const snap = await db.collection(collectionName(env)).doc(id).get()
@@ -136,6 +166,7 @@ export async function listAiPrompts(
   db: Firestore,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<AiPromptRecord[]> {
+  await ensureAiPromptsSeededOnce(db, env)
   const col = db.collection(collectionName(env))
   const out: AiPromptRecord[] = []
 
@@ -315,12 +346,6 @@ export async function updateAiPrompt(
     updated_by_email: actor.email.trim().toLowerCase(),
     updated_by_uid: actor.uid,
   }
-}
-
-export type SeedAiPromptsResult = {
-  seeded: AiPromptId[]
-  skipped: AiPromptId[]
-  forced: AiPromptId[]
 }
 
 /**

@@ -24,7 +24,7 @@ export function fullInstitutionUrl(id: string): string {
   return `${publicAppOrigin()}${institutionPath(id)}`
 }
 
-/** Caminho interno para abrir/editar um aluno no painel. */
+/** Caminho interno para abrir/editar um aluno na gestão. */
 export function studentPath(
   id: string,
   options?: { agentTrailId?: string; agentTrailIds?: string[] },
@@ -49,7 +49,7 @@ export function studentPath(
   return qs ? `${path}?${qs}` : path
 }
 
-/** Caminho interno para abrir/editar uma trilha no painel. */
+/** Caminho interno para abrir/editar uma trilha na gestão. */
 export function trailPath(id: string): string {
   const base = import.meta.env.BASE_URL
   if (base === '/') return `/trilhas/${id}`

@@ -1,5 +1,5 @@
 /**
- * Símbolo do Crias (v6, seção 5).
+ * Símbolo do Crias (v1.0, seção 5).
  * Animado: sobe, cresce e gira devagar, com um brilho circular atrás.
  * Parado (animated=false): só a imagem. Sempre como arquivo, nunca texto.
  */
@@ -14,7 +14,7 @@ export default function CriasSymbol({ size, animated = true, className }: Props)
   if (!animated) {
     return (
       <img
-        className={className ? `v6-symbol ${className}` : 'v6-symbol'}
+        className={className ? `v1-0-symbol ${className}` : 'v1-0-symbol'}
         src={src}
         alt=""
         width={size}
@@ -26,13 +26,13 @@ export default function CriasSymbol({ size, animated = true, className }: Props)
   const glow = Math.round(size * 0.18)
   return (
     <span
-      className={`v6-symbol-wrap${className ? ` ${className}` : ''}`}
+      className={`v1-0-symbol-wrap${className ? ` ${className}` : ''}`}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      <span className="v6-symbol-glow" style={{ inset: -glow }} />
+      <span className="v1-0-symbol-glow" style={{ inset: -glow }} />
       <img
-        className="v6-symbol v6-symbol--anim"
+        className="v1-0-symbol v1-0-symbol--anim"
         src={src}
         alt=""
         width={size}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { attachThreadScroll, type ThreadScroll } from './threadScroll'
 
 /**
- * Liga a rolagem v6 à conversa. Devolve os refs do scroller e das duas setas
+ * Liga a rolagem v1.0 à conversa. Devolve os refs do scroller e das duas setas
  * (topo e fim), e `toBottom` para descer sempre que chega algo novo.
  */
 export function useThreadScroll() {

@@ -62,7 +62,7 @@ Documento para o sócio. Explica o que já foi feito no protótipo e o que ainda
 - Vale para entrada, início, trilhas e Conversar com Maria. O menu lateral fica de fora.
 - O verde foi baixado e deixado mais transparente para não brigar com o texto das respostas.
 
-**Painel da escola (PAINEL)**
+**Gestão da escola (GESTÃO)**
 - Menu, Instituições, Trilhas e Alunos adaptados ao mesmo visual.
 - As demais telas aparecem com aviso de que ainda não foram adaptadas.
 

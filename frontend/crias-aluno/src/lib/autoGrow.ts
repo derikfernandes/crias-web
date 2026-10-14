@@ -1,4 +1,4 @@
-/** Campo de mensagem: cresce com o texto até 160px e depois rola (v6, seção 11). */
+/** Campo de mensagem: cresce com o texto até 160px e depois rola (v1.0, seção 11). */
 export function autoGrow(el: HTMLTextAreaElement | null): void {
   if (!el) return
   el.style.height = 'auto'

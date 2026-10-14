@@ -1,5 +1,5 @@
 /**
- * Fundo do app do aluno (v6, seção 4).
+ * Fundo do app do aluno (v1.0, seção 4).
  * Camada absoluta atrás do conteúdo, sem eventos de ponteiro.
  *
  * - login e home: malha 3D (brilho + piso em grade em perspectiva).
@@ -16,7 +16,7 @@ export default function Horizon({ mode }: Props) {
 
   const glow = (
     <span
-      className="v6-hz-glow"
+      className="v1-0-hz-glow"
       style={{
         top: `calc(100% - ${H + 380}px)`,
         animation: `${rise}, vAurora 16s ease-in-out 2.4s infinite`,
@@ -27,10 +27,10 @@ export default function Horizon({ mode }: Props) {
   if (!chat) {
     const perspective = mode === 'home' ? 700 : 900
     return (
-      <div className="v6-hz" aria-hidden="true">
+      <div className="v1-0-hz" aria-hidden="true">
         {glow}
         <div
-          className="v6-hz-floor"
+          className="v1-0-hz-floor"
           style={{ transform: `perspective(${perspective}px) rotateX(70deg)` }}
         />
       </div>
@@ -38,9 +38,9 @@ export default function Horizon({ mode }: Props) {
   }
 
   return (
-    <div className="v6-hz v6-hz--chat" aria-hidden="true">
+    <div className="v1-0-hz v1-0-hz--chat" aria-hidden="true">
       {glow}
-      <span className="v6-hz-smoke" />
+      <span className="v1-0-hz-smoke" />
     </div>
   )
 }

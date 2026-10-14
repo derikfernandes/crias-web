@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-Construir e evoluir um painel administrativo para criação, edição, liberação e gerenciamento de trilhas pedagógicas do Crias, e um app web do aluno para consumir essas trilhas.
+Construir e evoluir uma gestão administrativa para criação, edição, liberação e gerenciamento de trilhas pedagógicas do Crias, e um app web do aluno para consumir essas trilhas.
 
 O sistema permite que instituições cadastrem alunos e configurem trilhas educacionais compostas por fases, conteúdos fixos, exercícios e etapas com IA.
 

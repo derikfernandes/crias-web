@@ -24,11 +24,11 @@ export default defineConfig({
         test: {
           name: 'frontend',
           include: [
-            'frontend/crias-painel/src/**/*.test.ts',
-            'frontend/crias-painel/src/**/*.test.tsx',
+            'frontend/crias-gestao/src/**/*.test.ts',
+            'frontend/crias-gestao/src/**/*.test.tsx',
           ],
           environment: 'jsdom',
-          setupFiles: ['./frontend/crias-painel/src/test/setup.ts'],
+          setupFiles: ['./frontend/crias-gestao/src/test/setup.ts'],
         },
       },
     ],

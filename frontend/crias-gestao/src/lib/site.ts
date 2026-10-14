@@ -1,4 +1,4 @@
-/** Origem pública do painel Trilha em produção na Vercel (links e documentação). */
+/** Origem pública da gestão Trilha em produção na Vercel (links e documentação). */
 export const PRODUCTION_APP_ORIGIN = 'https://crias-trilhas.vercel.app'
 
 /**

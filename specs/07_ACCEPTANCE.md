@@ -10,7 +10,7 @@ A entrega será aceita quando:
 - [ ] Todo fora de escopo estiver documentado.
 - [ ] Toda ação nova estiver no `ACTION_ROUTING_MAP.md`.
 
-## 2. Painel
+## 2. Gestão
 
 - [ ] Instituições podem ser criadas e listadas.
 - [ ] Alunos podem ser criados e vinculados a instituições.

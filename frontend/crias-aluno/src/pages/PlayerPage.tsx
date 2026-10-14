@@ -524,7 +524,7 @@ function LazyEmbedFrame({
   }, [active])
 
   return (
-    <div ref={hostRef} className="v6-embed__frame">
+    <div ref={hostRef} className="v1-0-embed__frame">
       {active ? (
         <iframe
           src={src}
@@ -536,7 +536,7 @@ function LazyEmbedFrame({
           referrerPolicy="strict-origin-when-cross-origin"
         />
       ) : (
-        <div className="v6-embed__skel" aria-hidden="true" />
+        <div className="v1-0-embed__skel" aria-hidden="true" />
       )}
     </div>
   )
@@ -548,17 +548,17 @@ function renderMessagePart(
 ): ReactNode {
   if (part.kind === 'image') {
     return (
-      <p key={part.key} className="v6-media">
+      <p key={part.key} className="v1-0-media">
         <img src={part.value} alt="" loading="lazy" decoding="async" />
       </p>
     )
   }
   if (part.kind === 'embed' && part.embedUrl) {
-    // v6: o player original do link, 16:9, sem botão de play próprio.
+    // v1.0: o player original do link, 16:9, sem botão de play próprio.
     return (
       <div
         key={part.key}
-        className="v6-embed"
+        className="v1-0-embed"
         data-embed-kind={part.embedKind || undefined}
       >
         <LazyEmbedFrame
@@ -569,7 +569,7 @@ function renderMessagePart(
     )
   }
   if (part.kind === 'link') {
-    // v6: material de apoio é uma pílula que abre o link em nova aba.
+    // v1.0: material de apoio é uma pílula que abre o link em nova aba.
     const openAria = externalLinkAriaLabel(part.label, part.value)
     return (
       <p key={part.key}>
@@ -577,7 +577,7 @@ function renderMessagePart(
           href={part.value}
           target="_blank"
           rel="noopener noreferrer"
-          className="v6-chip"
+          className="v1-0-chip"
           aria-label={openAria}
           onClick={() => handlers?.onOpenExternalMedia?.(part.value)}
         >
@@ -751,7 +751,7 @@ export default function PlayerPage() {
       trailNames?: Record<string, string>
       questionTotals?: Record<string, number>
       stageTotals?: Record<string, number>
-      /** v6: atividade passada sendo vista (?atividade=N). */
+      /** v1.0: atividade passada sendo vista (?atividade=N). */
       viewActivity?: number | null
     }>()
   const session = getSession()!
@@ -813,10 +813,10 @@ export default function PlayerPage() {
   const [mediaResumeMsgId, setMediaResumeMsgId] = useState<string | null>(null)
   /**
    * Rolagem antiga: este ref NÃO é ligado a nenhum elemento, então toda a lógica antiga de
-   * ancoragem e pin fica inerte. Quem rola a conversa agora é a rolagem do desenho (v6).
+   * ancoragem e pin fica inerte. Quem rola a conversa agora é a rolagem do desenho (v1.0).
    */
   const threadRef = useRef<HTMLDivElement>(null)
-  const { threadRef: v6ThreadRef, upRef, downRef, toBottom } = useThreadScroll()
+  const { threadRef: v1_0ThreadRef, upRef, downRef, toBottom } = useThreadScroll()
   /** Retorno do exercício enviado: marca a alternativa certa e a errada no cartão. */
   const [answerMark, setAnswerMark] = useState<{
     cellKey: string
@@ -4493,7 +4493,7 @@ export default function PlayerPage() {
     return true
   })
 
-  /** v6: a conversa é a da trilha toda. Ao subir, carrega e mostra as atividades anteriores. */
+  /** v1.0: a conversa é a da trilha toda. Ao subir, carrega e mostra as atividades anteriores. */
   const parseCellQuestion = (key?: string): number | null => {
     const mm = key?.match(/^(\d+)-(\d+)$/)
     return mm ? Number.parseInt(mm[2], 10) : null
@@ -4528,7 +4528,7 @@ export default function PlayerPage() {
   }
 
   /**
-   * Valores do visual antigo que a lógica ainda calcula e o visual v6 não usa mais
+   * Valores do visual antigo que a lógica ainda calcula e o visual v1.0 não usa mais
    * (chips de "Nova mensagem", dicas do rodapé, avatar da Maria). Mantidos para não
    * mexer na lógica; podem ser removidos numa limpeza futura.
    */
@@ -4545,20 +4545,20 @@ export default function PlayerPage() {
     exerciseLegend,
   ]
 
-  /** v6: no exercício, o enunciado fica só no cartão do exercício (sem mensagem repetida). */
+  /** v1.0: no exercício, o enunciado fica só no cartão do exercício (sem mensagem repetida). */
   const hasExerciseCard =
     onExerciseStep &&
     options.length > 0 &&
     !trailShellUnavailable
 
-  /** v6: a etapa atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
+  /** v1.0: a etapa atual chega como mensagem da trilha, sem cartão (rótulo = nome da trilha). */
   const lessonCardNode =
     !trailShellUnavailable && showLessonCard && !hasExerciseCard ? (
       <div
         ref={(node) => {
           lessonCardRef.current = node
         }}
-        className="v6-lesson"
+        className="v1-0-lesson"
         tabIndex={-1}
         aria-label={lessonTitle ? `Etapa: ${lessonTitle}` : 'Conteúdo da etapa'}
         data-current-step="true"
@@ -4577,34 +4577,34 @@ export default function PlayerPage() {
   const totalActivitiesHere = questionTotals?.[trailId] ?? 0
   const totalStepsHere = stageTotals?.[trailId] ?? 0
 
-  /** v6, seção 10: cartão Trilha concluída, no fim da conversa. */
+  /** v1.0, seção 10: cartão Trilha concluída, no fim da conversa. */
   const trailDone =
     !trailShellUnavailable &&
     historyReady &&
     content?.status === 'completed'
   const trailCompletedNode = trailDone ? (
     <div
-      className="v6-done"
+      className="v1-0-done"
       role="status"
       tabIndex={-1}
       data-current-step="true"
       data-trail-completed="true"
     >
       <CriasSymbol size={64} />
-      <span className="v6-done__title">Trilha concluída</span>
-      <span className="v6-done__text">
+      <span className="v1-0-done__title">Trilha concluída</span>
+      <span className="v1-0-done__text">
         {totalActivitiesHere > 0
           ? `Você concluiu as ${totalActivitiesHere} atividades de ${trailHeading}.`
           : `Você concluiu ${trailHeading}.`}
       </span>
-      <Link to="/" className="v6-btn">
+      <Link to="/" className="v1-0-btn">
         Voltar para o início
       </Link>
     </div>
   ) : null
 
   /**
-   * v6: no última etapa de uma atividade que tem próxima, a conversa mostra
+   * v1.0: no última etapa de uma atividade que tem próxima, a conversa mostra
    * "Atividade concluída". Gerada aqui, no cliente. Continuar abre a próxima atividade.
    */
   const activityDoneShown =
@@ -4617,24 +4617,24 @@ export default function PlayerPage() {
     content.question_number < totalActivitiesHere &&
     (content.stage_type !== 'exercise' || exerciseDone)
 
-  /** v6, seção 10: cartão do exercício. Depois de enviar, marca a certa e a errada. */
+  /** v1.0, seção 10: cartão do exercício. Depois de enviar, marca a certa e a errada. */
   const exerciseMark =
     answerMark && answerMark.cellKey === currentCell ? answerMark : null
   const exerciseCard = hasExerciseCard ? (
       <fieldset
-        className="v6-ex"
+        className="v1-0-ex"
         aria-label="Responda o exercício"
         aria-busy={exerciseSubmitting || exerciseResyncLock || undefined}
         data-exercise-phase={exerciseResyncLock ? 'resyncing' : exercisePhase}
       >
-        <span className="v6-ex__tag">Exercício</span>
+        <span className="v1-0-ex__tag">Exercício</span>
         {exercisePromptParts.length > 0 ? (
-          <div className="v6-ex__prompt">
+          <div className="v1-0-ex__prompt">
             {exercisePromptParts.map((part) => renderMessagePart(part))}
           </div>
         ) : null}
         <div
-          className="v6-ex__options"
+          className="v1-0-ex__options"
           role="radiogroup"
           aria-label="Opções do exercício"
         >
@@ -4672,23 +4672,23 @@ export default function PlayerPage() {
                 role="radio"
                 aria-checked={exerciseDone ? exerciseMark?.picked === opt.key : selected}
                 tabIndex={rovingTabIndex}
-                className={`v6-opt${state ? ` ${state}` : ''}`}
+                className={`v1-0-opt${state ? ` ${state}` : ''}`}
                 disabled={
                   busy || exerciseSubmitting || exerciseResyncLock || exerciseDone
                 }
                 onClick={() => onOptionSelect(opt)}
                 onKeyDown={(e) => onOptionKeyDown(e, optIndex, options)}
               >
-                <span className="v6-opt__key" aria-hidden>
+                <span className="v1-0-opt__key" aria-hidden>
                   {letter}
                 </span>
-                <span className="v6-opt__text">{optLabel}</span>
+                <span className="v1-0-opt__text">{optLabel}</span>
               </button>
             )
           })}
         </div>
         {exercisePhase === 'error' && !exerciseResyncLock ? (
-          <p className="v6-ex__note" role="status">
+          <p className="v1-0-ex__note" role="status">
             Não foi possível enviar. Sua escolha foi mantida.
           </p>
         ) : null}
@@ -4712,7 +4712,7 @@ export default function PlayerPage() {
     if (exerciseCardAt < 0) exerciseCardAt = chatMessages.length
   }
 
-  /** Estados da barra de mensagem (v6, seção 11). */
+  /** Estados da barra de mensagem (v1.0, seção 11). */
   const composerWaiting =
     !trailDone &&
     (trailBusy ||
@@ -4737,7 +4737,7 @@ export default function PlayerPage() {
   }
 
   /**
-   * v6: a conversa é a da trilha toda. Chegando perto do topo, carrega as atividades
+   * v1.0: a conversa é a da trilha toda. Chegando perto do topo, carrega as atividades
    * anteriores e mantém a posição de leitura (o texto não pula).
    */
   const threadMetricsRef = useRef<{
@@ -4763,7 +4763,7 @@ export default function PlayerPage() {
   requestOlderRef.current = requestOlderHistory
 
   useEffect(() => {
-    const el = v6ThreadRef.current
+    const el = v1_0ThreadRef.current
     if (!el) return
     const onScroll = () => {
       threadMetricsRef.current.top = el.scrollTop
@@ -4772,11 +4772,11 @@ export default function PlayerPage() {
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
-  }, [v6ThreadRef])
+  }, [v1_0ThreadRef])
 
   // Conversa curta que cabe na tela: não há o que rolar, então busca o histórico antigo sozinho.
   useEffect(() => {
-    const el = v6ThreadRef.current
+    const el = v1_0ThreadRef.current
     if (!el || !historyReady) return
     if (el.scrollHeight <= el.clientHeight + 60) requestOlderRef.current()
   }, [
@@ -4785,12 +4785,12 @@ export default function PlayerPage() {
     historyLoadingMore,
     historyExpanded,
     historyHasMore,
-    v6ThreadRef,
+    v1_0ThreadRef,
   ])
 
   // Mensagens antigas entraram no topo: mantém onde o aluno estava lendo.
   useLayoutEffect(() => {
-    const el = v6ThreadRef.current
+    const el = v1_0ThreadRef.current
     if (!el) return
     const first = chatMessages[0]?.id
     const last = chatMessages[chatMessages.length - 1]?.id
@@ -4812,7 +4812,7 @@ export default function PlayerPage() {
   // Clicar numa atividade do menu leva até o começo dela na conversa (?atividade=N).
   useEffect(() => {
     if (viewActivity == null || !historyReady) return
-    const el = v6ThreadRef.current
+    const el = v1_0ThreadRef.current
     if (!el || historyLoadingMore) return
     let cancelled = false
     let timer = 0
@@ -4848,10 +4848,10 @@ export default function PlayerPage() {
     chatMessages.length,
     trailId,
     navigate,
-    v6ThreadRef,
+    v1_0ThreadRef,
   ])
 
-  // v6, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
+  // v1.0, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
   useEffect(() => {
     if (prependedRef.current) {
       prependedRef.current = false
@@ -4878,7 +4878,7 @@ export default function PlayerPage() {
   }, [draft])
   return (
     <main
-      className="v6-conv"
+      className="v1-0-conv"
       aria-busy={busy || !historyReady || undefined}
       aria-labelledby="crias-player-heading"
     >
@@ -4891,14 +4891,14 @@ export default function PlayerPage() {
 
       <div
         id="crias-thread-log"
-        className="v6-thread"
+        className="v1-0-thread"
         data-thread="1"
-        ref={v6ThreadRef}
+        ref={v1_0ThreadRef}
         role="log"
         aria-relevant="additions"
         aria-busy={historyLoadingMore || !historyReady || undefined}
       >
-        <div className="v6-thread__col">
+        <div className="v1-0-thread__col">
           {!trailShellUnavailable &&
             chatMessages.map((msg, msgIdx) => {
               const labelId = `bubble-label-${msg.id}`
@@ -4988,7 +4988,7 @@ export default function PlayerPage() {
           {trailCompletedNode}
 
           {error && !trailShellUnavailable ? (
-            <div className="v6-errbox" role="alert">
+            <div className="v1-0-errbox" role="alert">
               <p>{error}</p>
               {canRetry ? (
                 <button
@@ -5010,14 +5010,14 @@ export default function PlayerPage() {
           ) : null}
 
           {!historyReady || (historyReady && !content && !error) ? (
-            <div className="v6-skel" role="status" aria-busy="true" aria-live="polite">
+            <div className="v1-0-skel" role="status" aria-busy="true" aria-live="polite">
               <div style={{ width: '30%' }} />
               <div style={{ width: '90%' }} />
               <div style={{ width: '65%' }} />
             </div>
           ) : null}
           {trailShellUnavailable ? (
-            <div className="v6-empty" role="status">
+            <div className="v1-0-empty" role="status">
               <p>Trilha indisponível</p>
             </div>
           ) : null}
@@ -5026,12 +5026,12 @@ export default function PlayerPage() {
       <ScrollArrows upRef={upRef} downRef={downRef} />
 
       {!trailShellUnavailable && historyReady ? (
-        <div className="v6-dock">
-          <div className="v6-dock__col">
+        <div className="v1-0-dock">
+          <div className="v1-0-dock__col">
             {(
-              <div className="v6-dock__row">
+              <div className="v1-0-dock__row">
                 <form
-                  className={`v6-composer v6-composer--thread${
+                  className={`v1-0-composer v1-0-composer--thread${
                     composerWaiting || composerLocked
                       ? ' is-locked'
                       : composerHasText
@@ -5066,7 +5066,7 @@ export default function PlayerPage() {
                 >
                   {composerWaiting ? (
                     <div
-                      className="v6-composer__lock v6-composer__wait"
+                      className="v1-0-composer__lock v1-0-composer__wait"
                       role="status"
                       aria-live="polite"
                     >
@@ -5075,7 +5075,7 @@ export default function PlayerPage() {
                     </div>
                   ) : composerLocked ? (
                     <>
-                      <div className="v6-composer__lock" aria-live="polite">
+                      <div className="v1-0-composer__lock" aria-live="polite">
                         <LockIcon />
                         <span className="visually-hidden">
                           Selecione uma alternativa e continue
@@ -5087,7 +5087,7 @@ export default function PlayerPage() {
                           voltarBtnRef.current = node
                         }}
                         type="submit"
-                        className="v6-continue"
+                        className="v1-0-continue"
                         data-action="submit"
                         disabled={!selectedOptionKey || composerPrimaryAction?.disabled}
                         aria-disabled={!selectedOptionKey || undefined}
@@ -5102,7 +5102,7 @@ export default function PlayerPage() {
                     <>
                       <textarea
                         ref={inputRef}
-                        className="v6-composer__input"
+                        className="v1-0-composer__input"
                         rows={1}
                         value={draft}
                         disabled={trailDone ? false : composerBlocked}
@@ -5118,7 +5118,7 @@ export default function PlayerPage() {
                           autoGrow(e.target)
                         }}
                         onKeyDown={(e) => {
-                          // v6: no celular, Enter quebra linha.
+                          // v1.0: no celular, Enter quebra linha.
                           if (e.key === 'Enter' && !e.shiftKey && isMobileViewport()) return
                           if (trailDone && e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault()
@@ -5139,9 +5139,9 @@ export default function PlayerPage() {
                             voltarBtnRef.current = node
                           }}
                           type="submit"
-                          className={`v6-continue${
+                          className={`v1-0-continue${
                             continueHalo && composerPrimaryAction.action === 'advance'
-                              ? ' v6-continue--halo'
+                              ? ' v1-0-continue--halo'
                               : ''
                           }`}
                           data-action={composerPrimaryAction.action}
@@ -5155,7 +5155,7 @@ export default function PlayerPage() {
                       ) : (
                         <button
                           type="submit"
-                          className="v6-sendbtn"
+                          className="v1-0-sendbtn"
                           disabled={trailDone ? false : sendDisabledHard}
                           aria-disabled={trailDone ? undefined : sendAriaDisabled || undefined}
                           aria-label="Enviar pergunta ao monitor"

@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "outputDirectory": "frontend/crias-painel/dist",
+  "outputDirectory": "frontend/crias-gestao/dist",
   "functions": {
     "api/dashboard_summary.ts": {
       "maxDuration": 60

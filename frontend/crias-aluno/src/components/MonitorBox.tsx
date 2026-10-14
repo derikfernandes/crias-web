@@ -2,7 +2,7 @@ import { useRef, type FormEvent, type KeyboardEvent } from 'react'
 import { autoGrow, isMobileViewport } from '../lib/autoGrow'
 
 /**
- * Barra "Pergunte ao seu monitor…" do Início (v6, seção 9).
+ * Barra "Pergunte ao seu monitor…" do Início (v1.0, seção 9).
  * Botão de enviar sempre visível, verde, com seta para cima.
  */
 type Props = {
@@ -30,13 +30,13 @@ export default function MonitorBox({ draft, onDraft, onSend, idSuffix }: Props) 
 
   return (
     <form
-      className={`v6-composer v6-composer--home${draft.trim() ? ' has-text' : ''}`}
+      className={`v1-0-composer v1-0-composer--home${draft.trim() ? ' has-text' : ''}`}
       onSubmit={submit}
     >
       <textarea
         ref={ref}
         id={`monitor-box-${idSuffix}`}
-        className="v6-composer__input"
+        className="v1-0-composer__input"
         rows={1}
         value={draft}
         placeholder="Pergunte ao seu monitor…"
@@ -50,7 +50,7 @@ export default function MonitorBox({ draft, onDraft, onSend, idSuffix }: Props) 
       />
       <button
         type="submit"
-        className="v6-sendbtn"
+        className="v1-0-sendbtn"
         aria-label="Enviar pergunta ao monitor"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

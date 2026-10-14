@@ -75,7 +75,7 @@ const MONITOR_INTRO =
   'Oi, eu sou o monitor. Pode me perguntar sobre qualquer trilha ou assunto.'
 
 /**
- * Monitoria (v6): conversa livre com o monitor, fora de uma trilha.
+ * Monitoria (v1.0): conversa livre com o monitor, fora de uma trilha.
  * Usa o mesmo agente de antes (a lógica não mudou), agora com o nome e o visual do monitor.
  */
 export default function MonitoriaPage() {
@@ -136,7 +136,7 @@ export default function MonitoriaPage() {
     }
   }, [])
 
-  // v6, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
+  // v1.0, seção 12.1: tudo que chega no fim da conversa faz ela descer sozinha.
   useEffect(() => {
     toBottom()
   }, [lines.length, sending, toBottom])
@@ -207,17 +207,17 @@ export default function MonitoriaPage() {
   }
 
   return (
-    <section className="v6-conv">
-      <div className="v6-thread" data-thread="1" ref={threadRef}>
-        <div className="v6-thread__col">
+    <section className="v1-0-conv">
+      <div className="v1-0-thread" data-thread="1" ref={threadRef}>
+        <div className="v1-0-thread__col">
           {loadingHistory ? (
-            <div className="v6-skel" role="status" aria-busy="true">
+            <div className="v1-0-skel" role="status" aria-busy="true">
               <div style={{ width: '30%' }} />
               <div style={{ width: '90%' }} />
               <div style={{ width: '65%' }} />
             </div>
           ) : historyError ? (
-            <div className="v6-errbox" role="alert">
+            <div className="v1-0-errbox" role="alert">
               <p>{historyError}</p>
               <button type="button" onClick={() => void loadHistory()}>
                 Tentar de novo
@@ -248,7 +248,7 @@ export default function MonitoriaPage() {
           )}
           {sending ? <TypingRow /> : null}
           {sendError ? (
-            <div className="v6-errbox" role="alert">
+            <div className="v1-0-errbox" role="alert">
               <p>{sendError}</p>
               {canRetry ? (
                 <button type="button" onClick={() => onSubmit()}>
@@ -261,18 +261,18 @@ export default function MonitoriaPage() {
       </div>
       <ScrollArrows upRef={upRef} downRef={downRef} />
 
-      <div className="v6-dock">
-        <div className="v6-dock__col">
-          <div className="v6-dock__row">
+      <div className="v1-0-dock">
+        <div className="v1-0-dock__col">
+          <div className="v1-0-dock__row">
             <form
-              className={`v6-composer v6-composer--thread${
+              className={`v1-0-composer v1-0-composer--thread${
                 sending ? ' is-locked' : draft.trim() ? ' has-text' : ''
               }`}
               onSubmit={onSubmit}
             >
               {sending ? (
                 <div
-                  className="v6-composer__lock v6-composer__wait"
+                  className="v1-0-composer__lock v1-0-composer__wait"
                   role="status"
                   aria-live="polite"
                 >
@@ -283,7 +283,7 @@ export default function MonitoriaPage() {
                 <>
                   <textarea
                     ref={inputRef}
-                    className="v6-composer__input"
+                    className="v1-0-composer__input"
                     rows={1}
                     value={draft}
                     placeholder="Pergunte ao seu monitor…"
@@ -297,7 +297,7 @@ export default function MonitoriaPage() {
                   />
                   <button
                     type="submit"
-                    className="v6-sendbtn"
+                    className="v1-0-sendbtn"
                     aria-label="Enviar pergunta ao monitor"
                   >
                     <ArrowUpIcon />

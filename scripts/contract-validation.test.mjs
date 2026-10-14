@@ -55,7 +55,7 @@ test('coleções Firestore usadas pelo admin permanecem com os nomes do contrato
   ]
   for (const [file, collection] of checks) {
     const src = readFileSync(
-      join(root, 'frontend/crias-painel/src/lib', file),
+      join(root, 'frontend/crias-gestao/src/lib', file),
       'utf8',
     )
     assert.match(

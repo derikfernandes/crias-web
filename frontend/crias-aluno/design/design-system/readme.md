@@ -39,7 +39,7 @@ Sombra só para o que flutua (`--shadow-lg`, longa e suave). Cartões comuns usa
 | `.btn` com `.btn-primary`, `.btn-secondary`, `.btn-dark`, `.btn-sm` | Botões. O principal é verde com texto escuro | components/buttons.html |
 | `.tag`, `.tag-sm`, `.tag-selected`, `.selo` | Etiquetas com borda; selecionada em fundo escuro; selo verde | components/buttons.html |
 | `.card`, `.card-flutuante`, `.card-kicker`, `.card-title`, `.card-body` | Cartões em folha com borda fina | components/cards.html |
-| `.indicador` com `-rotulo`, `-valor`, `-legenda` | Números do painel | components/cards.html |
+| `.indicador` com `-rotulo`, `-valor`, `-legenda` | Números da gestão | components/cards.html |
 | `.field`, `.input` | Campos de formulário | components/cards.html |
 | `.sobretitulo`, `.lista`, `.etapas`, `.etapa-num` | Marcadores de tópico em quadrado | components/markers.html |
 | `.trilha` com `i.conteudo`, `i.exercicio`, `i.atual` | Progresso da atividade em círculos | components/markers.html |

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const designRoot = join(root, 'frontend/crias-painel/src/design')
+const designRoot = join(root, 'frontend/crias-gestao/src/design')
 
 const FORBIDDEN_IMPORT_RES = [
   /\bfrom\s+['"]firebase(?:\/[^'"]*)?['"]/,

@@ -113,7 +113,7 @@ export default function TrailsPage() {
   const homeLoading =
     trailsLoading && visible.length === 0 && !trailsError && !empty && !allDone
 
-  /** v6: Enviar abre a Monitoria já com a pergunta enviada. */
+  /** v1.0: Enviar abre a Monitoria já com a pergunta enviada. */
   function onAsk() {
     const message = draft.trim()
     if (!message) return
@@ -145,32 +145,32 @@ export default function TrailsPage() {
 
   return (
     <>
-      <section className="v6-home" aria-busy={homeLoading || undefined}>
-        <div className="v6-home__inner">
-          <div className="v6-home__sym">
+      <section className="v1-0-home" aria-busy={homeLoading || undefined}>
+        <div className="v1-0-home__inner">
+          <div className="v1-0-home__sym">
             <CriasSymbol size={64} />
           </div>
-          <h1 className="v6-home__title">{title}</h1>
+          <h1 className="v1-0-home__title">{title}</h1>
           {trailsError ? (
             <>
-              <p className="v6-home__err" role="alert">
+              <p className="v1-0-home__err" role="alert">
                 Não foi possível carregar suas trilhas.
               </p>
-              <button type="button" className="v6-home__retry" onClick={retryTrails}>
+              <button type="button" className="v1-0-home__retry" onClick={retryTrails}>
                 Tentar de novo
               </button>
             </>
           ) : empty ? (
-            <p className="v6-home__empty">Nenhuma trilha liberada para você.</p>
+            <p className="v1-0-home__empty">Nenhuma trilha liberada para você.</p>
           ) : allDone ? (
-            <p className="v6-home__empty">Você concluiu todas as suas trilhas.</p>
+            <p className="v1-0-home__empty">Você concluiu todas as suas trilhas.</p>
           ) : homeLoading ? (
-            <p className="v6-home__loading" role="status">
+            <p className="v1-0-home__loading" role="status">
               Carregando suas trilhas…
             </p>
           ) : (
             <div
-              className={`v6-grid${visible.length === 1 ? ' v6-grid--1' : ''}`}
+              className={`v1-0-grid${visible.length === 1 ? ' v1-0-grid--1' : ''}`}
               style={{ ['--cols' as string]: Math.max(visible.length, 1) }}
             >
               {visible.map((row) => {
@@ -190,40 +190,40 @@ export default function TrailsPage() {
                   <Link
                     key={row.id}
                     to={`/trilha/${encodeURIComponent(row.trail_id)}`}
-                    className="v6-tcard"
+                    className="v1-0-tcard"
                     title={label}
                     aria-label={`${label}. ${progresso}. ${cta}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
                     onMouseMove={tilt}
                     onMouseLeave={untilt}
                   >
-                    <span className="v6-tcard__glow" aria-hidden="true" />
-                    <span className="v6-tcard__head">
-                      <span className="v6-tcard__main">
-                        <span className="v6-tcard__titlerow">
-                          <span className="v6-tcard__name" data-fade="1">
+                    <span className="v1-0-tcard__glow" aria-hidden="true" />
+                    <span className="v1-0-tcard__head">
+                      <span className="v1-0-tcard__main">
+                        <span className="v1-0-tcard__titlerow">
+                          <span className="v1-0-tcard__name" data-fade="1">
                             {label}
                           </span>
-                          <svg className="v6-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffd500" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                          <svg className="v1-0-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffd500" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
                             <title>{cta}</title>
                             <path d="M9 5l7 7-7 7" />
                           </svg>
                         </span>
-                        <span className="v6-bar">
+                        <span className="v1-0-bar">
                           <span
-                            className="v6-bar__fill"
+                            className="v1-0-bar__fill"
                             style={{ width: `${pct ?? 0}%` }}
                           />
                         </span>
-                        <span className="v6-tcard__meta" data-fade="1">
+                        <span className="v1-0-tcard__meta" data-fade="1">
                           {progresso}
                         </span>
                       </span>
                     </span>
-                    <span className="v6-tcard__foot">
-                      <span className="v6-tcard__now">
-                        <span className="v6-tcard__nowlabel">AGORA</span>
-                        <span className="v6-tcard__nowvalue" data-fade="1">
+                    <span className="v1-0-tcard__foot">
+                      <span className="v1-0-tcard__now">
+                        <span className="v1-0-tcard__nowlabel">AGORA</span>
+                        <span className="v1-0-tcard__nowvalue" data-fade="1">
                           {now}
                         </span>
                       </span>
@@ -233,12 +233,12 @@ export default function TrailsPage() {
               })}
             </div>
           )}
-          <div className="v6-home__composer">
+          <div className="v1-0-home__composer">
             <MonitorBox draft={draft} onDraft={setDraft} onSend={onAsk} idSuffix="desk" />
           </div>
         </div>
       </section>
-      <div className="v6-home__dock">
+      <div className="v1-0-home__dock">
         <MonitorBox draft={draft} onDraft={setDraft} onSend={onAsk} idSuffix="mob" />
       </div>
     </>

@@ -50,7 +50,7 @@ Antes de implementar qualquer nova funcionalidade:
 ## Separação operacional
 
 ```text
-Painel Admin -> Firestore Client SDK
+Gestão Admin -> Firestore Client SDK
 App aluno web -> API HTTP -> Backend -> Firestore
 ```
 

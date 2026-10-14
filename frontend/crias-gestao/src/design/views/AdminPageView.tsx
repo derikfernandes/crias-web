@@ -16,7 +16,7 @@ export function AdminPageView(props: AdminPageViewProps) {
   if (props.status === 'forbidden') {
     return (
       <p className="banner banner--error" role="alert">
-        Você não tem permissão para acessar o painel de administração.
+        Você não tem permissão para acessar a gestão.
       </p>
     )
   }

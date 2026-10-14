@@ -87,7 +87,7 @@ export default function LoginPage() {
     const onVvResize = () => {
       const el = document.activeElement
       if (!(el instanceof HTMLElement)) return
-      if (!el.closest('.v6-login')) return
+      if (!el.closest('.v1-0-login')) return
       if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')
         return
       scrollFocusedIntoView(el)
@@ -182,7 +182,7 @@ export default function LoginPage() {
       navigate(resolvePostLoginPath(loginState), { replace: true })
     } catch (err) {
       const retryable = isRetryableSystemError(err)
-      // v6, seção 6: falha de credenciais usa o texto do desenho. Erro de rede mantém a
+      // v1.0, seção 6: falha de credenciais usa o texto do desenho. Erro de rede mantém a
       // mensagem própria, porque ali o aluno precisa saber que pode tentar de novo.
       setError(
         retryable
@@ -205,31 +205,31 @@ export default function LoginPage() {
     (institutions.length > 1 && !selectedInstitution)
 
   return (
-    <main className="v6-login">
+    <main className="v1-0-login">
       <Horizon mode="login" />
       <EdgeFade />
-      <form className="v6-login__form" onSubmit={(e) => void onSubmit(e)}>
-        <div className="v6-login__brand">
+      <form className="v1-0-login__form" onSubmit={(e) => void onSubmit(e)}>
+        <div className="v1-0-login__brand">
           <CriasSymbol size={72} animated={false} />
           <img
-            className="v6-wordmark"
+            className="v1-0-wordmark"
             data-logo="1"
             src={`${import.meta.env.BASE_URL}crias-logo-dark-green.svg`}
             alt="Crias"
             height={30}
           />
         </div>
-        <div className="v6-login__card">
+        <div className="v1-0-login__card">
           {offline ? (
-            <div className="v6-alert" role="status" aria-live="polite">
+            <div className="v1-0-alert" role="status" aria-live="polite">
               <p>Você está offline. Conecte-se para entrar.</p>
             </div>
           ) : null}
           {institutions.length > 1 ? (
-            <label className="v6-field">
+            <label className="v1-0-field">
               Escola
               <select
-                className="v6-login__select"
+                className="v1-0-login__select"
                 value={selectedInstitution}
                 onChange={(e) => setSelectedInstitution(e.target.value)}
                 onFocus={onFieldFocus}
@@ -243,10 +243,10 @@ export default function LoginPage() {
               </select>
             </label>
           ) : null}
-          <label className="v6-field">
+          <label className="v1-0-field">
             Login
             <input
-              className="v6-input"
+              className="v1-0-input"
               type="text"
               autoComplete="off"
               autoCapitalize="none"
@@ -262,9 +262,9 @@ export default function LoginPage() {
               required
             />
           </label>
-          <label className="v6-field">
+          <label className="v1-0-field">
             Senha
-            <span className="v6-pw">
+            <span className="v1-0-pw">
               <input
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
@@ -276,7 +276,7 @@ export default function LoginPage() {
               />
               <button
                 type="button"
-                className="v6-pw__toggle"
+                className="v1-0-pw__toggle"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-pressed={showPassword}
                 aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
@@ -286,13 +286,13 @@ export default function LoginPage() {
             </span>
           </label>
           {error ? (
-            <div className="v6-alert" role="alert">
+            <div className="v1-0-alert" role="alert">
               <p>{error}</p>
               {canRetry ? (
                 <button
                   ref={retryBtnRef}
                   type="button"
-                  className="v6-login__retry"
+                  className="v1-0-login__retry"
                   onClick={() => void onSubmit()}
                   disabled={entrarDisabled}
                 >
@@ -303,7 +303,7 @@ export default function LoginPage() {
           ) : null}
           <button
             type="submit"
-            className="v6-btn v6-login__submit"
+            className="v1-0-btn v1-0-login__submit"
             disabled={entrarDisabled}
             aria-disabled={entrarDisabled || undefined}
             aria-busy={loading || undefined}

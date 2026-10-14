@@ -127,7 +127,7 @@ textarea::placeholder,input::placeholder{color:var(--v-t3)}
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
       <button onClick="{{ openReactions }}" style="{{ mAct }}">Reações</button>
       <button onClick="{{ resetAll }}" style="{{ mAct }}">Atualizar</button>
-      <button onClick="{{ goPainel }}" style="{{ mAct }}">Painel</button>
+      <button onClick="{{ goGestao }}" style="{{ mAct }}">Gestão</button>
     </div>
   </div>
 </sc-if>
@@ -861,7 +861,7 @@ class Component extends DCLogic {
       resetAll: this.resetAll,
       fundoA: () => this.setState({ fundo: 'horizonte' }), fundoB: () => this.setState({ fundo: 'orbitas' }), fundoC: () => this.setState({ fundo: 'malha' }),
       fundoAStyle: navBtn(fundo === 'horizonte'), fundoBStyle: navBtn(fundo === 'orbitas'), fundoCStyle: navBtn(fundo === 'malha'),
-      goPainel: () => { window.location.href = 'Crias Painel.dc.html'; },
+      goGestao: () => { window.location.href = 'Crias Gestao.dc.html'; },
       goLogin: () => this.setState({ screen: 'login', protoOpen: false }),
       goHome: () => this.setState(st => ({ screen: 'home', greet: (st.greet + 1) % GREET.length, sidebarOpen: st.mob ? false : st.sidebarOpen, protoOpen: false })),
       openPrimary: () => this.enter(s.lastOpened[0] || 'mat'),

@@ -31,7 +31,7 @@ Por que o logo não aparecia: o protótipo aponta para `assets/crias-logo-dark-g
 - O protótipo `Crias Aluno v4.dc.html` (no repositório: `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html`) é a referência visual e de comportamento em computador e celular. A implementação final é feita no código, sobre o repositório atual.
 - Aluno: `frontend/crias-aluno` (`src/pages`, `src/layouts`, `src/components`, `src/styles/app.css`). É o app em uso.
 - O design novo (design system, protótipo e estes documentos) fica em `frontend/crias-aluno/design/` neste repositório.
-- Painel: `frontend/crias-painel/src/design/**` e `public/**`.
+- Gestão: `frontend/crias-gestao/src/design/**` e `public/**`.
 - Só camada visual. Nada de API, Firestore, rotas, autenticação ou permissões.
 - Quando um item exige lógica, ele está marcado como **CONFLITO**. Esses itens param e pedem aval antes de mexer no código.
 
@@ -52,7 +52,7 @@ Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda ativ
 
 ## Regras invioláveis
 
-0. No painel, a conclusão (dashboard, indicadores e gráficos) é medida por **atividade**, nunca por etapa.
+0. Na gestão, a conclusão (dashboard, indicadores e gráficos) é medida por **atividade**, nunca por etapa.
 
 
 1. Fundo branco. Bege (`#fcfbf6`, `#f7f5ec`, `#fefdfa`) só em destaques, menu lateral, campos e balões.

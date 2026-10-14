@@ -2,7 +2,7 @@
 
 ## 1. Princípio
 
-O painel administrativo atual pode usar Firestore Client SDK.
+A gestão administrativa atual pode usar Firestore Client SDK.
 Integrações externas devem usar API HTTP.
 
 A API deve ser a camada segura para o app web do aluno e integrações que não devem acessar Firestore diretamente.
@@ -282,7 +282,7 @@ Códigos esperados:
 - `unauthorized`
 - `internal_error`
 
-## 11. Dashboard summary (painel)
+## 11. Dashboard summary (gestão)
 
 ### `GET /api/dashboard_summary`
 

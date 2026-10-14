@@ -42,7 +42,7 @@ export function LoginPageView({
           </Link>
           <h1>Entrar</h1>
           <p className="login__lede muted">
-            Acesse o painel administrativo com sua conta Firebase.
+            Acesse a gestão administrativa com sua conta Firebase.
           </p>
         </header>
 

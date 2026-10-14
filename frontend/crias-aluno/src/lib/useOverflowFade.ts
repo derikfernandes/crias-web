@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 /**
- * v6, seção 3: textos de uma linha nunca quebram e nunca usam reticências.
+ * v1.0, seção 3: textos de uma linha nunca quebram e nunca usam reticências.
  * Quando não cabem, o fim esmaece (máscara de 40px), só se transborda.
  * Recalcula depois de carregar as fontes, ao redimensionar e a cada mudança no DOM.
  */

@@ -5,7 +5,7 @@ export type AiReviewSidebarProps = {
 const FIX_POINTS = [
   'Leia o texto com calma antes de continuar.',
   'Anote uma ideia que você levaria para a vida real.',
-  'Se tiver dúvida, use o WhatsApp — tutores não ficam neste painel.',
+  'Se tiver dúvida, use o WhatsApp — tutores não ficam nesta gestão.',
 ]
 
 export function AiReviewSidebar({ onOpenHistory }: AiReviewSidebarProps) {
@@ -18,7 +18,7 @@ export function AiReviewSidebar({ onOpenHistory }: AiReviewSidebarProps) {
         Revisão da atividade
       </h2>
       <p className="trilha-ai-review__lead muted">
-        Atividade com IA — use este painel para fixar o essencial (não é chat).
+        Atividade com IA — use esta gestão para fixar o essencial (não é chat).
       </p>
       <ul className="trilha-ai-review__list">
         {FIX_POINTS.map((line) => (

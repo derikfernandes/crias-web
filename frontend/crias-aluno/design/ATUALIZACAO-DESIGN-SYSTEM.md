@@ -35,8 +35,8 @@ O branco é o fundo principal. O bege é só destaque. O creme `#fdfbed` sai com
 
 | Papel | Valor | Onde |
 | --- | --- | --- |
-| Fundo de conteúdo | `#ffffff` | Toda a área à direita do menu, a entrada e o painel |
-| Destaque 1 | `#fcfbf6` | Menu lateral, barra de mensagem, campos, balão do aluno, cards de trilha, indicadores do painel, cabeçalho de tabela |
+| Fundo de conteúdo | `#ffffff` | Toda a área à direita do menu, a entrada e a gestão |
+| Destaque 1 | `#fcfbf6` | Menu lateral, barra de mensagem, campos, balão do aluno, cards de trilha, indicadores da gestão, cabeçalho de tabela |
 | Destaque 2 | `#f7f5ec` | Bordas finas, divisória do menu, item ativo no menu, hover sobre o destaque 1, botão desativado |
 | Destaque 3 | `#fefdfa` | Fundo do cartão de exercício |
 | Trilho de barra | `#f1eee3` | Fundo da barra de progresso, bordas de campo |
@@ -61,7 +61,7 @@ O branco é o fundo principal. O bege é só destaque. O creme `#fdfbed` sai com
 
 - Verde `#00be85` com **texto e ícone brancos**.
 - Hover `#00a974`, pressionado `#00925f`.
-- Vale para Continuar, Enviar, Entrar, setas de ação e botões de criar no painel.
+- Vale para Continuar, Enviar, Entrar, setas de ação e botões de criar na gestão.
 - Avatar do usuário: verde escuro `#00593d` com letra branca.
 - Maria: avatar e marca em amarelo `#ffd500` com letra escura.
 
@@ -167,7 +167,7 @@ Três camadas, todas centralizadas na horizontal (`left: 50%`, `translateX(-50%)
 ## 8b. Logotipo
 
 - O wordmark padrão é `assets/crias-logo-dark-green.svg`, o de traço mais fino do design system.
-- Ele substitui o PNG mais grosso que o protótipo usava. Vale para o menu lateral, a entrada e o painel.
+- Ele substitui o PNG mais grosso que o protótipo usava. Vale para o menu lateral, a entrada e a gestão.
 
 ## 9. Como aplicar
 

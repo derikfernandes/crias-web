@@ -418,7 +418,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         type: 'string',
         required: true,
         description:
-          'Telefone de contato. O backend/painel salva apenas números (remove `+`, espaços, hífen, parênteses etc.).',
+          'Telefone de contato. O backend/gestão salva apenas números (remove `+`, espaços, hífen, parênteses etc.).',
         example: '+55 11 99999-0000',
       },
       {
@@ -547,7 +547,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         type: 'string',
         required: false,
         description:
-          'Novo telefone do aluno. O backend/painel salva apenas dígitos (remove caracteres não numéricos).',
+          'Novo telefone do aluno. O backend/gestão salva apenas dígitos (remove caracteres não numéricos).',
       },
       {
         name: 'school_level',
@@ -1920,7 +1920,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         type: 'string | null',
         required: false,
         description:
-          'Mensagem de feedback opcional definida pelo backend/painel (ex.: "Resposta correta!", "Quase, revise o conceito de fração.").',
+          'Mensagem de feedback opcional definida pelo backend/gestão (ex.: "Resposta correta!", "Quase, revise o conceito de fração.").',
       },
     ],
     bodyExample: `{
@@ -2409,7 +2409,7 @@ export function DocPageView({
           que a rota faz e os parâmetros ou corpo esperados.
         </p>
         <p className="admin__lede muted">
-          <strong>Painel (esta interface) em produção:</strong>{' '}
+          <strong>Gestão (esta interface) em produção:</strong>{' '}
           <a href={appOrigin} target="_blank" rel="noreferrer">
             {appOrigin}
           </a>

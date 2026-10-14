@@ -2,21 +2,21 @@
   "name": "crias-trilha",
   "private": true,
   "workspaces": [
-    "frontend/crias-painel",
+    "frontend/crias-gestao",
     "frontend/crias-aluno"
   ],
   "scripts": {
-    "dev": "npm run dev -w crias-painel",
-    "dev:admin": "npm run dev -w crias-painel",
+    "dev": "npm run dev -w crias-gestao",
+    "dev:admin": "npm run dev -w crias-gestao",
     "dev:aluno": "npm run dev -w crias-aluno",
-    "build": "npm run build -w crias-painel && npm run build -w crias-aluno && node scripts/copy-aluno-dist.mjs",
-    "build:admin": "npm run build -w crias-painel",
+    "build": "npm run build -w crias-gestao && npm run build -w crias-aluno && node scripts/copy-aluno-dist.mjs",
+    "build:admin": "npm run build -w crias-gestao",
     "build:aluno": "npm run build -w crias-aluno",
-    "lint": "npm run lint -w crias-painel",
-    "typecheck": "npm run typecheck -w crias-painel && npm run typecheck -w crias-aluno",
+    "lint": "npm run lint -w crias-gestao",
+    "typecheck": "npm run typecheck -w crias-gestao && npm run typecheck -w crias-aluno",
     "test": "node --test scripts/contract-*.test.mjs scripts/check-design-boundaries.mjs scripts/agent-usage.test.mjs && vitest run",
     "check:design-boundaries": "node --test scripts/check-design-boundaries.mjs",
-    "preview": "npm run preview -w crias-painel",
+    "preview": "npm run preview -w crias-gestao",
     "audit:trilha-integrity": "node scripts/audit-trilha-integrity.js"
   },
   "dependencies": {

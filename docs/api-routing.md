@@ -3,14 +3,14 @@
 ## Regra central
 
 ```text
-Painel Admin -> Firestore Client SDK
+Gestão Admin -> Firestore Client SDK
 App aluno web -> API HTTP
 Integracoes externas -> API HTTP
 ```
 
-## Painel Admin
+## Gestão Admin
 
-O painel atual usa Firestore diretamente.
+A gestão atual usa Firestore diretamente.
 
 Exemplos:
 
@@ -19,7 +19,7 @@ Exemplos:
 - Trilhas: collection `trails`.
 - Stages: collection `trail_stages`.
 - Conteudos: collection `trail_stage_questions`.
-- Progresso: collection `student_trails` (authoring/vinculo no painel).
+- Progresso: collection `student_trails` (authoring/vinculo na gestão).
 
 ## Player web do aluno
 

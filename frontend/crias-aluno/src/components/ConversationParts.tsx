@@ -2,14 +2,14 @@ import type { ReactNode, RefObject } from 'react'
 import CriasSymbol from './CriasSymbol'
 
 /**
- * Peças da conversa (v6, seção 10), usadas pela trilha e pela Monitoria.
+ * Peças da conversa (v1.0, seção 10), usadas pela trilha e pela Monitoria.
  */
 
 /** Balão do aluno: à direita, sem avatar nem horário. */
 export function UserBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="v6-msg v6-msg--user">
-      <div className="v6-bubble" aria-label="Você">
+    <div className="v1-0-msg v1-0-msg--user">
+      <div className="v1-0-bubble" aria-label="Você">
         {children}
       </div>
     </div>
@@ -39,25 +39,25 @@ export function BotMessage({
   labelId,
 }: BotProps) {
   return (
-    <div className="v6-msg v6-msg--bot">
-      <span className="v6-msg__sym">
+    <div className="v1-0-msg v1-0-msg--bot">
+      <span className="v1-0-msg__sym">
         <CriasSymbol size={30} animated={animatedSymbol} />
       </span>
-      <div className="v6-msg__body">
-        <span className="v6-msg__labelrow">
-          <span className="v6-msg__symsm">
+      <div className="v1-0-msg__body">
+        <span className="v1-0-msg__labelrow">
+          <span className="v1-0-msg__symsm">
             <CriasSymbol size={20} animated={animatedSymbol} />
           </span>
-          <span className="v6-msg__label" data-fade="1" id={labelId}>
+          <span className="v1-0-msg__label" data-fade="1" id={labelId}>
             {label}
           </span>
           {feedback ? (
-            <span className={`v6-badge v6-badge--${feedback}`}>
+            <span className={`v1-0-badge v1-0-badge--${feedback}`}>
               {feedback === 'ok' ? 'Acertou' : 'Quase'}
             </span>
           ) : null}
         </span>
-        <div className="v6-msg__text">{children}</div>
+        <div className="v1-0-msg__text">{children}</div>
       </div>
     </div>
   )
@@ -66,11 +66,11 @@ export function BotMessage({
 /** Carregando resposta ou etapa nova: símbolo em movimento e três pontos. */
 export function TypingRow() {
   return (
-    <div className="v6-typing" role="status" aria-live="polite" aria-label="Aguarde">
-      <span className="v6-typing__sym">
+    <div className="v1-0-typing" role="status" aria-live="polite" aria-label="Aguarde">
+      <span className="v1-0-typing__sym">
         <CriasSymbol size={30} />
       </span>
-      <span className="v6-typing__dots" aria-hidden="true">
+      <span className="v1-0-typing__dots" aria-hidden="true">
         <span />
         <span />
         <span />
@@ -92,7 +92,7 @@ export function ScrollArrows({
       <button
         ref={upRef}
         type="button"
-        className="v6-arrow v6-arrow--up"
+        className="v1-0-arrow v1-0-arrow--up"
         aria-label="Ir para o topo"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -102,7 +102,7 @@ export function ScrollArrows({
       <button
         ref={downRef}
         type="button"
-        className="v6-arrow v6-arrow--down"
+        className="v1-0-arrow v1-0-arrow--down"
         aria-label="Ir para o fim"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

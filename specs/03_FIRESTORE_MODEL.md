@@ -2,7 +2,7 @@
 
 ## Regra geral
 
-O painel administrativo usa Firestore Client SDK para leitura e escrita.
+A gestão administrativa usa Firestore Client SDK para leitura e escrita.
 O app web do aluno e demais consumidores externos usam API HTTP, que acessa Firestore via backend/admin SDK.
 
 ## Collections
@@ -133,7 +133,7 @@ Uso:
 
 - progresso canônico do aluno na trilha;
 - consumido pelo player web via `next-content` / `advance`;
-- administrável no painel (vínculo, posição, block/complete).
+- administrável na gestão (vínculo, posição, block/complete).
 
 ### `counters`
 

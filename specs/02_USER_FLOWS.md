@@ -2,7 +2,7 @@
 
 ## Fluxo 1 — Criar instituição
 
-1. Admin acessa o painel.
+1. Admin acessa a gestão.
 2. Clica em Nova instituição.
 3. Preenche nome, tipo e status.
 4. Sistema salva no Firestore.

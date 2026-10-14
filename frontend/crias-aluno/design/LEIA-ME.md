@@ -9,7 +9,7 @@ Esta pasta guarda o design atualizado do app do aluno. O app em uso é o `fronte
 | `design-system/` | Design system do Crias: tokens (`styles.css`), guia (`readme.md`) e páginas de referência |
 | `prototipo/Crias Aluno.dc.html` | Protótipo navegável (precisa de `support.js` e `assets/`) |
 | `prototipo/Crias Aluno (offline).html` | Protótipo em arquivo único, abre sem internet |
-| `prototipo/Crias Painel.dc.html` | Protótipo do painel (referência visual) |
+| `prototipo/Crias Gestao.dc.html` | Protótipo da gestão (referência visual) |
 | `INTERFACE.md` | Regras invioláveis, conflitos com o código atual e a ordem de aplicação |
 | `DECISOES.md` | O que foi feito e o que falta decidir |
 | `ATUALIZACAO-DESIGN-SYSTEM.md` | O que mudou no design system (histórico da revisão anterior) |

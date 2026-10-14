@@ -10,7 +10,7 @@ function syncVisualViewportVars() {
   const vv = window.visualViewport
   if (!vv) {
     root.style.setProperty('--vv-height', `${window.innerHeight}px`)
-    // v6: altura e deslocamento da tela (nunca 100vh).
+    // v1.0: altura e deslocamento da tela (nunca 100vh).
     root.style.setProperty('--vvh', `${window.innerHeight}px`)
     root.style.setProperty('--vvt', '0px')
     root.style.setProperty('--vv-offset-top', '0px')
@@ -19,7 +19,7 @@ function syncVisualViewportVars() {
     return
   }
   root.style.setProperty('--vv-height', `${Math.round(vv.height)}px`)
-  // v6: altura e deslocamento da tela (nunca 100vh).
+  // v1.0: altura e deslocamento da tela (nunca 100vh).
   root.style.setProperty('--vvh', `${Math.round(vv.height)}px`)
   root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`)
   root.style.setProperty('--vv-offset-top', `${Math.round(vv.offsetTop)}px`)
@@ -41,7 +41,7 @@ export function bindVisualViewport(): () => void {
   bound = true
   syncVisualViewportVars()
   const vv = window.visualViewport
-  // v6: gesto de pinça bloqueado.
+  // v1.0: gesto de pinça bloqueado.
   const noZoom = (e: Event) => e.preventDefault()
   document.addEventListener('gesturestart', noZoom, { passive: false })
   window.addEventListener('resize', syncVisualViewportVars)

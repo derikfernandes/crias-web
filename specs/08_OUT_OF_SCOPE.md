@@ -12,12 +12,12 @@ Na fase inicial, não implementar:
 - correção automática de redação;
 - multi-idioma;
 - app mobile nativo;
-- envio de mensagens / push a partir do painel;
+- envio de mensagens / push a partir da gestão;
 - integração com provedores de chatbot externos;
 - migração automática de dados legados;
 - alteração do padrão de ids sem plano de migração;
 - substituição do Firestore por outro banco;
-- endpoints HTTP genéricos para o painel administrativo enquanto o painel
+- endpoints HTTP genéricos para a gestão administrativa enquanto a gestão
   continuar usando Firestore Client SDK (exceção: `GET /api/dashboard_summary`
   para agregação server-side de métricas / uso de agentes; player aluno usa
   a API de progresso canônica).

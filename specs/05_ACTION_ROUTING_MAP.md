@@ -6,13 +6,13 @@ Este arquivo define, para cada caso de uso, qual fonte de dados deve ser consult
 
 Ele responde à pergunta:
 
-> Quando o agente, painel ou app aluno precisa fazer uma ação, qual API ou collection deve consultar ou gravar?
+> Quando o agente, gestão ou app aluno precisa fazer uma ação, qual API ou collection deve consultar ou gravar?
 
 ## 2. Modos de acesso
 
 ### Firestore Client Mode
 
-Usado pelo painel administrativo atual.
+Usado pela gestão administrativa atual.
 
 O frontend acessa Firestore diretamente via Firebase SDK.
 
@@ -25,7 +25,7 @@ O cliente chama endpoints HTTP. O backend acessa Firestore com camada segura.
 ## 3. Regra geral
 
 ```text
-Painel Admin -> Firebase SDK -> Firestore
+Gestão Admin -> Firebase SDK -> Firestore
 App aluno web -> API HTTP -> Backend -> Firestore
 Integrações externas -> API HTTP -> Backend -> Firestore
 ```
@@ -63,7 +63,7 @@ Authorization: Bearer <token>
 
 ### Criar instituição
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo atual: Firestore Client.
 
@@ -90,7 +90,7 @@ Campos:
 
 ### Listar instituições
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo atual: Firestore Client.
 
@@ -108,7 +108,7 @@ GET /institution/
 
 ### Criar aluno
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo atual: Firestore Client.
 
@@ -195,7 +195,7 @@ Regra:
 
 ### Criar trilha
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo atual: Firestore Client.
 
@@ -220,7 +220,7 @@ Regra:
 
 ### Criar conteúdo de trilha
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo atual: Firestore Client.
 
@@ -303,7 +303,7 @@ Regra:
 
 ### Carregar métricas do dashboard (progressão + uso de agentes)
 
-Origem: painel administrativo.
+Origem: gestão administrativa.
 
 Modo: API HTTP (agregação server-side).
 
@@ -327,7 +327,7 @@ Saída:
 Regra:
 
 - `trail_id` de agente não entra em `trail_ids` de progressão.
-- Painel não deve baixar `conversation_logs` brutos para montar essas métricas.
+- Gestão não deve baixar `conversation_logs` brutos para montar essas métricas.
 
 ## 6. Regra de manutenção
 

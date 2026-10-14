@@ -1,5 +1,5 @@
 /**
- * Rolagem da conversa (v6, seções 12 e 12.1). Portada do protótipo.
+ * Rolagem da conversa (v1.0, seções 12 e 12.1). Portada do protótipo.
  *
  * - Suave sempre: roda do mouse soma no máximo 20px ao alvo, limitado a 110px
  *   da posição atual, e a conversa segue o alvo com 12% da distância por quadro.

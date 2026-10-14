@@ -1,6 +1,6 @@
 # Crias Trilha — admin (React + TypeScript + Vite)
 
-**Produção (Vercel):** o painel público está em [https://crias-trilhas.vercel.app](https://crias-trilhas.vercel.app). Variáveis `VITE_*`: arquivo `.env` nesta pasta em desenvolvimento, ou **Settings → Environment Variables** no projeto Vercel (o fluxo não depende de `localhost` em produção).
+**Produção (Vercel):** a gestão pública está em [https://crias-trilhas.vercel.app](https://crias-trilhas.vercel.app). Variáveis `VITE_*`: arquivo `.env` nesta pasta em desenvolvimento, ou **Settings → Environment Variables** no projeto Vercel (o fluxo não depende de `localhost` em produção).
 
 ## API REST (CRUD de Instituições)
 As rotas REST ficam disponíveis no mesmo domínio, por exemplo:

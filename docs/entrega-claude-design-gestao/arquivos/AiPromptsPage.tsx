@@ -65,7 +65,7 @@ export function AiPromptsPage() {
     return (
       <>
         <header className="admin__header">
-          <h1>Prompts de IA</h1>
+          <h1>Prompts</h1>
         </header>
         <p className="banner banner--error" role="alert">
           Acesso restrito a Master. Peça a um administrador para liberar
@@ -123,7 +123,7 @@ export function AiPromptsPage() {
   return (
     <>
       <header className="admin__header">
-        <h1>Prompts de IA</h1>
+        <h1>Prompts</h1>
         <p className="admin__lede muted">
           Fonte de verdade no Firestore. Edição Master-only com auditoria e
           versões anteriores. Fallbacks em código só se o documento estiver

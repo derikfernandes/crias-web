@@ -30,7 +30,17 @@ export type StudentPasswordsPageViewProps = {
   error: string | null
   busy: boolean
   onExportCsv: () => void
+  onBulkGenerateMissing: () => void
+  bulkGenerateLabel?: string
+  bulkResultMessage: string | null
   onRegenerate: (studentId: string) => void
+  /** Paginação (~50/página) com números clicáveis. */
+  page: number
+  totalPages: number
+  totalRows: number
+  pageStart: number
+  pageEnd: number
+  onPageChange: (page: number) => void
   importCsvText: string
   onImportCsvTextChange: (value: string) => void
   onImportFile: (file: File | null) => void

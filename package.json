@@ -9,7 +9,7 @@
     "dev": "npm run dev -w crias-painel",
     "dev:admin": "npm run dev -w crias-painel",
     "dev:aluno": "npm run dev -w crias-aluno",
-    "build": "npm run build -w crias-painel && npm run build -w crias-aluno && node scripts/copy-aluno-dist.mjs",
+    "build": "npm run build -w crias-painel && npm run build -w crias-aluno && node scripts/copy-aluno-dist.mjs && node scripts/sync-painel-dist-root.mjs",
     "build:admin": "npm run build -w crias-painel",
     "build:aluno": "npm run build -w crias-aluno",
     "lint": "npm run lint -w crias-painel",

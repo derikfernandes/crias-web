@@ -111,6 +111,71 @@ export type ImportPasswordsResult = {
   generated_csv: string
 }
 
+export type BulkGeneratePasswordsResult = {
+  dry_run: boolean
+  scanned: number
+  would_update: number
+  updated: number
+  skipped_existing: number
+  remaining: number
+  next_cursor: string | null
+  done: boolean
+  rows: Array<{
+    id: string
+    school: string
+    name: string
+    phone_number: string
+    password: string
+    action: 'create' | 'overwrite' | 'skip'
+  }>
+}
+
+/** Conta alunos sem senha na escola (dry-run; não grava). */
+export async function countMissingStudentPasswords(
+  institutionId: string,
+): Promise<BulkGeneratePasswordsResult> {
+  return bulkGenerateStudentPasswords({
+    institutionId,
+    dryRun: true,
+  })
+}
+
+/**
+ * Gera senhas só para quem ainda não tem (nunca sobrescreve).
+ * Use `cursor`/`limit` em loop até `done` para escolas grandes (~1000).
+ */
+export async function bulkGenerateStudentPasswords(opts: {
+  institutionId: string
+  dryRun?: boolean
+  limit?: number
+  cursor?: string | null
+}): Promise<BulkGeneratePasswordsResult> {
+  const url = new URL('/api/student_passwords', resolveApiBaseUrl())
+  url.searchParams.set('action', 'bulk_generate')
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: await masterAuthHeaders(),
+    body: JSON.stringify({
+      institution_id: opts.institutionId,
+      dry_run: Boolean(opts.dryRun),
+      force: false,
+      limit: opts.limit,
+      cursor: opts.cursor ?? null,
+    }),
+  })
+  if (!res.ok) {
+    let message = `Falha ao gerar senhas em lote (HTTP ${res.status}).`
+    try {
+      const body = (await res.json()) as { error?: string }
+      if (body?.error) message = body.error
+    } catch {
+      // ignore
+    }
+    throw new Error(message)
+  }
+  return (await res.json()) as BulkGeneratePasswordsResult
+}
+
 export async function importStudentsCsv(
   csv: string,
 ): Promise<ImportPasswordsResult> {

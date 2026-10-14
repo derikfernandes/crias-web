@@ -2,6 +2,26 @@ import type { StudentPasswordsPageViewProps } from '../types/studentPasswordsPag
 
 export type { StudentPasswordsPageViewProps } from '../types/studentPasswordsPageView'
 
+function pageNumberList(current: number, total: number): Array<number | '…'> {
+  if (total <= 9) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+  const pages = new Set<number>([1, total, current])
+  for (let d = 1; d <= 2; d++) {
+    if (current - d >= 1) pages.add(current - d)
+    if (current + d <= total) pages.add(current + d)
+  }
+  const sorted = [...pages].sort((a, b) => a - b)
+  const out: Array<number | '…'> = []
+  let prev = 0
+  for (const p of sorted) {
+    if (prev && p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
 export function StudentPasswordsPageView({
   isMaster,
   institutionOptions,
@@ -12,7 +32,16 @@ export function StudentPasswordsPageView({
   error,
   busy,
   onExportCsv,
+  onBulkGenerateMissing,
+  bulkGenerateLabel = 'Gerar senhas para alunos sem senha',
+  bulkResultMessage,
   onRegenerate,
+  page,
+  totalPages,
+  totalRows,
+  pageStart,
+  pageEnd,
+  onPageChange,
   importCsvText,
   onImportCsvTextChange,
   onImportFile,
@@ -36,6 +65,8 @@ export function StudentPasswordsPageView({
       </>
     )
   }
+
+  const pageNumbers = pageNumberList(page, totalPages)
 
   return (
     <>
@@ -66,6 +97,14 @@ export function StudentPasswordsPageView({
               type="button"
               className="btn btn--primary"
               disabled={!selectedInstitutionId || busy || loading}
+              onClick={onBulkGenerateMissing}
+            >
+              {bulkGenerateLabel}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!selectedInstitutionId || busy || loading}
               onClick={onExportCsv}
             >
               Exportar CSV
@@ -77,6 +116,20 @@ export function StudentPasswordsPageView({
       {error ? (
         <p className="banner banner--error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {bulkResultMessage ? (
+        <p className="banner banner--success" role="status">
+          {bulkResultMessage}{' '}
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={!selectedInstitutionId || busy}
+            onClick={onExportCsv}
+          >
+            Exportar CSV
+          </button>
         </p>
       ) : null}
 
@@ -140,6 +193,64 @@ export function StudentPasswordsPageView({
             </tbody>
           </table>
         </div>
+        {selectedInstitutionId && totalRows > 0 ? (
+          <nav
+            className="list-pagination"
+            aria-label="Paginação da lista de alunos"
+          >
+            <span className="muted">
+              {pageStart}–{pageEnd} de {totalRows}
+            </span>
+            <div className="list-pagination__actions">
+              <button
+                type="button"
+                className="btn btn--small btn--ghost"
+                onClick={() => onPageChange(page - 1)}
+                disabled={page <= 1 || busy}
+              >
+                Anterior
+              </button>
+              <ol className="list-pagination__pages">
+                {pageNumbers.map((item, idx) =>
+                  item === '…' ? (
+                    <li
+                      key={`ellipsis-${idx}`}
+                      className="list-pagination__ellipsis"
+                      aria-hidden="true"
+                    >
+                      …
+                    </li>
+                  ) : (
+                    <li key={item}>
+                      <button
+                        type="button"
+                        className={
+                          item === page
+                            ? 'btn btn--small list-pagination__page is-active'
+                            : 'btn btn--small btn--ghost list-pagination__page'
+                        }
+                        aria-current={item === page ? 'page' : undefined}
+                        aria-label={`Página ${item}`}
+                        disabled={busy}
+                        onClick={() => onPageChange(item)}
+                      >
+                        {item}
+                      </button>
+                    </li>
+                  ),
+                )}
+              </ol>
+              <button
+                type="button"
+                className="btn btn--small btn--ghost"
+                onClick={() => onPageChange(page + 1)}
+                disabled={page >= totalPages || busy}
+              >
+                Próxima
+              </button>
+            </div>
+          </nav>
+        ) : null}
       </section>
 
       <section className="panel" aria-labelledby="senhas-import-titulo">

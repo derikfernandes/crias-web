@@ -36,4 +36,12 @@ O sócio trocou "Monitor" por "Parceiro de estudo" no app do aluno. **Decisão d
 3. O protótipo atual da Gestão: `frontend/crias-aluno/design/prototipo/Crias Gestao.dc.html`.
 
 ## Pedido sugerido (colar no Claude Design)
-> Desenhe, no design system do Crias v1.0, a tela "Senhas dos alunos" da Gestão e o ajuste do cadastro de administrador (checkbox Master). Mantenha todos os textos e estados descritos no LEIA-ME. Inclua: seletor de escola, geração em lote com confirmação, exportar CSV, tabela com senha visível/legado/sem senha, paginação numerada, importação por arquivo ou texto com tabela de erros e janela de confirmação no padrão do app. Desktop primeiro. Inclua também a aba "Prompts" (caixa de seleção, campo de edição, Salvar, versões anteriores).
+> Este projeto já tem a v1.0 revisada e aprovada (aluno e Gestão). **Não altere nada do que já existe**: telas, layout, cores, textos, componentes e nomes continuam exatamente como estão. Só **acrescente** o que é novo, usando os mesmos componentes e o mesmo design system.
+>
+> Novo, só na Gestão:
+> 1. Tela "Senhas dos alunos" (só Master): seletor de escola, botão "Gerar senhas para alunos sem senha" (com janela de confirmação), "Exportar CSV", tabela Nome / Celular / Senha / Ações (senha visível, "Legado, gere nova senha" ou "Sem senha"; ação "Gerar nova senha" com confirmação), paginação numerada de 50 em 50, e bloco "Importar CSV" (arquivo ou texto colado, resultado, tabela de erros por linha, "Baixar senhas geradas (CSV)").
+> 2. Aba "Prompts" (só Master) no menu, grupo Administração, logo acima de "API e documentação": caixa de seleção do prompt, campo de edição do texto, nota da versão, botão Salvar e lista de versões anteriores.
+> 3. Checkbox "Master (senhas dos alunos)" no cadastro de administrador.
+> 4. Dois itens novos no menu da Gestão: "Senhas (Master)" e "Prompts".
+>
+> Mantenha "Monitor" e "Monitoria" no app do aluno. Vocabulário: trilha, atividade, etapa. Sem travessão nos textos. Os textos e estados estão descritos neste LEIA-ME e nos arquivos de `arquivos/`.

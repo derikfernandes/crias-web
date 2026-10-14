@@ -9,6 +9,7 @@ import { getFallbackPromptBody } from './fallbacks.js'
 import {
   AI_PROMPT_IDS,
   AI_PROMPT_META,
+  RETIRED_AI_PROMPT_IDS,
   isAiPromptId,
   type AiPromptId,
 } from './ids.js'
@@ -29,6 +30,7 @@ export type SeedAiPromptsResult = {
   seeded: AiPromptId[]
   skipped: AiPromptId[]
   forced: AiPromptId[]
+  retired: string[]
 }
 
 export type AiPromptVersion = {
@@ -91,9 +93,43 @@ function readBodyFromSnap(data: Record<string, unknown> | undefined): string | n
 }
 
 /**
+ * Aposenta docs legados (ex.: spacing_rules / |||) sem tocar nos prompts ativos.
+ * Apaga só o documento raiz; subcoleção versions fica como arquivo inerte.
+ */
+export async function retireObsoleteAiPrompts(
+  db: Firestore,
+  actor: PromptActor,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string[]> {
+  const retired: string[] = []
+  const col = db.collection(collectionName(env))
+  for (const id of RETIRED_AI_PROMPT_IDS) {
+    try {
+      const ref = col.doc(id)
+      const snap = await ref.get()
+      if (!snap.exists) continue
+      await ref.delete()
+      await db.collection(collectionName(env) + '_audit').add({
+        prompt_id: id,
+        action: 'retire',
+        actor_email: actor.email.trim().toLowerCase(),
+        actor_uid: actor.uid,
+        created_at: FieldValue.serverTimestamp(),
+        note: 'prompt legado removido do runtime (marcador |||)',
+      })
+      retired.push(id)
+    } catch {
+      // Best-effort: não quebra leitura/seed de prompts ativos.
+    }
+  }
+  return retired
+}
+
+/**
  * Seed automático (só docs ausentes) na primeira leitura de prompts neste
  * processo. Não sobrescreve edits do Master. Garante que produção não fica
  * sem docs no Firestore após deploy (fallback de código cobre o intervalo).
+ * Também tenta aposentar docs RETIRED_AI_PROMPT_IDS (ex.: spacing_rules).
  */
 let ensureSeedOnce: Promise<SeedAiPromptsResult | null> | null = null
 
@@ -352,6 +388,16 @@ export async function updateAiPrompt(
  * Popula Firestore com os textos corrigidos (fallback atual).
  * Por padrão não sobrescreve docs existentes; use force=true para substituir.
  */
+/** Sinais de seed antigo (pré-remoção ||| / FORMATO WHATSAPP). */
+function bodyLooksStaleForFormatting(body: string): boolean {
+  return (
+    /FORMATO WHATSAPP/i.test(body) ||
+    /negrito com um asterisco de cada lado/i.test(body) ||
+    /marcador \|\|\|/i.test(body) ||
+    /ESPAÇAMENTO OBRIGATÓRIO[\s\S]{0,80}marcador/i.test(body)
+  )
+}
+
 export async function seedAiPrompts(
   db: Firestore,
   actor: PromptActor,
@@ -366,16 +412,39 @@ export async function seedAiPrompts(
   for (const id of AI_PROMPT_IDS) {
     const ref = db.collection(collectionName(env)).doc(id)
     const snap = await ref.get()
-    if (snap.exists && !force) {
+    const existingBody =
+      snap.exists && typeof snap.data()?.body === 'string'
+        ? String(snap.data()?.body)
+        : ''
+    const staleFormatting =
+      !force &&
+      snap.exists &&
+      (id === 'gerador_trilha' || id === 'parceiro_estudo') &&
+      bodyLooksStaleForFormatting(existingBody)
+
+    if (snap.exists && !force && !staleFormatting) {
       skipped.push(id)
       continue
     }
     const body = getFallbackPromptBody(id)
-    await updateAiPrompt(db, id, body, actor, env, force ? 'seed:force' : 'seed')
-    if (snap.exists && force) forced.push(id)
+    await updateAiPrompt(
+      db,
+      id,
+      body,
+      actor,
+      env,
+      force
+        ? 'seed:force'
+        : staleFormatting
+          ? 'seed:format-refresh'
+          : 'seed',
+    )
+    if (snap.exists && (force || staleFormatting)) forced.push(id)
     else seeded.push(id)
   }
 
+  const retired = await retireObsoleteAiPrompts(db, actor, env)
+
   clearAiPromptCache()
-  return { seeded, skipped, forced }
+  return { seeded, skipped, forced, retired }
 }

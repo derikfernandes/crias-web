@@ -6,10 +6,7 @@ export {
 export type { BuiltTrailAiPrompt, TrailAiPromptInput } from './buildTrailAiPrompt'
 export { ensureTrailAiContent } from './ensureTrailAiContent'
 export type { EnsureTrailAiResult } from './ensureTrailAiContent'
-export {
-  formatAiAnswer,
-  TRAIL_AI_SPACING_RULES,
-} from './formatAiAnswer'
+export { formatAiAnswer } from './formatAiAnswer'
 export {
   buildVertexGenerateContentUrl,
   DEFAULT_GEMINI_MODEL,

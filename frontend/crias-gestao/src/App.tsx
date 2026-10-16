@@ -21,16 +21,8 @@ const DashboardPage = lazy(() =>
 const DocPage = lazy(() =>
   import('./pages/DocPage').then((m) => ({ default: m.DocPage })),
 )
-const GabaritoPage = lazy(() =>
-  import('./pages/GabaritoPage').then((m) => ({ default: m.GabaritoPage })),
-)
 const HomePage = lazy(() =>
   import('./pages/HomePage').then((m) => ({ default: m.HomePage })),
-)
-const InstitutionDetailPage = lazy(() =>
-  import('./pages/InstitutionDetailPage').then((m) => ({
-    default: m.InstitutionDetailPage,
-  })),
 )
 const InstitutionNewPage = lazy(() =>
   import('./pages/InstitutionNewPage').then((m) => ({
@@ -40,11 +32,6 @@ const InstitutionNewPage = lazy(() =>
 const TrailDetailPage = lazy(() =>
   import('./pages/TrailDetailPage').then((m) => ({
     default: m.TrailDetailPage,
-  })),
-)
-const TrailStageQuestionsPage = lazy(() =>
-  import('./pages/TrailStageQuestionsPage').then((m) => ({
-    default: m.TrailStageQuestionsPage,
   })),
 )
 const TrailNewPage = lazy(() =>
@@ -57,11 +44,6 @@ const StudentDetailPage = lazy(() =>
 )
 const StudentNewPage = lazy(() =>
   import('./pages/StudentNewPage').then((m) => ({ default: m.StudentNewPage })),
-)
-const GerenciamentoPage = lazy(() =>
-  import('./pages/GerenciamentoPage').then((m) => ({
-    default: m.GerenciamentoPage,
-  })),
 )
 const StudentsListPage = lazy(() =>
   import('./pages/StudentsListPage').then((m) => ({
@@ -174,14 +156,7 @@ function AppRoutes() {
               </ProtectedPage>
             }
           />
-          <Route
-            path="/instituicoes/:id"
-            element={
-              <ProtectedPage>
-                <InstitutionDetailPage />
-              </ProtectedPage>
-            }
-          />
+          <Route path="/instituicoes/:id" element={<Navigate to="/" replace />} />
           <Route
             path="/alunos/novo"
             element={
@@ -222,14 +197,7 @@ function AppRoutes() {
               </ProtectedPage>
             }
           />
-          <Route
-            path="/gerenciamento"
-            element={
-              <ProtectedPage>
-                <GerenciamentoPage />
-              </ProtectedPage>
-            }
-          />
+          <Route path="/gerenciamento" element={<Navigate to="/" replace />} />
           <Route
             path="/dashboard"
             element={
@@ -254,14 +222,7 @@ function AppRoutes() {
               </ProtectedPage>
             }
           />
-          <Route
-            path="/gabarito"
-            element={
-              <ProtectedPage>
-                <GabaritoPage />
-              </ProtectedPage>
-            }
-          />
+          <Route path="/gabarito" element={<Navigate to="/trilhas" replace />} />
           <Route
             path="/trilhas/novo"
             element={
@@ -275,14 +236,6 @@ function AppRoutes() {
             element={
               <ProtectedPage>
                 <TrailsListPage />
-              </ProtectedPage>
-            }
-          />
-          <Route
-            path="/trilhas/:trailId/stages/:stageNumber/questoes"
-            element={
-              <ProtectedPage>
-                <TrailStageQuestionsPage />
               </ProtectedPage>
             }
           />

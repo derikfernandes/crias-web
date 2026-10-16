@@ -493,3 +493,38 @@ html {
 .gx-callout { background: var(--v-soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .gx-inlinebar { background: var(--v-raise); border: 1px solid var(--v-line); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 @media (max-width: 768px) { .gx-tab { font-size: 13px; padding: 0 6px; } }
+
+/* ===== Entrada ===== */
+.gx-login { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--v-bg); overflow: auto; }
+.gx-login__card { position: relative; z-index: 2; width: min(400px, 100%); display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.gx-login__logo { width: 200px; height: auto; }
+.gx-login .gx-brand__dark { display: none; }
+:root[data-theme='dark'] .gx-login .gx-brand__light { display: none; }
+:root[data-theme='dark'] .gx-login .gx-brand__dark { display: block; }
+
+/* Textos migrados: pontes para telas ainda em estilo antigo (documentação da API). */
+.gx-root .doc, .gx-root .doc-page { color: var(--v-ink); }
+
+/* ===== Ponte para telas em estilo antigo (documentação da API) ===== */
+.gx-root .admin__header { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 12px; min-height: var(--hd-min); padding: var(--hd-pt) 0 36px; margin: 0 0 -36px; background: linear-gradient(to bottom, var(--v-bg) calc(100% - 36px), transparent); border: 0; }
+.gx-root .admin__header h1 { font-family: Outfit, sans-serif; font-weight: 600; font-size: var(--g-h1); line-height: 1.15; margin: 0; color: var(--v-ink); border: 0; letter-spacing: 0; }
+.gx-root .admin__lede { margin: 0; color: var(--v-t2); font-size: 14px; line-height: 1.5; }
+.gx-root .admin__actions { display: none; }
+.gx-root .btn { height: 36px; padding: 0 16px; border: 1px solid var(--v-line); border-radius: 999px; background: var(--v-raise); color: var(--v-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.gx-root .btn:hover { background: var(--v-soft); }
+.gx-root .btn--primary { border: 0; background: var(--v-green); color: #fff; font-weight: 700; }
+.gx-root .btn--primary:hover { background: var(--v-green2); }
+.gx-root .btn--ghost { border-color: transparent; background: transparent; }
+.gx-root .btn--small { height: 32px; padding: 0 14px; }
+.gx-root .btn--danger { border: 0; background: var(--v-err); color: #fff; }
+.gx-root .banner { border-radius: 12px; padding: 10px 16px; font-size: 14px; }
+.gx-root .banner--error { background: var(--v-errSoft); color: var(--v-err); }
+.gx-root .banner--success, .gx-root .banner--ok, .gx-root .banner--info { background: var(--v-gsoft); color: var(--v-gink); }
+.gx-root .panel { border: 1px solid var(--v-soft2); border-radius: 16px; background: var(--v-raise); padding: 20px; }
+.gx-root .panel h2, .gx-root .panel h3 { font-family: Outfit, sans-serif; color: var(--v-ink); border: 0; }
+.gx-root .muted { color: var(--v-t3); }
+.gx-root .field input, .gx-root .field select, .gx-root .field textarea { height: 40px; border: 1px solid var(--v-line); border-radius: 10px; background: var(--v-soft); padding: 0 12px; font: inherit; font-size: 16px; color: var(--v-ink); }
+.gx-root code { font-family: ui-monospace, Consolas, monospace; background: var(--v-soft2); border-radius: 6px; padding: 1px 6px; color: var(--v-ink); }
+.gx-root pre { background: var(--v-soft); border: 1px solid var(--v-line); border-radius: 12px; color: var(--v-ink); }
+.gx-root h1, .gx-root h2, .gx-root h3 { letter-spacing: 0; }
+.gx-root table { color: var(--v-ink); }

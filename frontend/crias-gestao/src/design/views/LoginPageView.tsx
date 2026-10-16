@@ -1,5 +1,6 @@
-import type { FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Banner, BootSymbol, Horizon } from '../gx/ui'
 
 export type LoginPageViewProps = {
   email: string
@@ -14,6 +15,7 @@ export type LoginPageViewProps = {
   loading?: boolean
 }
 
+/** Entrada da Gestão: logo, e-mail e senha sobre a malha 3D (mesmo padrão do Crias Aluno). */
 export function LoginPageView({
   email,
   password,
@@ -25,36 +27,23 @@ export function LoginPageView({
   onSubmit,
   loading = false,
 }: LoginPageViewProps) {
-  if (loading) {
-    return (
-      <div className="login">
-        <p className="muted">Carregando…</p>
-      </div>
-    )
-  }
+  const [show, setShow] = useState(false)
+  if (loading) return <BootSymbol />
 
   return (
-    <div className="login">
-      <div className="login__card">
-        <header className="login__header">
-          <Link to="/" className="login__brand">
-            Crias Trilha
-          </Link>
-          <h1>Entrar</h1>
-          <p className="login__lede muted">
-            Acesse a gestão administrativa com sua conta Firebase.
-          </p>
-        </header>
-
+    <div className="gx-root gx-login">
+      <Horizon mode="home" />
+      <div className="gx-login__card">
+        <img className="gx-login__logo gx-brand__light" src="/crias-logo-gestao.svg" alt="Crias Gestão" />
+        <img className="gx-login__logo gx-brand__dark" src="/crias-logo-gestao-branco.svg" alt="Crias Gestão" />
         {configError ? (
-          <p className="banner banner--error" role="alert">
-            {configError}
-          </p>
+          <Banner>{configError}</Banner>
         ) : (
-          <form className="form login__form" onSubmit={onSubmit}>
-            <label className="field">
+          <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+            <label className="gx-field">
               <span>E-mail</span>
               <input
+                className="gx-input"
                 type="email"
                 name="email"
                 autoComplete="email"
@@ -64,40 +53,40 @@ export function LoginPageView({
                 required
               />
             </label>
-
-            <label className="field">
+            <label className="gx-field">
               <span>Senha</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => onPasswordChange(e.target.value)}
-                disabled={submitting}
-                required
-              />
+              <span style={{ position: 'relative', display: 'block' }}>
+                <input
+                  className="gx-input"
+                  style={{ paddingRight: 84 }}
+                  type={show ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => onPasswordChange(e.target.value)}
+                  disabled={submitting}
+                  required
+                />
+                <button
+                  type="button"
+                  className="gx-linkbtn"
+                  style={{ position: 'absolute', right: 8, top: 6 }}
+                  aria-pressed={show}
+                  aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}
+                  onClick={() => setShow((v) => !v)}
+                >
+                  {show ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </span>
             </label>
-
-            {formError ? (
-              <p className="form__error banner banner--error" role="alert">
-                {formError}
-              </p>
-            ) : null}
-
-            <div className="form__actions">
-              <button
-                type="submit"
-                className="btn btn--primary"
-                disabled={submitting}
-              >
-                {submitting ? 'Entrando…' : 'Entrar'}
-              </button>
-            </div>
+            {formError ? <Banner>{formError}</Banner> : null}
+            <button type="submit" className="gx-btn gx-btn--primary" style={{ height: 44 }} disabled={submitting}>
+              {submitting ? 'Entrando…' : 'Entrar'}
+            </button>
           </form>
         )}
-
-        <p className="login__footer muted">
-          <Link to="/doc">Documentação da API</Link>
+        <p className="gx-muted">
+          <Link to="/doc">API e documentação</Link>
         </p>
       </div>
     </div>

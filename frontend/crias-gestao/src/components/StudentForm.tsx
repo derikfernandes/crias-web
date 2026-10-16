@@ -8,6 +8,7 @@ import {
 } from '../lib/public/students'
 import { studentPath } from '../lib/paths'
 import { updateStudentPassword } from '../lib/studentApi'
+import { Banner, DeletarDialog, Switch } from '../design/gx/ui'
 import type { Student } from '../types/student'
 
 type Props = {
@@ -63,6 +64,7 @@ export function StudentForm({ docId, initial }: Props) {
   const [password, setPassword] = useState('')
 
   const [saving, setSaving] = useState(false)
+  const [delOpen, setDelOpen] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -184,152 +186,114 @@ export function StudentForm({ docId, initial }: Props) {
 
   async function handleDelete() {
     if (!docId || !initial) return
-    const ok = window.confirm(
-      `Excluir o aluno "${initial.name || docId}"?\n\n` +
-        'Também serão removidos os vínculos em trilhas (student_trails), ' +
-        'o histórico de conversa e as tentativas de exercício. ' +
-        'Esta ação não pode ser desfeita.',
-    )
-    if (!ok) return
-
+    setSaving(true)
     try {
       await deleteStudent(docId)
-      navigate('/')
+      navigate('/alunos')
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao excluir.')
+      setFormError(err instanceof Error ? err.message : 'Erro ao excluir.')
+      setDelOpen(false)
+    } finally {
+      setSaving(false)
     }
   }
 
+  const peds = ['', 'Básico', 'Intermediário', 'Avançado']
+  const instName = institutions.find((i) => i.id === institution_id)?.name || institution_id
   return (
-    <section className="panel">
-      <h2>{isEdit ? 'Editar aluno' : 'Novo aluno'}</h2>
-
-      <form className="form" onSubmit={handleSubmit}>
-        <label className="field">
-          <span>Instituição</span>
-          <select
-            value={institution_id}
-            onChange={(e) => setInstitutionId(e.target.value)}
-          >
-            <option value="">
-              {isEdit ? 'Sem instituição' : 'Selecione…'}
-            </option>
-            {institutions.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.name ? `${inst.name} (${inst.id})` : inst.id}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Nome</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex.: João da Silva"
-            autoComplete="name"
-          />
-        </label>
-
-        <label className="field">
-          <span>Telefone</span>
-          <input
-            type="text"
-            value={phone_number}
-            onChange={(e) =>
-              setPhoneNumber(sanitizePhoneNumber(e.target.value))
-            }
-            placeholder="+55 11 99999-0000"
-            autoComplete="tel"
-          />
-        </label>
-
-        <label className="field">
-          <span>
-            Senha de acesso (app aluno)
-            {isEdit ? ' — deixe em branco para manter' : ''}
-          </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={isEdit ? 'new-password' : 'off'}
-            minLength={isEdit ? undefined : 6}
-            placeholder={isEdit ? 'Nova senha (opcional)' : 'Mín. 6 caracteres'}
-          />
-        </label>
-
-        <label className="field">
-          <span>Nível escolar (school_level)</span>
-          <select
-            value={school_level}
-            onChange={(e) => setSchoolLevel(normalizeSchoolLevel(e.target.value))}
-          >
-            <option value="fundamental">fundamental</option>
-            <option value="médio">médio</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Série/ano (school_grade)</span>
-          <select
-            value={school_grade}
-            onChange={(e) => setSchoolGrade(e.target.value)}
-          >
-            {gradesForLevel.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Nível do aluno (student_level)</span>
-          <select
-            value={student_level}
-            onChange={(e) => setStudentLevel(Number(e.target.value) as 1 | 2 | 3)}
-          >
-            <option value={1}>1</option>
-            <option value={2}>2 (intermediário)</option>
-            <option value={3}>3</option>
-          </select>
-        </label>
-
-        <label className="field field--inline">
-          <input
-            type="checkbox"
-            checked={active}
-            onChange={(e) => setActive(e.target.checked)}
-          />
-          <span>Aluno ativo</span>
-        </label>
-
-        {formError ? (
-          <p className="form__error" role="alert">
-            {formError}
-          </p>
-        ) : null}
-
-        <div className="form__actions">
-          <button type="submit" className="btn btn--primary" disabled={saving}>
-            {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Incluir'}
-          </button>
-          {isEdit ? (
-            <button
-              type="button"
-              className="btn btn--danger"
-              onClick={handleDelete}
-              disabled={saving}
-            >
-              Excluir
-            </button>
-          ) : null}
+    <>
+      <section className="gx-card" aria-label="Cadastro">
+        <div className="gx-card__head">
+          <h2>{isEdit ? 'Cadastro' : 'Dados do aluno'}</h2>
+          {isEdit ? <Switch checked={active} label="Aluno ativo" onChange={setActive} /> : null}
         </div>
-      </form>
-    </section>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="gx-grid">
+            <label className="gx-field">
+              <span>Nome</span>
+              <input className="gx-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: João da Silva" autoComplete="name" />
+            </label>
+            <label className="gx-field">
+              <span>Telefone</span>
+              <input className="gx-input" type="text" value={phone_number} onChange={(e) => setPhoneNumber(sanitizePhoneNumber(e.target.value))} placeholder="DDD + número" autoComplete="tel" />
+            </label>
+            <label className="gx-field">
+              <span>Senha de acesso{isEdit ? ' (deixe em branco para manter)' : ''}</span>
+              <input
+                className="gx-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder={isEdit ? 'Nova senha (opcional)' : 'Mínimo 6 caracteres'}
+              />
+            </label>
+          </div>
+          <div className="gx-grid">
+            <label className="gx-field">
+              <span>Instituição</span>
+              {isEdit ? (
+                <input className="gx-input" value={instName || 'N/A'} readOnly tabIndex={-1} aria-readonly="true" />
+              ) : (
+                <select className="gx-select" value={institution_id} onChange={(e) => setInstitutionId(e.target.value)}>
+                  <option value="">Selecione…</option>
+                  {institutions.map((inst) => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name || inst.id}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
+            <label className="gx-field">
+              <span>Escolaridade</span>
+              <select className="gx-select" value={school_level} onChange={(e) => setSchoolLevel(normalizeSchoolLevel(e.target.value))}>
+                <option value="fundamental">Fundamental</option>
+                <option value="médio">Médio</option>
+              </select>
+            </label>
+            <label className="gx-field">
+              <span>Série ou ano</span>
+              <select className="gx-select" value={school_grade} onChange={(e) => setSchoolGrade(e.target.value)}>
+                {gradesForLevel.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="gx-field">
+              <span>Nível pedagógico</span>
+              <select className="gx-select" value={student_level} onChange={(e) => setStudentLevel(Number(e.target.value) as 1 | 2 | 3)}>
+                {[1, 2, 3].map((n) => (
+                  <option key={n} value={n}>
+                    {peds[n]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {formError ? <Banner>{formError}</Banner> : null}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="submit" className="gx-btn gx-btn--primary" disabled={saving}>
+              {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Incluir aluno'}
+            </button>
+            {isEdit ? (
+              <button type="button" className="gx-btn" style={{ color: 'var(--v-err)' }} onClick={() => setDelOpen(true)} disabled={saving}>
+                Excluir aluno
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </section>
+      <DeletarDialog
+        open={delOpen}
+        title="Deseja mesmo excluir o aluno?"
+        subtitle="Também saem os vínculos com trilhas, o histórico de conversa e as tentativas de exercício. Essa ação não pode ser desfeita."
+        busy={saving}
+        onCancel={() => setDelOpen(false)}
+        onConfirm={() => void handleDelete()}
+      />
+    </>
   )
 }
-

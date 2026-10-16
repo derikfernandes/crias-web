@@ -85,6 +85,7 @@ export const SIDEBAR_NAV: SidebarNavEntry[] = [
 
 const ROUTE_NAV_MAP: { prefix: string; permission: NavPermission }[] = [
   { prefix: '/admin', permission: 'admin' },
+  { prefix: '/usuarios', permission: 'admin' },
   { prefix: '/instituicoes/novo', permission: 'institution_new' },
   { prefix: '/instituicoes/', permission: 'home' },
   { prefix: '/alunos/senhas', permission: 'student_passwords' },

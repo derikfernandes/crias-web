@@ -9,7 +9,8 @@
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:mock": "VITE_MOCK_FIREBASE=1 vite --mode mock --port 5180"
   },
   "dependencies": {
     "firebase": "^12.11.0",

@@ -5,6 +5,7 @@ import { AdminLayout } from './layouts/AdminLayout'
 import { ProtectedPage, RequireStudentAuth } from './layouts/RouteGuards'
 import { LoginPage } from './pages/LoginPage'
 import './design/styles/app.css'
+import './design/styles/gestao.css'
 
 // Code splitting: cada página vira um chunk próprio, carregado sob demanda.
 // Os componentes e o comportamento das páginas permanecem idênticos.

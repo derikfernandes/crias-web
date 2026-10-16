@@ -204,7 +204,7 @@ export default function TrailsPage() {
                           <span className="v1-0-tcard__name" data-fade="1">
                             {label}
                           </span>
-                          <svg className="v1-0-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffd500" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                          <svg className="v1-0-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
                             <title>{cta}</title>
                             <path d="M9 5l7 7-7 7" />
                           </svg>

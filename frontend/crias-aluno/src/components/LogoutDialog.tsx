@@ -39,7 +39,7 @@ export default function LogoutDialog({ onCancel, onConfirm }: Props) {
             Sair da conta?
           </h2>
           <p id="v1-0-logout-desc" className="v1-0-modal__desc">
-            Seu progresso na trilha fica salvo.
+            Seu progresso fica salvo.
           </p>
         </div>
         <div className="v1-0-modal__actions">

@@ -54,6 +54,10 @@ import {
 import { loadXlsx } from '../lib/loadXlsx'
 import { studentPath, trailPath } from '../lib/paths'
 import { usePermissions } from '../hooks/usePermissions'
+import { useGestao } from '../hooks/useGestao'
+import { downloadText, toCsv } from '../lib/tableFiles'
+import { correctToLetter, letterOf } from '../lib/trailActivities'
+import { resolveExerciseOptions } from '../lib/trilha/exerciseOptions'
 import type { Institution } from '../types/institution'
 import type { Student } from '../types/student'
 import type { StudentTrail } from '../types/studentTrail'
@@ -117,6 +121,10 @@ type PillRow = {
   correct: number
   wrong: number
   accuracyPct: number
+  /** Enunciado sem alternativas, com o texto de cada alternativa e quantas respostas teve. */
+  exerciseLabel: string
+  statement: string
+  alternatives: Array<{ key: string; text: string; count: number; correct: boolean }>
 }
 
 type PillSortKey =
@@ -511,16 +519,18 @@ function appendLessonsProgressSheet(
 
 export function DashboardPage() {
   const { filterInstitutions } = usePermissions()
+  const gestao = useGestao()
+  const [trailFilter, setTrailFilter] = useState<Set<string> | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('students')
-  const [questionsDataEnabled, setQuestionsDataEnabled] = useState(false)
+  // Oportunidades (menor e maior acerto) aparecem sempre; os dados dos exercícios entram desde o início.
+  const [questionsDataEnabled, setQuestionsDataEnabled] = useState(true)
   const [isQuestionsPending, startQuestionsTransition] = useTransition()
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [loadingInst, setLoadingInst] = useState(true)
   const [instError, setInstError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    const saved = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
-    return saved?.trim() ? saved : null
-  })
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => gestao.scopedInstitutions[0]?.id ?? null,
+  )
 
   const [students, setStudents] = useState<Student[]>([])
   const [trails, setTrails] = useState<Trail[]>([])
@@ -575,6 +585,7 @@ export function DashboardPage() {
 
   // Filtros da tabela de alunos
   const [nameFilter, setNameFilter] = useState('')
+  const [studentPick, setStudentPick] = useState<Set<string> | null>(null)
   const [pctMin, setPctMin] = useState(0)
   const [pctMax, setPctMax] = useState(100)
   const [studentChartFilter, setStudentChartFilter] =
@@ -646,6 +657,15 @@ export function DashboardPage() {
     if (!selectedId?.trim()) return
     window.localStorage.setItem(LAST_INSTITUTION_ID_STORAGE_KEY, selectedId)
   }, [selectedId])
+
+  // A instituição vem do filtro global do topo (Super admin) ou é a própria (perfil Instituição).
+  useEffect(() => {
+    const first = gestao.scopedInstitutions[0]?.id ?? null
+    setSelectedId((current) =>
+      current && gestao.scopedIds.has(current) ? current : first,
+    )
+    setTrailFilter(null)
+  }, [gestao.scopedInstitutions, gestao.scopedIds])
 
   useEffect(() => {
     let cancelled = false
@@ -983,7 +1003,11 @@ export function DashboardPage() {
     })
   }, [institutions, filterInstitutions])
 
-  const activeTrails = useMemo(() => trails.filter((t) => t.active), [trails])
+  const allActiveTrails = useMemo(() => trails.filter((t) => t.active), [trails])
+  const activeTrails = useMemo(
+    () => (trailFilter ? allActiveTrails.filter((t) => trailFilter.has(t.id)) : allActiveTrails),
+    [allActiveTrails, trailFilter],
+  )
 
   const trailById = useMemo(() => {
     const map = new Map<string, Trail>()
@@ -1308,6 +1332,7 @@ export function DashboardPage() {
     const lo = Math.min(pctMin, pctMax)
     const hi = Math.max(pctMin, pctMax)
     return studentRows.filter((row) => {
+      if (studentPick && !studentPick.has(row.student.id)) return false
       if (query) {
         const nameMatch = row.student.name.toLowerCase().includes(query)
         const phone = (row.student.phone_number ?? '').toLowerCase()
@@ -1321,7 +1346,7 @@ export function DashboardPage() {
       if (p < lo || p > hi) return false
       return true
     })
-  }, [studentRows, nameFilter, pctMin, pctMax])
+  }, [studentRows, nameFilter, pctMin, pctMax, studentPick])
 
   const chartFilteredStudentRows = useMemo(() => {
     if (!studentChartFilter) return filteredStudentRows
@@ -1653,7 +1678,7 @@ export function DashboardPage() {
   const pillRows = useMemo<PillRow[]>(() => {
     if (!questionsDataEnabled) return []
 
-    const byKey = new Map<string, { correct: number; wrong: number }>()
+    const byKey = new Map<string, { correct: number; wrong: number; picks: Map<string, number> }>()
 
     for (const [answerKey, answer] of studentAnswerMap) {
       if (!answer.trim()) continue
@@ -1667,9 +1692,11 @@ export function DashboardPage() {
 
       let agg = byKey.get(qKey)
       if (!agg) {
-        agg = { correct: 0, wrong: 0 }
+        agg = { correct: 0, wrong: 0, picks: new Map() }
         byKey.set(qKey, agg)
       }
+      const pickedLetter = correctToLetter(answer)
+      if (pickedLetter) agg.picks.set(pickedLetter, (agg.picks.get(pickedLetter) ?? 0) + 1)
 
       if (answersMatch(answer, gabarito)) agg.correct += 1
       else agg.wrong += 1
@@ -1684,7 +1711,29 @@ export function DashboardPage() {
       const question = questionByKey.get(key)
       const total = agg.correct + agg.wrong
       if (total < 1) continue
+      const resolved = resolveExerciseOptions(question?.content ?? '', question?.options ?? null)
+      const rightLetter = correctToLetter(
+        gradablePillQuestions.get(key) ?? question?.correct_option ?? '',
+      )
+      const alternatives = (resolved.options ?? []).map((o, i) => {
+        const letter = o.key && /^[A-Za-z]$/.test(o.key) ? o.key.toUpperCase() : letterOf(i)
+        return {
+          key: letter,
+          text: o.label.replace(new RegExp(`^${o.key}\\s*[).:\\-–—]\\s*`, 'i'), '').trim(),
+          count: agg.picks.get(letter) ?? 0,
+          correct: letter === rightLetter,
+        }
+      })
+      const exerciseStages = stages
+        .filter((st) => st.trail_id === trailId && st.stage_type === 'exercise')
+        .map((st) => st.stage_number)
+        .sort((a, b) => a - b)
+      const exerciseIndex = exerciseStages.indexOf(stageNumber)
       rows.push({
+        exerciseLabel:
+          exerciseIndex >= 0 ? `Exercício ${exerciseIndex + 1} de ${exerciseStages.length}` : 'Exercício',
+        statement: resolved.displayBody,
+        alternatives,
         key,
         trailId,
         trailName: trail?.name || trailId,
@@ -1711,6 +1760,7 @@ export function DashboardPage() {
     trailById,
     questionByKey,
     questionsDataEnabled,
+    stages,
   ])
 
   const filteredPillRows = useMemo(() => {
@@ -2376,8 +2426,41 @@ export function DashboardPage() {
     })
   })()
 
+  /** Exportar histórico (1.1.3): CSV da tabela de exercícios como está na tela, sem paginação. */
+  function exportExerciseHistory() {
+    const rows = sortedPillRows.map((r) => [
+      r.trailName,
+      String(r.questionNumber),
+      r.exerciseLabel,
+      `${r.accuracyPct}%`,
+      String(r.total),
+      String(r.correct),
+      String(r.wrong),
+      r.gabarito || 'N/A',
+    ])
+    downloadText(
+      `historico-exercicios-${selectedId ?? 'instituicao'}.csv`,
+      toCsv(['Trilha', 'Atividade', 'Título', '% de acerto', 'Respostas', 'Acertos', 'Erros', 'Gabarito'], rows),
+    )
+  }
+
   return (
     <DashboardPageView
+      studentFilterOptions={studentRows.map((r) => ({ id: r.student.id, label: r.student.name || r.student.id }))}
+      studentFilterSelectedIds={studentRows.filter((r) => !studentPick || studentPick.has(r.student.id)).map((r) => r.student.id)}
+      onStudentFilterChange={(ids) => {
+        setStudentPick(ids.size === studentRows.length ? null : new Set(ids))
+        setStudentPage(1)
+      }}
+      institutionName={institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'}
+      trailFilterOptions={allActiveTrails.map((t) => ({ id: t.id, label: t.name || t.id }))}
+      trailFilterSelectedIds={activeTrails.map((t) => t.id)}
+      onTrailFilterChange={(ids) => {
+        setTrailFilter(ids.size === allActiveTrails.length ? null : new Set(ids))
+        setPillPage(1)
+        setStudentPage(1)
+      }}
+      onExportExerciseHistory={exportExerciseHistory}
       loadingInst={loadingInst}
       institutionOptions={institutionOptions}
       selectedId={selectedId}

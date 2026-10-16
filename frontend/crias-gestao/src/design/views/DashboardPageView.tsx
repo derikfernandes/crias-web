@@ -1,1060 +1,609 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { DashboardPageViewProps } from '../types/dashboardPageView'
-import { ExcelFilterPopover } from './dashboard/ExcelFilterPopover'
-import { EnunciadoPreviewCell } from './dashboard/EnunciadoPreviewCell'
-import { formatLessonTopicCode } from './dashboard/formatLessonTopicCode'
-import { formatPct } from './dashboard/formatPct'
-import { LessonTopicCode } from './dashboard/LessonTopicCode'
-import { QuestionsCharts } from './dashboard/QuestionsCharts'
-import { StudentsCharts } from './dashboard/StudentsCharts'
-import { AgentUsageSection } from './dashboard/AgentUsageSection'
-
-export type {
+import type {
   DashboardPageViewProps,
-  DashboardStudentRowView,
   DashboardPillRowView,
+  DashboardStudentSortKey,
 } from '../types/dashboardPageView'
+import {
+  Banner,
+  BootSymbol,
+  FilterPopover,
+  Icon,
+  na,
+  PageHead,
+  ScrollX,
+} from '../gx/ui'
 
-type ExpandedEnunciado = {
-  topicLabel: string
-  title: string
-  trailName: string
-  text: string
+export type { DashboardPageViewProps } from '../types/dashboardPageView'
+
+function pctText(v: number | null | undefined): string {
+  if (v === null || v === undefined) return 'N/A'
+  return `${String(v).replace('.', ',')} %`
 }
 
-export function DashboardPageView({
-  loadingInst,
-  institutionOptions,
-  selectedId,
-  onSelectInstitution,
-  activeTab,
-  onActiveTabChange,
-  isQuestionsTabLoading,
-  instError,
-  dataError,
-  exportError,
-  isDashboardLoading,
-  loadLabel,
-  loadPercent,
-  logsError,
-  onRetryLogs,
-  summary,
-  missingGabaritoCount,
-  annulledGabaritoCount,
-  annulledAnswersExcluded,
-  filteredStudentCount,
-  totalStudentCount,
-  questionPickerLabel,
-  showQuestionPicker,
-  onToggleQuestionPicker,
-  questionPickerItems,
-  questionPickerSelectedIds,
-  onApplyQuestionPicker,
-  onCloseQuestionPicker,
-  stagePickerLabel,
-  showStagePicker,
-  onToggleStagePicker,
-  stagePickerItems,
-  stagePickerSelectedIds,
-  onApplyStagePicker,
-  onCloseStagePicker,
-  showColumnPicker,
-  onToggleColumnPicker,
-  columnPickerItems,
-  columnPickerSelectedIds,
-  onApplyColumnPicker,
-  onCloseColumnPicker,
-  studentExportTrails,
-  exportingTrailId,
-  onExportTrailHistory,
-  hasActiveStudentExportFilters,
-  nameFilter,
-  onNameFilterChange,
-  pctMin,
-  pctMax,
-  onPctMinChange,
-  onPctMaxChange,
-  nameSortIndicator,
-  onToggleStudentSort,
-  visibleColumns,
-  studentRowsEmpty,
-  paginatedStudentRows,
-  showStudentPagination,
-  studentPageRange,
-  sortedFilteredStudentCount,
-  studentPage,
-  studentPageCount,
-  onStudentPagePrev,
-  onStudentPageNext,
-  studentsCharts,
-  studentChartFilter,
-  onStudentChartFilterChange,
-  sortedPillCount,
-  totalPillCount,
-  pillExportTrails,
-  exportingPillTrailId,
-  onExportPillTrail,
-  pillSearch,
-  onPillSearchChange,
-  pillTrailFilter,
-  onPillTrailFilterChange,
-  pillTrailOptions,
-  pillMinResponses,
-  onPillMinResponsesChange,
-  pillAccMin,
-  pillAccMax,
-  onPillAccMinChange,
-  onPillAccMaxChange,
-  questionsCharts,
-  worstPills,
-  bestPills,
-  onTogglePillSort,
-  pillSortIndicator,
-  paginatedPillRows,
-  showPillPagination,
-  pillPageRange,
-  pillPage,
-  pillPageCount,
-  onPillPagePrev,
-  onPillPageNext,
-  agentUsage,
-  agentPeriodDays,
-  onAgentPeriodDaysChange,
-  agentUsageLoading,
-  agentUsageUnavailable = false,
-  selectedAgentTrailId,
-  onSelectAgentTrailId,
-  selectedAgentStudents,
-}: DashboardPageViewProps) {
-  const [expandedEnunciado, setExpandedEnunciado] =
-    useState<ExpandedEnunciado | null>(null)
+function accuracyPill(p: number): string {
+  if (p >= 70) return 'gx-pill gx-pill--ok'
+  if (p >= 50) return 'gx-pill gx-pill--warn'
+  return 'gx-pill gx-pill--err'
+}
 
-  useEffect(() => {
-    if (!expandedEnunciado) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpandedEnunciado(null)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [expandedEnunciado])
+function accuracyBar(p: number): string {
+  if (p >= 70) return 'gx-bar gx-bar--green'
+  if (p >= 50) return 'gx-bar'
+  return 'gx-bar gx-bar--red'
+}
+
+function BarRow({ label, count, max }: { label: string; count: number; max: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+      <span style={{ width: 96, color: 'var(--v-t3)', flex: 'none' }}>{label}</span>
+      <span className="gx-bar" style={{ flex: 1, height: 10 }}>
+        <span style={{ width: `${max > 0 ? (count / max) * 100 : 0}%` }} />
+      </span>
+      <strong style={{ width: 28, textAlign: 'right' }}>{count}</strong>
+    </div>
+  )
+}
+
+/** Exercício com enunciado, alternativas, contagem de respostas e gabarito (1.1.3). */
+function Opportunity({
+  row,
+  open,
+  onToggle,
+}: {
+  row: DashboardPillRowView
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        title="Ver enunciado"
+        onClick={onToggle}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          width: '100%',
+          border: 0,
+          background: 'transparent',
+          padding: 0,
+          font: 'inherit',
+          fontSize: 14,
+          color: 'var(--v-ink)',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <span data-fade="1" style={{ flex: 1, minWidth: 0 }}>
+          <strong>{row.trailName}</strong> · Atividade {row.questionNumber} · {row.exerciseLabel}
+        </span>
+        <span className={accuracyPill(row.accuracyPct)}>{row.accuracyPct}%</span>
+        <span style={{ transform: open ? 'rotate(180deg)' : 'none', display: 'inline-flex' }}>
+          <Icon name="chev-down" />
+        </span>
+      </button>
+      <span className={accuracyBar(row.accuracyPct)} style={{ height: 4 }}>
+        <span style={{ width: `${row.accuracyPct}%` }} />
+      </span>
+      {open ? <QuestionDetail row={row} /> : null}
+    </div>
+  )
+}
+
+function QuestionDetail({ row }: { row: DashboardPillRowView }) {
+  const max = Math.max(1, ...row.alternatives.map((a) => a.count))
+  return (
+    <div
+      style={{
+        background: 'var(--v-soft)',
+        borderRadius: 14,
+        padding: 18,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--v-t3)', letterSpacing: '.04em', textTransform: 'uppercase' }}>
+          Enunciado
+        </span>
+        <p style={{ margin: 0, fontSize: 15, lineHeight: 1.5, color: 'var(--v-ink)', whiteSpace: 'pre-wrap' }}>
+          {row.statement || 'N/A'}
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {row.alternatives.map((a) => (
+          <div key={a.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+              <span
+                className={a.correct ? 'gx-pill gx-pill--ok' : 'gx-pill'}
+                style={{ minWidth: 28, textAlign: 'center' }}
+              >
+                {a.key}
+              </span>
+              <span data-fade="1" style={{ flex: 1, minWidth: 0, color: 'var(--v-ink)' }}>
+                {a.text || 'N/A'}
+              </span>
+              <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{a.count}</strong>
+            </div>
+            <span className={a.correct ? 'gx-bar gx-bar--green' : 'gx-bar'} style={{ height: 4 }}>
+              <span style={{ width: `${(a.count / max) * 100}%` }} />
+            </span>
+          </div>
+        ))}
+        {row.alternatives.length === 0 ? <span className="gx-muted">Alternativas indisponíveis.</span> : null}
+      </div>
+      <p
+        className="gx-muted"
+        style={{ lineHeight: 1.5, borderTop: '1px solid var(--v-soft2)', paddingTop: 12, fontSize: 13 }}
+      >
+        Gabarito: <strong>{row.gabarito || 'N/A'}</strong> · {row.total} respostas · {row.correct} acertos ·{' '}
+        {row.wrong} erros
+      </p>
+    </div>
+  )
+}
+
+function SortTh({
+  label,
+  sortKey,
+  current,
+  indicator,
+  onSort,
+  numeric,
+}: {
+  label: string
+  sortKey: DashboardStudentSortKey
+  current: string
+  indicator: string
+  onSort: (k: DashboardStudentSortKey) => void
+  numeric?: boolean
+}) {
+  return (
+    <th className={numeric ? 'num' : undefined} aria-sort={indicator.trim() ? 'ascending' : 'none'}>
+      <button type="button" className="gx-sort" data-dir={indicator.includes('↑') ? 'asc' : indicator.includes('↓') ? 'desc' : undefined} onClick={() => onSort(sortKey)}>
+        {label}
+        <svg width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 5l3-3 3 3" />
+          <path d="M2 9l3 3 3-3" />
+        </svg>
+      </button>
+      <span hidden>{current}</span>
+    </th>
+  )
+}
+
+/** Dados (1.1.12, 1.1.13 e 1.1.3): resumo, gráficos, uso do monitor, oportunidades e tabelas. */
+export function DashboardPageView(p: DashboardPageViewProps) {
+  const [openOpp, setOpenOpp] = useState<string | null>(null)
+  const [openEx, setOpenEx] = useState<string | null>(null)
+  const periods: Array<[0 | 7 | 30, string]> = [
+    [7, '7 dias'],
+    [30, '30 dias'],
+    [0, 'Todo o período'],
+  ]
+  const trailSel = useMemo(() => new Set(p.trailFilterSelectedIds), [p.trailFilterSelectedIds])
+  const studentSel = useMemo(() => new Set(p.studentFilterSelectedIds), [p.studentFilterSelectedIds])
+
+  if (p.loadingInst || p.isDashboardLoading) return <BootSymbol />
+
+  const charts = p.studentsCharts
+  const bucketMax = Math.max(0, ...charts.completionBuckets.map((b) => b.count))
+  const statusMax = Math.max(0, ...charts.statuses.map((b) => b.count))
+  const lessonMax = Math.max(1, ...charts.lessonBars.map((b) => b.count))
+  const agent = p.agentUsage
+  const agentKpis = [
+    { label: 'Perguntas ao monitor', value: String(agent.totalMessages) },
+    { label: 'Alunos que usaram', value: String(agent.uniqueStudents) },
+    { label: 'Cobertura', value: pctText(agent.coveragePct) },
+    { label: 'Mensagens por dia', value: String(agent.msgsPerTutorPerDay).replace('.', ',') },
+  ]
+  const errors = [p.instError, p.dataError, p.exportError].filter(Boolean) as string[]
 
   return (
-    <>
-      <header className="admin__header dashboard-header">
-        <div className="dashboard-header__intro">
-          <h1>Dashboard</h1>
-          {!isDashboardLoading ? (
-            <p className="admin__lede muted">
-              Visão geral de engajamento dos alunos e desempenho por aula
-              (exercício).
-            </p>
-          ) : null}
-        </div>
-        {selectedId && !isDashboardLoading ? (
-          <div className="dashboard-header__stats" aria-label="Resumo rápido">
-            <div className="dashboard-stat-card">
-              <span className="dashboard-stat-card__label">Alunos ativos</span>
-              <span className="dashboard-stat-card__value">
-                {summary.activeStudents}
-              </span>
-            </div>
-            <div className="dashboard-stat-card">
-              <span className="dashboard-stat-card__label">Trilhas ativas</span>
-              <span className="dashboard-stat-card__value">
-                {summary.activeTrails}
-              </span>
-            </div>
-          </div>
-        ) : null}
-        <div className="gerenciamento-toolbar dashboard-header__toolbar">
-          <Link className="btn btn--ghost" to="/">
-            ← Início
-          </Link>
-          <label className="gerenciamento-select">
-            <span className="muted">Instituição</span>
-            <select
-              value={selectedId ?? ''}
-              onChange={(e) => {
-                const next = e.target.value.trim()
-                onSelectInstitution(next || null)
-              }}
-              disabled={loadingInst || institutionOptions.length === 0}
+    <div className="gx-page">
+      <PageHead
+        title="Dados"
+        subtitle="Informações de uso dos alunos."
+        tools={
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 32, width: '100%' }}>
+            <div
+              className="gx-filter__btn gx-filter__btn--field"
+              style={{ width: 'auto', maxWidth: '100%', cursor: 'default', flex: '0 1 auto', display: 'flex' }}
+              aria-label="Instituição"
             >
-              <option value="">
-                {loadingInst
-                  ? 'Carregando instituições…'
-                  : 'Selecione uma instituição'}
-              </option>
-              {institutionOptions.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </header>
-
-      {instError ? (
-        <p className="banner banner--error" role="alert">
-          {instError}
-        </p>
-      ) : null}
-      {dataError ? (
-        <p className="banner banner--error" role="alert">
-          {dataError}
-        </p>
-      ) : null}
-      {exportError ? (
-        <p className="banner banner--error" role="alert">
-          {exportError}
-        </p>
-      ) : null}
-
-      {!selectedId ? (
-        <section className="panel">
-          <p className="muted gerenciamento-placeholder">
-            Selecione uma instituição para ver o dashboard.
-          </p>
-        </section>
-      ) : isDashboardLoading ? (
-        <section
-          className="dashboard-load-progress dashboard-load-progress--gate panel"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <div className="dashboard-load-progress__head">
-            <span className="dashboard-load-progress__label">
-              {loadLabel || 'Carregando dashboard…'}
-            </span>
-            <span className="dashboard-load-progress__pct">{loadPercent}%</span>
-          </div>
-          <div
-            className="progress progress--wide"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={loadPercent}
-            aria-label={loadLabel || 'Progresso do carregamento'}
-          >
-            <div className="progress__bar">
-              <div
-                className="progress__fill"
-                style={{ width: `${loadPercent}%` }}
+              <span data-fade="1" style={{ fontWeight: 700 }}>
+                {p.institutionName}
+              </span>
+            </div>
+            <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0 }}>
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar trilhas"
+                options={p.trailFilterOptions.map((o) => ({ id: o.id, name: o.label }))}
+                selected={trailSel}
+                onChange={p.onTrailFilterChange}
+                emptyText="Nenhuma trilha encontrada."
               />
             </div>
           </div>
-        </section>
-      ) : logsError ? (
-        <section className="panel" data-testid="dashboard-logs-error">
-          <p className="banner banner--error" role="alert">
-            Não foi possível carregar as métricas dos alunos e o uso dos
-            tutores: {logsError}
-          </p>
-          <p className="muted">
-            Os totais de alunos e trilhas foram carregados, mas conclusões,
-            acertos e o bloco de tutores ficariam incompletos. Tente novamente.
-          </p>
-          <button type="button" className="btn" onClick={onRetryLogs}>
-            Tentar novamente
-          </button>
-        </section>
-      ) : (
-        <>
-          <nav
-            className="trail-detail-tabs dashboard-tabs"
-            aria-label="Seções do dashboard"
-            role="tablist"
-          >
-            <button
-              id="dashboard-students-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'students'}
-              aria-controls="dashboard-students-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'students'
-                  ? ' trail-detail-tabs__tab--active'
-                  : ''
-              }`}
-              onClick={() => onActiveTabChange('students')}
-            >
-              Alunos
+        }
+      />
+      {errors.map((e) => (
+        <Banner key={e}>{e}</Banner>
+      ))}
+      {p.logsError ? <Banner onRetry={p.onRetryLogs}>{p.logsError}</Banner> : null}
+
+      <div className="gx-stats" aria-label="Resumo">
+        <div className="gx-stat">
+          <span>Alunos ativos</span>
+          <strong>{p.summary.activeStudents}</strong>
+        </div>
+        <div className="gx-stat">
+          <span>Trilhas ativas</span>
+          <strong>{p.summary.activeTrails}</strong>
+        </div>
+        <div className="gx-stat">
+          <span>Conclusão média</span>
+          <strong>{pctText(p.summary.avgLessonCompletion)}</strong>
+          {p.summary.avgLessonCompletion !== null ? (
+            <span className="gx-bar" style={{ marginTop: 6 }}>
+              <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
+            </span>
+          ) : null}
+        </div>
+        <div className="gx-stat">
+          <span>Acerto médio</span>
+          <strong>{pctText(p.summary.avgAccuracy)}</strong>
+          {p.summary.avgAccuracy !== null ? (
+            <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }}>
+              <span style={{ width: `${p.summary.avgAccuracy}%` }} />
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {p.activeTab === 'students' ? (
+        <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px 16px' }}>
+          <section className="gx-card">
+            <h2 style={{ fontSize: 16 }}>Conclusão das atividades</h2>
+            {charts.completionBuckets.map((b) => (
+              <BarRow key={b.key} label={b.label} count={b.count} max={bucketMax} />
+            ))}
+          </section>
+          <section className="gx-card">
+            <h2 style={{ fontSize: 16 }}>Situação dos alunos</h2>
+            {charts.statuses.map((b) => (
+              <BarRow key={b.key} label={b.label} count={b.count} max={statusMax} />
+            ))}
+          </section>
+          <section className="gx-card">
+            <h2 style={{ fontSize: 16 }}>Alunos por atividade concluída</h2>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
+              {charts.lessonBars.map((b) => (
+                <div
+                  key={b.key}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', minWidth: 0 }}
+                >
+                  <strong style={{ fontSize: 12 }}>{b.count}</strong>
+                  <span
+                    style={{
+                      width: '70%',
+                      height: `${Math.max(4, (b.count / lessonMax) * 80)}%`,
+                      borderRadius: 6,
+                      background: 'linear-gradient(to top, #ffd500, #00be85)',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--v-t3)' }}>{b.label}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      <section className="gx-card" aria-label="Uso do monitor" style={{ padding: 0, gap: 0 }}>
+        <div className="gx-card__head" style={{ padding: '24px 24px 0', alignItems: 'flex-end' }}>
+          <div>
+            <h2>Uso do monitor</h2>
+            <p className="gx-muted">
+              {p.agentUsageUnavailable ? 'Dados de uso indisponíveis neste momento.' : 'Perguntas que os alunos fizeram ao monitor'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 4, background: 'var(--v-soft)', borderRadius: 999, padding: 4 }}>
+            {periods.map(([days, label]) => (
+              <button
+                key={days}
+                type="button"
+                className="gx-tab"
+                style={{ height: 32, padding: '0 14px', flex: 'none' }}
+                aria-selected={p.agentPeriodDays === days}
+                onClick={() => p.onAgentPeriodDaysChange(days)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
+          {agentKpis.map((k) => (
+            <div className="gx-stat" key={k.label}>
+              <span>{k.label}</span>
+              <strong>{k.value}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="gx-card" aria-label="Oportunidades" style={{ padding: 24, gap: 28 }}>
+        <div>
+          <h2>Oportunidades</h2>
+          <p className="gx-muted">Clique em um exercício para ver o enunciado</p>
+        </div>
+        <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 32 }}>
+          {(
+            [
+              ['Menor acerto', p.worstPills],
+              ['Maior acerto', p.bestPills],
+            ] as const
+          ).map(([title, list]) => (
+            <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+              <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
+              {list.map((row) => (
+                <Opportunity
+                  key={`${title}-${row.key}`}
+                  row={row}
+                  open={openOpp === `${title}-${row.key}`}
+                  onToggle={() => setOpenOpp((c) => (c === `${title}-${row.key}` ? null : `${title}-${row.key}`))}
+                />
+              ))}
+              {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="gx-card" aria-label="Alunos e exercícios" style={{ padding: 0, gap: 0, overflow: 'visible' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '24px 24px 20px' }}>
+          <nav role="tablist" aria-label="Dados" className="gx-tabs" style={{ marginTop: 0 }}>
+            <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'students'} onClick={() => p.onActiveTabChange('students')}>
+              Alunos <span className="gx-muted">({p.totalStudentCount})</span>
             </button>
-            <button
-              id="dashboard-questions-tab"
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'questions'}
-              aria-controls="dashboard-questions-panel"
-              className={`trail-detail-tabs__tab${
-                activeTab === 'questions'
-                  ? ' trail-detail-tabs__tab--active'
-                  : ''
-              }`}
-              onClick={() => onActiveTabChange('questions')}
-            >
-              Atividades
+            <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'questions'} onClick={() => p.onActiveTabChange('questions')}>
+              Exercícios <span className="gx-muted">({p.totalPillCount})</span>
             </button>
           </nav>
-
-          {activeTab === 'students' ? (
-            <div
-              id="dashboard-students-panel"
-              className="trail-tab-panel"
-              role="tabpanel"
-              aria-labelledby="dashboard-students-tab"
-            >
-              <section className="dashboard-cards">
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">
-                % médio de conclusão (tópicos)
-              </span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgCompletion, 1)}
-              </span>
-              <span className="dashboard-card__hint">
-                Tópicos feitos ÷ tópicos liberados
-              </span>
-            </div>
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">
-                % médio de conclusão (aulas)
-              </span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgLessonCompletion, 1)}
-              </span>
-              <span className="dashboard-card__hint">
-                Aulas concluídas ÷ aulas liberadas
-              </span>
-            </div>
-            <div className="dashboard-card">
-              <span className="dashboard-card__label">% médio de acerto</span>
-              <span className="dashboard-card__value">
-                {formatPct(summary.avgAccuracy, 1)}
-              </span>
-            </div>
-            {annulledGabaritoCount > 0 ? (
-              <Link to="/gabarito" className="dashboard-card dashboard-card--muted">
-                <span className="dashboard-card__label">
-                  Atividades anuladas
-                </span>
-                <span className="dashboard-card__value">
-                  {annulledGabaritoCount}
-                </span>
-                <span className="dashboard-card__hint">
-                  {annulledAnswersExcluded > 0
-                    ? `${annulledAnswersExcluded} resposta${annulledAnswersExcluded === 1 ? '' : 's'} fora do % de acerto`
-                    : 'Nenhuma resposta de aluno nessas atividades ainda'}
-                </span>
-              </Link>
-            ) : null}
-            {missingGabaritoCount > 0 ? (
-              <Link to="/gabarito" className="dashboard-card dashboard-card--warn">
-                <span className="dashboard-card__label">
-                  Aulas sem gabarito
-                </span>
-                <span className="dashboard-card__value">
-                  {missingGabaritoCount}
-                </span>
-                <span className="dashboard-card__hint">
-                  Preencher gabarito →
-                </span>
-              </Link>
-            ) : null}
-              </section>
-
-          <AgentUsageSection
-            agentUsage={agentUsage}
-            periodDays={agentPeriodDays}
-            onPeriodDaysChange={onAgentPeriodDaysChange}
-            loading={agentUsageLoading}
-            unavailable={agentUsageUnavailable}
-            onRetry={onRetryLogs}
-            selectedAgentTrailId={selectedAgentTrailId}
-            onSelectAgentTrailId={onSelectAgentTrailId}
-            selectedAgentStudents={selectedAgentStudents}
-          />
-
-          <section className="panel">
-            <div className="panel__head">
-              <h2>Alunos</h2>
-              <p className="admin__actions gerenciamento-detail-actions">
-                <span className="muted">
-                  {filteredStudentCount} de {totalStudentCount} alunos
-                </span>
-                <span className="excel-picker">
-                  <button
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    onClick={onToggleQuestionPicker}
-                  >
-                    Aulas
-                    {questionPickerLabel}
-                  </button>
-                  {showQuestionPicker ? (
-                    <ExcelFilterPopover
-                      hint="Aulas incluídas no cálculo (por número no tópico da aula: A1, A2…)."
-                      items={questionPickerItems}
-                      selectedIds={new Set(questionPickerSelectedIds)}
-                      emptyMessage="Nenhuma aula nas trilhas atuais."
-                      onApply={onApplyQuestionPicker}
-                      onClose={onCloseQuestionPicker}
-                    />
-                  ) : null}
-                </span>
-                <span className="excel-picker">
-                  <button
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    onClick={onToggleStagePicker}
-                  >
-                    Tópicos
-                    {stagePickerLabel}
-                  </button>
-                  {showStagePicker ? (
-                    <ExcelFilterPopover
-                      hint="Tópicos da aula incluídos no cálculo de aulas liberadas/feitas."
-                      items={stagePickerItems}
-                      selectedIds={new Set(stagePickerSelectedIds)}
-                      emptyMessage="Nenhum tópico da aula nas trilhas atuais."
-                      onApply={onApplyStagePicker}
-                      onClose={onCloseStagePicker}
-                    />
-                  ) : null}
-                </span>
-                <span className="excel-picker">
-                  <button
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    onClick={onToggleColumnPicker}
-                  >
-                    Colunas
-                  </button>
-                  {showColumnPicker ? (
-                    <ExcelFilterPopover
-                      hint="Colunas visíveis na tabela de alunos."
-                      items={columnPickerItems}
-                      selectedIds={new Set(columnPickerSelectedIds)}
-                      emptyMessage="Nenhuma coluna disponível."
-                      onApply={onApplyColumnPicker}
-                      onClose={onCloseColumnPicker}
-                    />
-                  ) : null}
-                </span>
-                {studentExportTrails.map((trail) => (
-                  <button
-                    key={trail.id}
-                    type="button"
-                    className="btn btn--small dashboard-export-button"
-                    disabled={
-                      filteredStudentCount === 0 || exportingTrailId !== null
-                    }
-                    onClick={() => onExportTrailHistory(trail.id)}
-                    title="Exporta os alunos, aulas e tópicos correspondentes aos filtros atuais"
-                  >
-                    {exportingTrailId === trail.id ? (
-                      <>
-                        <span
-                          className="excel-picker__spinner"
-                          aria-hidden="true"
-                        />
-                        Gerando…
-                      </>
-                    ) : (
-                      <>
-                        <span aria-hidden="true">↓</span>
-                        Exportar XLSX
-                      </>
-                    )}
-                  </button>
-                ))}
-              </p>
-            </div>
-
-            {hasActiveStudentExportFilters ? (
-              <p className="dashboard-export-notice" role="status">
-                <span aria-hidden="true">ⓘ</span>
-                Filtros ativos: o arquivo incluirá os{' '}
-                <strong>{filteredStudentCount} alunos</strong> exibidos e
-                somente as aulas e tópicos selecionados.
-              </p>
-            ) : null}
-
-            <div className="dashboard-filters">
-              <label className="field dashboard-filter-name">
-                <span>Buscar por nome ou telefone</span>
-                <input
-                  type="text"
-                  value={nameFilter}
-                  onChange={(e) => onNameFilterChange(e.target.value)}
-                  placeholder="Nome ou telefone…"
+          {p.activeTab === 'students' ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+              <div style={{ flex: '1 1 100%', minWidth: 0 }}>
+                <FilterPopover
+                  variant="field"
+                  align="left"
+                  label="Filtrar alunos"
+                  options={p.studentFilterOptions.map((o) => ({ id: o.id, name: o.label }))}
+                  selected={studentSel}
+                  onChange={p.onStudentFilterChange}
+                  emptyText="Nenhum aluno encontrado."
                 />
-              </label>
-              <div className="dashboard-pct-filter">
-                <span className="muted">
-                  % conclusão: {Math.min(pctMin, pctMax)}–{Math.max(pctMin, pctMax)}%
-                </span>
-                <div className="dashboard-pct-filter__sliders">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={pctMin}
-                    onChange={(e) => onPctMinChange(Number(e.target.value))}
-                    aria-label="Percentual mínimo de conclusão"
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={pctMax}
-                    onChange={(e) => onPctMaxChange(Number(e.target.value))}
-                    aria-label="Percentual máximo de conclusão"
-                  />
-                </div>
               </div>
+              {p.studentExportTrails.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {p.studentExportTrails.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="gx-btn"
+                      disabled={p.exportingTrailId === t.id}
+                      onClick={() => p.onExportTrailHistory(t.id)}
+                    >
+                      {p.exportingTrailId === t.id ? 'Exportando…' : `Exportar histórico: ${t.label}`}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <span className="gx-muted">Clique no exercício para abrir o enunciado</span>
+              <button type="button" className="gx-btn gx-btn--primary" onClick={p.onExportExerciseHistory}>
+                Exportar histórico
+              </button>
+            </div>
+          )}
+        </div>
 
-            <StudentsCharts
-              {...studentsCharts}
-              selectedFilter={studentChartFilter}
-              onFilterChange={onStudentChartFilterChange}
-            />
-
-            <div className="table-wrap">
-              <table className="table">
+        {p.activeTab === 'students' ? (
+          <>
+            <ScrollX>
+              <table className="gx-table">
                 <thead>
                   <tr>
-                    <th
-                      className="dashboard-sortable"
-                      onClick={() => onToggleStudentSort('name')}
-                    >
-                      Nome{nameSortIndicator}
-                    </th>
-                    {visibleColumns.map((c) => (
-                      <th
-                        key={c.key}
-                        className="dashboard-sortable"
-                        onClick={() => onToggleStudentSort(c.key)}
-                      >
-                        {c.label}
-                        {c.sortIndicator}
-                      </th>
-                    ))}
+                    <SortTh label="Nome" sortKey="name" current="" indicator={p.nameSortIndicator} onSort={p.onToggleStudentSort} />
+                    {p.visibleColumns
+                      .filter((c) => ['phone', 'lessonsReleased', 'lessonsDone', 'lessonsCompletionPct', 'correct', 'wrong', 'accuracyPct'].includes(c.key))
+                      .map((c) => (
+                        <SortTh
+                          key={c.key}
+                          label={LABELS[c.key] ?? c.label}
+                          sortKey={c.key}
+                          current=""
+                          indicator={c.sortIndicator}
+                          onSort={p.onToggleStudentSort}
+                          numeric={c.key !== 'phone'}
+                        />
+                      ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudentCount === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={visibleColumns.length + 1}
-                        className="muted table__empty"
-                      >
-                        {studentRowsEmpty
-                          ? 'Nenhum aluno nesta instituição.'
-                          : 'Nenhum aluno corresponde aos filtros.'}
+                  {p.paginatedStudentRows.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <Link to={r.href} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
+                          {r.name || r.id}
+                        </Link>
+                      </td>
+                      <td>{na(r.phone)}</td>
+                      <td className="num">{r.lessonsReleased}</td>
+                      <td className="num">{r.lessonsDone}</td>
+                      <td className="num">
+                        <strong>{pctText(r.lessonsCompletionPct)}</strong>
+                        {r.lessonsCompletionPct !== null ? (
+                          <span className="gx-bar" style={{ marginTop: 4 }}>
+                            <span style={{ width: `${r.lessonsCompletionPct}%` }} />
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="num">{r.correct}</td>
+                      <td className="num">{r.wrong}</td>
+                      <td className="num">
+                        <strong>{pctText(r.accuracyPct)}</strong>
+                        {r.accuracyPct !== null ? (
+                          <span className="gx-bar" style={{ marginTop: 4 }}>
+                            <span style={{ width: `${r.accuracyPct}%` }} />
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
-                  ) : (
-                    paginatedStudentRows.map((row) => (
-                      <tr key={row.id}>
-                        <td>
-                          <Link className="table__name-link" to={row.href}>
-                            {row.name || '—'}
-                          </Link>
-                        </td>
-                        {visibleColumns.map((c) => {
-                          switch (c.key) {
-                            case 'phone':
-                              return (
-                                <td key={c.key}>{row.phone || '—'}</td>
-                              )
-                            case 'released':
-                              return <td key={c.key}>{row.released}</td>
-                            case 'done':
-                              return <td key={c.key}>{row.done}</td>
-                            case 'completionPct':
-                              return (
-                                <td key={c.key}>
-                                  <div className="progress">
-                                    <div className="progress__bar">
-                                      <div
-                                        className="progress__fill"
-                                        style={{
-                                          width: `${row.completionPct ?? 0}%`,
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="progress__label">
-                                      {formatPct(row.completionPct)}
-                                    </span>
-                                  </div>
-                                </td>
-                              )
-                            case 'lessonsReleased':
-                              return (
-                                <td key={c.key}>{row.lessonsReleased}</td>
-                              )
-                            case 'lessonsDone':
-                              return <td key={c.key}>{row.lessonsDone}</td>
-                            case 'lessonsCompletionPct':
-                              return (
-                                <td key={c.key}>
-                                  <div className="progress">
-                                    <div className="progress__bar">
-                                      <div
-                                        className="progress__fill"
-                                        style={{
-                                          width: `${row.lessonsCompletionPct ?? 0}%`,
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="progress__label">
-                                      {formatPct(row.lessonsCompletionPct)}
-                                    </span>
-                                  </div>
-                                </td>
-                              )
-                            case 'correct':
-                              return <td key={c.key}>{row.correct}</td>
-                            case 'wrong':
-                              return <td key={c.key}>{row.wrong}</td>
-                            case 'accuracyPct':
-                              return (
-                                <td key={c.key}>
-                                  {formatPct(row.accuracyPct)}
-                                </td>
-                              )
-                          }
-                        })}
-                      </tr>
-                    ))
-                  )}
+                  ))}
+                  {p.studentRowsEmpty ? (
+                    <tr>
+                      <td colSpan={8} className="gx-table__empty">
+                        Nenhum aluno com os filtros atuais.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
-            </div>
-
-            {showStudentPagination ? (
-              <div className="dashboard-students-pagination">
-                <span className="muted">
-                  Mostrando {studentPageRange.start}–{studentPageRange.end} de{' '}
-                  {sortedFilteredStudentCount} alunos
+            </ScrollX>
+            {p.showStudentPagination ? (
+              <div className="gx-pager" style={{ padding: '12px 20px', borderTop: '1px solid var(--v-soft2)' }}>
+                <span>
+                  {p.studentPageRange.start} a {p.studentPageRange.end} de {p.sortedFilteredStudentCount}
                 </span>
-                <div className="dashboard-students-pagination__actions">
-                  <button
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    disabled={studentPage <= 1}
-                    onClick={onStudentPagePrev}
-                  >
+                <div className="gx-pager__ctl">
+                  <button type="button" className="gx-btn gx-btn--sm" disabled={p.studentPage <= 1} onClick={p.onStudentPagePrev}>
                     Anterior
                   </button>
-                  <span className="dashboard-students-pagination__page">
-                    Página {studentPage} de {studentPageCount}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    disabled={studentPage >= studentPageCount}
-                    onClick={onStudentPageNext}
-                  >
+                  <button type="button" className="gx-btn gx-btn--sm" disabled={p.studentPage >= p.studentPageCount} onClick={p.onStudentPageNext}>
                     Próxima
                   </button>
                 </div>
               </div>
             ) : null}
-          </section>
-            </div>
-          ) : null}
-
-          {activeTab === 'questions' ? (
-            <div
-              id="dashboard-questions-panel"
-              className="trail-tab-panel"
-              role="tabpanel"
-              aria-labelledby="dashboard-questions-tab"
-            >
-              {isQuestionsTabLoading ? (
-                <section
-                  className="panel dashboard-tab-loading"
-                  aria-live="polite"
-                  aria-busy="true"
-                >
-                  <span
-                    className="excel-picker__spinner dashboard-tab-loading__spinner"
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <strong>Carregando desempenho das atividades…</strong>
-                    <p className="muted">
-                      Calculando acertos, erros e percentuais.
-                    </p>
-                  </div>
-                </section>
-              ) : (
-                <section className="panel">
-            <div className="panel__head">
-              <h2>Aulas — acertos e erros</h2>
-              <p className="admin__actions gerenciamento-detail-actions">
-                <span className="muted">
-                  {sortedPillCount} de {totalPillCount}{' '}
-                  {totalPillCount === 1 ? 'aula' : 'aulas'}
+          </>
+        ) : (
+          <>
+            <ScrollX>
+              <table className="gx-table">
+                <thead>
+                  <tr>
+                    <th>Trilha</th>
+                    <th className="num">Atividade</th>
+                    <th>Título</th>
+                    <th className="num">% de acerto</th>
+                    <th className="num">Respostas</th>
+                    <th className="num">Acertos</th>
+                    <th className="num">Erros</th>
+                    <th>Gabarito</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.paginatedPillRows.map((r) => (
+                    <PillTableRows key={r.key} row={r} open={openEx === r.key} onToggle={() => setOpenEx((c) => (c === r.key ? null : r.key))} />
+                  ))}
+                  {p.paginatedPillRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="gx-table__empty">
+                        {p.isQuestionsTabLoading ? 'Carregando…' : 'Nenhum exercício com os filtros atuais.'}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </ScrollX>
+            {p.showPillPagination ? (
+              <div className="gx-pager" style={{ padding: '12px 20px', borderTop: '1px solid var(--v-soft2)' }}>
+                <span>
+                  {p.pillPageRange.start} a {p.pillPageRange.end} de {p.sortedPillCount}
                 </span>
-                {pillExportTrails.map((trail) => (
-                  <button
-                    key={trail.id}
-                    type="button"
-                    className="btn btn--small btn--ghost"
-                    disabled={
-                      totalPillCount === 0 || exportingPillTrailId !== null
-                    }
-                    onClick={() => onExportPillTrail(trail.id)}
-                    title="Desempenho por aula; respeita filtros ativos e mínimo de respostas"
-                  >
-                    {exportingPillTrailId === trail.id
-                      ? 'Gerando XLSX…'
-                      : `Baixar XLSX — ${trail.label}`}
+                <div className="gx-pager__ctl">
+                  <button type="button" className="gx-btn gx-btn--sm" disabled={p.pillPage <= 1} onClick={p.onPillPagePrev}>
+                    Anterior
                   </button>
-                ))}
-              </p>
-            </div>
-
-            {totalPillCount === 0 ? (
-              <p className="banner">
-                Sem respostas corrigíveis ainda. Os acertos e erros aparecem
-                aqui quando os alunos responderem aulas de exercício com
-                gabarito preenchido.{' '}
-                <Link to="/gabarito">Preencher gabarito →</Link>
-              </p>
-            ) : (
-              <>
-                <div className="dashboard-filters dashboard-question-filters">
-                  <label className="field dashboard-filter-name">
-                    <span>Buscar atividade</span>
-                    <input
-                      type="text"
-                      value={pillSearch}
-                      onChange={(e) => onPillSearchChange(e.target.value)}
-                      placeholder="Título, enunciado, trilha, T3 A1…"
-                    />
-                  </label>
-                  <label className="gerenciamento-select dashboard-filter-trail">
-                    <span className="muted">Trilha</span>
-                    <select
-                      value={pillTrailFilter}
-                      onChange={(e) => onPillTrailFilterChange(e.target.value)}
-                    >
-                      <option value="">Todas as trilhas</option>
-                      {pillTrailOptions.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field dashboard-filter-min">
-                    <span>Mínimo de respostas</span>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={pillMinResponses}
-                      onChange={(e) => {
-                        const n = Number.parseInt(e.target.value, 10)
-                        onPillMinResponsesChange(
-                          Number.isFinite(n) && n >= 1 ? n : 1,
-                        )
-                      }}
-                    />
-                  </label>
-                  <div className="dashboard-pct-filter">
-                    <span className="muted">
-                      % acerto: {Math.min(pillAccMin, pillAccMax)}–
-                      {Math.max(pillAccMin, pillAccMax)}%
-                    </span>
-                    <div className="dashboard-pct-filter__sliders">
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={pillAccMin}
-                        onChange={(e) =>
-                          onPillAccMinChange(Number(e.target.value))
-                        }
-                        aria-label="Percentual mínimo de acerto"
-                      />
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={pillAccMax}
-                        onChange={(e) =>
-                          onPillAccMaxChange(Number(e.target.value))
-                        }
-                        aria-label="Percentual máximo de acerto"
-                      />
-                    </div>
-                  </div>
-                  <div
-                    className="dashboard-question-student-count"
-                    aria-live="polite"
-                  >
-                    <span>Alunos considerados</span>
-                    <strong>{questionsCharts.studentCount}</strong>
-                    <small>
-                      {questionsCharts.studentCount === 1
-                        ? 'aluno com respostas'
-                        : 'alunos com respostas'}
-                    </small>
-                  </div>
-                </div>
-
-                <QuestionsCharts {...questionsCharts} />
-
-                {sortedPillCount > 0 ? (
-                  <div className="dashboard-top-pills">
-                    <div className="dashboard-top-pills__group">
-                      <h3>Top 5 piores (menor % de acerto)</h3>
-                      <ol>
-                        {worstPills.map((p) => (
-                          <li key={p.key}>
-                            <span className="dashboard-top-pills__pct dashboard-top-pills__pct--bad">
-                              {p.accuracyPct}%
-                            </span>{' '}
-                            <LessonTopicCode
-                              topicNumber={p.stageNumber}
-                              lessonNumber={p.questionNumber}
-                              content={p.content}
-                              title={p.title}
-                            />{' '}
-                            {p.title}{' '}
-                            <span className="muted">({p.trailName})</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div className="dashboard-top-pills__group">
-                      <h3>Top 5 melhores (maior % de acerto)</h3>
-                      <ol>
-                        {bestPills.map((p) => (
-                          <li key={p.key}>
-                            <span className="dashboard-top-pills__pct dashboard-top-pills__pct--good">
-                              {p.accuracyPct}%
-                            </span>{' '}
-                            <LessonTopicCode
-                              topicNumber={p.stageNumber}
-                              lessonNumber={p.questionNumber}
-                              content={p.content}
-                              title={p.title}
-                            />{' '}
-                            {p.title}{' '}
-                            <span className="muted">({p.trailName})</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('trail')}
-                        >
-                          Trilha{pillSortIndicator('trail')}
-                        </th>
-                        <th>Matéria</th>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('position')}
-                        >
-                          Tópico / Aula{pillSortIndicator('position')}
-                        </th>
-                        <th>Título</th>
-                        <th>Enunciado</th>
-                        <th>Gabarito</th>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('total')}
-                        >
-                          Respostas{pillSortIndicator('total')}
-                        </th>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('correct')}
-                        >
-                          Acertos{pillSortIndicator('correct')}
-                        </th>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('wrong')}
-                        >
-                          Erros{pillSortIndicator('wrong')}
-                        </th>
-                        <th
-                          className="dashboard-sortable"
-                          onClick={() => onTogglePillSort('accuracyPct')}
-                        >
-                          % acerto{pillSortIndicator('accuracyPct')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedPillCount === 0 ? (
-                        <tr>
-                          <td colSpan={10} className="muted table__empty">
-                            Nenhuma aula corresponde aos filtros atuais.
-                          </td>
-                        </tr>
-                      ) : (
-                        paginatedPillRows.map((p) => (
-                          <tr key={p.key}>
-                            <td>
-                              <Link
-                                className="table__name-link"
-                                to={p.trailHref}
-                              >
-                                {p.trailName}
-                              </Link>
-                            </td>
-                            <td>{p.subject}</td>
-                            <td>
-                              <LessonTopicCode
-                                topicNumber={p.stageNumber}
-                                lessonNumber={p.questionNumber}
-                                content={p.content}
-                                title={p.title}
-                              />
-                            </td>
-                            <td>{p.title}</td>
-                            <td>
-                              <EnunciadoPreviewCell
-                                content={p.content}
-                                title={p.title}
-                                onExpand={() =>
-                                  setExpandedEnunciado({
-                                    topicLabel: formatLessonTopicCode(
-                                      p.stageNumber,
-                                      p.questionNumber,
-                                    ),
-                                    title: p.title,
-                                    trailName: p.trailName,
-                                    text: p.content.trim() || p.title.trim(),
-                                  })
-                                }
-                              />
-                            </td>
-                            <td>{p.gabarito}</td>
-                            <td>{p.total}</td>
-                            <td>{p.correct}</td>
-                            <td>{p.wrong}</td>
-                            <td>
-                              <div className="progress">
-                                <div className="progress__bar">
-                                  <div
-                                    className="progress__fill"
-                                    style={{ width: `${p.accuracyPct}%` }}
-                                  />
-                                </div>
-                                <span className="progress__label">
-                                  {p.accuracyPct}%
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {showPillPagination ? (
-                  <div className="dashboard-students-pagination">
-                    <span className="muted">
-                      Mostrando {pillPageRange.start}–{pillPageRange.end} de{' '}
-                      {sortedPillCount} aulas
-                    </span>
-                    <div className="dashboard-students-pagination__actions">
-                      <button
-                        type="button"
-                        className="btn btn--small btn--ghost"
-                        disabled={pillPage <= 1}
-                        onClick={onPillPagePrev}
-                      >
-                        Anterior
-                      </button>
-                      <span className="dashboard-students-pagination__page">
-                        Página {pillPage} de {pillPageCount}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn--small btn--ghost"
-                        disabled={pillPage >= pillPageCount}
-                        onClick={onPillPageNext}
-                      >
-                        Próxima
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            )}
-                </section>
-              )}
-            </div>
-          ) : null}
-
-          {expandedEnunciado ? (
-            <div
-              className="message-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="dashboard-enunciado-title"
-              onClick={() => setExpandedEnunciado(null)}
-            >
-              <div
-                className="message-modal__panel"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="message-modal__head">
-                  <h3 id="dashboard-enunciado-title">Enunciado</h3>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--small"
-                    onClick={() => setExpandedEnunciado(null)}
-                  >
-                    Fechar
+                  <button type="button" className="gx-btn gx-btn--sm" disabled={p.pillPage >= p.pillPageCount} onClick={p.onPillPageNext}>
+                    Próxima
                   </button>
                 </div>
-                <dl className="message-modal__meta">
-                  <div>
-                    <dt>Trilha</dt>
-                    <dd>{expandedEnunciado.trailName}</dd>
-                  </div>
-                  <div>
-                    <dt>Tópico / Aula</dt>
-                    <dd>{expandedEnunciado.topicLabel}</dd>
-                  </div>
-                  <div>
-                    <dt>Título</dt>
-                    <dd>{expandedEnunciado.title}</dd>
-                  </div>
-                </dl>
-                <div className="message-modal__body">{expandedEnunciado.text}</div>
               </div>
-            </div>
-          ) : null}
-        </>
-      )}
+            ) : null}
+          </>
+        )}
+      </section>
+    </div>
+  )
+}
+
+const LABELS: Record<string, string> = {
+  phone: 'Telefone',
+  lessonsReleased: 'Atividades liberadas',
+  lessonsDone: 'Atividades feitas',
+  lessonsCompletionPct: '% de conclusão',
+  correct: 'Acertos',
+  wrong: 'Erros',
+  accuracyPct: '% de acerto',
+}
+
+function PillTableRows({
+  row,
+  open,
+  onToggle,
+}: {
+  row: DashboardPillRowView
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <>
+      <tr>
+        <td>
+          <Link to={row.trailHref} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
+            {row.trailName}
+          </Link>
+        </td>
+        <td className="num">{row.questionNumber}</td>
+        <td>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={onToggle}
+            style={{ border: 0, background: 'transparent', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--v-ink)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            {row.exerciseLabel}
+            <span style={{ transform: open ? 'rotate(180deg)' : 'none', display: 'inline-flex' }}>
+              <Icon name="chev-down" size={14} />
+            </span>
+          </button>
+        </td>
+        <td className="num">
+          <span className={accuracyPill(row.accuracyPct)}>{row.accuracyPct}%</span>
+        </td>
+        <td className="num">{row.total}</td>
+        <td className="num">{row.correct}</td>
+        <td className="num">{row.wrong}</td>
+        <td>{row.gabarito || 'N/A'}</td>
+      </tr>
+      {open ? (
+        <tr>
+          <td colSpan={8} style={{ padding: 16, background: 'var(--v-soft)' }}>
+            <QuestionDetail row={row} />
+          </td>
+        </tr>
+      ) : null}
     </>
   )
 }

@@ -108,6 +108,10 @@ export type DashboardStudentsChartsView = {
 }
 
 export type DashboardPillRowView = {
+  /** "Exercício X de Y" pela posição entre os exercícios da trilha. */
+  exerciseLabel: string
+  statement: string
+  alternatives: Array<{ key: string; text: string; count: number; correct: boolean }>
   key: string
   trailId: string
   trailHref: string
@@ -198,6 +202,14 @@ export type DashboardAgentStudentLink = {
 }
 
 export type DashboardPageViewProps = {
+  institutionName: string
+  studentFilterOptions: Array<{ id: string; label: string }>
+  studentFilterSelectedIds: string[]
+  onStudentFilterChange: (ids: Set<string>) => void
+  trailFilterOptions: Array<{ id: string; label: string }>
+  trailFilterSelectedIds: string[]
+  onTrailFilterChange: (ids: Set<string>) => void
+  onExportExerciseHistory: () => void
   loadingInst: boolean
   institutionOptions: DashboardInstitutionOption[]
   selectedId: string | null

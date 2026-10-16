@@ -20,6 +20,11 @@ export type NavPermission = (typeof NAV_PERMISSIONS)[number]
 export interface AdminUser {
   id: string
   email: string
+  /** Nome e telefone do usuário (campos opcionais da v1.1). */
+  name?: string
+  phone?: string
+  /** Perfil de menu: Admin ou Básico (Super admin vem de `is_super_admin`). */
+  profile?: 'admin' | 'basico'
   active: boolean
   is_super_admin: boolean
   /**

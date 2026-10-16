@@ -45,6 +45,9 @@ export function snapshotToAdminUser(
       typeof data.email === 'string'
         ? normalizeAdminEmail(data.email)
         : normalizeAdminEmail(d.id.replace(/_/g, '.')),
+    name: typeof data.name === 'string' ? data.name : undefined,
+    phone: typeof data.phone === 'string' ? data.phone : undefined,
+    profile: data.profile === 'admin' || data.profile === 'basico' ? data.profile : undefined,
     active: data.active !== false,
     is_super_admin: Boolean(data.is_super_admin),
     is_master: Boolean(data.is_master),

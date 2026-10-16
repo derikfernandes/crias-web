@@ -70,6 +70,8 @@ export function gxSectionForPath(pathname: string): GxSection {
 
 /** Páginas em que o filtro de instituições do topo se aplica. */
 export function gxHasScopeFilter(pathname: string): boolean {
+  const path = pathname.replace(/\/$/, '') || '/'
+  if (path.startsWith('/usuarios') || path.startsWith('/instituicoes')) return false
   const s = gxSectionForPath(pathname)
   return s === 'home' || s === 'dash' || s === 'trilhas' || s === 'alunos' || s === 'senhas'
 }

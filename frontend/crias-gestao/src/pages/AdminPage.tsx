@@ -1,332 +1,151 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from 'firebase/firestore'
-import { AdminPageView } from '../design/views/AdminPageView'
-import type { AdminUserRow } from '../design/types/adminPageView'
-import { db } from '../lib/firebase'
-import {
-  adminUserDocId,
-  defaultNavPermissions,
-  NAV_ITEMS,
-  normalizeAdminEmail,
-} from '../lib/adminPermissions'
-import {
-  ADMIN_USERS_COLLECTION,
-  snapshotToAdminUser,
-} from '../lib/adminUserFirestore'
-import {
-  INSTITUTIONS_COLLECTION,
-  snapshotToInstitution,
-} from '../lib/institutionFirestore'
+import { useEffect, useMemo, useState } from 'react'
+import { useCollection } from '../hooks/useCollection'
+import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
-import type { AdminUser, NavPermission } from '../types/adminUser'
-import type { Institution } from '../types/institution'
+import {
+  DEFAULT_PROFILES,
+  loadProfiles,
+  MENU_ITEMS,
+  PROFILE_LABEL,
+  saveProfileMenu,
+  type MenuKey,
+  type ProfileId,
+} from '../lib/adminProfiles'
+import { ADMIN_USERS_COLLECTION, snapshotToAdminUser } from '../lib/adminUserFirestore'
+import { deleteAdminUser, saveAdminUser, type UserDraft } from '../lib/adminUsersOps'
+import { Banner, BootSymbol, PageHead } from '../design/gx/ui'
+import { UsersTable, rowFromUser, type UserRowModel } from './admin/UsersTable'
 
-type FormState = {
-  email: string
-  active: boolean
-  is_super_admin: boolean
-  is_master: boolean
-  all_institutions: boolean
-  nav_permissions: NavPermission[]
-  institution_ids: string[]
-}
+const EMPTY: UserDraft = { email: '', name: '', phone: '', profile: 'basico', institutionIds: [], active: true }
 
-function emptyForm(): FormState {
-  return {
-    email: '',
-    active: true,
-    is_super_admin: false,
-    is_master: false,
-    all_institutions: false,
-    nav_permissions: defaultNavPermissions(),
-    institution_ids: [],
-  }
-}
-
-function formFromUser(user: AdminUser): FormState {
-  return {
-    email: user.email,
-    active: user.active,
-    is_super_admin: user.is_super_admin,
-    is_master: user.is_master,
-    all_institutions: user.all_institutions,
-    nav_permissions: [...user.nav_permissions],
-    institution_ids: [...user.institution_ids],
-  }
-}
-
+/** Permissões (1.1.15): perfis (menu por perfil) e usuários da instituição. */
 export function AdminPage() {
-  const { canNav, permissionsLoading } = usePermissions()
-  const [users, setUsers] = useState<AdminUser[]>([])
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(true)
-  const [listError, setListError] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => a.email.localeCompare(b.email, 'pt-BR'))
-  }, [users])
-
-  const sortedInstitutions = useMemo(() => {
-    return [...institutions].sort((a, b) =>
-      (a.name || a.id).localeCompare(b.name || b.id, 'pt-BR', {
-        sensitivity: 'base',
-      }),
-    )
-  }, [institutions])
+  const g = useGestao()
+  const { adminProfile, hasFullAccess } = usePermissions()
+  const users = useCollection(ADMIN_USERS_COLLECTION, snapshotToAdminUser)
+  const [menus, setMenus] = useState<Record<ProfileId, MenuKey[]>>(DEFAULT_PROFILES)
+  const [menusReady, setMenusReady] = useState(false)
+  const [drafts, setDrafts] = useState<UserRowModel[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const isSuper = hasFullAccess || Boolean(adminProfile?.is_super_admin)
 
   useEffect(() => {
-    if (!db) {
-      setLoadingUsers(false)
-      return
-    }
-
-    const unsubUsers = onSnapshot(
-      collection(db, ADMIN_USERS_COLLECTION),
-      (snap) => {
-        setUsers(snap.docs.map(snapshotToAdminUser))
-        setListError(null)
-        setLoadingUsers(false)
-      },
-      (err) => {
-        const message = err.message
-        if (/permission/i.test(message)) {
-          setListError(
-            'Permissão negada no Firestore. Publique as regras do arquivo firestore.rules (Firebase Console → Firestore → Regras).',
-          )
-        } else {
-          setListError(message)
-        }
-        setLoadingUsers(false)
-      },
-    )
-
-    const unsubInst = onSnapshot(collection(db, INSTITUTIONS_COLLECTION), (snap) => {
-      setInstitutions(snap.docs.map(snapshotToInstitution))
-    })
-
-    return () => {
-      unsubUsers()
-      unsubInst()
-    }
+    void loadProfiles()
+      .then(setMenus)
+      .catch(() => undefined)
+      .finally(() => setMenusReady(true))
   }, [])
 
-  function startCreate() {
-    setEditingId(null)
-    setForm(emptyForm())
-    setFormError(null)
-  }
+  const mine = g.myInstitutionId
+  const visible = useMemo(
+    () =>
+      users.rows.filter((u) => {
+        if (u.is_super_admin) return false
+        if (isSuper) return true
+        return mine ? u.institution_ids.includes(mine) : false
+      }),
+    [users.rows, isSuper, mine],
+  )
+  const rows: UserRowModel[] = useMemo(
+    () => [...drafts, ...visible.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'pt-BR')).map(rowFromUser)],
+    [drafts, visible],
+  )
 
-  function startEdit(user: AdminUser) {
-    setEditingId(user.id)
-    setForm(formFromUser(user))
-    setFormError(null)
-  }
-
-  function toggleNav(key: NavPermission) {
-    setForm((prev) => {
-      const has = prev.nav_permissions.includes(key)
-      return {
-        ...prev,
-        nav_permissions: has
-          ? prev.nav_permissions.filter((item) => item !== key)
-          : [...prev.nav_permissions, key],
-      }
-    })
-  }
-
-  function toggleInstitution(id: string) {
-    setForm((prev) => {
-      const has = prev.institution_ids.includes(id)
-      return {
-        ...prev,
-        institution_ids: has
-          ? prev.institution_ids.filter((item) => item !== id)
-          : [...prev.institution_ids, id],
-      }
-    })
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!db) return
-
-    const email = normalizeAdminEmail(form.email)
-    if (!email || !email.includes('@')) {
-      setFormError('Informe um e-mail válido (o mesmo usado no login Firebase).')
-      return
-    }
-
-    if (
-      !form.is_super_admin &&
-      !form.all_institutions &&
-      form.institution_ids.length === 0
-    ) {
-      setFormError(
-        'Selecione ao menos uma instituição ou marque "Todas as instituições".',
-      )
-      return
-    }
-
-    if (!form.is_super_admin && form.nav_permissions.length === 0) {
-      setFormError('Selecione ao menos um tópico do menu ou marque Super admin.')
-      return
-    }
-
-    const docId = editingId ?? adminUserDocId(email)
-    setSaving(true)
-    setFormError(null)
-
+  async function toggleMenu(profile: ProfileId, key: MenuKey) {
+    if (!isSuper) return
+    const current = menus[profile]
+    const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+    setError(null)
     try {
-      const payload = {
-        email,
-        active: form.active,
-        is_super_admin: form.is_super_admin,
-        is_master: form.is_master,
-        all_institutions: form.is_super_admin ? true : form.all_institutions,
-        nav_permissions: form.is_super_admin
-          ? NAV_ITEMS.map((item) => item.key).filter(
-              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
-            )
-          : form.nav_permissions.filter(
-              (key) => key !== 'student_passwords' && key !== 'ai_prompts',
-            ),
-        institution_ids: form.is_super_admin || form.all_institutions ? [] : form.institution_ids,
-        updated_at: serverTimestamp(),
-      }
-
-      if (editingId) {
-        await updateDoc(doc(db, ADMIN_USERS_COLLECTION, docId), payload)
-      } else {
-        await setDoc(doc(db, ADMIN_USERS_COLLECTION, docId), {
-          ...payload,
-          created_at: serverTimestamp(),
-        })
-      }
-
-      setEditingId(docId)
-      setForm((prev) => ({ ...prev, email }))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao salvar.'
-      if (/permission/i.test(message)) {
-        setFormError(
-          'Permissão negada no Firestore. Publique as regras do arquivo firestore.rules na raiz do projeto (Firebase Console → Firestore → Regras, ou firebase deploy --only firestore:rules).',
-        )
-      } else {
-        setFormError(message)
-      }
-    } finally {
-      setSaving(false)
+      await saveProfileMenu(profile, next, menus, users.rows)
+      setMenus({ ...menus, [profile]: next })
+      setNotice('Menu do perfil salvo.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível salvar o menu do perfil.')
     }
   }
 
-  async function handleDelete(user: AdminUser) {
-    if (!db) return
-    const ok = window.confirm(`Remover permissões de ${user.email}?`)
-    if (!ok) return
-
-    setDeletingId(user.id)
-    try {
-      await deleteDoc(doc(db, ADMIN_USERS_COLLECTION, user.id))
-      if (editingId === user.id) {
-        startCreate()
-      }
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao remover.')
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  if (permissionsLoading) {
-    return <AdminPageView status="loading" />
-  }
-
-  if (!canNav('admin')) {
-    return <AdminPageView status="forbidden" />
-  }
-
-  const userRows: AdminUserRow[] = sortedUsers.map((user) => ({
-    id: user.id,
-    email: user.email,
-    activeLabel: user.active ? 'Sim' : 'Não',
-    scopeLabel: user.is_super_admin
-      ? 'Super admin'
-      : user.all_institutions
-        ? 'Todas instituições'
-        : `${user.institution_ids.length} instituição(ões)`,
-    menuLabel: user.is_super_admin
-      ? 'Todos'
-      : user.nav_permissions.length > 0
-        ? String(user.nav_permissions.length)
-        : '—',
-    deleting: deletingId === user.id,
-  }))
+  if (!users.ready || !menusReady || g.institutionsLoading) return <BootSymbol />
 
   return (
-    <AdminPageView
-      status="ok"
-      listError={listError}
-      editingId={editingId}
-      form={form}
-      formError={formError}
-      saving={saving}
-      loadingUsers={loadingUsers}
-      navItems={NAV_ITEMS.filter(
-        (item) => item.key !== 'student_passwords' && item.key !== 'ai_prompts',
-      ).map(
-        (item) => ({ key: item.key, label: item.label }),
-      )}
-      institutions={sortedInstitutions.map((inst) => ({
-        id: inst.id,
-        label: inst.name || inst.id,
-      }))}
-      users={userRows}
-      onStartCreate={startCreate}
-      onEmailChange={(value) => setForm((prev) => ({ ...prev, email: value }))}
-      onActiveChange={(checked) =>
-        setForm((prev) => ({ ...prev, active: checked }))
-      }
-      onSuperAdminChange={(checked) =>
-        setForm((prev) => ({
-          ...prev,
-          is_super_admin: checked,
-          all_institutions: checked ? true : prev.all_institutions,
-        }))
-      }
-      onMasterChange={(checked) =>
-        setForm((prev) => ({ ...prev, is_master: checked }))
-      }
-      onAllInstitutionsChange={(checked) =>
-        setForm((prev) => ({
-          ...prev,
-          all_institutions: checked,
-          institution_ids: checked ? [] : prev.institution_ids,
-        }))
-      }
-      onToggleNav={(key) => toggleNav(key as NavPermission)}
-      onToggleInstitution={toggleInstitution}
-      onSubmit={(e) => void handleSubmit(e)}
-      onEditUser={(userId) => {
-        const user = users.find((u) => u.id === userId)
-        if (user) startEdit(user)
-      }}
-      onDeleteUser={(userId) => {
-        const user = users.find((u) => u.id === userId)
-        if (user) void handleDelete(user)
-      }}
-    />
+    <div className="gx-page">
+      <PageHead title="Permissões" subtitle="Defina quais as permissões para cada usuário da instituição." />
+      {error ? <Banner>{error}</Banner> : null}
+      {users.error ? <Banner onRetry={users.retry}>{users.error}</Banner> : null}
+      {notice ? <Banner tone="ok">{notice}</Banner> : null}
+
+      <section className="gx-card" aria-label="Perfis">
+        <h2>Perfis</h2>
+        {(['admin', 'basico'] as ProfileId[]).map((p) => (
+          <div
+            key={p}
+            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 18px', border: '1px solid var(--v-soft2)', borderRadius: 12, padding: '12px 14px' }}
+          >
+            <strong style={{ fontSize: 15, minWidth: 70 }}>{PROFILE_LABEL[p]}</strong>
+            {MENU_ITEMS.map((m) => {
+              const unavailable = p === 'basico' && m.key === 'senhas'
+              return (
+                <label key={m.key} className="gx-check" style={{ opacity: unavailable ? 0.4 : 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={!unavailable && menus[p].includes(m.key)}
+                    disabled={!isSuper || unavailable}
+                    onChange={() => void toggleMenu(p, m.key)}
+                  />
+                  {m.label}
+                </label>
+              )
+            })}
+          </div>
+        ))}
+        <p className="gx-muted" style={{ fontSize: 12 }}>
+          {isSuper ? 'Super admin acessa tudo.' : 'Só o Super admin edita os perfis. Você pode ver o menu de cada um.'}
+        </p>
+      </section>
+
+      <section className="gx-card" aria-label="Usuários">
+        <div className="gx-card__head">
+          <h2>Usuários</h2>
+          <button
+            type="button"
+            className="gx-btn gx-btn--primary"
+            onClick={() =>
+              setDrafts((d) => [
+                { id: `${Date.now()}`, isNew: true, draft: { ...EMPTY, institutionIds: mine ? [mine] : [] } },
+                ...d,
+              ])
+            }
+          >
+            + Novo usuário
+          </button>
+        </div>
+        <UsersTable
+          rows={rows}
+          canEdit
+          profileOptions={[
+            { value: 'admin', label: 'Admin' },
+            { value: 'basico', label: 'Básico' },
+          ]}
+          showInstitution={isSuper}
+          institutionOptions={g.institutions.map((i) => ({ value: i.id, label: i.name || i.id }))}
+          onSave={async (row, draft) => {
+            await saveAdminUser(
+              { ...draft, institutionIds: isSuper ? draft.institutionIds : mine ? [mine] : [] },
+              menus,
+              'institution',
+              row.isNew,
+            )
+            setDrafts((d) => d.filter((x) => x.id !== row.id))
+            setNotice('Usuário salvo.')
+          }}
+          onDelete={async (row) => {
+            await deleteAdminUser(row.id)
+            setNotice('Usuário excluído.')
+          }}
+          onDiscardNew={(row) => setDrafts((d) => d.filter((x) => x.id !== row.id))}
+        />
+      </section>
+    </div>
   )
 }

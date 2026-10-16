@@ -98,6 +98,24 @@ async function handle(url: URL, init?: RequestInit): Promise<Response | null> {
     }
   }
 
+  if (path === '/api/dashboard_summary' && method === 'GET') {
+    const inst = url.searchParams.get('institution_id') ?? ''
+    const trailIds = [...new Set(listCollection('trails').filter(([, t]) => t.institution_id === inst).map(([id]) => id))]
+    const students: Record<string, { answers: Record<string, string>; extra_done: string[] }> = {}
+    for (const [, a] of listCollection('exercise_attempts')) {
+      if (a.institution_id !== inst) continue
+      const sid = String(a.student_id)
+      const idx = trailIds.indexOf(String(a.trail_id))
+      if (idx < 0) continue
+      students[sid] ??= { answers: {}, extra_done: [] }
+      students[sid].answers[`${idx}|${a.stage_number}|${a.question_number}`] = String(a.student_answer)
+      // etapas de conteúdo anteriores contam como feitas
+      for (let st = 1; st < Number(a.stage_number); st++) students[sid].extra_done.push(`${idx}|${st}|${a.question_number}`)
+    }
+    const agents = trailIds.map((t, i) => ({ trail_id: t, label: `Monitor · ${(readDoc(`trails/${t}`) ?? {}).name}`, messages: 12 + i * 5, unique_students: 6 + i, pct_of_total: 30, last_activity: '2026-10-12', student_ids: Object.keys(students).slice(0, 6 + i) }))
+    return json({ trail_ids: trailIds, students, agent_usage: { period_days: Number(url.searchParams.get('period_days') ?? 0), total_messages: agents.reduce((n, a) => n + a.messages, 0), agents, series: [] } })
+  }
+
   if (path === '/api/student' && method === 'PUT') {
     setPassword(url.searchParams.get('id') ?? '', String(body.password ?? ''))
     notify()

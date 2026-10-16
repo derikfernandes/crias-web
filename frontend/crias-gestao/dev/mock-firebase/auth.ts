@@ -19,3 +19,6 @@ export async function signOut() {
   current = null
   cbs.forEach((c) => c(null))
 }
+export async function sendPasswordResetEmail(_a: unknown, email: string) {
+  console.info('[mock] e-mail de redefinição para', email)
+}

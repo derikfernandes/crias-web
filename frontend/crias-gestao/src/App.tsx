@@ -9,6 +9,9 @@ import './design/styles/gestao.css'
 
 // Code splitting: cada página vira um chunk próprio, carregado sob demanda.
 // Os componentes e o comportamento das páginas permanecem idênticos.
+const UsersPage = lazy(() =>
+  import('./pages/UsersPage').then((m) => ({ default: m.UsersPage })),
+)
 const AdminPage = lazy(() =>
   import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })),
 )
@@ -232,6 +235,14 @@ function AppRoutes() {
             element={
               <ProtectedPage>
                 <DashboardPage />
+              </ProtectedPage>
+            }
+          />
+          <Route
+            path="/usuarios"
+            element={
+              <ProtectedPage>
+                <UsersPage />
               </ProtectedPage>
             }
           />

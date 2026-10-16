@@ -245,7 +245,17 @@ function Shell({ children }: { children: ReactNode }) {
                 <button type="button" className="is-on" aria-pressed="true">
                   Gestão
                 </button>
-                <a href="/aluno/" aria-pressed="false">
+                <a
+                  href="/aluno/"
+                  aria-pressed="false"
+                  onClick={() => {
+                    try {
+                      window.localStorage.setItem('crias:acesso-gestao', '1')
+                    } catch {
+                      // sem armazenamento: o seletor do aluno só não aparece
+                    }
+                  }}
+                >
                   Aluno
                 </a>
               </div>

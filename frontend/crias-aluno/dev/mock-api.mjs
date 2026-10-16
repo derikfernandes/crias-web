@@ -133,6 +133,25 @@ http
 
     if (p === '/student/identify') return send(res, 200, STUDENT)
 
+    if (p === '/student_trails' && req.method === 'GET' && u.searchParams.get('facade') === 'panel') {
+      return send(res, 200, {
+        status: 'ok',
+        student: { id: 's1', name: 'Ana', phone: '11900000001' },
+        trails: [
+          { trail_id: 't1', name: 'Matemática básica', released: 3, done: 1, total: 4, pct: 33.3, activities: [
+            { number: 1, title: 'Porcentagem', state: 'done' }, { number: 2, title: 'Frações', state: 'current' },
+            { number: 3, title: 'Proporção', state: 'released' }, { number: 4, title: 'Média', state: 'blocked' } ] },
+          { trail_id: 't2', name: 'Português: leitura e texto', released: 2, done: 0, total: 3, pct: 0, activities: [
+            { number: 1, title: 'Ideia principal', state: 'current' }, { number: 2, title: 'Inferência', state: 'released' }, { number: 3, title: 'Tipos de texto', state: 'blocked' } ] },
+        ],
+        performance: { correct: 7, wrong: 3, pct: 70,
+          by_trail: [{ trail_id: 't1', name: 'Matemática básica', correct: 5, wrong: 1 }, { trail_id: 't2', name: 'Português: leitura e texto', correct: 2, wrong: 2 }],
+          by_activity: [{ trail_id: 't1', number: 1, correct: 3, wrong: 0 }, { trail_id: 't1', number: 2, correct: 2, wrong: 1 }] },
+        errors: [{ trail: 'Matemática básica', activity: 2, step: 4, statement: 'Quanto é 1/2 + 1/4?', answer: 'A', correct: 'C' }],
+        monitor: { questions: 6, days: 3, last: '2026-10-12T14:00:00Z', by_trail: [{ trail_id: 't1', name: 'Matemática básica', questions: 4 }], outside: 2 },
+        doubts: [{ trail_id: 't1', name: 'Matemática básica', activity: 2, count: 3, last_question: 'Como somo frações com denominadores diferentes?' }],
+      })
+    }
     if (p === '/student_trails' && req.method === 'GET') {
       return send(
         res,

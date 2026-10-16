@@ -67,6 +67,15 @@ function focusableIn(root: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
 }
 
+/** Quem também usa a Gestão (professor, coordenação) vê o seletor Aluno | Gestão. A Gestão grava este aviso. */
+function hasGestaoAccess(): boolean {
+  try {
+    return localStorage.getItem('crias:acesso-gestao') === '1'
+  } catch {
+    return false
+  }
+}
+
 export default function ChatLayout() {
   const session = getSession()
   const navigate = useNavigate()
@@ -708,13 +717,17 @@ export default function ChatLayout() {
               <span className="v1-0-group__text">Acompanhamento</span>
               <span className="v1-0-group__line" />
             </p>
-            {/* Gestão de dados: fora do app do aluno, abre a gestão da plataforma. */}
-            <a href="/" className="v1-0-navitem">
+            <Link
+              to="/painel"
+              className={`v1-0-navitem${location.pathname === '/painel' ? ' is-active' : ''}`}
+              aria-current={location.pathname === '/painel' ? 'page' : undefined}
+              onClick={() => closeDrawerForNav()}
+            >
               <span className="v1-0-navitem__copy">
-                <span className="v1-0-navitem__name">Gestão</span>
+                <span className="v1-0-navitem__name">Painel</span>
                 <span className="v1-0-navitem__meta">Ver seus dados de estudo</span>
               </span>
-            </a>
+            </Link>
             <Link
               to="/monitoria"
               className={`v1-0-navitem${onMonitoria ? ' is-active' : ''}`}
@@ -863,6 +876,16 @@ export default function ChatLayout() {
           </nav>
 
           <div className="v1-0-sidebar__foot">
+            {hasGestaoAccess() ? (
+              <div className="v1-1-switch" role="group" aria-label="Alternar entre aluno e gestão">
+                <button type="button" className="is-on" aria-pressed="true">
+                  Aluno
+                </button>
+                <a href="/" aria-pressed="false">
+                  Gestão
+                </a>
+              </div>
+            ) : null}
             <div className="v1-0-sidebar__user">
               <button
                 type="button"

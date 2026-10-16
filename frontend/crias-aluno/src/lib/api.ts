@@ -698,3 +698,58 @@ export async function submitExerciseAttempt(input: {
   }
   return body as ExerciseAttemptResult
 }
+
+/* ===== Painel individual do aluno (v1.1) ===== */
+
+export type PanelActivity = { number: number; title: string; state: 'done' | 'current' | 'released' | 'blocked' }
+export type PanelTrail = {
+  trail_id: string
+  name: string
+  released: number
+  done: number
+  total: number
+  pct: number | null
+  activities: PanelActivity[]
+}
+export type StudentPanel = {
+  student: { id: string; name: string; phone: string }
+  trails: PanelTrail[]
+  performance: {
+    correct: number
+    wrong: number
+    pct: number | null
+    by_trail: Array<{ trail_id: string; name: string; correct: number; wrong: number }>
+    by_activity: Array<{ trail_id: string; number: number; correct: number; wrong: number }>
+  }
+  errors: Array<{ trail: string; activity: number; step: number; statement: string; answer: string; correct: string }>
+  monitor: {
+    questions: number
+    days: number
+    last: string | null
+    by_trail: Array<{ trail_id: string; name: string; questions: number }>
+    outside: number
+  }
+  doubts: Array<{ trail_id: string; name: string; activity: number | null; count: number; last_question: string }>
+}
+
+export async function fetchStudentPanel(studentId: string): Promise<StudentPanel> {
+  const url = new URL(`${API_BASE}/student_trails`, window.location.origin)
+  url.searchParams.set('facade', 'panel')
+  url.searchParams.set('student_id', studentId)
+  const res = await fetchWithTimeout(url.pathname + url.search)
+  const body = await parseJson(res)
+  if (!res.ok) throwHttpError(res, body, 'Não foi possível carregar o seu painel.')
+  return body as StudentPanel
+}
+
+/** Nome e telefone do próprio aluno (cabeçalho do Painel). */
+export async function updateOwnProfile(studentId: string, input: { name: string; phone_number: string }): Promise<void> {
+  const url = new URL(`${API_BASE}/student`, window.location.origin)
+  url.searchParams.set('id', studentId)
+  const res = await fetchWithTimeout(url.pathname + url.search, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throwHttpError(res, await parseJson(res), 'Não foi possível salvar as alterações.')
+}

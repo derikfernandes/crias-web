@@ -15,6 +15,8 @@ export type TrailStageQuestion = {
   stage_number: number
   question_number: number
   title: string
+  /** Título da etapa dentro da atividade (conteúdos). Campo opcional da v1.1. */
+  step_title?: string
   content: string
   correct_option: string | null
   options: TrailStageQuestionOption[] | null

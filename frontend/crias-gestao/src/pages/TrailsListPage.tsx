@@ -1,180 +1,162 @@
-import { useEffect, useMemo, useState } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
-import { TrailsListPageView } from '../design/views/TrailsListPageView'
-import type { TrailsListRow } from '../design/types/trailsListPageView'
-import { db } from '../lib/firebase'
-import {
-  INSTITUTIONS_COLLECTION,
-  snapshotToInstitution,
-} from '../lib/institutionFirestore'
-import {
-  formatTrailTs,
-  snapshotToTrail,
-  TRAILS_COLLECTION,
-} from '../lib/trailFirestore'
-import { trailPath } from '../lib/paths'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { fmtDate, activePillClass } from '../lib/gestaoFormat'
+import { snapshotToTrail } from '../lib/trailFirestore'
+import { useCollection } from '../hooks/useCollection'
+import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
-import type { Institution } from '../types/institution'
-import type { Trail } from '../types/trail'
+import {
+  Banner,
+  BootSymbol,
+  FilterPopover,
+  na,
+  PageHead,
+  Pager,
+  ScrollX,
+  SortHead,
+  sortRows,
+  usePager,
+  type SortState,
+} from '../design/gx/ui'
 
-const PAGE_SIZE = 20
-
+/** Lista de trilhas (1.1.12): filtro de trilhas na linha fixa, tabela ordenável e 5 por página. */
 export function TrailsListPage() {
-  const { canNav, filterInstitutions, canInstitution } = usePermissions()
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [trails, setTrails] = useState<Trail[]>([])
-  const [loading, setLoading] = useState(() => Boolean(db))
-  const [error, setError] = useState<string | null>(null)
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState('')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const g = useGestao()
+  const navigate = useNavigate()
+  const { canNav } = usePermissions()
+  const trails = useCollection('trails', snapshotToTrail)
+  const [picked, setPicked] = useState<Set<string> | null>(null)
+  const [sort, setSort] = useState<SortState | null>({ key: 'name', dir: 'asc' })
 
-  const institutionOptions = useMemo(() => {
-    return filterInstitutions(institutions)
-      .slice()
-      .sort((a, b) =>
-        (a.name || a.id).localeCompare(b.name || b.id, 'pt-BR', {
-          sensitivity: 'base',
-        }),
-      )
-      .map((inst) => ({
-        id: inst.id,
-        label: inst.name || inst.id,
-      }))
-  }, [institutions, filterInstitutions])
+  const scoped = useMemo(
+    () => trails.rows.filter((t) => g.scopedIds.has(t.institution_id)),
+    [trails.rows, g.scopedIds],
+  )
+  const selected = useMemo(() => {
+    const ids = new Set(scoped.map((t) => t.id))
+    if (!picked) return ids
+    const out = new Set<string>()
+    for (const id of picked) if (ids.has(id)) out.add(id)
+    return out
+  }, [scoped, picked])
 
-  const institutionNameById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const inst of institutions) {
-      map.set(inst.id, inst.name || inst.id)
-    }
-    return map
-  }, [institutions])
+  const rows = useMemo(
+    () =>
+      sortRows(
+        scoped.filter((t) => selected.has(t.id)),
+        sort,
+        (t, k) =>
+          k === 'name'
+            ? t.name
+            : k === 'inst'
+              ? g.institutionName(t.institution_id)
+              : k === 'subject'
+                ? t.subject
+                : k === 'active'
+                  ? t.active
+                    ? 'Sim'
+                    : 'Não'
+                  : k === 'created'
+                    ? (t.created_at?.toMillis?.() ?? null)
+                    : '',
+      ),
+    [scoped, selected, sort, g],
+  )
+  const pager = usePager(rows, 5)
 
-  const allowedTrails = useMemo(() => {
-    return trails.filter((trail) => canInstitution(trail.institution_id))
-  }, [trails, canInstitution])
+  const creatable = g.scopedInstitutions.length === 1 ? g.scopedInstitutions[0] : null
 
-  const filteredTrails = useMemo(() => {
-    let list = allowedTrails
-    if (selectedInstitutionId) {
-      list = list.filter((t) => t.institution_id === selectedInstitutionId)
-    }
-
-    const query = search.trim().toLowerCase()
-    if (!query) {
-      return list
-        .slice()
-        .sort((a, b) =>
-          (a.name || '').localeCompare(b.name || '', 'pt-BR', {
-            sensitivity: 'base',
-          }),
-        )
-    }
-
-    return list
-      .filter((trail) => {
-        if ((trail.name || '').toLowerCase().includes(query)) return true
-        if ((trail.subject || '').toLowerCase().includes(query)) return true
-        if (trail.id.toLowerCase().includes(query)) return true
-        return false
-      })
-      .sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', 'pt-BR', {
-          sensitivity: 'base',
-        }),
-      )
-  }, [allowedTrails, selectedInstitutionId, search])
-
-  const totalPages = Math.max(1, Math.ceil(filteredTrails.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-
-  const paginatedTrails = useMemo(() => {
-    const start = (safePage - 1) * PAGE_SIZE
-    return filteredTrails.slice(start, start + PAGE_SIZE)
-  }, [filteredTrails, safePage])
-
-  useEffect(() => {
-    if (!db) return
-
-    let unsubInst: (() => void) | null = null
-    let unsubTr: (() => void) | null = null
-
-    unsubInst = onSnapshot(
-      collection(db, INSTITUTIONS_COLLECTION),
-      (snap) => {
-        setInstitutions(snap.docs.map(snapshotToInstitution))
-        setError(null)
-      },
-      (err) => {
-        setError(err.message)
-        setInstitutions([])
-      },
-    )
-
-    unsubTr = onSnapshot(
-      collection(db, TRAILS_COLLECTION),
-      (snap) => {
-        setTrails(snap.docs.map(snapshotToTrail))
-        setError(null)
-        setLoading(false)
-      },
-      (err) => {
-        setError(err.message)
-        setTrails([])
-        setLoading(false)
-      },
-    )
-
-    return () => {
-      unsubInst?.()
-      unsubTr?.()
-    }
-  }, [])
-
-  const rows: TrailsListRow[] = paginatedTrails.map((trail) => ({
-    id: trail.id,
-    name: trail.name || '—',
-    institutionName:
-      institutionNameById.get(trail.institution_id) ||
-      trail.institution_id ||
-      '—',
-    subject: trail.subject || '—',
-    activeLabel: trail.active ? 'Sim' : 'Não',
-    createdAtLabel: formatTrailTs(trail.created_at),
-    detailHref: trailPath(trail.id),
-  }))
-
-  const pageStart =
-    filteredTrails.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
-  const pageEnd = Math.min(safePage * PAGE_SIZE, filteredTrails.length)
+  if (!trails.ready || g.institutionsLoading) return <BootSymbol />
 
   return (
-    <TrailsListPageView
-      canCreate={canNav('trail_new')}
-      institutionOptions={institutionOptions}
-      selectedInstitutionId={selectedInstitutionId}
-      onSelectInstitution={(institutionId) => {
-        setSelectedInstitutionId(institutionId)
-        setPage(1)
-      }}
-      search={search}
-      onSearchChange={(value) => {
-        setSearch(value)
-        setPage(1)
-      }}
-      rows={rows}
-      loading={loading}
-      error={error}
-      filteredCount={filteredTrails.length}
-      page={safePage}
-      totalPages={totalPages}
-      pageStart={pageStart}
-      pageEnd={pageEnd}
-      onPreviousPage={() => setPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
-      onNextPage={() =>
-        setPage((p) => Math.min(totalPages, Math.min(p, totalPages) + 1))
-      }
-    />
+    <div className="gx-page">
+      <PageHead
+        title="Trilhas"
+        subtitle="Gestão de trilhas de conteúdos e exercícios."
+        actions={
+          canNav('trail_new') ? (
+            <button
+              type="button"
+              className="gx-btn gx-btn--primary"
+              disabled={!creatable}
+              title={creatable ? undefined : 'Selecione uma instituição para criar a trilha.'}
+              onClick={() => creatable && navigate(`/trilhas/novo?institution=${encodeURIComponent(creatable.id)}`)}
+            >
+              + Nova trilha
+            </button>
+          ) : null
+        }
+        tools={
+          <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0, marginTop: 32 }}>
+            <FilterPopover
+              variant="field"
+              align="left"
+              label="Filtrar trilhas"
+              options={scoped.map((t) => ({ id: t.id, name: t.name || t.id }))}
+              selected={selected}
+              onChange={(n) => {
+                setPicked(n)
+                pager.reset()
+              }}
+              emptyText="Nenhuma trilha encontrada."
+            />
+          </div>
+        }
+      />
+      {trails.error ? (
+        <Banner onRetry={trails.retry}>Não foi possível carregar os dados. Tente atualizar a página.</Banner>
+      ) : null}
+      {!creatable && canNav('trail_new') ? (
+        <p className="gx-muted">Selecione uma instituição para criar a trilha.</p>
+      ) : null}
+      <section className="gx-card" style={{ padding: 0, gap: 0, overflow: 'hidden' }}>
+        <ScrollX>
+          <table className="gx-table">
+            <thead>
+              <tr>
+                <SortHead label="Nome" sortKey="name" sort={sort} onSort={setSort} />
+                <SortHead label="Instituição" sortKey="inst" sort={sort} onSort={setSort} />
+                <SortHead label="Matéria" sortKey="subject" sort={sort} onSort={setSort} />
+                <SortHead label="Ativa" sortKey="active" sort={sort} onSort={setSort} />
+                <SortHead label="Criada em" sortKey="created" sort={sort} onSort={setSort} />
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {pager.slice.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <Link to={`/trilhas/${t.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
+                      {t.name || t.id}
+                    </Link>
+                  </td>
+                  <td>{g.institutionName(t.institution_id)}</td>
+                  <td>{na(t.subject)}</td>
+                  <td>
+                    <span className={activePillClass(t.active)}>{t.active ? 'Sim' : 'Não'}</span>
+                  </td>
+                  <td>{fmtDate(t.created_at)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <Link to={`/trilhas/${t.id}`} className="gx-btn">
+                      Abrir
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {pager.total === 0 ? (
+                <tr>
+                  <td colSpan={6} className="gx-table__empty">
+                    Nenhuma trilha encontrada.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </ScrollX>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--v-soft2)' }}>
+          <Pager pager={pager} noun="trilha" nounPlural="trilhas" sizes={[5, 10, 30, 50]} gateAt={10} />
+        </div>
+      </section>
+    </div>
   )
 }

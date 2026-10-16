@@ -45,7 +45,7 @@ export function seed(Timestamp: TS): Record<string, Record<string, Data>> {
       out.trail_stages[`${id}_stage_${s}`] = { trail_id: id, stage_number: s, title: p.title, stage_type: p.stage_type, prompt: p.prompt, is_released: true, active: true, created_at: ts(50), updated_at: ts(5) }
       for (let q = 1; q <= ACTIVITIES; q++) {
         const ex = p.stage_type === 'exercise'
-        out.trail_stage_questions[`${id}_stage_${s}_question_${q}`] = {
+        out.trail_stage_questions[`${id}_stage_${s}_q_${q}`] = {
           trail_id: id, stage_number: s, question_number: q,
           title: ex ? `Exercício ${q}` : `${p.title} da atividade ${q}`,
           content: ex ? `Qual alternativa responde corretamente ao exercício ${q} de ${name}?` : `Conteúdo da etapa ${s} da atividade ${q} de ${name}.`,

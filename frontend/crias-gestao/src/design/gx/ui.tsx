@@ -189,18 +189,22 @@ export function PageHead({
   subtitle,
   actions,
   tools,
+  titleAction,
 }: {
   title: ReactNode
   subtitle?: ReactNode
   actions?: ReactNode
   /** Linha fixa abaixo do subtítulo (filtros, abas). */
   tools?: ReactNode
+  /** Botão no fim da linha do título (Salvar, Gerar prévia). */
+  titleAction?: ReactNode
 }) {
   return (
     <header className="gx-head" data-pin="1">
       <div className="gx-head__title">
         <h1 data-fade="1">{title}</h1>
         <span className="gx-head__rule" aria-hidden="true" />
+        {titleAction ?? null}
       </div>
       <div className="gx-head__sub">
         <p data-fade="1">{subtitle}</p>

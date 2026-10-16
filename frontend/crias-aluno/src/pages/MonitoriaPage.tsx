@@ -226,7 +226,7 @@ export default function MonitoriaPage() {
           ) : (
             <>
               {lines.length === 0 ? (
-                <BotMessage label="Monitor">
+                <BotMessage label="Monitor" monitor live={!sending}>
                   <p>{MONITOR_INTRO}</p>
                 </BotMessage>
               ) : null}
@@ -234,7 +234,7 @@ export default function MonitoriaPage() {
                 line.role === 'student' ? (
                   <UserBubble key={line.id}>{line.text}</UserBubble>
                 ) : (
-                  <BotMessage key={line.id} label="Monitor">
+                  <BotMessage key={line.id} label="Monitor" monitor live={!sending && line === lines[lines.length - 1]}>
                     <p>
                       {renderInlineSegments(
                         parseInlineMarkdown(line.text),
@@ -246,7 +246,7 @@ export default function MonitoriaPage() {
               )}
             </>
           )}
-          {sending ? <TypingRow /> : null}
+          {sending ? <TypingRow monitor /> : null}
           {sendError ? (
             <div className="v1-0-errbox" role="alert">
               <p>{sendError}</p>

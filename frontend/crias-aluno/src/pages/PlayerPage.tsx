@@ -4943,6 +4943,12 @@ export default function PlayerPage() {
                       ) : (
                         <BotMessage
                           label={msg.kind === 'sidechat' || msg.monitor ? 'Monitor' : trailHeading}
+                          monitor={Boolean(msg.kind === 'sidechat' || msg.monitor)}
+                          live={Boolean(
+                            (msg.kind === 'sidechat' || msg.monitor) &&
+                              msgIdx === chatMessages.length - 1 &&
+                              !showTypingBubble,
+                          )}
                           feedback={fb}
                           labelId={labelId}
                         >
@@ -4984,7 +4990,7 @@ export default function PlayerPage() {
             </BotMessage>
           ) : null}
 
-          {showTypingBubble ? <TypingRow /> : null}
+          {showTypingBubble ? <TypingRow monitor={busyReason === 'maria'} /> : null}
           {trailCompletedNode}
 
           {error && !trailShellUnavailable ? (

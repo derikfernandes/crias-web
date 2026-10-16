@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react'
 import CriasSymbol from './CriasSymbol'
+import MonitorAvatar from './monitor/MonitorAvatar'
 
 /**
  * Peças da conversa (v1.0, seção 10), usadas pela trilha e pela Monitoria.
@@ -25,6 +26,10 @@ type BotProps = {
   /** Símbolo em movimento (só na mensagem "Atividade concluída" enquanto for a última). */
   animatedSymbol?: boolean
   labelId?: string
+  /** Mensagem do monitor: mostra o personagem em vez do símbolo do Crias. */
+  monitor?: boolean
+  /** Última mensagem do monitor: o personagem pula uma vez e fica parado. */
+  live?: boolean
 }
 
 /**
@@ -37,16 +42,26 @@ export function BotMessage({
   feedback,
   animatedSymbol = false,
   labelId,
+  monitor = false,
+  live = false,
 }: BotProps) {
   return (
     <div className="v1-0-msg v1-0-msg--bot">
       <span className="v1-0-msg__sym">
-        <CriasSymbol size={30} animated={animatedSymbol} />
+        {monitor ? (
+          <MonitorAvatar size={32} live={live} />
+        ) : (
+          <CriasSymbol size={32} animated={animatedSymbol} />
+        )}
       </span>
       <div className="v1-0-msg__body">
         <span className="v1-0-msg__labelrow">
           <span className="v1-0-msg__symsm">
-            <CriasSymbol size={20} animated={animatedSymbol} />
+            {monitor ? (
+              <MonitorAvatar size={22} live={live} />
+            ) : (
+              <CriasSymbol size={22} animated={animatedSymbol} />
+            )}
           </span>
           <span className="v1-0-msg__label" data-fade="1" id={labelId}>
             {label}
@@ -63,18 +78,41 @@ export function BotMessage({
   )
 }
 
-/** Carregando resposta ou etapa nova: símbolo em movimento e três pontos. */
-export function TypingRow() {
+/**
+ * Carregando (1.1.2 e orientação 18).
+ * - Continuar (trilha): só os três pontos, sem personagem.
+ * - Mensagem ao monitor: o personagem carregando, "Monitor" ao lado e os três pontos logo abaixo.
+ */
+export function TypingRow({ monitor = false }: { monitor?: boolean }) {
+  if (!monitor) {
+    return (
+      <div className="v1-0-typing" role="status" aria-live="polite" aria-label="Aguarde">
+        <span className="v1-0-typing__dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
+    )
+  }
   return (
-    <div className="v1-0-typing" role="status" aria-live="polite" aria-label="Aguarde">
-      <span className="v1-0-typing__sym">
-        <CriasSymbol size={30} />
+    <div className="v1-0-msg v1-0-msg--bot" role="status" aria-live="polite" aria-label="O monitor está digitando">
+      <span className="v1-0-msg__sym">
+        <MonitorAvatar size={32} loading />
       </span>
-      <span className="v1-0-typing__dots" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </span>
+      <div className="v1-0-msg__body">
+        <span className="v1-0-msg__labelrow">
+          <span className="v1-0-msg__symsm">
+            <MonitorAvatar size={22} loading />
+          </span>
+          <span className="v1-0-msg__label">Monitor</span>
+        </span>
+        <span className="v1-1-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
     </div>
   )
 }

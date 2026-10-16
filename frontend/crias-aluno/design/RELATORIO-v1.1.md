@@ -38,7 +38,7 @@ Aplicada sobre o `main` (v1.0) no branch `v1.1`. Fonte: `INTERFACE.md` e protót
 - Os prompts de IA no servidor continuam falando "parceiro de estudo" (decisão do sócio); as telas dizem Monitor.
 
 ## Pendências conhecidas (v1.1 do aluno)
-- Menu do aluno com seleção aberta e curvas (1.1.23) e topo/menu acompanhando a rolagem (1.1.4) ainda no visual da v1.0.
+- Menu do aluno com seleção aberta feito; topo e menu acompanhando a rolagem (1.1.4) ainda como na v1.0.
 - Fundo malha 3D e esmaecimentos finos da Gestão simplificados.
 - O Firestore Rules não bloqueia a leitura de `password_hash` por admins logados (assunto do sócio).
 

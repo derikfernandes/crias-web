@@ -53,6 +53,23 @@ function isCompactViewport() {
   return window.matchMedia(COMPACT_MQ).matches
 }
 
+/** Seleção aberta para o conteúdo, só no computador (INTERFACE.md 1.1.23): preenchimento e duas curvas de encaixe. */
+function TabCurves() {
+  return (
+    <>
+      <span className="v1-1-tab__fill" aria-hidden="true" />
+      <svg aria-hidden="true" className="v1-1-tab__curve v1-1-tab__curve--up" width="24" height="23.5" viewBox="0 0 24 23.5">
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0H25V23.5Z" fill="var(--v-bg)" />
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+      <svg aria-hidden="true" className="v1-1-tab__curve v1-1-tab__curve--down" width="24" height="23.5" viewBox="0 0 24 23.5">
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5H25V0Z" fill="var(--v-bg)" />
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+    </>
+  )
+}
+
 /** Compacto: drawer fechado por padrão (C5-MOBILE-SIDEBAR-CTA / LS01). */
 function initialSidebarOpen() {
   if (typeof window === 'undefined') return true
@@ -727,6 +744,7 @@ export default function ChatLayout() {
                 <span className="v1-0-navitem__name">Painel</span>
                 <span className="v1-0-navitem__meta">Ver seus dados de estudo</span>
               </span>
+              {location.pathname === '/painel' ? <TabCurves /> : null}
             </Link>
             <Link
               to="/monitoria"
@@ -738,6 +756,7 @@ export default function ChatLayout() {
                 <span className="v1-0-navitem__name">Monitoria</span>
                 <span className="v1-0-navitem__meta">Conversar com seu monitor</span>
               </span>
+              {onMonitoria ? <TabCurves /> : null}
             </Link>
 
             <p className="v1-0-group v1-0-group--next">
@@ -786,6 +805,7 @@ export default function ChatLayout() {
                       key={row.id}
                       className={`v1-0-trailrow${active ? ' is-active' : ''}`}
                     >
+                      {active ? <TabCurves /> : null}
                       <div className="v1-0-trailrow__top">
                         <Link
                           to={href}

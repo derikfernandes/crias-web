@@ -16,6 +16,12 @@ import {
   getDefaultAiTrailPrompt,
   type UploadedDoc,
 } from '../server/lib/ai-trail-generation/index.js'
+import {
+  generateActivitiesFromConfig,
+  PROMPT_VARIABLES,
+  type PromptVariable,
+  type StepKind,
+} from '../server/lib/ai-trail-generation/generateFromConfig.js'
 import { getDefaultAiTrailPromptAsync } from '../server/lib/ai-trail-generation/defaultPrompt.js'
 
 export const config = {
@@ -103,6 +109,54 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const o = body as Record<string, unknown>
+
+  // Gestão v1.1: prompt fixo do sistema + Configuração de geração (arquivos opcionais).
+  if (o.variables && typeof o.variables === 'object') {
+    const rawVars = o.variables as Record<string, unknown>
+    const variables: Partial<Record<PromptVariable, string>> = {}
+    for (const key of PROMPT_VARIABLES) {
+      if (typeof rawVars[key] === 'string') variables[key] = rawVars[key] as string
+    }
+    const structure: StepKind[] = Array.isArray(o.structure)
+      ? o.structure.map((k) => (k === 'exercise' ? 'exercise' : 'content'))
+      : []
+    const uploads: UploadedDoc[] = []
+    if (Array.isArray(o.files)) {
+      for (const item of o.files) {
+        const f = (item ?? {}) as Record<string, unknown>
+        const filename = typeof f.filename === 'string' ? f.filename.trim() : ''
+        const base64 = typeof f.base64 === 'string' ? f.base64 : ''
+        if (!filename || !base64) {
+          return respond(400, { error: 'Cada arquivo precisa de filename e base64.' })
+        }
+        uploads.push({
+          filename,
+          mimeType: typeof f.mimeType === 'string' ? f.mimeType : 'application/octet-stream',
+          base64,
+        })
+      }
+    }
+    const result = await generateActivitiesFromConfig({
+      mode: o.mode === 'append' ? 'append' : 'new',
+      variables,
+      structure,
+      existingTitles: Array.isArray(o.existing_titles)
+        ? o.existing_titles.filter((t): t is string => typeof t === 'string')
+        : [],
+      files: uploads,
+      db,
+    })
+    return respond(result.ok ? 200 : 422, {
+      ok: result.ok,
+      error: result.error,
+      issues: result.issues,
+      model: result.model,
+      repaired: result.repaired,
+      truncatedSources: result.truncatedSources,
+      activities: result.activities,
+    })
+  }
+
   const prompt = typeof o.prompt === 'string' ? o.prompt : undefined
   const rawFiles = o.files
   if (!Array.isArray(rawFiles) || rawFiles.length === 0) {

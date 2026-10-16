@@ -1,4 +1,4 @@
-import { DEFAULT_AI_TRAIL_PROMPT } from '../ai-trail-generation/defaultPrompt.js'
+import { FALLBACK_CRIAR_TRILHA_IA } from '../ai-trail-generation/generateFromConfig.js'
 import { SYSTEM_WRAPPER } from '../ai-trail-generation/schema.js'
 import { MARIA_TUTORA_SYSTEM_PROMPT } from '../maria/mariaTutoraPrompt.js'
 import { TRAIL_AI_SPACING_RULES } from '../trail-ai/formatAiAnswer.js'
@@ -15,7 +15,7 @@ export function getFallbackPromptBody(id: AiPromptId): string {
     case 'spacing_rules':
       return TRAIL_AI_SPACING_RULES.trim()
     case 'criar_trilha_ia':
-      return DEFAULT_AI_TRAIL_PROMPT.trim()
+      return FALLBACK_CRIAR_TRILHA_IA.trim()
     case 'criar_trilha_ia_system':
       return SYSTEM_WRAPPER.trim()
     default: {

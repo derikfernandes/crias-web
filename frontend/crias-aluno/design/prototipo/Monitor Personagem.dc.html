@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap">
+<link rel="icon" href="assets/crias-simbolo-luz.svg">
+<script type="module" src="crias-monitor.js"></script>
+<style>
+:root{--m-bg:#000;--m-card:#0a1711;--m-stage:#050d09;--m-line:#18291f;--m-ink:#ffffff;--m-t2:#bccbc0;--m-t3:#95a69a;--m-lab:#5fe3b5;--m-on:#12221a;--m-bub:#12221a}
+html[data-m=claro]{--m-bg:#ffffff;--m-card:#fcfbf6;--m-stage:#f7f5ec;--m-line:#efebdd;--m-ink:#001c0e;--m-t2:#3d4d43;--m-t3:#5b6b60;--m-lab:#00593d;--m-on:#e6f8f1;--m-bub:#f7f5ec}
+html,body{margin:0;background:var(--m-bg);color:var(--m-ink);font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--m-lab)}a:hover{color:var(--m-lab)}
+@keyframes mDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+@keyframes mIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div data-screen-label="Monitor" style="max-width:1200px;margin:0 auto;padding:56px 32px 96px;display:flex;flex-direction:column;gap:56px">
+
+  <header style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:40px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <p style="margin:0;display:flex;align-items:center;gap:10px"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m-lab)">Crias · Personagem</span><span style="width:48px;height:1px;background:var(--m-lab);opacity:.35"></span></p>
+      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:56px;line-height:1.02;letter-spacing:-.02em">Monitor</h1>
+      <p style="margin:0;font-size:18px;line-height:1.55;color:var(--m-t2);max-width:46ch;text-wrap:pretty">O monitor é o personagem que conversa com o aluno. Uma esfera azul clara, manchada como a Terra vista de dia, com um anel amarelo e dois olhos pretos e brilhantes.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <span style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--m-card);border:1px solid var(--m-line);color:var(--m-t2)">Corpo #88cde7</span>
+        <span style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--m-card);border:1px solid var(--m-line);color:var(--m-t2)">Anel #ffd500</span>
+        <span style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--m-card);border:1px solid var(--m-line);color:var(--m-t2)">Substitui o "M" do monitor</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="position:relative;aspect-ratio:1/1;border-radius:28px;background:radial-gradient(circle at 50% 42%,var(--m-card),var(--m-stage) 70%);border:1px solid var(--m-line);overflow:hidden">
+        <x-import component-from-global-scope="crias-monitor" estado="{{ heroEstado }}" hero="1" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import>
+        <button type="button" onClick="{{ togglePlay }}" aria-label="{{ playLabel }}" title="{{ playLabel }}" style="position:absolute;left:16px;bottom:16px;height:40px;padding:0 16px 0 12px;border:1px solid var(--m-line);border-radius:999px;background:var(--m-card);color:var(--m-ink);font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="border-color:#00be85">
+          <sc-if value="{{ playing }}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"></rect><rect x="14" y="5" width="4" height="14" rx="1.2"></rect></svg></sc-if>
+          <sc-if value="{{ paused }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"></path></svg></sc-if>
+          <span>{{ playText }}</span>
+        </button>
+      </div>
+      <div role="group" aria-label="Estados" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">
+        <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+          <button type="button" onClick="{{ st.pick }}" aria-pressed="{{ st.on }}" style="{{ st.style }}"><span style="font-size:11px;font-weight:700;color:var(--m-t3)">{{ st.n }}</span><span style="font-size:13px;font-weight:700;white-space:nowrap">{{ st.label }}</span></button>
+        </sc-for>
+      </div>
+      <p style="margin:0;font-size:13px;color:var(--m-t3)">{{ heroHint }}</p>
+    </div>
+  </header>
+
+  <section aria-label="Estados" style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px">Sequência padrão</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px">
+      <article style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="position:relative;aspect-ratio:1/1;background:var(--m-stage)"><x-import component-from-global-scope="crias-monitor" estado="carregando" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import></div>
+        <div style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px">
+          <h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:19px">1. Carregando</h3>
+          <p style="margin:0;font-size:14px;line-height:1.55;color:var(--m-t2);text-wrap:pretty">Enquanto a resposta não chega. O anel, inclinado, orbita o corpo da direita para a esquerda sem parar, e os olhos acompanham de leve.</p>
+          <p style="margin:0;font-size:13px;font-weight:700">1 volta a cada 1,5 s · inclinação 29°</p>
+        </div>
+      </article>
+      <article style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="position:relative;aspect-ratio:1/1;background:var(--m-stage)"><x-import component-from-global-scope="crias-monitor" estado="pulo-demo" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import></div>
+        <div style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px">
+          <h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:19px">2. Pulo</h3>
+          <p style="margin:0;font-size:14px;line-height:1.55;color:var(--m-t2);text-wrap:pretty">Quando a mensagem chega. Um pulo só, suave. O anel continua a órbita do carregando, cada vez mais curta e lenta, como um bambolê que perde força, e assenta centralizado abaixo dos olhos.</p>
+          <p style="margin:0;font-size:13px;font-weight:700">1,3 s · altura 10% · órbita de 29° a 0°</p>
+        </div>
+      </article>
+      <article style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="position:relative;aspect-ratio:1/1;background:var(--m-stage)"><x-import component-from-global-scope="crias-monitor" estado="parado" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import></div>
+        <div style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px">
+          <h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:19px">3. Parado, última mensagem</h3>
+          <p style="margin:0;font-size:14px;line-height:1.55;color:var(--m-t2);text-wrap:pretty">Logo depois do pulo, na última mensagem enviada ao aluno. Anel de frente contornando o corpo, respiração com brilho amarelo, piscadas e olhar que vagueia.</p>
+          <p style="margin:0;font-size:13px;font-weight:700">respira em 2,6 s · pisca a cada 2,4 a 5,5 s</p>
+        </div>
+      </article>
+      <article style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="position:relative;aspect-ratio:1/1;background:var(--m-stage)"><x-import component-from-global-scope="crias-monitor" estado="estatico" fundo="{{ fundo }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import></div>
+        <div style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px">
+          <h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:19px">4. Histórico, estático</h3>
+          <p style="margin:0;font-size:14px;line-height:1.55;color:var(--m-t2);text-wrap:pretty">Mensagens anteriores da conversa. Mesma pose do parado, sem nenhum movimento: não respira, não pisca, não gira.</p>
+          <p style="margin:0;font-size:13px;font-weight:700">vira imagem fixa no chat</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section aria-label="Na conversa" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;align-items:stretch">
+    <div style="background:var(--m-stage);border:1px solid var(--m-line);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:18px;min-height:460px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span style="width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center"><img src="assets/crias-symbol.png" alt="" style="width:32px;height:32px;display:block"></span>
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span style="font-size:12px;font-weight:700;color:var(--m-t3)">Matemática básica · Atividade 2</span><p style="margin:0;font-size:15px;line-height:1.55">Nesta atividade vamos ver frações equivalentes.</p></div>
+      </div>
+      <div style="align-self:flex-end;max-width:78%;background:var(--m-bub);border-radius:20px;padding:10px 16px;font-size:15px;line-height:1.5">Como eu sei se duas frações são iguais?</div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span style="display:block;width:40px;height:40px;flex:none;position:relative"><x-import component-from-global-scope="crias-monitor" estado="estatico" avatar="1" snapshot="1" fundo="{{ fundo }}" hint-size="40px,40px" style="position:absolute;inset:0;display:block;width:40px;height:40px"></x-import></span>
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span style="font-size:12px;font-weight:700;color:var(--m-t3)">Monitor</span><p style="margin:0;font-size:15px;line-height:1.55">Multiplique o numerador e o denominador pelo mesmo número. Se chegar na outra fração, elas são equivalentes.</p></div>
+      </div>
+      <div style="align-self:flex-end;max-width:78%;background:var(--m-bub);border-radius:20px;padding:10px 16px;font-size:15px;line-height:1.5">E 2/4 e 3/6?</div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <span style="display:block;width:40px;height:40px;flex:none;position:relative"><x-import component-from-global-scope="crias-monitor" estado="{{ chatEstado }}" avatar="1" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="40px,40px" style="position:absolute;inset:0;display:block;width:40px;height:40px"></x-import></span>
+        <div style="display:flex;flex-direction:column;gap:4px;min-width:0;padding-top:2px">
+          <span style="font-size:12px;font-weight:700;color:var(--m-t3)">Monitor</span>
+          <sc-if value="{{ chatLoading }}" hint-placeholder-val="{{ true }}"><span aria-label="Monitor escrevendo" style="display:flex;gap:5px;padding:8px 0"><span style="width:6px;height:6px;border-radius:999px;background:var(--m-t3);animation:mDot 1.2s infinite"></span><span style="width:6px;height:6px;border-radius:999px;background:var(--m-t3);animation:mDot 1.2s .15s infinite"></span><span style="width:6px;height:6px;border-radius:999px;background:var(--m-t3);animation:mDot 1.2s .3s infinite"></span></span></sc-if>
+          <sc-if value="{{ chatDone }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font-size:15px;line-height:1.55;animation:mIn .35s ease both">São equivalentes. As duas simplificam para 1/2.</p></sc-if>
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px">
+      <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px">Na conversa</h2>
+      <p style="margin:0;font-size:15px;line-height:1.6;color:var(--m-t2);text-wrap:pretty">O personagem substitui o círculo amarelo "M" nas mensagens do monitor, na Monitoria, no Painel e nas respostas do monitor dentro da trilha. As mensagens de conteúdo da trilha continuam com o símbolo do Crias.</p>
+      <ol style="margin:0;padding:0 0 0 20px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5">
+        <li><strong>Carregando:</strong> o anel orbita da direita para a esquerda até a resposta chegar.</li>
+        <li><strong>Mensagem chegou:</strong> um pulo e, em seguida, parado.</li>
+        <li><strong>Última mensagem:</strong> o parado mantém o movimento leve.</li>
+        <li><strong>Histórico:</strong> quando chega outra mensagem ou o aluno continua a trilha, o anterior fica estático.</li>
+      </ol>
+      <p style="margin:0;font-size:13px;color:var(--m-t3)">Só um personagem se move por vez: o da última mensagem do monitor.</p>
+    </div>
+  </section>
+
+  <section aria-label="Olhos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;align-items:stretch">
+    <div style="position:relative;min-height:340px;border-radius:20px;background:var(--m-stage);border:1px solid var(--m-line);overflow:hidden"><x-import component-from-global-scope="crias-monitor" estado="parado" zoom="olhos" fundo="{{ fundo }}" velocidade="{{ vel }}" giro="{{ giro }}" hint-size="100%,100%" style="position:absolute;inset:0;display:block;width:100%;height:100%"></x-import></div>
+    <div style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px;justify-content:center">
+      <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px">Olhos</h2>
+      <p style="margin:0;font-size:15px;line-height:1.6;color:var(--m-t2);text-wrap:pretty">Duas esferas pretas brilhantes, sem íris nem pupila. O reflexo vem da luz do ambiente e muda conforme o corpo se move.</p>
+      <ul style="margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5">
+        <li>Piscam sozinhos a cada 2,4 a 5,5 s; às vezes duas vezes seguidas.</li>
+        <li>A piscada dura 0,16 s e fecha 92% do olho.</li>
+        <li>Acompanham o anel no carregando e olham para cima no pulo.</li>
+        <li>No histórico ficam abertos, sem piscar.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section aria-label="Cores" style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px">Cores</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      <sc-for list="{{ cores }}" as="c" hint-placeholder-count="7">
+        <div style="background:var(--m-card);border:1px solid var(--m-line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px">
+          <span style="{{ c.sw }}"></span>
+          <span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:700">{{ c.nome }}</span><span style="font-size:12px;color:var(--m-t3);font-variant-numeric:tabular-nums">{{ c.hex }}</span></span>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin:0;font-size:14px;line-height:1.55;color:var(--m-t3);max-width:72ch;text-wrap:pretty">A esfera é um degradê do azul claro do design system (Tropical breeze) com manchas suaves em verde claro e nuvens brancas desfocadas. Lembra a Terra de dia sem ser realista.</p>
+  </section>
+
+  <section aria-label="Regras" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px">
+    <div style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px">
+      <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:22px">Forma</h2>
+      <ul style="margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5;color:var(--m-t2)">
+        <li>Anel com raio de 1,45 vez o corpo e espessura de 5% do raio do anel.</li>
+        <li>Olhos com 13,5% do raio do corpo, um pouco acima do centro.</li>
+        <li>Sem boca, sobrancelha, emoji ou acessórios.</li>
+        <li>No chat: 40×40 px, sem sombra no chão.</li>
+      </ul>
+    </div>
+    <div style="background:var(--m-card);border:1px solid var(--m-line);border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:14px">
+      <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:22px">Movimento</h2>
+      <ul style="margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5;color:var(--m-t2)">
+        <li>Trocas de estado com entrada e saída suaves (0,3 a 0,65 s), sem tranco.</li>
+        <li>Carregando, pulo e parado sempre nessa ordem.</li>
+        <li>Fora da última mensagem, nada se move.</li>
+        <li>Com movimento reduzido, fica parado de frente e sem piscar.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;fundo&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;escuro&quot;,&quot;claro&quot;],&quot;default&quot;:&quot;escuro&quot;,&quot;tsType&quot;:&quot;'escuro'|'claro'&quot;,&quot;section&quot;:&quot;Visualização&quot;},&quot;velocidade&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0.5,&quot;max&quot;:1.5,&quot;step&quot;:0.1,&quot;default&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Animação&quot;},&quot;giro&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Animação&quot;}}">
+const STEPS = [['carregando', 'Carregando'], ['pulo', 'Pulo'], ['parado', 'Parado'], ['estatico', 'Histórico']];
+const DEMO = { carregando: 'carregando', pulo: 'pulo-demo', parado: 'parado', estatico: 'estatico' };
+const CORES = [['Corpo', '#82cbec'], ['Luz', '#b4e2f6'], ['Sombra', '#3f9fd0'], ['Mancha', '#cadea5'], ['Mancha 2', '#a7edcb'], ['Anel', '#ffd500'], ['Olhos', '#030504']];
+class Component extends DCLogic {
+  state = { playing: true, fase: 'carregando', sel: 'parado', chat: 'carregando' };
+  componentDidMount() {
+    this.onFase = (e) => { if (this.state.playing) this.setState({ fase: e.detail }); };
+    window.addEventListener('crias-monitor-fase', this.onFase); this.sync(); this.chatLoop();
+  }
+  componentDidUpdate() { this.sync(); }
+  componentWillUnmount() { window.removeEventListener('crias-monitor-fase', this.onFase); clearTimeout(this.ct); }
+  chatLoop = () => {
+    const v = this.props.velocidade ?? 1;
+    this.setState({ chat: 'carregando' });
+    this.ct = setTimeout(() => { this.setState({ chat: 'pulo' }); this.ct = setTimeout(this.chatLoop, 7000 / v); }, 2800 / v);
+  };
+  sync() { document.documentElement.dataset.m = (this.props.fundo ?? 'escuro') === 'claro' ? 'claro' : 'escuro'; }
+  renderVals() {
+    const s = this.state, on = s.playing ? s.fase : s.sel;
+    return {
+      fundo: this.props.fundo ?? 'escuro', vel: String(this.props.velocidade ?? 1), giro: String(this.props.giro ?? true),
+      heroEstado: s.playing ? 'sequencia' : DEMO[s.sel],
+      playing: s.playing, paused: !s.playing, playText: s.playing ? 'Pausar' : 'Ver sequência', playLabel: s.playing ? 'Pausar e ver cada estado' : 'Ver a sequência completa',
+      togglePlay: () => this.setState((st) => st.playing ? { playing: false, sel: st.fase } : { playing: true }),
+      heroHint: s.playing ? 'Sequência: carregando, pulo, parado e histórico. Pause para ver cada estado.' : 'Pausado. Escolha um estado para ver o movimento isolado.',
+      steps: STEPS.map(([k, label], i) => ({ n: String(i + 1), label, on: String(k === on), pick: () => this.setState({ playing: false, sel: k }), style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '10px 12px', borderRadius: 14, border: '1px solid ' + (k === on ? '#00be85' : 'var(--m-line)'), background: k === on ? 'var(--m-on)' : 'var(--m-card)', color: 'var(--m-ink)', font: 'inherit', textAlign: 'left', cursor: 'pointer', transition: 'background .3s, border-color .3s', minWidth: 0, overflow: 'hidden' } })),
+      chatEstado: s.chat, chatLoading: s.chat === 'carregando', chatDone: s.chat !== 'carregando',
+      cores: CORES.map(([nome, hex]) => ({ nome, hex, sw: { display: 'block', height: 56, borderRadius: 12, background: hex, border: '1px solid var(--m-line)' } })),
+    };
+  }
+}
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#00be85"/><text x="50" y="62" font-family="Arial" font-size="36" font-weight="700" fill="#fff" text-anchor="middle">C</text></svg></template></body>
+</html>

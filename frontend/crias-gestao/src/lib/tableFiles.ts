@@ -53,14 +53,15 @@ function csvEscape(v: string, sep: string): string {
   return /["\n\r]/.test(v) || v.includes(sep) ? `"${v.replaceAll('"', '""')}"` : v
 }
 
-/** CSV com BOM e ";" (abre direto no Excel em português). */
-export function toCsv(headers: string[], rows: string[][]): string {
-  const sep = ';'
-  return (
-    '﻿' +
-    [headers, ...rows].map((r) => r.map((c) => csvEscape(c, sep)).join(sep)).join('\r\n') +
-    '\r\n'
-  )
+/** CSV com BOM e ";" (abre direto no Excel em português). Para a API: `{ sep: ',', bom: false }`. */
+export function toCsv(
+  headers: string[],
+  rows: string[][],
+  opts: { sep?: string; bom?: boolean } = {},
+): string {
+  const sep = opts.sep ?? ';'
+  const body = [headers, ...rows].map((r) => r.map((c) => csvEscape(c, sep)).join(sep)).join('\r\n') + '\r\n'
+  return ((opts.bom ?? true) ? '\uFEFF' : '') + body
 }
 
 export function downloadText(filename: string, text: string, mime = 'text/csv;charset=utf-8'): void {

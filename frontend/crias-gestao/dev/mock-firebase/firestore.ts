@@ -12,6 +12,7 @@ import {
   writeDoc,
 } from './store'
 
+import './api'
 boot()
 export { Timestamp }
 

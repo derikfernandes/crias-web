@@ -415,6 +415,7 @@ export function DeletarDialog({
   title,
   subtitle = 'Essa ação não pode ser desfeita.',
   confirmLabel = 'Excluir',
+  hint = 'Escreva DELETAR para excluir.',
   busy,
   onConfirm,
   onCancel,
@@ -422,6 +423,7 @@ export function DeletarDialog({
   open: boolean
   title: string
   subtitle?: string
+  hint?: string
   confirmLabel?: string
   busy?: boolean
   onConfirm: () => void
@@ -455,7 +457,7 @@ export function DeletarDialog({
     >
       <p>{subtitle}</p>
       <div className="gx-danger-box">
-        <span>Escreva DELETAR para excluir.</span>
+        <span>{hint}</span>
         <input
           autoFocus
           value={word}
@@ -855,39 +857,33 @@ export function useFadeMasks() {
 /* ===== Senha (padrão da aplicação, orientação 19) ===== */
 
 /**
- * Senha mascarada (••••••••) com olho para mostrar, copiar e Gerar.
- * "Sem senha" quando não existe (não há estado "legado").
+ * Senha (orientação 19): sempre mascarada (••••••••) com olho para mostrar; depois editar
+ * (libera digitação e vira Salvar), copiar e Gerar. "Sem senha" quando não existe.
  */
 export function PasswordCell({
   password,
   onGenerate,
+  onSave,
   generating,
+  saving,
   canGenerate = true,
+  legacyHint,
 }: {
   password: string | null
   onGenerate?: () => void
+  /** Grava uma senha digitada. Sem isto o lápis de editar não aparece. */
+  onSave?: (next: string) => void
   generating?: boolean
+  saving?: boolean
   canGenerate?: boolean
+  legacyHint?: string
 }) {
   const [shown, setShown] = useState(false)
   const [copied, setCopied] = useState(false)
-  if (!password) {
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-        <span className="gx-muted">Sem senha</span>
-        {canGenerate && onGenerate ? (
-          <button
-            type="button"
-            className="gx-btn gx-btn--sm"
-            disabled={generating}
-            onClick={onGenerate}
-          >
-            {generating ? 'Gerando…' : 'Gerar'}
-          </button>
-        ) : null}
-      </span>
-    )
-  }
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const tooShort = draft.trim().length < 6
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(password ?? '')
@@ -897,8 +893,71 @@ export function PasswordCell({
       setCopied(false)
     }
   }
+
+  if (editing) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <input
+          className="gx-input"
+          style={{ height: 36, width: 160 }}
+          autoFocus
+          aria-label="Nova senha"
+          placeholder="Mínimo 6 caracteres"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <button
+          type="button"
+          className="gx-btn gx-btn--primary gx-btn--sm"
+          disabled={tooShort || saving}
+          onClick={() => {
+            onSave?.(draft.trim())
+            setEditing(false)
+          }}
+        >
+          Salvar
+        </button>
+        <button type="button" className="gx-btn gx-btn--sm" onClick={() => setEditing(false)}>
+          Cancelar
+        </button>
+      </span>
+    )
+  }
+
+  const editBtn = onSave ? (
+    <button
+      type="button"
+      className="gx-btn gx-btn--icon gx-btn--ghost"
+      aria-label="Editar senha"
+      title="Editar senha"
+      onClick={() => {
+        setDraft('')
+        setEditing(true)
+      }}
+    >
+      <Icon name="pencil" />
+    </button>
+  ) : null
+  const generateBtn =
+    canGenerate && onGenerate ? (
+      <button type="button" className="gx-btn gx-btn--sm" disabled={generating} onClick={onGenerate}>
+        {generating ? 'Gerando…' : 'Gerar'}
+      </button>
+    ) : null
+
+  if (!password) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span className="gx-muted" title={legacyHint}>
+          Sem senha
+        </span>
+        {editBtn}
+        {generateBtn}
+      </span>
+    )
+  }
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <span className="gx-code" aria-label={shown ? 'Senha' : 'Senha oculta'}>
         {shown ? password : '••••••••'}
       </span>
@@ -911,6 +970,7 @@ export function PasswordCell({
       >
         <Icon name={shown ? 'eye-off' : 'eye'} />
       </button>
+      {editBtn}
       <button
         type="button"
         className="gx-btn gx-btn--icon gx-btn--ghost"
@@ -920,16 +980,7 @@ export function PasswordCell({
       >
         <Icon name={copied ? 'check' : 'copy'} />
       </button>
-      {canGenerate && onGenerate ? (
-        <button
-          type="button"
-          className="gx-btn gx-btn--sm"
-          disabled={generating}
-          onClick={onGenerate}
-        >
-          {generating ? 'Gerando…' : 'Gerar'}
-        </button>
-      ) : null}
+      {generateBtn}
     </span>
   )
 }

@@ -22,9 +22,9 @@ export const AI_PROMPT_META: Record<
       'System prompt da conversa livre com o monitor (app do aluno).',
   },
   gerador_trilha: {
-    title: 'Gerador de bloco da trilha',
+    title: 'Gerador de etapas da trilha',
     description:
-      'System prompt que gera o conteúdo pedagógico de cada bloco IA da trilha.',
+      'System prompt que gera o conteúdo pedagógico de cada etapa de IA da trilha.',
   },
   spacing_rules: {
     title: 'Regras de espaçamento (| | |)',
@@ -32,12 +32,12 @@ export const AI_PROMPT_META: Record<
       'Instrução tipográfica partilhada (marcador ||| → parágrafo).',
   },
   criar_trilha_ia: {
-    title: 'Criar trilha com IA (padrão)',
+    title: 'Criar trilha com IA (fixo do sistema)',
     description:
-      'Prompt padrão editável no wizard “Criar trilha com IA”.',
+      'Não editável e invisível para a escola. Na geração, o sistema soma este texto à Configuração de geração preenchida pelo usuário.',
   },
   criar_trilha_ia_system: {
-    title: 'Criar trilha com IA (system wrapper)',
+    title: 'Instruções do sistema',
     description:
       'Instrução de sistema JSON/schema para geração estruturada de trilhas.',
   },

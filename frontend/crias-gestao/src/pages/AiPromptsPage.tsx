@@ -3,12 +3,16 @@ import { usePermissions } from '../hooks/usePermissions'
 import {
   fetchAiPromptVersions,
   fetchAiPrompts,
-  seedAiPrompts,
   updateAiPrompt,
   type AiPromptRecord,
   type AiPromptVersion,
 } from '../lib/aiPromptsApi'
+import { Banner, BootSymbol, Icon, na, PageHead } from '../design/gx/ui'
 
+/** Prompt fixo do sistema: só leitura, invisível para a escola (orientações 1 e 14). */
+const LOCKED = new Set(['criar_trilha_ia'])
+
+/** Prompts (1.1.14): seletor "Agente", texto, nota da versão, Salvar e versões anteriores. */
 export function AiPromptsPage() {
   const { isMaster } = usePermissions()
   const [prompts, setPrompts] = useState<AiPromptRecord[]>([])
@@ -16,15 +20,15 @@ export function AiPromptsPage() {
   const [draft, setDraft] = useState('')
   const [note, setNote] = useState('')
   const [versions, setVersions] = useState<AiPromptVersion[]>([])
-  const [loading, setLoading] = useState(false)
+  const [openVersions, setOpenVersions] = useState<Set<number>>(new Set())
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const selected = useMemo(
-    () => prompts.find((p) => p.id === selectedId) ?? null,
-    [prompts, selectedId],
-  )
+  const selected = useMemo(() => prompts.find((p) => p.id === selectedId) ?? null, [prompts, selectedId])
+  const locked = selected ? LOCKED.has(selected.id) : false
+  const dirty = selected ? draft.trim() !== selected.body.trim() : false
 
   const load = useCallback(async () => {
     if (!isMaster) return
@@ -33,12 +37,9 @@ export function AiPromptsPage() {
     try {
       const list = await fetchAiPrompts()
       setPrompts(list)
-      setSelectedId((prev) => {
-        if (prev && list.some((p) => p.id === prev)) return prev
-        return list[0]?.id ?? ''
-      })
+      setSelectedId((prev) => (prev && list.some((p) => p.id === prev) ? prev : (list[0]?.id ?? '')))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao carregar prompts.')
+      setError(e instanceof Error ? e.message : 'Falha ao carregar os prompts.')
     } finally {
       setLoading(false)
     }
@@ -56,39 +57,22 @@ export function AiPromptsPage() {
     }
     setDraft(selected.body)
     setNote('')
+    setOpenVersions(new Set())
     void fetchAiPromptVersions(selected.id)
       .then(setVersions)
       .catch(() => setVersions([]))
-  }, [selected])
+    // Só ao trocar de agente ou depois de salvar uma versão nova.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.version])
 
-  if (!isMaster) {
-    return (
-      <>
-        <header className="admin__header">
-          <h1>Prompts</h1>
-        </header>
-        <p className="banner banner--error" role="alert">
-          Acesso restrito a Master. Peça a um administrador para liberar
-          <code> is_master </code>
-          ou incluir seu e-mail em
-          <code> MASTER_ADMIN_EMAILS </code>.
-        </p>
-      </>
-    )
-  }
-
-  async function onSave() {
-    if (!selectedId) return
+  async function save() {
+    if (!selected || locked || !dirty) return
     setSaving(true)
     setError(null)
     setMessage(null)
     try {
-      const updated = await updateAiPrompt({
-        id: selectedId,
-        body: draft,
-        note: note.trim() || undefined,
-      })
-      setMessage(`Salvo: ${updated.title} (v${updated.version}).`)
+      const updated = await updateAiPrompt({ id: selected.id, body: draft, note: note.trim() || undefined })
+      setMessage(`Salvo: ${updated.title} (versão ${updated.version}).`)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao salvar.')
@@ -97,180 +81,159 @@ export function AiPromptsPage() {
     }
   }
 
-  async function onSeed(force: boolean) {
-    const ok = window.confirm(
-      force
-        ? 'Forçar seed sobrescreve todos os prompts no Firestore com o texto do código. Continuar?'
-        : 'Popular prompts ausentes no Firestore com o texto corrigido do código?',
+  if (!isMaster) {
+    return (
+      <div className="gx-page">
+        <PageHead title="Prompts" />
+        <Banner>
+          Acesso restrito a Master. Peça a um administrador para marcar &quot;Master (senhas dos alunos)&quot; no seu
+          login em Configurações, Permissões.
+        </Banner>
+      </div>
     )
-    if (!ok) return
-    setSaving(true)
-    setError(null)
-    setMessage(null)
-    try {
-      const result = await seedAiPrompts(force)
-      setMessage(
-        `Seed: criados ${result.seeded.length}, pulados ${result.skipped.length}, forçados ${result.forced.length}.`,
-      )
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha no seed.')
-    } finally {
-      setSaving(false)
-    }
   }
+  if (loading && prompts.length === 0) return <BootSymbol />
 
   return (
-    <>
-      <header className="admin__header">
-        <h1>Prompts</h1>
-        <p className="admin__lede muted">
-          Fonte de verdade no Firestore. Edição Master-only com auditoria e
-          versões anteriores. Fallbacks em código só se o documento estiver
-          ausente.
-        </p>
-        <div className="admin__actions">
-          <button
-            type="button"
-            className="btn"
-            disabled={saving || loading}
-            onClick={() => void onSeed(false)}
-          >
-            Seed (só ausentes)
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={saving || loading}
-            onClick={() => void onSeed(true)}
-          >
-            Seed forçado
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            Recarregar
-          </button>
+    <div className="gx-page">
+      <PageHead
+        title="Prompts"
+        subtitle="Instruções que orientam a IA. Cada salvamento cria uma nova versão e fica registrado."
+      />
+      {error ? <Banner onRetry={() => void load()}>{error}</Banner> : null}
+      {message ? <Banner tone="ok">{message}</Banner> : null}
+
+      <section className="gx-card" aria-label="Prompt selecionado">
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16 }}>
+          <label className="gx-field" style={{ flex: '0 1 340px', minWidth: 220 }}>
+            <span>Agente</span>
+            <select className="gx-select" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} disabled={saving}>
+              {prompts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title} · versão {p.version}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selected ? (
+            <p className="gx-muted" style={{ flex: '1 1 260px', lineHeight: 1.5 }}>
+              {selected.description}
+              {' · '}Última edição: {na(selected.updated_by_email)} · {na(selected.updated_at)}
+            </p>
+          ) : null}
         </div>
-      </header>
-
-      {error ? (
-        <p className="banner banner--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="banner banner--ok" role="status">
-          {message}
-        </p>
-      ) : null}
-
-      <div className="list-toolbar" style={{ alignItems: 'flex-start', gap: '1rem' }}>
-        <label className="list-toolbar__field" style={{ minWidth: '14rem' }}>
-          <span className="muted">Prompt</span>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            disabled={loading || saving}
-          >
-            {prompts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title} ({p.source}
-                {p.version ? ` · v${p.version}` : ''})
-              </option>
-            ))}
-          </select>
-        </label>
         {selected ? (
-          <p className="muted" style={{ margin: 0, maxWidth: '40rem' }}>
-            {selected.description}
-            {selected.updated_by_email
-              ? ` · Última edição: ${selected.updated_by_email}`
-              : ''}
-            {selected.updated_at ? ` · ${selected.updated_at}` : ''}
-          </p>
-        ) : null}
-      </div>
-
-      {selected ? (
-        <>
-          <label className="list-toolbar__field" style={{ display: 'block' }}>
-            <span className="muted">Texto</span>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={24}
-              disabled={saving}
-              style={{
-                width: '100%',
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: '0.85rem',
-                lineHeight: 1.4,
-              }}
-            />
-          </label>
-          <label className="list-toolbar__field" style={{ display: 'block', marginTop: '0.75rem' }}>
-            <span className="muted">Nota da versão (opcional)</span>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              disabled={saving}
-              placeholder="Ex.: removeu menção a WhatsApp"
-              style={{ width: '100%', maxWidth: '40rem' }}
-            />
-          </label>
-          <p className="admin__actions" style={{ marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={saving || draft.trim() === selected.body.trim()}
-              onClick={() => void onSave()}
-            >
-              {saving ? 'Salvando…' : 'Salvar'}
-            </button>
-          </p>
-
-          <h2 style={{ marginTop: '1.5rem' }}>Versões anteriores</h2>
-          {versions.length === 0 ? (
-            <p className="muted">Nenhuma versão arquivada ainda.</p>
-          ) : (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {versions.map((v) => (
-                <li
-                  key={v.version}
-                  style={{
-                    borderTop: '1px solid var(--border, #ddd)',
-                    padding: '0.75rem 0',
-                  }}
-                >
-                  <div className="muted">
-                    v{v.version}
-                    {v.updated_by_email ? ` · ${v.updated_by_email}` : ''}
-                    {v.updated_at ? ` · ${v.updated_at}` : ''}
-                    {v.note ? ` · ${v.note}` : ''}
-                  </div>
+          <>
+            {locked ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="gx-tag gx-tag--lg">Somente leitura</span>
+                <span className="gx-muted">Fixo do sistema: não editável e invisível para a escola.</span>
+              </div>
+            ) : null}
+            <label className="gx-field">
+              <span>Texto</span>
+              <textarea
+                className="gx-textarea"
+                rows={18}
+                value={draft}
+                readOnly={locked || saving}
+                onChange={(e) => setDraft(e.target.value)}
+                style={{ fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 14, lineHeight: 1.5 }}
+              />
+            </label>
+            {locked ? null : (
+              <>
+                <label className="gx-field">
+                  <span>Nota da versão (opcional)</span>
+                  <input
+                    className="gx-input"
+                    value={note}
+                    disabled={saving}
+                    placeholder="Ex.: removeu menção a WhatsApp"
+                    onChange={(e) => setNote(e.target.value)}
+                    style={{ maxWidth: 560 }}
+                  />
+                </label>
+                <div>
                   <button
                     type="button"
-                    className="btn"
-                    style={{ marginTop: '0.35rem' }}
-                    onClick={() => setDraft(v.body)}
+                    className={dirty ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
+                    disabled={!dirty || saving}
+                    onClick={() => void save()}
                   >
-                    Restaurar no editor
+                    {saving ? 'Salvando…' : 'Salvar'}
                   </button>
-                </li>
-              ))}
-            </ul>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <p className="gx-muted">Nenhum prompt disponível.</p>
+        )}
+      </section>
+
+      {selected ? (
+        <section className="gx-card" aria-label="Versões anteriores">
+          <h2>Versões anteriores</h2>
+          {versions.length === 0 ? (
+            <p className="gx-muted">Nenhuma versão arquivada ainda.</p>
+          ) : (
+            <ol className="gx-list">
+              {versions.map((v) => {
+                const open = openVersions.has(v.version)
+                return (
+                  <li className="gx-acc" key={v.version}>
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() =>
+                        setOpenVersions((s) => {
+                          const n = new Set(s)
+                          if (n.has(v.version)) n.delete(v.version)
+                          else n.add(v.version)
+                          return n
+                        })
+                      }
+                    >
+                      <span className="gx-num">v{v.version}</span>
+                      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                        <strong data-fade="1" style={{ fontSize: 14 }}>
+                          {v.note || 'Sem nota'}
+                        </strong>
+                        <span className="gx-muted" style={{ fontSize: 12 }}>
+                          {na(v.updated_by_email)} · {na(v.updated_at)}
+                        </span>
+                      </span>
+                      <Icon name={open ? 'chev-up' : 'chev-down'} />
+                    </button>
+                    {open ? (
+                      <div>
+                        <pre className="gx-step__body" style={{ fontFamily: 'ui-monospace, Consolas, monospace', margin: 0 }}>
+                          {v.body}
+                        </pre>
+                        {locked ? null : (
+                          <div>
+                            <button
+                              type="button"
+                              className="gx-btn"
+                              onClick={() => {
+                                setDraft(v.body)
+                                window.scrollTo?.({ top: 0 })
+                              }}
+                            >
+                              Restaurar no editor
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ol>
           )}
-        </>
-      ) : loading ? (
-        <p className="muted">Carregando…</p>
-      ) : (
-        <p className="muted">Nenhum prompt disponível.</p>
-      )}
-    </>
+        </section>
+      ) : null}
+    </div>
   )
 }

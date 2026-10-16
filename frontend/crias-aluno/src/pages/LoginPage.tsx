@@ -202,6 +202,8 @@ export default function LoginPage() {
   const entrarDisabled =
     loading ||
     offline ||
+    !login.trim() ||
+    !password ||
     (institutions.length > 1 && !selectedInstitution)
 
   return (
@@ -272,7 +274,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={onFieldFocus}
                 required
-                minLength={6}
               />
               <button
                 type="button"

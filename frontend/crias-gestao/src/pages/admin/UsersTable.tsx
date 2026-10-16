@@ -17,8 +17,6 @@ export function rowFromUser(u: AdminUser): UserRowModel {
     isNew: false,
     draft: {
       email: u.email,
-      name: u.name ?? '',
-      phone: u.phone ?? '',
       profile: profileOf(u),
       institutionIds: u.institution_ids,
       active: u.active,
@@ -54,13 +52,11 @@ export function UsersTable({
 }) {
   return (
     <ScrollX>
-      <table className="gx-table" style={{ minWidth: showInstitution ? 1360 : 1240 }}>
+      <table className="gx-table" style={{ minWidth: showInstitution ? 900 : 720 }}>
         <thead>
           <tr>
             {showInstitution ? <th>Instituição</th> : null}
-            <th>Nome</th>
             <th>E-mail</th>
-            <th>Telefone</th>
             <th>Perfil</th>
             <th>Senha</th>
             <th />
@@ -82,7 +78,7 @@ export function UsersTable({
           ))}
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={showInstitution ? 7 : 6} className="gx-table__empty">
+              <td colSpan={showInstitution ? 5 : 4} className="gx-table__empty">
                 Nenhum usuário.
               </td>
             </tr>
@@ -163,9 +159,6 @@ function Row({
         </td>
       ) : null}
       <td>
-        <input {...field} style={{ ...field.style, minWidth: 200 }} aria-label="Nome" placeholder="Nome" value={draft.name} onChange={(e) => set({ name: e.target.value })} />
-      </td>
-      <td>
         <input
           {...field}
           style={{ ...field.style, minWidth: 250 }}
@@ -176,9 +169,6 @@ function Row({
           disabled={!canEdit || busy || !row.isNew}
           onChange={(e) => set({ email: e.target.value })}
         />
-      </td>
-      <td>
-        <input {...field} aria-label="Telefone" placeholder="Telefone" value={draft.phone} onChange={(e) => set({ phone: e.target.value })} />
       </td>
       <td>
         <select className="gx-select" style={{ height: 36, minWidth: 140 }} aria-label="Perfil" value={draft.profile} disabled={!canEdit || busy} onChange={(e) => set({ profile: e.target.value as UserDraft['profile'] })}>
@@ -214,7 +204,7 @@ function Row({
               Cancelar
             </button>
           ) : canEdit ? (
-            <button type="button" className="gx-btn gx-btn--icon gx-btn--ghost" aria-label={`Excluir ${draft.name || draft.email}`} title="Excluir" onClick={() => setDelOpen(true)}>
+            <button type="button" className="gx-btn gx-btn--icon gx-btn--ghost" aria-label={`Excluir ${draft.email}`} title="Excluir" onClick={() => setDelOpen(true)}>
               <Icon name="trash" />
             </button>
           ) : null}

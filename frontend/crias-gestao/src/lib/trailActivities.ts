@@ -86,9 +86,8 @@ export function stepFromRow(
   optionCount: number,
 ): StepDraft {
   if (!row) return emptyStep(stage, kind, optionCount)
-  const stepTitle = typeof row.step_title === 'string' ? row.step_title : ''
   if (kind === 'c') {
-    return { stage, kind, title: stepTitle, content: row.content ?? '', options: [], correct: '' }
+    return { stage, kind, title: '', content: row.content ?? '', options: [], correct: '' }
   }
   const resolved = resolveExerciseOptions(row.content, row.options)
   const options = (resolved.options ?? []).map((o) => stripKeyPrefix(o.label, o.key))
@@ -96,7 +95,7 @@ export function stepFromRow(
   return {
     stage,
     kind,
-    title: stepTitle,
+    title: '',
     content: resolved.displayBody,
     options: padded,
     correct: correctToLetter(row.correct_option),
@@ -147,7 +146,6 @@ export function cellFieldsFromStep(
     stage_number: step.stage,
     question_number: activity.number,
     title: storedActivityTitle(activity.number, activity.title),
-    step_title: step.title.trim(),
     is_released: activity.released,
     active: true,
   }

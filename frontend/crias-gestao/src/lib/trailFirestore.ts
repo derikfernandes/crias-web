@@ -93,9 +93,6 @@ export function snapshotToTrail(
     created_at: data.created_at ?? null,
     updated_at: data.updated_at ?? null,
     phase_blueprint,
-    objective: typeof data.objective === 'string' ? data.objective : undefined,
-    guidelines: typeof data.guidelines === 'string' ? data.guidelines : undefined,
-    options_count: toIntLoose(data.options_count) ?? undefined,
   }
 }
 

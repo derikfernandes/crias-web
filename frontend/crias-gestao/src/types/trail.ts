@@ -20,11 +20,5 @@ export interface Trail {
   created_at: Timestamp | null
   updated_at: Timestamp | null
   phase_blueprint?: PhaseBlueprint[] | null
-  /** Objetivo da trilha (Reforço, Revisão... ou texto livre). Campo opcional da v1.1. */
-  objective?: string
-  /** Orientações para a geração dos conteúdos. Campo opcional da v1.1. */
-  guidelines?: string
-  /** Alternativas por exercício, de 2 a 6 (padrão 4). Campo opcional da v1.1. */
-  options_count?: number
 }
 

@@ -61,9 +61,6 @@ Campos:
 - `default_total_steps_per_stage`: number
 - `active`: boolean
 - `phase_blueprint`: array opcional
-- `objective`: string opcional (v1.1: Reforço, Revisão... ou texto livre)
-- `guidelines`: string opcional (v1.1: orientações para a geração)
-- `options_count`: number opcional, 2 a 6 (v1.1: alternativas por exercício, padrão 4)
 - `created_at`: timestamp
 - `updated_at`: timestamp
 
@@ -101,7 +98,6 @@ Campos:
 - `stage_number`: number
 - `question_number`: number
 - `title`: string
-- `step_title`: string opcional (v1.1: título da etapa de conteúdo)
 - `content`: string
 - `correct_option`: string | null
 - `options`: array | null
@@ -161,18 +157,12 @@ Uso:
 - Não alterar nomes de collections sem plano de migração.
 - Não alterar padrão de ids sem revisar o contrato do player web e da API.
 - Campos consumidos pela API do aluno devem ser estáveis.
-### `admin_users` (campos opcionais da v1.1)
-
-- `name`, `phone`: string
-- `profile`: `admin` | `basico` (menu por perfil; Super admin vem de `is_super_admin`)
-
-### `admin_settings/profiles` (v1.1)
-
-- `admin`, `basico`: array com os itens de menu do perfil (`home`, `dash`, `trilhas`, `alunos`, `senhas`, `admin`).
-- Ao salvar, o menu é copiado para `nav_permissions` dos usuários do perfil.
-
 ### Vínculo ativo ou inativo (v1.1)
 
 - Aluno ativo na trilha = existe `student_trails` e `status` diferente de `blocked`.
 - Inativar = `status: blocked` (mantém histórico e progresso). Reativar volta o status pelo progresso (`completed`, `in_progress` ou `not_started`).
 - Remover aluno da instituição = `students.active = false` (mantém histórico; o aluno continua na base).
+
+### Sem campos novos na v1.1
+
+Objetivo, orientações, alternativas por exercício e perfis (Super admin, Admin, Básico) não são gravados em campos novos. Objetivo e orientações valem só na tela e no envio à IA; o perfil é uma combinação pronta de `is_super_admin`, `is_master` e `nav_permissions`.

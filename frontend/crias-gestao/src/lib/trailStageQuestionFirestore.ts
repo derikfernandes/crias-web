@@ -72,7 +72,6 @@ export function snapshotToTrailStageQuestion(
         ? data.question_number
         : 1,
     title: typeof data.title === 'string' ? data.title : '',
-    step_title: typeof data.step_title === 'string' ? data.step_title : undefined,
     content: typeof data.content === 'string' ? data.content : '',
     correct_option:
       typeof data.correct_option === 'string' ? data.correct_option : null,

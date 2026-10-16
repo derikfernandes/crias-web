@@ -62,8 +62,6 @@ export async function patchTrail(
     subject: string
     description: string
     active: boolean
-    objective: string
-    guidelines: string
   }>,
 ): Promise<void> {
   if (!db) throw new Error('Firebase não inicializado.')
@@ -74,14 +72,11 @@ export async function patchTrail(
 }
 
 /**
- * Grava a Configuração: objetivo, orientações, alternativas e estrutura de etapas.
+ * Grava a Configuração: a estrutura de etapas (objetivo e orientações só valem na geração por IA).
  * Etapas além da nova quantidade saem de `trail_stages` e do conteúdo das atividades.
  */
 export async function saveTrailConfig(input: {
   trailId: string
-  objective: string
-  guidelines: string
-  optionsCount: number
   phases: StructurePhase[]
   existingCells: TrailStageQuestion[]
 }): Promise<void> {
@@ -107,9 +102,6 @@ export async function saveTrailConfig(input: {
     }
 
     tx.update(trailRef, {
-      objective: input.objective,
-      guidelines: input.guidelines,
-      options_count: input.optionsCount,
       default_total_steps_per_stage: phases.length,
       phase_blueprint: phases.map((p) => ({
         title: p.title.trim(),
@@ -219,7 +211,6 @@ export async function removeActivity(
         stage_number: c.stage_number,
         question_number: nextNumber,
         title: c.title.replace(/Atividade\s+\d+/i, `Atividade ${nextNumber}`),
-        step_title: c.step_title ?? '',
         content: c.content,
         correct_option: c.correct_option,
         options: c.options,
@@ -250,9 +241,6 @@ export async function createTrailFromPreview(input: {
   name: string
   subject: string
   description: string
-  objective: string
-  guidelines: string
-  optionsCount: number
   phases: StructurePhase[]
   activities: ActivityDraft[]
 }): Promise<string> {
@@ -268,11 +256,6 @@ export async function createTrailFromPreview(input: {
     structurePhases: input.phases,
   })
   if (!id) throw new Error('Não foi possível criar a trilha.')
-  await updateDoc(doc(db, TRAILS_COLLECTION, id), {
-    objective: input.objective,
-    guidelines: input.guidelines,
-    options_count: input.optionsCount,
-  })
   // Atividades da prévia: a primeira já nasce liberada; as outras bloqueadas até revisão.
   const released = input.activities.map((a, i) => ({ ...a, released: i === 0 }))
   await commitCells(released.flatMap((a) => activityCellWrites(id, a)))

@@ -2,14 +2,12 @@ import { useMemo, useState } from 'react'
 import { useCollection } from '../hooks/useCollection'
 import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
-import { DEFAULT_PROFILES, loadProfiles, type MenuKey, type ProfileId } from '../lib/adminProfiles'
 import { ADMIN_USERS_COLLECTION, snapshotToAdminUser } from '../lib/adminUserFirestore'
 import { deleteAdminUser, saveAdminUser, type UserDraft } from '../lib/adminUsersOps'
 import { Banner, BootSymbol, PageHead } from '../design/gx/ui'
 import { UsersTable, rowFromUser, type UserRowModel } from './admin/UsersTable'
-import { useEffect } from 'react'
 
-const EMPTY: UserDraft = { email: '', name: '', phone: '', profile: 'basico', institutionIds: [], active: true }
+const EMPTY: UserDraft = { email: '', profile: 'basico', institutionIds: [], active: true }
 
 /** Usuários (Super admin, 1.1.12 e orientação 15): abas Crias e Instituições. */
 export function UsersPage() {
@@ -17,14 +15,9 @@ export function UsersPage() {
   const { hasFullAccess, adminProfile } = usePermissions()
   const users = useCollection(ADMIN_USERS_COLLECTION, snapshotToAdminUser)
   const [tab, setTab] = useState<'crias' | 'inst'>('crias')
-  const [menus, setMenus] = useState<Record<ProfileId, MenuKey[]>>(DEFAULT_PROFILES)
   const [drafts, setDrafts] = useState<{ crias: UserRowModel[]; inst: UserRowModel[] }>({ crias: [], inst: [] })
   const [notice, setNotice] = useState<string | null>(null)
   const isSuper = hasFullAccess || Boolean(adminProfile?.is_super_admin)
-
-  useEffect(() => {
-    void loadProfiles().then(setMenus).catch(() => undefined)
-  }, [])
 
   const crias = useMemo(
     () => users.rows.filter((u) => u.is_super_admin || u.all_institutions || u.institution_ids.length === 0),
@@ -83,7 +76,7 @@ export function UsersPage() {
               { value: 'basico', label: 'Básico' },
             ]}
             onSave={async (row, draft) => {
-              await saveAdminUser(draft, menus, 'crias', row.isNew)
+              await saveAdminUser(draft, 'crias', row.isNew)
               setDrafts((d) => ({ ...d, crias: d.crias.filter((x) => x.id !== row.id) }))
               setNotice('Usuário salvo.')
             }}
@@ -104,7 +97,7 @@ export function UsersPage() {
               { value: 'basico', label: 'Básico' },
             ]}
             onSave={async (row, draft) => {
-              await saveAdminUser(draft, menus, 'institution', row.isNew)
+              await saveAdminUser(draft, 'institution', row.isNew)
               setDrafts((d) => ({ ...d, inst: d.inst.filter((x) => x.id !== row.id) }))
               setNotice('Usuário salvo.')
             }}

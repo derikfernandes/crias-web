@@ -113,10 +113,12 @@ export function useTrailData(id: string | undefined): TrailData {
     () => structurePhasesFromTrailData(trail?.phase_blueprint, stages),
     [trail?.phase_blueprint, stages],
   )
-  const config = useMemo(
-    () => configFromTrail(trail ?? { phase_blueprint: null, options_count: undefined }, stages),
-    [trail, stages],
-  )
+  const config = useMemo(() => {
+    // Alternativas por exercício: lidas do primeiro exercício já gravado (padrão 4).
+    const exerciseStage = new Set(phases.map((p, i) => (p.stage_type === 'exercise' ? i + 1 : 0)).filter(Boolean))
+    const sample = cells.find((c) => exerciseStage.has(c.stage_number) && (c.options?.length ?? 0) >= 2)
+    return configFromTrail(trail ?? { phase_blueprint: null }, stages, sample?.options?.length ?? undefined)
+  }, [trail, stages, cells, phases])
   const activities = useMemo(
     () => activitiesFromRows(cells, phases, config.options),
     [cells, phases, config.options],

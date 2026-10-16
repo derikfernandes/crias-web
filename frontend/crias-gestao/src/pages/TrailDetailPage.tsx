@@ -9,7 +9,6 @@ import {
 } from '../design/gx/ui'
 import { deleteTrailCascade } from '../lib/trailApi'
 import {
-  DEFAULT_OBJECTIVE,
   phasesFromConfig,
   type GenerationConfig,
   type StructureConfig,
@@ -25,8 +24,6 @@ import { useGestao } from '../hooks/useGestao'
 import {
   CadastroSection,
   EstruturaSection,
-  ObjetivoSection,
-  OrientacoesSection,
   type CadastroValue,
 } from './trail/ConfigSections'
 import { ContentTab } from './trail/ContentTab'
@@ -71,10 +68,7 @@ function OpenTrail({ id }: { id: string }) {
 
   const [cad, setCad] = useState<CadastroValue>({ name: '', subject: '', description: '', active: false })
   const [cadEditing, setCadEditing] = useState(false)
-  const [objective, setObjective] = useState(DEFAULT_OBJECTIVE)
-  const [objEditing, setObjEditing] = useState(false)
   const [structure, setStructure] = useState<StructureConfig>(data.config)
-  const [guidelines, setGuidelines] = useState('')
   const [studentChanges, setStudentChanges] = useState<StudentChanges>(new Map())
   const [drafts, setDrafts] = useState<GabaritoDrafts>(new Map())
   const [busy, setBusy] = useState(false)
@@ -89,18 +83,14 @@ function OpenTrail({ id }: { id: string }) {
     if (!cadEditing) {
       setCad({ name: trail.name, subject: trail.subject, description: trail.description, active: trail.active })
     }
-    if (!objEditing) setObjective(trail.objective?.trim() || DEFAULT_OBJECTIVE)
-  }, [trail, cadEditing, objEditing])
+  }, [trail, cadEditing])
   useEffect(() => {
     if (!trail) return
     setStructure(data.config)
-    setGuidelines(trail.guidelines ?? '')
   }, [trail?.updated_at?.toMillis?.(), data.config.options, data.stages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const locked = Boolean(trail?.active)
-  const savedObjective = trail?.objective?.trim() || DEFAULT_OBJECTIVE
-  const cfgDirty =
-    !sameStructure(structure, data.config) || guidelines.trim() !== (trail?.guidelines ?? '').trim()
+  const cfgDirty = !sameStructure(structure, data.config)
 
   const headerDirty =
     tab === 'config' ? cfgDirty && !locked : tab === 'students' ? studentChanges.size > 0 : tab === 'gabarito' ? drafts.size > 0 : false
@@ -125,9 +115,6 @@ function OpenTrail({ id }: { id: string }) {
       void guard(async () => {
         await saveTrailConfig({
           trailId: id,
-          objective: savedObjective,
-          guidelines: guidelines.trim(),
-          optionsCount: structure.options,
           phases: phasesFromConfig(structure),
           existingCells: data.cells,
         })
@@ -153,24 +140,24 @@ function OpenTrail({ id }: { id: string }) {
 
   const buildConfig = useMemo(
     () =>
-      (extra: { activities: number; skills: string; guidelines: string; filesText: string }): GenerationConfig => {
+      (extra: { activities: number; objective: string; skills: string; guidelines: string; filesText: string }): GenerationConfig => {
         const order = phasesFromConfig(data.config).map((p) => (p.stage_type === 'exercise' ? ('e' as const) : ('c' as const)))
         return {
           name: trail?.name ?? '',
           subject: trail?.subject ?? '',
           description: trail?.description ?? '',
-          objective: savedObjective,
+          objective: extra.objective,
           contents: order.filter((k) => k === 'c').length,
           exercises: order.filter((k) => k === 'e').length,
           order,
           activities: extra.activities,
           options: data.config.options,
           skills: extra.skills,
-          guidelines: extra.guidelines || (trail?.guidelines ?? ''),
+          guidelines: extra.guidelines,
           filesText: extra.filesText,
         }
       },
-    [data.config, trail, savedObjective],
+    [data.config, trail],
   )
 
   if (!data.ready || g.institutionsLoading) return <BootSymbol />
@@ -280,27 +267,7 @@ function OpenTrail({ id }: { id: string }) {
               </div>
             }
           />
-          <ObjetivoSection
-            value={objective}
-            onChange={setObjective}
-            readOnly={!objEditing}
-            locked={locked}
-            editing={objEditing}
-            onEdit={() => setObjEditing(true)}
-            onCancel={() => {
-              setObjective(savedObjective)
-              setObjEditing(false)
-            }}
-            onSave={() =>
-              void guard(async () => {
-                await patchTrail(id, { objective: objective.trim() || DEFAULT_OBJECTIVE })
-                setObjEditing(false)
-              }, 'Objetivo salvo.')
-            }
-            saveDisabled={objective.trim() === savedObjective.trim() || !objective.trim() || busy}
-          />
           <EstruturaSection value={structure} onChange={setStructure} locked={locked} />
-          <OrientacoesSection value={guidelines} onChange={setGuidelines} locked={locked} />
         </>
       ) : null}
 

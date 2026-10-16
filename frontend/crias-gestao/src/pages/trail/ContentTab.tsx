@@ -19,6 +19,8 @@ import {
 } from '../../lib/trailActivities'
 import { generateActivitiesWithAi } from '../../lib/trailAiApi'
 import {
+  DEFAULT_OBJECTIVE,
+  OBJECTIVES,
   MAX_ACTIVITIES,
   orNA,
   type GenerationConfig,
@@ -104,17 +106,7 @@ function StepEditor({
           {s.kind === 'e' ? 'Exercício' : 'Conteúdo'}
         </span>
       </div>
-      {s.kind === 'c' ? (
-        <input
-          className="gx-input"
-          aria-label="Título da etapa"
-          placeholder="Título da etapa"
-          value={s.title}
-          onChange={(e) => set({ title: e.target.value })}
-        />
-      ) : (
-        <strong className="gx-step__title">{stepLabel(steps, index)}</strong>
-      )}
+      <strong className="gx-step__title">{stepLabel(steps, index)}</strong>
       <textarea
         className="gx-textarea"
         rows={s.kind === 'e' ? 3 : 4}
@@ -179,7 +171,7 @@ export function ContentTab({
   cells: TrailStageQuestion[]
   phases: StructurePhase[]
   optionCount: number
-  buildConfig: (extra: { activities: number; skills: string; guidelines: string; filesText: string }) => GenerationConfig
+  buildConfig: (extra: { activities: number; objective: string; skills: string; guidelines: string; filesText: string }) => GenerationConfig
 }) {
   // Mais recentes no topo (1.1.9): a numeração continua depois da última.
   const ordered = useMemo(() => [...activities].sort((a, b) => b.number - a.number), [activities])
@@ -194,6 +186,7 @@ export function ContentTab({
   // IA
   const [aiOpen, setAiOpen] = useState(false)
   const [aiCount, setAiCount] = useState(5)
+  const [aiObjective, setAiObjective] = useState<string>(DEFAULT_OBJECTIVE)
   const [aiSkills, setAiSkills] = useState('')
   const [aiNotes, setAiNotes] = useState('')
   const [aiFiles, setAiFiles] = useState<PickedFile[]>([])
@@ -288,6 +281,7 @@ export function ContentTab({
     try {
       const cfg = buildConfig({
         activities: aiCount,
+        objective: aiObjective,
         skills: aiSkills,
         guidelines: aiNotes,
         filesText: aiFiles.length > 0 ? 'enviados' : '',
@@ -456,6 +450,16 @@ export function ContentTab({
         {aiOpen ? (
           <>
             <NumberOfActivities value={aiCount} onChange={setAiCount} />
+            <label className="gx-field" style={{ maxWidth: 280 }}>
+              <span>Objetivo</span>
+              <select className="gx-select" value={aiObjective} onChange={(e) => setAiObjective(e.target.value)}>
+                {OBJECTIVES.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="gx-field">
               <span>Habilidades</span>
               <textarea

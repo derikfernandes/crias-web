@@ -7,9 +7,9 @@ import {
 
 /**
  * Configuração de uma trilha (INTERFACE.md 1.1.9 e 1.1.10): objetivo, estrutura
- * (conteúdos e exercícios, em ordem), alternativas, orientações. Tudo se grava
- * nos campos já existentes da trilha (`phase_blueprint`, `trail_stages`) mais
- * campos opcionais novos: `objective`, `guidelines` e `options_count`.
+ * (conteúdos e exercícios, em ordem), alternativas, orientações. Só a estrutura se
+ * grava, nos campos que já existem (`phase_blueprint`, `trail_stages`). Objetivo,
+ * orientações e alternativas valem só na tela e no envio à IA (nada novo no banco).
  */
 
 export const OBJECTIVES = [
@@ -145,20 +145,15 @@ export function kindOfPhase(phase: Pick<StructurePhase, 'stage_type'>): StepKind
   return phase.stage_type === 'exercise' ? 'e' : 'c'
 }
 
-/** Lê a configuração de uma trilha já salva. Etapas 'ai' e 'fixed' contam como conteúdo. */
+/** Lê a configuração de uma trilha já salva. Etapas 'ai' e 'fixed' contam como conteúdo. `options` vem do exercício existente. */
 export function configFromTrail(
-  trail: Pick<Trail, 'phase_blueprint' | 'options_count'>,
+  trail: Pick<Trail, 'phase_blueprint'>,
   stages: TrailStage[],
+  options: number = DEFAULT_OPTIONS,
 ): StructureConfig {
   const phases = structurePhasesFromTrailData(trail.phase_blueprint, stages)
   const order = phases.map(kindOfPhase)
   const { contents, exercises } = counts(order)
-  const options =
-    typeof trail.options_count === 'number' &&
-    trail.options_count >= MIN_OPTIONS &&
-    trail.options_count <= MAX_OPTIONS
-      ? trail.options_count
-      : DEFAULT_OPTIONS
   const preset = DEPTHS.find(
     (d) =>
       d[2] === contents &&
@@ -170,7 +165,7 @@ export function configFromTrail(
     contents,
     exercises,
     order,
-    options,
+    options: Math.max(MIN_OPTIONS, Math.min(MAX_OPTIONS, options)),
   }
 }
 

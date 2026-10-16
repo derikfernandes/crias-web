@@ -124,9 +124,6 @@ export function NewTrailPage() {
         name: cad.name,
         subject: cad.subject,
         description: cad.description,
-        objective: objective.trim(),
-        guidelines: guidelines.trim(),
-        optionsCount: structure.options,
         phases,
         activities: preview,
       })

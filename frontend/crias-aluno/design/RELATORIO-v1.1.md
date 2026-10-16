@@ -27,7 +27,7 @@ Aplicada sobre o `main` (v1.0) no branch `v1.1`. Fonte: `INTERFACE.md` e protót
 - Seletor Aluno | Gestão, largura única de 780px, alternativas uma por linha, seta verde, tokens da v1.1.
 
 ## Decisões e diferenças em relação ao protótipo
-- **Campos novos opcionais** (spec atualizada): `trails.objective`, `guidelines`, `options_count`; `trail_stage_questions.step_title`; `admin_users.name`, `phone`, `profile`; `admin_settings/profiles`.
+- **Nenhum campo novo no banco.** Objetivo e orientações valem só na tela e no envio à IA (como se fossem digitados no prompt). Alternativas por exercício vêm do exercício existente (padrão 4). Perfis Super admin, Admin e Básico são combinações prontas de `is_super_admin`, `is_master` e `nav_permissions`, fixas no código; a página Permissões mostra o menu de cada um sem editar. Usuários da Gestão não têm nome nem telefone (o banco não guarda).
 - **Senha dos usuários da Gestão** é do Firebase Auth: no lugar de copiar e gerar, há "Redefinir senha" (e-mail). Gerar e copiar exigiria endpoint com Admin SDK. TODO backend v1.1 (orientação 19).
 - **Criar usuário da Gestão** grava `admin_users`; a conta de login precisa existir no Firebase Auth (como já era).
 - Início: Conclusão e Acerto médios por instituição vêm do Firestore (vínculos e tentativas). Dados usa o cálculo por logs, como antes; os números podem diferir levemente.
@@ -35,6 +35,7 @@ Aplicada sobre o `main` (v1.0) no branch `v1.1`. Fonte: `INTERFACE.md` e protót
 - Etapas novas de conteúdo são gravadas como `fixed` (texto final). Etapas `ai` antigas aparecem como Conteúdo.
 - Excluir atividade renumera as seguintes (a posição dos alunos usa o número).
 - "Painel" do aluno e o prompt "Criar trilha com IA" só leitura (invisível para a escola).
+- Na trilha aberta, a Configuração mostra Cadastro e Estrutura; Objetivo e Orientações aparecem só na criação e no "Adicionar atividades com IA".
 - Os prompts de IA no servidor continuam falando "parceiro de estudo" (decisão do sócio); as telas dizem Monitor.
 
 ## Pendências conhecidas (v1.1 do aluno)

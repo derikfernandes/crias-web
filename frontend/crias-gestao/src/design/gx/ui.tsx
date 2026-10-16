@@ -145,9 +145,17 @@ export function Icon({
 
 /** Símbolo animado de carregamento (1.1.5 e 1.1.18): cobre a tela até a página estar pronta. */
 export function BootSymbol() {
+  const ref = useRef<HTMLImageElement>(null)
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true)
+  }, [])
   return (
     <div className="gx-boot" role="status" aria-label="Carregando">
-      <img src="/crias-simbolo-luz.svg" alt="" />
+      <span className="gx-boot__wrap">
+        {loaded ? <span className="gx-boot__glow" /> : null}
+        <img ref={ref} src="/crias-symbol-192.png" alt="" decoding="sync" onLoad={() => setLoaded(true)} />
+      </span>
     </div>
   )
 }

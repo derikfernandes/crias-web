@@ -1,5 +1,3 @@
-> **Versão entregue: v1.1.** As regras marcadas como "Base v1.1" (antes chamadas v1.2) são a versão final e valem sobre a "Base v1.1 inicial" e a v1.0.
-
 # Interface Crias: regras e orientações
 
 Este arquivo guarda as regras da interface. Cada regra inviolável definida na revisão entra aqui.
@@ -8,7 +6,7 @@ Este arquivo guarda as regras da interface. Cada regra inviolável definida na r
 
 | Versão | Arquivos no projeto | Antes chamada |
 | --- | --- | --- |
-| **v1.1 (atual)** | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | v1.1 |
+| **v1.1 (atual, fechada em 16/10/2026)** | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | v7 |
 | v1.0 (travada) | `Crias Aluno v1.0.dc.html`, `Crias Painel v1.0.dc.html` | v1.0 |
 | Histórico | pasta `historico/` | v2 a v5 e telas antigas |
 
@@ -33,11 +31,11 @@ Ao subir, apague do repositório o arquivo antigo `frontend/crias-aluno/design/p
 
 O código dos apps (`frontend/crias-aluno/src` e `frontend/crias-gestao/src`) não vem no pacote. A v1.1 é aplicada sobre ele pelo Claude Code, seguindo este arquivo.
 
-## Base v1.1 (em andamento, desde 15/10/2026)
+## Base v1.1: fechamento (16/10/2026)
 
-Arquivos: `Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`, copiados da v1.1 travada. Valem sobre a v1.1 onde houver diferença.
+Regras 1.1.27 a 1.1.38, acrescentadas no fechamento da v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). Valem sobre as regras 1.1.1 a 1.1.26 onde houver diferença.
 
-**1.1.1 Gestão no celular** (15/10/2026)
+**1.1.27 Gestão no celular** (15/10/2026)
 
 A Gestão passa a seguir os mesmos padrões de celular do Crias Aluno (F1 a F29), que já funcionam bem lá.
 
@@ -53,7 +51,7 @@ A Gestão passa a seguir os mesmos padrões de celular do Crias Aluno (F1 a F29)
 - Tabelas: rolam na horizontal dentro do cartão, com esmaecimento na borda que ainda tem conteúdo (1.1.25). Grades usam `minmax` que cabe em 370px.
 - Menu: tela cheia no celular (já era), fecha ao escolher um item.
 
-**1.1.2 Personagem do monitor** (15/10/2026)
+**1.1.28 Personagem do monitor** (15/10/2026)
 
 Definido em `Monitor Personagem.dc.html` (componente `crias-monitor.js`, three.js), também no design system. **Aplicado no Crias Aluno v1.1**: Monitoria, Painel e respostas do monitor dentro da trilha.
 
@@ -70,13 +68,37 @@ Definido em `Monitor Personagem.dc.html` (componente `crias-monitor.js`, three.j
 - Trocas de estado suaves (0,3 a 0,65 s). Com movimento reduzido, fica parado de frente e sem piscar.
 - Página de definição: botão Pausar/Ver sequência; pausado, cada estado pode ser visto isolado. Tweaks: fundo, velocidade e giro do planeta.
 
-**1.1.10 Ajustes finais da Gestão v1.1** (16/10/2026)
+**1.1.37 Cabeçalho e rodapé do site na entrada** (16/10/2026)
+
+A entrada do Crias Aluno usa o cabeçalho e o rodapé do site crias.org (pacote "[CRIAS] Atualização Site").
+
+- Cabeçalho fixo no topo, igual ao do site: 64px, largura máxima 1240px, linha fina embaixo, cantos retos. Fundo na cor do menu lateral: #fdfcf9 no claro, #0a1711 no escuro. Demais cores do pacote, ligadas ao tema do Crias.
+- Logo à esquerda (`crias-logo-site.svg`; no escuro `crias-logo-site-branco.svg`), 25px de altura, link para https://www.crias.org na mesma aba. A troca claro/escuro é feita no `src` da imagem (nunca por `content: url()` no CSS, que baixa o arquivo só na troca e atrasa o logo). No app, os dois arquivos ficam em `public/` e entram com `<link rel="preload" as="image">` no `index.html`.
+- À direita só o botão de trocar tema (40×40, ícone sol ou lua). Sem "Agendar conversa" e sem "Entrar".
+- Acima da caixa de login fica só o símbolo do Crias (72px), pulsando como no carregamento (1.1.38). O wordmark saiu de cima da caixa.
+- Rodapé do site: LinkedIn e Instagram à esquerda, "© Crias Tecnologia LTDA · 48.188.712/0001-02" à direita (Barlow 13px). **Fundo branco** no claro (preto no escuro, cor do fundo da página), linha fina em cima.
+- A malha 3D fica só entre o cabeçalho e o rodapé, nunca por baixo deles.
+- A página continua sem rolar quando cabe; se a tela for baixa, rola a entrada inteira (cabeçalho fixo).
+
+**1.1.38 Carregamento com o símbolo do Crias** (16/10/2026)
+
+Vale para todo carregamento com o símbolo: abertura do Crias Aluno e do Crias Gestão, troca pelo seletor Aluno/Gestão (que abre o outro app), estado carregando de cada página, "Tentar de novo" na Gestão e símbolo acima da caixa de login.
+
+- O símbolo aparece **completo desde o primeiro quadro**. Nunca pode aparecer só o brilho (esfumaçado) sem o símbolo.
+- Arquivo: `crias-symbol-192.png` (192×192, cerca de 37 KB) no lugar do `crias-symbol.png` de 1000×1000 (443 KB), que demorava a carregar. No app: em `public/`, com `<link rel="preload" as="image" href="/crias-symbol-192.png">` no `index.html` dos dois apps.
+- O brilho atrás do símbolo só aparece depois que a imagem carregou (classe no `onLoad` da imagem, ou imagem já em cache).
+- Animação: ciclo de 2,4 s; o símbolo sobe 9%, cresce até 1,06x e balança de -6° a 5°; o brilho (18% maior que o símbolo) pulsa de 0,9x a 1,12x. Brilho amarelo `rgba(255,213,0,.4)` no claro e verde `rgba(0,190,133,.35)` no escuro.
+- Tamanho: 64px no carregamento, 72px no login.
+- Carregamento de abertura: mínimo de 1,1 s na tela e saída em 0,4 s (opacidade).
+- Com movimento reduzido, fica parado.
+
+**1.1.36 Ajustes finais da Gestão v1.1** (16/10/2026)
 
 - Orientações (nova trilha e Configuração): subtítulo "Os conteúdos são gerados por padrão pela sequência abaixo. Você pode enviar orientações específicas." seguido da sequência visual Contextualização > Introdução > Exemplos > Desenvolvimento > Conclusão.
 - Trilha criada e **ativa**: na Configuração, Objetivo, Estrutura e Orientações ficam **bloqueados**, com a etiqueta "Somente visualização" à direita do título. Cadastro continua editável pelo lápis.
 - Adicionar atividades com IA: "Gerar prévia" abre a **página Prévia** dentro da aba (não é janela), com subtítulo "Revise os conteúdos para adicionar atividades. Você pode revisar ou excluir as atividades depois.", Cancelar e "Adicionar atividades" no topo à direita. Uma atividade por linha (número na sequência da última atividade + título); a primeira começa aberta; abrir outra mantém as abertas; aberta mostra cada etapa com o conteúdo gerado (Conteúdo / Exercício X de Y). Ao adicionar, volta para o Conteúdo com as atividades no topo e o bloco de IA recolhido. Tag IA à direita, ao lado da seta.
 
-## Orientações para o backend (Cursor), v1.1
+## Orientações para o backend (Cursor), v1.1 (fechamento)
 
 19. **Padrão de senha (toda a aplicação):** senha sempre mascarada (••••••••) com botão de olho para mostrar; depois, botão editar (libera digitação), copiar para a área de transferência e o botão **Gerar** (gera nova senha). Em edição, o botão vira **Salvar**. Estados possíveis: com senha ou "Sem senha" (não existe "legado"). Vale em Senhas, Permissões > Usuários e Usuários (Crias e Instituições).
 20. **Menu Sistema** (Prompts, API e documentação) aparece só para Super admin.
@@ -105,9 +127,9 @@ Lógicas novas definidas no protótipo que exigem backend. Interface pronta no p
 10. **Ordenação de tabelas:** por coluna (asc/desc), padrão alfabética; vazios e N/A sempre no fim.
 11. **Exclusões** (trilha, atividade, alunos em massa) só com a palavra DELETAR.
 
-**1.1.9 Consolidação das regras da Gestão v1.1** (16/10/2026)
+**1.1.35 Consolidação das regras da Gestão v1.1** (16/10/2026)
 
-Vale sobre 1.1.3 a 1.1.8 onde houver diferença.
+Vale sobre 1.1.29 a 1.1.34 onde houver diferença.
 
 *Trilha (abas Configuração, Conteúdo, Alunos, Gabarito)*
 - A aba antes chamada Estrutura chama-se **Configuração** em toda a aplicação.
@@ -140,10 +162,10 @@ Vale sobre 1.1.3 a 1.1.8 onde houver diferença.
 - Instituição e página Alunos: blocos "Cadastrar alunos" (Colunas: Nome, celular, senha (opcional), trilha (opcional); Baixar planilha modelo, Escolher planilha, Adicionar em massa) e "Remover alunos" (Colunas: Nome, celular, remover (sim / não); Baixar planilha base com alunos, Remover em massa, com confirmação). Em Alunos ficam no topo, antes do filtro por nome.
 - Botões em pílula 36px, texto 13px; filtros e campos 40px. Filtros ocupam metade da largura (exceções: Filtrar alunos em Alunos, na trilha e em Dados, de ponta a ponta).
 - Ordenação por setinhas no cabeçalho de cada coluna; padrão ordem alfabética.
-- Todo conteúdo começa 36px abaixo do subtítulo (1.1.4); linhas fixas no cabeçalho também.
+- Todo conteúdo começa 36px abaixo do subtítulo (1.1.30); linhas fixas no cabeçalho também.
 - Filtrar instituições (Super admin) ou nome da escola (Instituição) ficam no topo à direita, na linha do Voltar.
 
-**1.1.8 Criação de trilha (fluxo único)** (16/10/2026)
+**1.1.34 Criação de trilha (fluxo único)** (16/10/2026)
 
 - Passos: **1 Cadastro, 2 Objetivo, 3 Estrutura, 4 Habilidades (tag IA), 5 Arquivos (opcional), 6 Orientações (opcional)**. Dentro de cada passo não se repete o título; só as setas para cima e para baixo. Tudo editável direto, sem Salvar por passo. Matéria e Descrição são opcionais.
 - Habilidades: texto com as habilidades ou conteúdos. Só com Habilidades preenchidas Arquivos e Orientações abrem. "Começar em branco" bloqueia Habilidades, Arquivos e Orientações.
@@ -157,36 +179,36 @@ Vale sobre 1.1.3 a 1.1.8 onde houver diferença.
 - A prévia mostra o resumo das informações enviadas e as atividades; "Salvar trilha" cria a trilha e abre Conteúdo.
 - O título do bloco de cadastro é sempre "Cadastro", em toda a aplicação.
 
-**1.1.7 Nova trilha e alunos da instituição** (16/10/2026)
+**1.1.33 Nova trilha e alunos da instituição** (16/10/2026)
 
 - **Definir passo a passo** abre a mesma página de uma trilha aberta (Estrutura, Conteúdo, Alunos, Gabarito), vazia: cadastro já em edição, objetivo Reforço e profundidade Média. Em Alunos, "Adicionar alunos" lista todos os alunos da instituição e "Remover alunos" fica vazio até alguém ser ativado.
 - **Instituição > Remover alunos:** mesmo modelo do em massa da trilha, aplicado à instituição. "Baixar base de alunos ativos e inativos" (inativos primeiro, depois ativos; nome, código, telefone, ativo sim / não) e "Importar em massa", com a confirmação "Tem certeza que deseja alterar os alunos da instituição em lote?". Inativar na instituição tira o aluno do acesso, mas mantém o histórico; o aluno continua na base.
 
-**1.1.6 Regras de importação e cadastro** (16/10/2026)
+**1.1.32 Regras de importação e cadastro** (16/10/2026)
 
 - Alunos adicionados a uma instituição pelo menu Instituições (cadastro ou CSV) são **sempre adicionados à base** de alunos.
 - **Regra importantíssima:** importar planilha de conteúdo **sempre ADICIONA atividades** à trilha. Nunca substitui nem apaga as existentes.
 - Alunos da trilha: "Adicionar ou remover" usa chaves Ativo/Inativo por aluno; o aluno não muda de lugar ao alternar; cada aba guarda sua seleção; o Salvar do título aplica tudo de uma vez. Planilha em massa: inativos primeiro, depois ativos, com nome, código, telefone, ativo (sim / não); importar pede confirmação.
 
-**1.1.5 Código do aluno** (15/10/2026)
+**1.1.31 Código do aluno** (15/10/2026)
 
 - Na página Alunos, o filtro único vira dois: "Filtrar por nome" e "Filtrar por código", lado a lado.
 - Na tabela, o código ganha coluna própria, logo depois de Nome, ordenável.
 - **Regra:** o código mostra só o número, sem prefixo nem zeros à esquerda (banco `al-001` → interface `1`). A ordenação usa o valor numérico.
 
-**1.1.4 Posição inicial do conteúdo (Gestão)** (15/10/2026)
+**1.1.30 Posição inicial do conteúdo (Gestão)** (15/10/2026)
 
 - Referência: Início no perfil Instituição, onde o botão Dados começa abaixo do subtítulo.
 - Em toda página, o primeiro conteúdo abaixo do cabeçalho começa nessa mesma altura: 36px abaixo do subtítulo. Na web, o cabeçalho tem altura mínima de 194,7px (`--hd-min`), contando o respiro de 36px do esmaecimento, então páginas sem subtítulo começam no mesmo ponto.
 - Páginas com uma linha fixa no cabeçalho (filtros de Trilhas e Dados, abas da trilha) começam essa linha na mesma posição, 36px abaixo do subtítulo. O que fica fixo e o esmaecimento abaixo dela não mudam.
 
-**1.1.3 Dados: exportar histórico de exercícios** (15/10/2026)
+**1.1.29 Dados: exportar histórico de exercícios** (15/10/2026)
 
 - Na aba Exercícios de Dados, acima da tabela: à esquerda o texto "Clique no exercício para abrir o enunciado" (na posição do "Filtrar alunos" da aba Alunos); à direita o botão principal "Exportar histórico".
 - Clicar no título do exercício abre, abaixo da linha, o enunciado com as alternativas, a contagem de respostas de cada uma e o gabarito. A seta ao lado do título gira ao abrir.
 - **Regra de exportação:** "Exportar histórico" baixa um CSV com a tabela completa, exatamente como está na tela: todas as linhas que passam pelo "Filtrar trilhas" do topo (sem paginação) e todas as colunas (Trilha, Atividade, Título, % de acerto, Respostas, Acertos, Erros, Gabarito), na ordem de classificação atual. Uma linha por exercício.
 
-## Base v1.1 inicial (travada em 15/10/2026)
+## Base v1.1: primeira parte (15/10/2026)
 
 A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositório `crias-redesign/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`) parte da v1.0 e vale sobre ela onde houver diferença.
 
@@ -374,9 +396,9 @@ Vale para Crias Aluno e Gestão, no computador (acima de 768px). No celular a se
 - Títulos dinâmicos que esmaecem na Gestão: nome da instituição (cartão do Início e formulário), nome do aluno, nome da trilha (cabeçalho) e título das janelas de confirmação. Os cartões de dados (ID, datas) e a lista de etapas trocaram reticências por esmaecimento.
 - Logo da Gestão: arquivo único `crias-logo-gestao.svg` (e `crias-logo-gestao-branco.svg` no escuro), 132×22 px, com wordmark, barra verde de 2px e "Gestão" em Manrope 400 já posicionados (deslocamento de 2,05px do wordmark incluído). Não montar mais com três peças. Também no design system (`assets/`).
 
-**1.1.26 Trava da v1.1 e revisão geral** (15/10/2026)
+**1.1.26 Revisão geral da primeira parte da v1.1** (15/10/2026)
 
-A v1.1 está **travada** neste ponto (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). Nada muda nela sem pedido explícito; mudanças novas entram numa v1.1.
+A primeira parte da v1.1 foi revisada neste ponto. O fechamento da v1.1 continua nas regras 1.1.27 a 1.1.38.
 
 Revisão completa feita nos dois produtos antes da trava:
 

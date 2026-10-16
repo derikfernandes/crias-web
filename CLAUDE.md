@@ -1,9 +1,9 @@
 # Regras do projeto Crias (redesign)
 
-## Base atual: v1.1 (em andamento)
+## Base atual: v1.1 (fechada em 16/10/2026)
 
-- Versões: **v1.1** está **travada** desde 15/10/2026 (antiga v7) e **v1.0** é a base travada anterior (antiga v6). Mudanças novas entram na **v1.1** (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`), já criada. A v1.1 está em **Crias Aluno v1.1.dc.html** e **Crias Gestao v1.1.dc.html**; a v1.0 em **Crias Aluno v1.0.dc.html** e **Crias Painel v1.0.dc.html**. Nada muda sem pedido explícito. No repositório: `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`. Versões anteriores (antigas v2 a v5) e telas antigas ficam em `historico/`.
-- As regras completas estão em `INTERFACE.md`, seções "Base v1.1", "Base v1.1" e "Base v1.0 travada". Onde houver conflito, vale a v1.1, depois a v1.1, depois a v1.0.
+- Versões: **v1.1** é a versão atual, fechada em 16/10/2026 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). **v1.0** é a base anterior (`Crias Aluno v1.0.dc.html` e `Crias Painel v1.0.dc.html`). Não existe v1.1. Nada muda sem pedido explícito. No repositório: `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`. Versões e telas antigas ficam em `historico/`.
+- As regras completas estão em `INTERFACE.md`, seções "Base v1.1: fechamento" (1.1.27 a 1.1.38), "Base v1.1: primeira parte" (1.1.1 a 1.1.26) e "Base v1.0 travada". Onde houver conflito, vale o fechamento, depois a primeira parte, depois a v1.0.
 
 ## Repositório e escopo
 
@@ -33,7 +33,7 @@
 
 ## Personagem do monitor
 
-- Definido em `Monitor Personagem.dc.html` (INTERFACE.md 1.1.2). Substitui o "M" amarelo nas mensagens do monitor; mensagens de conteúdo da trilha mantêm o símbolo do Crias.
+- Definido em `Monitor Personagem.dc.html` (INTERFACE.md 1.1.28). Substitui o "M" amarelo nas mensagens do monitor; mensagens de conteúdo da trilha mantêm o símbolo do Crias.
 - Sequência: carregando (anel orbita da direita para a esquerda), pulo único e suave (anel assenta abaixo dos olhos), parado com movimento leve só na última mensagem; mensagens anteriores ficam estáticas.
 
 ## Fundo
@@ -46,7 +46,7 @@
 - Texto que não cabe (linha, coluna, título, e-mail, arquivo) **esmaece no fim**, nunca reticências nem 2 linhas. Áreas com rolagem (tabelas na horizontal, listas na vertical) esmaecem na borda que ainda tem conteúdo. Ver INTERFACE.md 1.1.25.
 - Exemplos da Gestão: toda instituição tem 3 trilhas e todos os campos preenchidos.
 - Logo da Gestão: arquivo único `crias-logo-gestao.svg` (e `-branco`), 132×22 px, no design system.
-- Posição inicial (Gestão): todo conteúdo começa 36px abaixo do subtítulo, na altura do botão Dados do Início da Instituição, em qualquer página (INTERFACE.md 1.1.4).
+- Posição inicial (Gestão): todo conteúdo começa 36px abaixo do subtítulo, na altura do botão Dados do Início da Instituição, em qualquer página (INTERFACE.md 1.1.30).
 - Super admin, Início: "+ Nova instituição" na mesma linha do filtro, que ocupa a largura livre com 16px de respiro.
 
 ## Componentes
@@ -55,13 +55,14 @@
 - Em questão, o composer fica travado: "Selecione uma alternativa e continue...". Continuar só ativa com alternativa marcada.
 - Menu lateral: Acompanhamento (Painel / Ver seus dados de estudo, e Monitoria / Conversar com seu monitor), Trilhas. Rodapé: Claro/Escuro e linha de 38px com avatar "A", nome "Ana" (13px, 700), seta à direita e, na ponta, o ícone de sair (21px) alinhado ao botão de recolher menu do topo. Avatar alinhado ao início do botão Claro.
 - Home: cards com nome, seta amarela, barra, "Atividade X de Y" e "AGORA" com o nome da atividade; textos longos esmaecem no fim. Brilho de hover em amarelo a 3%. No celular os cards são levemente mais baixos para caber 3 trilhas sem rolar.
-- Entrada: campos Login e Senha vazios, sem texto de exemplo, sem preenchimento automático.
+- Carregamento: símbolo completo desde o primeiro quadro (crias-symbol-192.png, brilho só depois da imagem), em toda tela de carregamento e na troca Aluno/Gestão (INTERFACE.md 1.1.38).
+- Entrada: campos Login e Senha vazios, sem texto de exemplo, sem preenchimento automático. Cabeçalho e rodapé do site crias.org (INTERFACE.md 1.1.37): logo leva a https://www.crias.org na mesma aba, só o botão de tema (sem Agendar conversa), símbolo pulsando acima da caixa, rodapé com fundo branco, cabeçalho na cor do menu lateral (#fdfcf9 no claro, #0a1711 no escuro), malha só entre cabeçalho e rodapé.
 - No celular a barra de mensagem não tem sombra externa (evita faixa de tom diferente na base).
 
 ## Web e celular
 
 - Seguir as regras F1 a F29 de INTERFACE.md. Resumo: viewport de app sem zoom, campos com no mínimo 16px, anel de foco só na caixa (nunca retângulo dentro dela), nomes de trilha e títulos em uma linha com o fim esmaecendo (nunca reticências nem 2 linhas), menu em tela cheia no celular, altura pela var(--vv-height) (nunca 100vh), áreas seguras, página nunca rola.
-- Referência de celular: iPhone 17 (402×874). O tweak "celular" do protótipo mostra o app nesse formato ao lado da versão web, no Aluno e na Gestão (v1.1). A Gestão segue os mesmos padrões de celular do Aluno (INTERFACE.md 1.1.1).
+- Referência de celular: iPhone 17 (402×874). O tweak "celular" do protótipo mostra o app nesse formato ao lado da versão web, no Aluno e na Gestão (v1.1). A Gestão segue os mesmos padrões de celular do Aluno (INTERFACE.md 1.1.27).
 
 ## Imagens
 
@@ -77,7 +78,7 @@
 
 ## Gestão (v1.1)
 
-- Regras consolidadas e orientações para o backend em INTERFACE.md (1.1.9, 1.1.10 e "Orientações para o backend (Cursor), v1.1").
+- Regras consolidadas e orientações para o backend em INTERFACE.md (1.1.35, 1.1.36 e "Orientações para o backend (Cursor), v1.1").
 - Trilha: abas Configuração, Conteúdo, Alunos, Gabarito. Nova trilha: só Configuração (passos 1 a 6) e Prévia; geração sempre por prompt fixo do sistema + Configuração de geração.
 - Importar planilha sempre adiciona. Remoções e exclusões pedem DELETAR.
 - Botões 36px/13px; todo conteúdo começa em 203px (alinhado ao item selecionado do menu); esmaecimento com 18px de respiro.

@@ -28,6 +28,7 @@
   --v-warnSoft: #fff6cc;
   --v-warnInk: #6b5600;
   --v-green: #00be85;
+  --v-onGreen: #001c0e;
   --v-green2: #00a974;
   --v-green3: #00925f;
   color-scheme: light;
@@ -276,7 +277,7 @@ html {
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
 }
 .gx-btn:hover { background: var(--v-soft); text-decoration: none; }
-.gx-btn--primary { border: 0; background: var(--v-green); color: #fff; font-weight: 700; }
+.gx-btn--primary { border: 0; background: var(--v-green); color: var(--v-onGreen); font-weight: 700; }
 .gx-btn--primary:hover { background: var(--v-green2); }
 .gx-btn--primary:active { background: var(--v-green3); }
 .gx-btn--pulse { animation: crHalo 2.2s ease-out infinite; }
@@ -398,7 +399,12 @@ html {
 
 /* Carregando */
 .gx-boot { position: fixed; inset: 0; z-index: 900; background: var(--v-bg); display: flex; align-items: center; justify-content: center; }
-.gx-boot img { width: 64px; height: 64px; animation: vBoot 1.6s ease-in-out infinite; }
+.gx-boot__wrap { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
+.gx-boot__glow { position: absolute; inset: -12px; border-radius: 50%; background: radial-gradient(circle, var(--v-doneGlow), rgba(0, 0, 0, 0) 70%); animation: vDoneGlow 2.4s ease-in-out infinite; }
+.gx-boot img { position: relative; width: 64px; height: 64px; display: block; animation: vDoneSym 2.4s ease-in-out infinite; }
+@keyframes vDoneSym { 0%, 100% { transform: translateY(0) scale(1) rotate(0); } 30% { transform: translateY(-9%) scale(1.06) rotate(-6deg); } 60% { transform: translateY(-3%) scale(1.03) rotate(5deg); } }
+@keyframes vDoneGlow { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .gx-boot img, .gx-boot__glow { animation: none; } }
 
 /* Fundo (névoa e malha 3D) */
 .gx-hz { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -472,7 +478,7 @@ html {
 .gx-gab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
 .gx-gab strong { font-size: 13px; color: var(--v-t2); margin-right: 4px; }
 .gx-gab button { min-width: 36px; height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--v-line); background: var(--v-raise); color: var(--v-ink); font: inherit; font-weight: 700; cursor: pointer; }
-.gx-gab button[aria-checked='true'] { background: var(--v-green); border-color: var(--v-green); color: #fff; }
+.gx-gab button[aria-checked='true'] { background: var(--v-green); border-color: var(--v-green); color: var(--v-onGreen); }
 .gx-gab button:disabled { cursor: default; opacity: 0.7; }
 .gx-collapse { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; text-align: left; color: var(--v-ink); width: 100%; }
 .gx-acc { border: 1px solid var(--v-soft2); border-radius: 16px; overflow: hidden; }
@@ -512,7 +518,7 @@ html {
 .gx-root .admin__actions { display: none; }
 .gx-root .btn { height: 36px; padding: 0 16px; border: 1px solid var(--v-line); border-radius: 999px; background: var(--v-raise); color: var(--v-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .gx-root .btn:hover { background: var(--v-soft); }
-.gx-root .btn--primary { border: 0; background: var(--v-green); color: #fff; font-weight: 700; }
+.gx-root .btn--primary { border: 0; background: var(--v-green); color: var(--v-onGreen); font-weight: 700; }
 .gx-root .btn--primary:hover { background: var(--v-green2); }
 .gx-root .btn--ghost { border-color: transparent; background: transparent; }
 .gx-root .btn--small { height: 32px; padding: 0 14px; }

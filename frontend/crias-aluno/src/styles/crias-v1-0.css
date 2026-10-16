@@ -90,10 +90,24 @@ textarea::placeholder,input::placeholder{color:var(--v-t3)}
 /* ============================================================
    Entrada (seção 6)
    ============================================================ */
-.v1-0-login{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;align-items:center;padding:max(32px,env(safe-area-inset-top,0px)) 20px max(112px,calc(env(safe-area-inset-bottom,0px) + 88px));background:var(--v-bg)}
+.v1-0-login{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;background:var(--v-bg)}
+.v1-0-login__stage{position:relative;flex:1 0 auto;display:flex;flex-direction:column;align-items:center;padding:32px 20px 48px;overflow:hidden}
+/* Cabeçalho e rodapé do site crias.org (1.1.37) */
+:root{--s-nav:#fdfcf9;--s-ink:oklch(0.22 0.04 160);--s-ink2:oklch(0.33 0.035 160);--s-muted:oklch(0.45 0.025 150);--s-line:oklch(0.87 0.02 110);--s-line2:oklch(0.78 0.025 115)}
+html[data-v2=dark]{--s-nav:#0a1711;--s-ink:oklch(0.96 0.015 100);--s-ink2:oklch(0.88 0.015 100);--s-muted:oklch(0.75 0.02 130);--s-line:oklch(0.32 0.02 165);--s-line2:oklch(0.44 0.025 165)}
+.v1-0-site-hd{position:sticky;top:0;z-index:20;flex:none;background:var(--s-nav);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--s-line);padding-top:env(safe-area-inset-top,0px)}
+.v1-0-site-hd__in{max-width:1240px;margin:0 auto;padding:0 clamp(20px,5vw,40px);height:64px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.v1-0-site-hd__logo{display:block;line-height:0}
+.v1-0-site-hd__logo img{height:25px;width:auto;display:block}
+.v1-0-site-btn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--s-line2);background:transparent;color:var(--s-ink2);cursor:pointer}
+.v1-0-site-btn:hover{border-color:var(--s-ink);color:var(--s-ink)}
+.v1-0-site-ft{position:relative;z-index:2;flex:none;border-top:1px solid var(--s-line);background:var(--v-bg);padding-bottom:env(safe-area-inset-bottom,0px)}
+.v1-0-site-ft__in{max-width:1240px;margin:0 auto;padding:28px clamp(20px,5vw,40px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.v1-0-site-ft__social{display:flex;align-items:center;gap:10px}
+.v1-0-site-ft__cr{font-family:Barlow,Manrope,sans-serif;font-size:13px;color:var(--s-muted);display:flex;flex-wrap:wrap;justify-content:flex-end;column-gap:5px;text-align:right}
+@media (max-width:560px){.v1-0-site-ft__cr{justify-content:flex-start;text-align:left}.v1-0-site-ft__in{justify-content:flex-start}}
 .v1-0-login__form{position:relative;z-index:2;margin:auto 0;width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center;gap:28px;animation:vIn .6s cubic-bezier(.16,1,.3,1) both}
-.v1-0-login__brand{display:flex;flex-direction:column;align-items:center;gap:18px}
-.v1-0-login__brand .v1-0-wordmark{height:30px;width:auto;display:block}
+.v1-0-login__brand{display:flex;justify-content:center}
 .v1-0-login__card{width:100%;display:flex;flex-direction:column;gap:14px;padding:clamp(16px,5vw,22px);border:1px solid var(--v-line);border-radius:24px;background:var(--v-glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:var(--v-card)}
 .v1-0-field{display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;color:var(--v-t2)}
 .v1-0-input{width:100%;min-width:0;height:52px;border:1px solid var(--v-line);background:var(--v-soft);border-radius:14px;padding:0 16px;font:inherit;font-size:16px;font-weight:500;color:var(--v-ink);outline:none}

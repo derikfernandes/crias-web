@@ -128,10 +128,13 @@ A v1.0 do aluno e do painel é a base de identidade visual. Itens que mudam o qu
 - Esmaecimento vale para qualquer texto ou rolagem que não caiba (horizontal ou vertical); reticências removidas da Gestão.
 - Logo da Gestão passa a ser um SVG único, também no design system.
 
-- v1.1 travada em 15/10/2026 após revisão geral (INTERFACE.md 1.1.26). Corrigidos: campos da Gestão em 16px e subtítulo de Dados sem "Painel". Próximas mudanças em v1.2.
+- v1.1 travada em 15/10/2026 após revisão geral (INTERFACE.md 1.1.26). Corrigidos: campos da Gestão em 16px e subtítulo de Dados sem "Painel". O fechamento da v1.1 continua abaixo.
 
-## v1.2 (em andamento, 15/10/2026)
+## v1.1: fechamento (15 e 16/10/2026)
 
-- Gestão no celular com os mesmos padrões do Aluno: viewport sem zoom, altura pela área visível, áreas seguras, margens de 16px, títulos de 24px, alvos de 44px, filtro do Início em duas linhas. Tweak "celular" na Gestão mostra o iPhone 17 ao lado. Ver INTERFACE.md 1.2.1.
-- Personagem do monitor definido (INTERFACE.md 1.2.2): esfera azul clara com anel amarelo e olhos pretos; sequência carregando, pulo, parado e estático no histórico. Aplicação no Aluno pendente de aval.
-- Personagem do monitor aplicado no Crias Aluno v1.2 e no design system. Símbolo do Crias na conversa ampliado para 32 px (22 px no celular), mesmo raio do monitor.
+- Gestão no celular com os mesmos padrões do Aluno: viewport sem zoom, altura pela área visível, áreas seguras, margens de 16px, títulos de 24px, alvos de 44px, filtro do Início em duas linhas. Tweak "celular" na Gestão mostra o iPhone 17 ao lado. Ver INTERFACE.md 1.1.27.
+- Personagem do monitor definido (INTERFACE.md 1.1.28): esfera azul clara com anel amarelo e olhos pretos; sequência carregando, pulo, parado e estático no histórico. Aplicação no Aluno pendente de aval.
+- Personagem do monitor aplicado no Crias Aluno v1.1 e no design system. Símbolo do Crias na conversa ampliado para 32 px (22 px no celular), mesmo raio do monitor.
+- Entrada do Crias Aluno com o cabeçalho e o rodapé do site crias.org: logo leva ao site na mesma aba, só o botão de tema, símbolo pulsando acima da caixa, rodapé branco, cabeçalho na cor do menu lateral (#fdfcf9). Ver INTERFACE.md 1.1.37.
+- Carregamentos com o símbolo completo desde o primeiro quadro (símbolo leve de 192px, brilho só depois da imagem). Ver INTERFACE.md 1.1.38.
+- Versão fechada como **v1.1** em 16/10/2026. As regras do fechamento são 1.1.27 a 1.1.38.

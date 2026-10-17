@@ -189,7 +189,7 @@ Body:
 }
 ```
 
-Usa o prompt do parceiro de estudo (Firestore `ai_prompts/parceiro_estudo`, fallback em `server/lib/maria/mariaTutoraPrompt.ts`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
+Usa o prompt do Monitor (Firestore `ai_prompts/parceiro_estudo`, fallback em `server/lib/maria/mariaTutoraPrompt.ts`) + Gemini, grava pergunta e resposta em `conversation_logs`, **não** chama advance.
 
 Após a resposta da Maria, a UI entra em modo sidechat: botão **Voltar para trilha** (restaura Continuar da etapa) e Continuar fica oculto/desenfocado até o aluno voltar.
 

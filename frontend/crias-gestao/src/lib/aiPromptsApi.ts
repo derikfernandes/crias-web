@@ -27,6 +27,8 @@ export type AiPromptRecord = {
   updated_at: string | null
   updated_by_email: string | null
   updated_by_uid: string | null
+  /** true quando o texto salvo é igual ao padrão do sistema. */
+  is_default?: boolean
 }
 
 export type AiPromptVersion = {
@@ -127,4 +129,28 @@ export async function seedAiPrompts(force = false): Promise<{
     skipped: string[]
     forced: string[]
   }
+}
+
+/** Master: aplica o padrão do sistema (v1.1) num prompt. Cria versão nova e auditoria. */
+export async function restoreAiPromptDefault(id: string): Promise<AiPromptRecord> {
+  const url = new URL('/api/ai_prompts', resolveApiBaseUrl())
+  url.searchParams.set('action', 'restore_default')
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: await masterAuthHeaders(),
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) {
+    let message = `Falha ao aplicar o padrão (HTTP ${res.status}).`
+    try {
+      const body = (await res.json()) as { error?: string }
+      if (body?.error) message = body.error
+    } catch {
+      // ignore
+    }
+    throw new Error(message)
+  }
+  const body = (await res.json()) as { prompt?: AiPromptRecord }
+  if (!body.prompt) throw new Error('Resposta sem prompt.')
+  return body.prompt
 }

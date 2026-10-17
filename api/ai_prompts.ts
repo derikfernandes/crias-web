@@ -9,6 +9,7 @@ import {
   getAiPrompt,
   listAiPromptVersions,
   listAiPrompts,
+  restoreAiPromptDefault,
   seedAiPrompts,
   updateAiPrompt,
 } from '../server/lib/ai-prompts/index.js'
@@ -136,6 +137,28 @@ async function handleRequest(request: Request): Promise<Response> {
       return respond(500, {
         error: e instanceof Error ? e.message : 'Falha no seed.',
       })
+    }
+  }
+
+  // Master aplica o padrão do sistema (texto do código) num prompt: nova versão + auditoria.
+  if (method === 'POST' && action === 'restore_default') {
+    let id = promptId
+    try {
+      const b = (await request.json()) as { id?: unknown }
+      if (typeof b?.id === 'string' && b.id.trim()) id = b.id.trim()
+    } catch {
+      // body opcional (id pode vir na query)
+    }
+    if (!id) {
+      return respond(400, { error: 'id é obrigatório.', code: 'invalid_payload' })
+    }
+    try {
+      const prompt = await restoreAiPromptDefault(db, id, master.principal, process.env)
+      return respond(200, { ok: true, prompt })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Falha ao aplicar o padrão.'
+      const status = /inválido/i.test(msg) ? 400 : 500
+      return respond(status, { error: msg })
     }
   }
 

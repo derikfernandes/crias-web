@@ -188,7 +188,7 @@ export async function askMariaTutor(
   await studentLog
   const reply = formatAiAnswer(gen.text)
   if (!reply) {
-    throw new Error('Resposta do parceiro de estudo vazia.')
+    throw new Error('Resposta do Monitor vazia.')
   }
 
   await createConversationLog(db, logsCollection, {

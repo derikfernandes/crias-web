@@ -24,6 +24,8 @@ export type AiPromptRecord = {
   updated_at: string | null
   updated_by_email: string | null
   updated_by_uid: string | null
+  /** true quando o texto salvo é igual ao padrão do sistema (fallback do código). */
+  is_default: boolean
 }
 
 export type SeedAiPromptsResult = {
@@ -218,15 +220,11 @@ export async function listAiPrompts(
             : getFallbackPromptBody(id)
         out.push({
           id,
-          title:
-            typeof data.title === 'string' && data.title.trim()
-              ? data.title
-              : meta.title,
-          description:
-            typeof data.description === 'string' && data.description.trim()
-              ? data.description
-              : meta.description,
+          // Título e descrição vêm sempre do código (fonte de verdade do catálogo).
+          title: meta.title,
+          description: meta.description,
           body,
+          is_default: body.trim() === getFallbackPromptBody(id).trim(),
           version:
             typeof data.version === 'number' && data.version >= 1
               ? data.version
@@ -253,6 +251,7 @@ export async function listAiPrompts(
       title: meta.title,
       description: meta.description,
       body: getFallbackPromptBody(id),
+      is_default: true,
       version: 0,
       source: 'fallback',
       updated_at: null,
@@ -376,12 +375,34 @@ export async function updateAiPrompt(
     title: meta.title,
     description: meta.description,
     body: trimmed,
+    is_default: trimmed === getFallbackPromptBody(id).trim(),
     version: nextVersion,
     source: 'firestore',
     updated_at: new Date().toISOString(),
     updated_by_email: actor.email.trim().toLowerCase(),
     updated_by_uid: actor.uid,
   }
+}
+
+/** Nota gravada na versão quando o Master aplica o padrão do sistema. */
+export const RESTORE_DEFAULT_NOTE = 'Padrão do sistema (v1.1)'
+
+/**
+ * Master: troca o texto salvo pelo padrão do sistema (fallback do código).
+ * Usa o mesmo caminho do Salvar: arquiva a versão anterior, cria versão nova
+ * e registra auditoria com o Master como autor. Vale também para prompts
+ * somente leitura na tela (ex.: criar_trilha_ia).
+ */
+export async function restoreAiPromptDefault(
+  db: Firestore,
+  id: string,
+  actor: PromptActor,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AiPromptRecord> {
+  if (!isAiPromptId(id)) {
+    throw new Error(`Prompt id inválido: ${id}`)
+  }
+  return updateAiPrompt(db, id, getFallbackPromptBody(id), actor, env, RESTORE_DEFAULT_NOTE)
 }
 
 /**

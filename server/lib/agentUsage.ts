@@ -6,7 +6,7 @@
  * viram uma única linha, somando mensagens e unindo alunos.
  */
 
-/** Parceiro de estudos fora da trilha (conversation_logs.trail_id). */
+/** Monitor fora da trilha (conversation_logs.trail_id). */
 export const MARIA_AGENT_TRAIL_ID = 'Tutor - Maria'
 
 export const CANONICAL_AGENT_TRAIL_IDS = [

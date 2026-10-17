@@ -353,7 +353,8 @@ html {
 .gx-sort svg { opacity: 0.35; } .gx-sort[data-dir='asc'] svg path:first-child, .gx-sort[data-dir='desc'] svg path:last-child { opacity: 1; stroke: var(--v-ink); }
 .gx-cell { display: block; min-width: 0; max-width: 260px; white-space: nowrap; overflow: hidden; }
 .gx-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--v-t3); }
-.gx-pager__ctl { display: flex; align-items: center; gap: 8px; }
+.gx-pager__ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gx-pager__gap { padding: 0 2px; color: var(--v-t3); }
 .gx-pager select { height: 32px; font-size: 13px; padding: 0 30px 0 10px; width: auto; }
 
 /* Pílulas e etiquetas */

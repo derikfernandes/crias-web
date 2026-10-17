@@ -728,7 +728,21 @@ export function usePager<T>(items: T[], initialSize: number) {
   }
 }
 
-/** Rodapé de tabela: "X trilhas de Y", tamanho da página, Anterior e Próxima (1.1.24). */
+/** Números de página com reticências: 1 … 4 5 6 … 20 (null = reticências). */
+export function pageNumbers(page: number, pages: number): (number | null)[] {
+  if (pages <= 1) return []
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1)
+  const out: (number | null)[] = [1]
+  const start = Math.max(2, page - 1)
+  const end = Math.min(pages - 1, page + 1)
+  if (start > 2) out.push(null)
+  for (let n = start; n <= end; n++) out.push(n)
+  if (end < pages - 1) out.push(null)
+  out.push(pages)
+  return out
+}
+
+/** Rodapé de tabela: "X trilhas de Y", tamanho da página, Anterior, números (1 2 3…) e Próxima (1.1.24). */
 export function Pager({
   pager,
   noun,
@@ -770,6 +784,25 @@ export function Pager({
         >
           Anterior
         </button>
+        {pageNumbers(pager.page, pager.pages).map((n, i) =>
+          n === null ? (
+            <span key={`gap-${i}`} className="gx-pager__gap" aria-hidden="true">
+              …
+            </span>
+          ) : (
+            <button
+              key={n}
+              type="button"
+              className={`gx-btn gx-btn--sm${n === pager.page ? ' gx-btn--primary' : ''}`}
+              aria-label={`Página ${n}`}
+              aria-current={n === pager.page ? 'page' : undefined}
+              disabled={!enabled}
+              onClick={() => pager.setPage(n)}
+            >
+              {n}
+            </button>
+          ),
+        )}
         <button
           type="button"
           className="gx-btn gx-btn--sm"

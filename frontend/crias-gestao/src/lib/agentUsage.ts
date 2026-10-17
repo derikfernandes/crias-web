@@ -3,7 +3,7 @@
  * Mantido local para respeitar a fronteira design/pages ↔ api.
  */
 
-/** Parceiro de estudos fora da trilha (espelho server/lib/agentUsage). */
+/** Monitor fora da trilha (espelho server/lib/agentUsage). */
 export const MARIA_AGENT_TRAIL_ID = 'Tutor - Maria'
 
 export const CANONICAL_AGENT_TRAIL_IDS = [

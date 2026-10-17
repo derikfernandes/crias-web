@@ -11,16 +11,19 @@ describe('ai-prompts registry', () => {
     }
   })
 
-  it('parceiro_estudo apresenta-se como parceiro (não Maria)', () => {
+  it('parceiro_estudo apresenta-se como Monitor (não Maria)', () => {
     const body = getFallbackPromptBody('parceiro_estudo')
-    expect(body).toMatch(/parceiro de estudo/i)
+    expect(body).toMatch(/Apresente-se como "Monitor do Crias"/)
+    expect(body).toMatch(/Nunca diga que se chama Maria/)
+    expect(body).not.toMatch(/parceiro de estudo/i)
     expect(body).not.toMatch(/Você é Maria/)
     expect(body).not.toMatch(/WhatsApp/)
   })
 
   it('gerador_trilha não lista outros tutores como agentes ativos', () => {
     const body = getFallbackPromptBody('gerador_trilha')
-    expect(body).toMatch(/parceiro de estudo/i)
+    expect(body).toMatch(/Monitor/)
+    expect(body).not.toMatch(/parceiro de estudo/i)
     expect(body).not.toMatch(/1\.2\. Tutores do Crias/)
     expect(body).not.toMatch(/Manda pro Júlio/)
     expect(body).not.toMatch(/WhatsApp/)

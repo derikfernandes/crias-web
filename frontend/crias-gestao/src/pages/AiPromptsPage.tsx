@@ -3,11 +3,12 @@ import { usePermissions } from '../hooks/usePermissions'
 import {
   fetchAiPromptVersions,
   fetchAiPrompts,
+  restoreAiPromptDefault,
   updateAiPrompt,
   type AiPromptRecord,
   type AiPromptVersion,
 } from '../lib/aiPromptsApi'
-import { Banner, BootSymbol, Icon, na, PageHead } from '../design/gx/ui'
+import { Banner, BootSymbol, ConfirmDialog, Icon, na, PageHead } from '../design/gx/ui'
 
 /** Prompt fixo do sistema: só leitura, invisível para a escola (orientações 1 e 14). */
 const LOCKED = new Set(['criar_trilha_ia'])
@@ -25,6 +26,7 @@ export function AiPromptsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [confirmRestore, setConfirmRestore] = useState(false)
 
   const selected = useMemo(() => prompts.find((p) => p.id === selectedId) ?? null, [prompts, selectedId])
   const locked = selected ? LOCKED.has(selected.id) : false
@@ -81,6 +83,23 @@ export function AiPromptsPage() {
     }
   }
 
+  async function restoreDefault() {
+    if (!selected) return
+    setConfirmRestore(false)
+    setSaving(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await restoreAiPromptDefault(selected.id)
+      setMessage(`Padrão do sistema aplicado: ${updated.title} (versão ${updated.version}).`)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao aplicar o padrão.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (!isMaster) {
     return (
       <div className="gx-page">
@@ -128,6 +147,19 @@ export function AiPromptsPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="gx-tag gx-tag--lg">Somente leitura</span>
                 <span className="gx-muted">Fixo do sistema: não editável e invisível para a escola.</span>
+              </div>
+            ) : null}
+            {selected.is_default === false ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                <span className="gx-muted">Este texto é diferente do padrão do sistema (v1.1).</span>
+                <button
+                  type="button"
+                  className="gx-btn gx-btn--sm"
+                  disabled={saving}
+                  onClick={() => setConfirmRestore(true)}
+                >
+                  Aplicar padrão do sistema
+                </button>
               </div>
             ) : null}
             <label className="gx-field">
@@ -234,6 +266,20 @@ export function AiPromptsPage() {
           )}
         </section>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmRestore}
+        title="Aplicar padrão do sistema?"
+        text={
+          selected
+            ? `O texto de "${selected.title}" passa a ser o padrão do sistema (v1.1). A versão atual fica guardada em Versões anteriores e a troca fica registrada com o seu login.`
+            : undefined
+        }
+        confirmLabel="Aplicar padrão"
+        busy={saving}
+        onConfirm={() => void restoreDefault()}
+        onCancel={() => setConfirmRestore(false)}
+      />
     </div>
   )
 }

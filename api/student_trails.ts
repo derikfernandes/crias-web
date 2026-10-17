@@ -81,6 +81,7 @@ function corsHeaders(): Record<string, string> {
 /** Allowlist RT-C1 — nunca tratar facade arbitrário como “skip Bearer”. */
 const KNOWN_FACADES = new Set([
   'home',
+  'panel',
   'next-content',
   'status',
   'advance',

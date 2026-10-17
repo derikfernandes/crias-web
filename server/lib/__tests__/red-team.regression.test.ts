@@ -19,6 +19,7 @@ const ROOT = join(__dirname, '../..')
 
 const KNOWN = new Set([
   'home',
+  'panel',
   'next-content',
   'status',
   'advance',

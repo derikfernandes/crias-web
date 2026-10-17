@@ -8,11 +8,11 @@ O projeto atual já usa React, Vite e TypeScript. Manter essa stack (admin e app
 
 O projeto atual já usa Firebase/Firestore. Manter Firestore como banco principal.
 
-## Decisão 3 — Painel usa Firestore Client SDK
+## Decisão 3 — Gestão usa Firestore Client SDK
 
-O painel administrativo atual acessa Firestore diretamente via Firebase SDK.
+A gestão administrativa atual acessa Firestore diretamente via Firebase SDK.
 
-Isso é aceito para o painel enquanto as regras de segurança estiverem adequadas.
+Isso é aceito para a gestão enquanto as regras de segurança estiverem adequadas.
 
 ## Decisão 4 — App aluno usa API HTTP
 
@@ -59,7 +59,7 @@ Decisões:
    (ver `10_AGENT_USAGE_DASHBOARD.md`).
 2. Agregar uso **somente** em `GET /api/dashboard_summary` (campo aditivo
    `agent_usage`), sem misturar agentes no índice de trilhas de progressão.
-3. O painel **não** deve baixar `conversation_logs` brutos no browser para
+3. A gestão **não** deve baixar `conversation_logs` brutos no browser para
    montar essas métricas; em falha do endpoint, erro + retry.
 4. Não inventar agentes sem `trail_id` confirmado pelo produto.
 

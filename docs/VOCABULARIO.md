@@ -15,7 +15,7 @@ Os nomes técnicos **não mudam**: `trail_id`, `trail_stages`, `stage_number`, `
 ## Onde já vale
 
 - App do aluno (`frontend/crias-aluno`): todas as telas, mensagens, comentários e documentação do design.
-- Painel da escola (`frontend/crias-painel`): dashboard, gabarito, detalhe de trilha e de aluno, mapa e histórico de trilha, player, páginas de atividades e etapas, página de documentação da API.
+- Gestão da escola (`frontend/crias-gestao`): dashboard, gabarito, detalhe de trilha e de aluno, mapa e histórico de trilha, player, páginas de atividades e etapas, página de documentação da API.
 
 ## Onde ainda não vale (depende do sócio)
 
@@ -23,5 +23,5 @@ Estes pontos usam outro vocabulário e estão ligados ao que é gravado no banco
 
 1. **Editor e assistente de criação de trilhas** (`TrailForm`, `TrailContentEditor`, `TrailStructureEditor`, `TrailAiCreateWizard`, `TrailNewPage`): ali "Etapa N" quer dizer a **atividade** (`question_number`) e "Fase" quer dizer a **etapa** (`stage_number`). Esses textos também viram o título gravado no banco (por exemplo "Etapa 1 — Questão 1") e os cabeçalhos "Etapa" e "Fase N" da planilha de importação. Trocar exige decidir o que acontece com os títulos já gravados e com as planilhas já em uso.
 2. **Servidor** (`server/` + Firestore `ai_prompts`, editáveis no Master em `/prompts`): os prompts da IA usam "fase", "etapa", "questão" e "passo" no sentido comum da língua. Mexer neles muda o que a IA escreve para o aluno.
-3. **Exportação de planilha** do painel (`Stage atual`, `Questão atual`): cabeçalhos mantidos para não quebrar quem já usa o arquivo.
-4. Protótipo do painel (`frontend/crias-aluno/design/prototipo/Crias Painel.dc.html`): arquivo exportado do Claude Design, mantido como veio.
+3. **Exportação de planilha** da gestão (`Stage atual`, `Questão atual`): cabeçalhos mantidos para não quebrar quem já usa o arquivo.
+4. Protótipo da gestão (`frontend/crias-aluno/design/prototipo/Crias Gestao.dc.html`): arquivo exportado do Claude Design, mantido como veio.

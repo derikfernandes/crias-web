@@ -36,9 +36,9 @@ test('api/dashboard_summary agrega agent_usage e pula agentes na progressão', (
   assert.match(src, /if \(isAgentTrailId\(trailId\)\)/)
 })
 
-test('dashboard do painel não faz fallback de conversation_logs no cliente', () => {
+test('dashboard da gestão não faz fallback de conversation_logs no cliente', () => {
   const page = readFileSync(
-    join(root, 'frontend/crias-painel/src/pages/DashboardPage.tsx'),
+    join(root, 'frontend/crias-gestao/src/pages/DashboardPage.tsx'),
     'utf8',
   )
   assert.doesNotMatch(page, /fetchConversationLogsForStudents/)
@@ -50,7 +50,7 @@ test('dashboard do painel não faz fallback de conversation_logs no cliente', ()
 
 test('StudentDetailPage filtra histórico por agent_trail_id', () => {
   const page = readFileSync(
-    join(root, 'frontend/crias-painel/src/pages/StudentDetailPage.tsx'),
+    join(root, 'frontend/crias-gestao/src/pages/StudentDetailPage.tsx'),
     'utf8',
   )
   assert.match(page, /agent_trail_id/)
@@ -74,7 +74,7 @@ test('índice Firestore student_id + trail_id existe para filtro de agente', () 
 
 test('dashboard libera gate em erro de first-load do summary', () => {
   const page = readFileSync(
-    join(root, 'frontend/crias-painel/src/pages/DashboardPage.tsx'),
+    join(root, 'frontend/crias-gestao/src/pages/DashboardPage.tsx'),
     'utf8',
   )
   // Catch de first-load deve setar initialLogsLoaded para o banner/retry.

@@ -10,7 +10,7 @@ import {
 } from '../server/lib/agentUsage'
 
 /**
- * Agregação server-side dos conversation_logs para o dashboard do painel admin.
+ * Agregação server-side dos conversation_logs para o dashboard da gestão admin.
  *
  * Endpoint somente leitura (GET). Não altera nenhuma coleção nem interfere nos
  * demais endpoints da API usados pelo motor do produto.

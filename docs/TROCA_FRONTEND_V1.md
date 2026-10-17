@@ -1,6 +1,6 @@
 # Troca para o frontend-v1 (app do aluno novo)
 
-Este documento define a troca do app do aluno antigo (`frontend-v0`) pelo novo (`frontend-v1`, design Crias Aluno v6). Serve para quem vai publicar (o sócio) e para quem aprova (Thiago).
+Este documento define a troca do app do aluno antigo (`frontend-v0`) pelo novo (`frontend-v1`, design Crias Aluno v1.0). Serve para quem vai publicar (o sócio) e para quem aprova (Thiago).
 
 Regra da troca: **só a interface do aluno muda. API, servidor, banco, regras do Firestore e painel da escola ficam como estavam.**
 

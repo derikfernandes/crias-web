@@ -35,7 +35,7 @@ Documento para o sócio. Explica o que já foi feito no protótipo e o que ainda
 - Continuar fica no lugar do botão Enviar. Aparece com o campo vazio. Ao digitar, vira Enviar.
 - Quando há um exercício, o campo fica travado com "Selecione uma alternativa e continue...". Continuar só ativa depois de escolher uma alternativa.
 - Na primeira abertura de cada trilha, o Continuar pulsa em verde para chamar atenção. Sem balão de texto.
-- Vocabulário revisado: o termo é "Etapa" (antes era "Passo"). O topo mostra "Atividade 2 de 5 · Etapa 3 de 3".
+- A palavra "Passo" saiu. O topo mostra "Atividade 2 de 5 · Etapa 3 de 3".
 - Dentro de uma atividade, a etapa que pede resposta se chama "Exercício".
 - Trilhas de exemplo com imagem, vídeo, exercício e link. O conteúdo é ilustrativo, não é o banco real.
 
@@ -76,7 +76,7 @@ Documento para o sócio. Explica o que já foi feito no protótipo e o que ainda
 1. **Maria fora da trilha.** Hoje a conversa só existe dentro de uma trilha. Para funcionar fora, o app precisa de um fluxo de conversa sem trilha. *Decidir:* aprovar esse fluxo? Ele precisa de nova lógica no servidor.
 2. **Barra "Pergunte à Maria" na tela inicial.** Depende do item 1.
 3. **Halo na primeira abertura e ordem por última aberta.** Precisam guardar, por aluno, quais trilhas já foram abertas e quando. *Decidir:* guardar no navegador (localStorage), ou no servidor, junto com o aluno?
-4. **Exercícios por atividade.** No protótipo, cada atividade tem um exercício na última etapa. *Decidir:* toda atividade termina com exercício, ou pode haver atividades sem exercício e com mais de um?
+4. **Exercícios por atividade.** No protótipo, cada atividade tem um exercício no último etapa. *Decidir:* toda atividade termina com exercício, ou pode haver atividades sem exercício e com mais de um?
 5. **Ilustrações.** As imagens são espaços reservados. *Decidir:* quem fornece as ilustrações finais, e em que formato?
 6. **Histórico por atividade.** Hoje a conversa é um rolo único por trilha. No novo modelo ela é dividida por atividade. *Decidir:* aprovar essa mudança na forma de carregar e guardar as mensagens (afeta a lógica do player).
 7. **Lista de atividades no app.** O app só conhece as trilhas e o total de etapas. Para mostrar as atividades no menu, ele precisa receber a lista de atividades (question) de cada trilha. *Decidir:* quem expõe esse dado e em qual formato.
@@ -84,8 +84,57 @@ Documento para o sócio. Explica o que já foi feito no protótipo e o que ainda
 9. **Entrada sem código da escola.** O campo saiu da tela de entrada, e o assunto já está sendo tratado em paralelo. Falta formalizar. Hoje o login do aluno usa telefone, código da escola e senha. Sem o código, o servidor precisa identificar a escola só pelo telefone. Isso exige que o telefone seja único entre escolas, ou alguma outra regra para alunos com o mesmo telefone em mais de uma escola. Além disso, o campo Login passa a aceitar telefone, e-mail ou ID da escola, e o servidor precisa reconhecer os três. *Decidir:* aprovar a entrada com login e senha, quais formatos de login valem, e a regra para login repetido em mais de uma escola.
 10. **Gemini como referência.** O visual do Gemini é escuro. O Crias segue claro, com o Horizonte como fundo de todas as telas do aluno. *Decidir:* manter assim?
 
-## Próximas etapas
+## Próximos etapas
 
 - Aprovar as decisões acima.
 - Depois, o Cursor aplica as mudanças no código, na ordem da seção "Orientação para o Cursor" em `INTERFACE.md`.
 - Os itens marcados como conflito só entram depois da decisão.
+
+## Base v1.0 travada (antiga v6)
+
+A v1.0 do aluno e do painel é a base de identidade visual. Itens que mudam o que foi decidido antes e precisam de aval antes de ir ao código:
+
+- **Maria vira monitor.** Texto, menu ("Acompanhamento") e rótulos usam "monitor". Confirmar o nome com o sócio e se o vocabulário do banco (tutor) segue igual.
+- **Painel dentro do menu do aluno.** Item "Painel / Ver seus dados de estudo" abre o painel. Depende de permissão: definir quem enxerga o item.
+- **Tema claro como padrão** (antes escuro). O app atual usa escuro como padrão.
+- **Malha 3D** como fundo da entrada e da home, no lugar do Horizonte. Conversas só com névoa.
+- **Terceira trilha de exemplo** ("Ciências da natureza") existe só no protótipo.
+
+
+## v1.1 (antiga v7, 13 e 14/10/2026)
+
+- Menu lateral sempre aberto na web, inclusive dentro das trilhas.
+- Largura única de 780px (a dos cards da home) para barra de mensagem e conversa; o texto ocupa a largura toda da barra.
+- Alternativas sempre uma por linha, letra fixa no topo à esquerda.
+- Topo e menu acompanham a atividade e a etapa visíveis ao rolar.
+- Símbolo do Crias no carregamento inicial.
+- Painel com a mesma identidade do aluno (cores, tema claro e escuro, menu, rodapé, fundo).
+- Detalhes em INTERFACE.md, seção "Base v1.1".
+- Seletor Aluno / Gestão acima do perfil para quem não é só aluno.
+- Painel do aluno individual em formato de conversa, com filtro por trilha e barra do monitor embaixo.
+- Vocabulário unificado: trilha, atividade, etapa, exercício e monitor em todo o aluno e o painel.
+- Gestão reorganizada: perfis super admin e instituição, menu Início/Dados/Trilhas, gabarito dentro da trilha, cadastro da instituição no topo de Administração, Voltar sempre para a tela anterior.
+- Gestão: telas Senhas dos alunos e Prompts (só Master) e checkbox Master em Permissões.
+- Gestão: grupo do menu "Configurações" com Usuários (Senhas, Permissões) e Sistema (Prompts, API e documentação).
+- Versões renomeadas: v6 vira v1.0 e v7 vira v1.1. Anteriores em `historico/`.
+- Protótipo sem menu de opções: só o botão "Atualizar" (versão de teste). Fundo único e tela solta de Gabaritos removidos.
+
+
+## v1.1 (15/10/2026)
+
+- Início do Super admin: "+ Nova instituição" na mesma linha do filtro; filtro estendido até 16px do botão.
+- Exemplos: toda instituição com 3 trilhas e dados completos.
+- "Não informado" vira "N/A" em todo o Crias.
+- Esmaecimento vale para qualquer texto ou rolagem que não caiba (horizontal ou vertical); reticências removidas da Gestão.
+- Logo da Gestão passa a ser um SVG único, também no design system.
+
+- v1.1 travada em 15/10/2026 após revisão geral (INTERFACE.md 1.1.26). Corrigidos: campos da Gestão em 16px e subtítulo de Dados sem "Painel". O fechamento da v1.1 continua abaixo.
+
+## v1.1: fechamento (15 e 16/10/2026)
+
+- Gestão no celular com os mesmos padrões do Aluno: viewport sem zoom, altura pela área visível, áreas seguras, margens de 16px, títulos de 24px, alvos de 44px, filtro do Início em duas linhas. Tweak "celular" na Gestão mostra o iPhone 17 ao lado. Ver INTERFACE.md 1.1.27.
+- Personagem do monitor definido (INTERFACE.md 1.1.28): esfera azul clara com anel amarelo e olhos pretos; sequência carregando, pulo, parado e estático no histórico. Aplicação no Aluno pendente de aval.
+- Personagem do monitor aplicado no Crias Aluno v1.1 e no design system. Símbolo do Crias na conversa ampliado para 32 px (22 px no celular), mesmo raio do monitor.
+- Entrada do Crias Aluno com o cabeçalho e o rodapé do site crias.org: logo leva ao site na mesma aba, só o botão de tema, símbolo pulsando acima da caixa, rodapé branco, cabeçalho na cor do menu lateral (#fdfcf9). Ver INTERFACE.md 1.1.37.
+- Carregamentos com o símbolo completo desde o primeiro quadro (símbolo leve de 192px, brilho só depois da imagem). Ver INTERFACE.md 1.1.38.
+- Versão fechada como **v1.1** em 16/10/2026. As regras do fechamento são 1.1.27 a 1.1.38.

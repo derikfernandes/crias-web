@@ -6,7 +6,7 @@
 # design/ NÃO exige aprovação do responsável técnico (área liberada para UI).
 
 # Área liberada (design) — sem owner técnico obrigatório
-# /frontend/crias-painel/src/design/
+# /frontend/crias-gestao/src/design/
 
 # Backend (funções serverless da Vercel — contrato público da API)
 /api/                                        @RESPONSAVEL-TECNICO
@@ -19,7 +19,7 @@
 
 # Configuração de rotas públicas (rewrites) e deploy
 /vercel.json                                 @RESPONSAVEL-TECNICO
-/frontend/crias-painel/vercel.json           @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/vercel.json           @RESPONSAVEL-TECNICO
 
 # Firebase / Firestore
 /firebase.json                               @RESPONSAVEL-TECNICO
@@ -29,23 +29,23 @@
 /firestore*                                  @RESPONSAVEL-TECNICO
 
 # Frontend protegido (lógica, dados, auth)
-/frontend/crias-painel/src/pages/            @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/lib/              @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/hooks/            @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/contexts/         @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/types/            @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/layouts/          @RESPONSAVEL-TECNICO
-/frontend/crias-painel/src/components/       @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/pages/            @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/lib/              @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/hooks/            @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/contexts/         @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/types/            @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/layouts/          @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/src/components/       @RESPONSAVEL-TECNICO
 
 # Dependências e configuração de build/lint/typecheck
 /package.json                                @RESPONSAVEL-TECNICO
 /package-lock.json                           @RESPONSAVEL-TECNICO
-/frontend/crias-painel/package.json          @RESPONSAVEL-TECNICO
-/frontend/crias-painel/tsconfig.json         @RESPONSAVEL-TECNICO
-/frontend/crias-painel/tsconfig.app.json     @RESPONSAVEL-TECNICO
-/frontend/crias-painel/tsconfig.node.json    @RESPONSAVEL-TECNICO
-/frontend/crias-painel/vite.config.ts        @RESPONSAVEL-TECNICO
-/frontend/crias-painel/eslint.config.js      @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/package.json          @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/tsconfig.json         @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/tsconfig.app.json     @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/tsconfig.node.json    @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/vite.config.ts        @RESPONSAVEL-TECNICO
+/frontend/crias-gestao/eslint.config.js      @RESPONSAVEL-TECNICO
 
 # Variáveis de ambiente (nunca commitar valores)
 .env*                                        @RESPONSAVEL-TECNICO

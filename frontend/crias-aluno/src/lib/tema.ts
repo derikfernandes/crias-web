@@ -1,5 +1,5 @@
 /**
- * Tema do app do aluno (v6).
+ * Tema do app do aluno (v1.0).
  * Claro é o padrão ao abrir. Escuro só pelo botão do menu.
  * Escuro = html[data-v2=dark]. A escolha fica em localStorage (chave abaixo).
  */

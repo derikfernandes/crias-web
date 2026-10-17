@@ -19,6 +19,7 @@ const ROOT = join(__dirname, '../..')
 
 const KNOWN = new Set([
   'home',
+  'panel',
   'next-content',
   'status',
   'advance',
@@ -259,7 +260,7 @@ describe('RT-M4/M1 regressão: bounds + expected_version aluno', () => {
 describe('FE não confia facade da URL do browser', () => {
   it('trilhaApi só usa literais TRILHA_KNOWN_FACADES', () => {
     const src = readFileSync(
-      join(ROOT, '../frontend/crias-painel/src/lib/trilha/trilhaApi.ts'),
+      join(ROOT, '../frontend/crias-gestao/src/lib/trilha/trilhaApi.ts'),
       'utf8',
     )
     expect(src).toMatch(/TRILHA_KNOWN_FACADES/)

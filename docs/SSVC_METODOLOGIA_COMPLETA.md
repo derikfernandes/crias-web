@@ -956,13 +956,13 @@ No Crias Trilhas, a metodologia fica assim:
 specs/ define a verdade do produto.
 skills/ define como agentes devem trabalhar.
 docs/ explica operação e arquitetura.
-frontend/crias-painel/ contém implementação atual.
+frontend/crias-gestao/ contém implementação atual.
 ```
 
 A separação operacional principal é:
 
 ```text
-Painel Admin -> Firestore Client SDK
+Gestão Admin -> Firestore Client SDK
 App aluno web -> API HTTP -> Backend -> Firestore
 ```
 

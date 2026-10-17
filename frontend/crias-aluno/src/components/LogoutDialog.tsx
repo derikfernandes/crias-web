@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Janela de saída (v6, seção 7). Nunca window.confirm.
+ * Janela de saída (v1.0, seção 7). Nunca window.confirm.
  * Fundo coberto com blur, janela de até 400px. Clicar fora ou Esc cancela.
  */
 type Props = {
@@ -25,33 +25,33 @@ export default function LogoutDialog({ onCancel, onConfirm }: Props) {
   }, [onCancel])
 
   return (
-    <div className="v6-modal" onClick={onCancel}>
+    <div className="v1-0-modal" onClick={onCancel}>
       <div
-        className="v6-modal__box"
+        className="v1-0-modal__box"
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="v6-logout-title"
-        aria-describedby="v6-logout-desc"
+        aria-labelledby="v1-0-logout-title"
+        aria-describedby="v1-0-logout-desc"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="v6-modal__text">
-          <h2 id="v6-logout-title" className="v6-modal__title">
+        <div className="v1-0-modal__text">
+          <h2 id="v1-0-logout-title" className="v1-0-modal__title">
             Sair da conta?
           </h2>
-          <p id="v6-logout-desc" className="v6-modal__desc">
-            Seu progresso na trilha fica salvo.
+          <p id="v1-0-logout-desc" className="v1-0-modal__desc">
+            Seu progresso fica salvo.
           </p>
         </div>
-        <div className="v6-modal__actions">
+        <div className="v1-0-modal__actions">
           <button
             ref={cancelRef}
             type="button"
-            className="v6-btn-soft"
+            className="v1-0-btn-soft"
             onClick={onCancel}
           >
             Cancelar
           </button>
-          <button type="button" className="v6-btn" onClick={onConfirm}>
+          <button type="button" className="v1-0-btn" onClick={onConfirm}>
             Sair
           </button>
         </div>

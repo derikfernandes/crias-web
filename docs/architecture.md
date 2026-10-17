@@ -2,12 +2,12 @@
 
 ## 1. Visao geral
 
-O projeto Crias Trilhas inclui um painel administrativo para criacao e gestao de trilhas educacionais e um app web do aluno para consumir o progresso.
+O projeto Crias Trilhas inclui uma gestão administrativa para criacao e gestao de trilhas educacionais e um app web do aluno para consumir o progresso.
 
 Arquitetura atual:
 
 ```text
-Painel Admin -> Firebase Client SDK -> Firestore
+Gestão Admin -> Firebase Client SDK -> Firestore
 App aluno web -> API HTTP -> Backend -> Firestore
 ```
 
@@ -28,13 +28,13 @@ Estrutura principal:
 ```text
 crias-trilhas/
   package.json
-  frontend/crias-painel/
+  frontend/crias-gestao/
   frontend/crias-aluno/
   api/
   server/lib/
 ```
 
-Workspaces: `frontend/crias-painel` e `frontend/crias-aluno`.
+Workspaces: `frontend/crias-gestao` e `frontend/crias-aluno`.
 
 ## 4. Rotas principais (admin)
 
@@ -77,13 +77,13 @@ Pasta `skills/`, que define como agentes devem trabalhar no projeto.
 
 ## 6. Decisao arquitetural principal
 
-O painel administrativo usa Firestore Client SDK.
+A gestão administrativa usa Firestore Client SDK.
 
 O app aluno usa apenas API HTTP (sem Firestore Client no player).
 
 ## 7. Riscos conhecidos
 
 - Endpoints documentados devem ser validados no deploy.
-- Regras de seguranca do Firestore devem ser revisadas se painel continuar usando Client SDK.
+- Regras de seguranca do Firestore devem ser revisadas se gestão continuar usando Client SDK.
 - Toda mudanca no modelo precisa ser refletida em specs e docs.
 - Deploy do monorepo nao deve quebrar o admin ao incluir o app aluno.

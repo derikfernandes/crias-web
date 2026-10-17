@@ -2,7 +2,7 @@
 
 ## Regra geral
 
-O painel administrativo usa Firestore Client SDK para leitura e escrita.
+A gestão administrativa usa Firestore Client SDK para leitura e escrita.
 O app web do aluno e demais consumidores externos usam API HTTP, que acessa Firestore via backend/admin SDK.
 
 ## Collections
@@ -133,7 +133,7 @@ Uso:
 
 - progresso canônico do aluno na trilha;
 - consumido pelo player web via `next-content` / `advance`;
-- administrável no painel (vínculo, posição, block/complete).
+- administrável na gestão (vínculo, posição, block/complete).
 
 ### `counters`
 
@@ -157,3 +157,12 @@ Uso:
 - Não alterar nomes de collections sem plano de migração.
 - Não alterar padrão de ids sem revisar o contrato do player web e da API.
 - Campos consumidos pela API do aluno devem ser estáveis.
+### Vínculo ativo ou inativo (v1.1)
+
+- Aluno ativo na trilha = existe `student_trails` e `status` diferente de `blocked`.
+- Inativar = `status: blocked` (mantém histórico e progresso). Reativar volta o status pelo progresso (`completed`, `in_progress` ou `not_started`).
+- Remover aluno da instituição = `students.active = false` (mantém histórico; o aluno continua na base).
+
+### Sem campos novos na v1.1
+
+Objetivo, orientações, alternativas por exercício e perfis (Super admin, Admin, Básico) não são gravados em campos novos. Objetivo e orientações valem só na tela e no envio à IA; o perfil é uma combinação pronta de `is_super_admin`, `is_master` e `nav_permissions`.

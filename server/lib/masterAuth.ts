@@ -87,7 +87,7 @@ function extractBearer(authorizationHeader: string | null): string | null {
 }
 
 /**
- * Verifica Firebase ID token do painel admin e exige papel Master.
+ * Verifica Firebase ID token da gestão admin e exige papel Master.
  */
 export async function requireMasterFromRequest(
   db: Firestore,

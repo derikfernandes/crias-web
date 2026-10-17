@@ -43,7 +43,7 @@ const STATUS_LABEL: Record<StudentTrailRow['status'], string> = {
 }
 
 /**
- * Shell compacto (= menu em tela cheia). v6, seção 3: ponto de quebra único, 768px.
+ * Shell compacto (= menu em tela cheia). v1.0, seção 3: ponto de quebra único, 768px.
  * Até 768px é celular. Acima disso o menu fica fixo, de 280px, e é recolhível.
  */
 const COMPACT_MQ = '(max-width: 768px)'
@@ -51,6 +51,23 @@ const COMPACT_MQ = '(max-width: 768px)'
 function isCompactViewport() {
   if (typeof window === 'undefined') return false
   return window.matchMedia(COMPACT_MQ).matches
+}
+
+/** Seleção aberta para o conteúdo, só no computador (INTERFACE.md 1.1.23): preenchimento e duas curvas de encaixe. */
+function TabCurves() {
+  return (
+    <>
+      <span className="v1-1-tab__fill" aria-hidden="true" />
+      <svg aria-hidden="true" className="v1-1-tab__curve v1-1-tab__curve--up" width="24" height="23.5" viewBox="0 0 24 23.5">
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0H25V23.5Z" fill="var(--v-bg)" />
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+      <svg aria-hidden="true" className="v1-1-tab__curve v1-1-tab__curve--down" width="24" height="23.5" viewBox="0 0 24 23.5">
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5H25V0Z" fill="var(--v-bg)" />
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+    </>
+  )
 }
 
 /** Compacto: drawer fechado por padrão (C5-MOBILE-SIDEBAR-CTA / LS01). */
@@ -65,6 +82,15 @@ function focusableIn(root: HTMLElement): HTMLElement[] {
       'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ),
   ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
+}
+
+/** Quem também usa a Gestão (professor, coordenação) vê o seletor Aluno | Gestão. A Gestão grava este aviso. */
+function hasGestaoAccess(): boolean {
+  try {
+    return localStorage.getItem('crias:acesso-gestao') === '1'
+  } catch {
+    return false
+  }
 }
 
 export default function ChatLayout() {
@@ -436,7 +462,7 @@ export default function ChatLayout() {
     ? decodeURIComponent(trailMatch[1])
     : null
   const activeRow = rows?.find((r) => r.trail_id === activeTrailId) ?? null
-  /** v6: atividade passada sendo vista (?atividade=N). Vazio = atividade atual. */
+  /** v1.0: atividade passada sendo vista (?atividade=N). Vazio = atividade atual. */
   const viewActivityRaw = new URLSearchParams(location.search).get('atividade')
   const viewActivity =
     viewActivityRaw && /^\d+$/.test(viewActivityRaw)
@@ -607,7 +633,7 @@ export default function ChatLayout() {
   const topTitle = activeTrailId
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria
-      ? 'Parceiro de estudo'
+      ? 'Monitoria'
       : ''
   const totalStepsTop =
     activeTrailId && stageTotals[activeTrailId] > 0
@@ -627,7 +653,7 @@ export default function ChatLayout() {
       ? Math.max(totalStepsTop, playerStageNumber ?? 1)
       : (playerStageNumber ?? activeRow?.current_stage_number ?? null)
   const topStage = onMonitoria
-    ? 'Conversar com seu parceiro de estudo'
+    ? 'Conversar com seu monitor'
     : activeTrailId
       ? formatTrailChromeProgress({
           activity: shownActivityTop,
@@ -647,43 +673,43 @@ export default function ChatLayout() {
 
   const closeIcon = (
     <>
-      <svg className="v6-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+      <svg className="v1-0-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
         <rect x="3" y="4" width="18" height="16" rx="3" />
         <path d="M9 4v16" />
       </svg>
-      <svg className="v6-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <svg className="v1-0-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
         <path d="M6 6l12 12M18 6L6 18" />
       </svg>
     </>
   )
   const openIcon = (
     <>
-      <svg className="v6-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+      <svg className="v1-0-icon-desk" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
         <rect x="3" y="4" width="18" height="16" rx="3" />
         <path d="M9 4v16" />
       </svg>
-      <svg className="v6-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <svg className="v1-0-icon-mob" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
         <path d="M4 7h16M4 12h16M4 17h10" />
       </svg>
     </>
   )
 
   return (
-    <div className="v6-shell">
+    <div className="v1-0-shell">
       {sidebarOpen ? (
         <aside
           id="crias-sidebar"
           ref={sidebarRef}
-          className="v6-sidebar"
+          className="v1-0-sidebar"
           aria-label="Menu"
           aria-modal={drawerAsModal ? true : undefined}
           role={drawerAsModal ? 'dialog' : 'navigation'}
         >
-          <div className="v6-sidebar__plate" aria-hidden="true" />
-          <div className="v6-sidebar__head">
+          <div className="v1-0-sidebar__plate" aria-hidden="true" />
+          <div className="v1-0-sidebar__head">
             <Link
               to="/"
-              className="v6-sidebar__logo"
+              className="v1-0-sidebar__logo"
               aria-label="Ir para o início"
               onClick={() => closeDrawerForNav()}
             >
@@ -696,67 +722,71 @@ export default function ChatLayout() {
             </Link>
             <button
               type="button"
-              className="v6-iconbtn"
+              className="v1-0-iconbtn"
               aria-label="Fechar menu"
               onClick={() => closeDrawer(true)}
             >
               {closeIcon}
             </button>
           </div>
-          <nav className="v6-sidebar__nav" aria-label="Menu do aluno">
-            <p className="v6-group">
-              <span className="v6-group__text">Acompanhamento</span>
-              <span className="v6-group__line" />
+          <nav className="v1-0-sidebar__nav" aria-label="Menu do aluno">
+            <p className="v1-0-group">
+              <span className="v1-0-group__text">Acompanhamento</span>
+              <span className="v1-0-group__line" />
             </p>
-            {/* Painel de dados: fora do app do aluno, abre o painel da plataforma. */}
-            <a href="/" className="v6-navitem">
-              <span className="v6-navitem__copy">
-                <span className="v6-navitem__name">Painel</span>
-                <span className="v6-navitem__meta">Ver seus dados de estudo</span>
+            <Link
+              to="/painel"
+              className={`v1-0-navitem${location.pathname === '/painel' ? ' is-active' : ''}`}
+              aria-current={location.pathname === '/painel' ? 'page' : undefined}
+              onClick={() => closeDrawerForNav()}
+            >
+              <span className="v1-0-navitem__copy">
+                <span className="v1-0-navitem__name">Painel</span>
+                <span className="v1-0-navitem__meta">Ver seus dados de estudo</span>
               </span>
-            </a>
+              {location.pathname === '/painel' ? <TabCurves /> : null}
+            </Link>
             <Link
               to="/monitoria"
-              className={`v6-navitem${onMonitoria ? ' is-active' : ''}`}
+              className={`v1-0-navitem${onMonitoria ? ' is-active' : ''}`}
               aria-current={onMonitoria ? 'page' : undefined}
               onClick={() => closeDrawerForNav()}
             >
-              <span className="v6-navitem__copy">
-                <span className="v6-navitem__name">Parceiro de estudo</span>
-                <span className="v6-navitem__meta">
-                  Conversar com seu parceiro de estudo
-                </span>
+              <span className="v1-0-navitem__copy">
+                <span className="v1-0-navitem__name">Monitoria</span>
+                <span className="v1-0-navitem__meta">Conversar com seu monitor</span>
               </span>
+              {onMonitoria ? <TabCurves /> : null}
             </Link>
 
-            <p className="v6-group v6-group--next">
-              <span className="v6-group__text">Trilhas</span>
-              <span className="v6-group__line" />
+            <p className="v1-0-group v1-0-group--next">
+              <span className="v1-0-group__text">Trilhas</span>
+              <span className="v1-0-group__line" />
             </p>
             {trailsLoading && rows === null ? (
-              <div className="v6-skel-list" role="status" aria-busy="true" aria-live="polite">
-                <div className="v6-skel-row" />
-                <div className="v6-skel-row" />
+              <div className="v1-0-skel-list" role="status" aria-busy="true" aria-live="polite">
+                <div className="v1-0-skel-row" />
+                <div className="v1-0-skel-row" />
               </div>
             ) : trailsError ? (
               <div role="alert">
-                <p className="v6-menu-status v6-menu-status--err">
+                <p className="v1-0-menu-status v1-0-menu-status--err">
                   Não foi possível carregar suas trilhas
                 </p>
                 <button
                   type="button"
-                  className="v6-menu-retry"
+                  className="v1-0-menu-retry"
                   onClick={() => void reloadTrails()}
                 >
                   Tentar de novo
                 </button>
               </div>
             ) : rows && rows.length === 0 ? (
-              <p className="v6-menu-status v6-menu-status--empty">
+              <p className="v1-0-menu-status v1-0-menu-status--empty">
                 Nenhuma trilha liberada
               </p>
             ) : rows ? (
-              <ul className="v6-trails">
+              <ul className="v1-0-trails">
                 {rows.map((row) => {
                   const href = `/trilha/${encodeURIComponent(row.trail_id)}`
                   const active = location.pathname === href
@@ -773,12 +803,13 @@ export default function ChatLayout() {
                   return (
                     <li
                       key={row.id}
-                      className={`v6-trailrow${active ? ' is-active' : ''}`}
+                      className={`v1-0-trailrow${active ? ' is-active' : ''}`}
                     >
-                      <div className="v6-trailrow__top">
+                      {active ? <TabCurves /> : null}
+                      <div className="v1-0-trailrow__top">
                         <Link
                           to={href}
-                          className="v6-trailrow__open"
+                          className="v1-0-trailrow__open"
                           aria-current={active ? 'page' : undefined}
                           title={info.label}
                           aria-label={`${info.label}. ${STATUS_LABEL[info.rowStatus]}. ${info.meta}`}
@@ -788,24 +819,24 @@ export default function ChatLayout() {
                             closeDrawerForNav()
                           }}
                         >
-                          <span className="v6-trailrow__text">
-                            <span className="v6-trailrow__name" data-fade="1">
+                          <span className="v1-0-trailrow__text">
+                            <span className="v1-0-trailrow__name" data-fade="1">
                               {info.label}
                             </span>
-                            <span className="v6-bar">
+                            <span className="v1-0-bar">
                               <span
-                                className="v6-bar__fill"
+                                className="v1-0-bar__fill"
                                 style={{ width: `${info.pct ?? 0}%` }}
                               />
                             </span>
-                            <span className="v6-trailrow__meta" data-fade="1">
+                            <span className="v1-0-trailrow__meta" data-fade="1">
                               {info.meta}
                             </span>
                           </span>
                         </Link>
                         <button
                           type="button"
-                          className="v6-trailrow__toggle"
+                          className="v1-0-trailrow__toggle"
                           aria-expanded={isOpen}
                           aria-label={`${isOpen ? 'Recolher' : 'Abrir'} atividades de ${info.label}`}
                           onClick={() =>
@@ -821,7 +852,7 @@ export default function ChatLayout() {
                         </button>
                       </div>
                       {isOpen && acts.length > 0 ? (
-                        <ul className="v6-acts">
+                        <ul className="v1-0-acts">
                           {acts.map((a) => {
                             const st =
                               info.rowCompleted || a.n < info.questionNumber
@@ -833,7 +864,7 @@ export default function ChatLayout() {
                               <li key={a.n}>
                                 <button
                                   type="button"
-                                  className={`v6-act${viewingNow === a.n ? ' is-viewing' : ''}`}
+                                  className={`v1-0-act${viewingNow === a.n ? ' is-viewing' : ''}`}
                                   disabled={st === 'future'}
                                   onClick={() => {
                                     writeFocusedTrailId(row.trail_id)
@@ -845,10 +876,10 @@ export default function ChatLayout() {
                                     )
                                   }}
                                 >
-                                  <span className={`v6-act__dot is-${st}`}>
+                                  <span className={`v1-0-act__dot is-${st}`}>
                                     {st === 'done' ? '✓' : String(a.n)}
                                   </span>
-                                  <span className="v6-act__title" data-fade="1">
+                                  <span className="v1-0-act__title" data-fade="1">
                                     {a.title}
                                   </span>
                                 </button>
@@ -864,24 +895,34 @@ export default function ChatLayout() {
             ) : null}
           </nav>
 
-          <div className="v6-sidebar__foot">
-            <div className="v6-sidebar__user">
+          <div className="v1-0-sidebar__foot">
+            {hasGestaoAccess() ? (
+              <div className="v1-1-switch" role="group" aria-label="Alternar entre aluno e gestão">
+                <button type="button" className="is-on" aria-pressed="true">
+                  Aluno
+                </button>
+                <a href="/" aria-pressed="false">
+                  Gestão
+                </a>
+              </div>
+            ) : null}
+            <div className="v1-0-sidebar__user">
               <button
                 type="button"
-                className="v6-profile"
+                className="v1-0-profile"
                 aria-label={`Abrir perfil de ${firstName}`}
               >
-                <span className="v6-avatar" aria-hidden>
+                <span className="v1-0-avatar" aria-hidden>
                   {(firstName || 'A').charAt(0).toUpperCase()}
                 </span>
-                <span className="v6-profile__name">{firstName}</span>
-                <svg className="v6-profile__chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <span className="v1-0-profile__name">{firstName}</span>
+                <svg className="v1-0-profile__chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M9 6l6 6-6 6" />
                 </svg>
               </button>
               <button
                 type="button"
-                className="v6-iconbtn"
+                className="v1-0-iconbtn"
                 aria-label={tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
                 title={tema === 'escuro' ? 'Tema claro' : 'Tema escuro'}
                 onClick={alternarTema}
@@ -899,7 +940,7 @@ export default function ChatLayout() {
               </button>
               <button
                 type="button"
-                className="v6-iconbtn"
+                className="v1-0-iconbtn"
                 aria-label="Salvar e sair"
                 title="Salvar e sair"
                 onClick={() => setLogoutOpen(true)}
@@ -913,20 +954,20 @@ export default function ChatLayout() {
         </aside>
       ) : null}
 
-      <div className="v6-main">
+      <div className="v1-0-main">
         <Horizon mode={onHome ? 'home' : 'chat'} />
         <EdgeFade />
         {offline ? (
-          <div className="v6-offline" role="status" aria-live="polite">
+          <div className="v1-0-offline" role="status" aria-live="polite">
             Sem conexão. Reconecte para continuar.
           </div>
         ) : null}
-        <header className="v6-topbar">
+        <header className="v1-0-topbar">
           {!sidebarOpen ? (
             <button
               ref={menuBtnRef}
               type="button"
-              className="v6-iconbtn"
+              className="v1-0-iconbtn"
               aria-label="Abrir menu"
               aria-expanded={false}
               aria-controls="crias-sidebar"
@@ -936,38 +977,38 @@ export default function ChatLayout() {
               {openIcon}
             </button>
           ) : null}
-          <div className="v6-topbar__titles">
+          <div className="v1-0-topbar__titles">
             {topTitle ? (
-              <span className="v6-topbar__title" data-fade="1" title={topTitle}>
+              <span className="v1-0-topbar__title" data-fade="1" title={topTitle}>
                 {topTitle}
               </span>
             ) : null}
             {topStage ? (
-              <span className="v6-topbar__stage">
+              <span className="v1-0-topbar__stage">
                 {onMonitoria || dotIndex < 0 ? (
-                  <span className="v6-dot v6-dot--single" aria-hidden="true" />
+                  <span className="v1-0-dot v1-0-dot--single" aria-hidden="true" />
                 ) : (
-                  <span className="v6-topbar__dots" aria-hidden="true">
+                  <span className="v1-0-topbar__dots" aria-hidden="true">
                     {Array.from({ length: totalStepsTop }, (_, i) => {
                       const done = i < dotIndex || (i === dotIndex && dotsDone)
                       const now = i === dotIndex && !dotsDone
                       return (
                         <span
                           key={i}
-                          className={`v6-dot${done ? ' is-done' : ''}${now ? ' is-now' : ''}`}
+                          className={`v1-0-dot${done ? ' is-done' : ''}${now ? ' is-now' : ''}`}
                         />
                       )
                     })}
                   </span>
                 )}
-                <span className="v6-topbar__stagetext" data-fade="1">
+                <span className="v1-0-topbar__stagetext" data-fade="1">
                   {topStage}
                 </span>
               </span>
             ) : null}
           </div>
         </header>
-        <div className="v6-content" inert={mainInert || undefined}>
+        <div className="v1-0-content" inert={mainInert || undefined}>
           <Outlet
             context={{
               trailRows: rows,

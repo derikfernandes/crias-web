@@ -216,7 +216,7 @@ export function buildStudentPasswordFields(
         ? e
         : new Error('STUDENT_PASSWORD_KEY ausente ou inválida.')
     }
-    // PUT/create do painel: hash funciona sem chave; Master revelará após
+    // PUT/create da gestão: hash funciona sem chave; Master revelará após
     // configurar a env e regenerar.
   }
   return {

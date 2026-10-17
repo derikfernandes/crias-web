@@ -1,3 +1,4 @@
+import PainelPage from './pages/PainelPage'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getSession } from './lib/session'
 import { useOverflowFade } from './lib/useOverflowFade'
@@ -31,6 +32,7 @@ export default function App() {
         }
       >
         <Route index element={<TrailsPage />} />
+        <Route path="painel" element={<PainelPage />} />
         <Route path="monitoria" element={<MonitoriaPage />} />
         {/* Maria foi aposentada: o tutor se chama monitor. Links antigos continuam funcionando. */}
         <Route path="maria" element={<Navigate to="/monitoria" replace />} />

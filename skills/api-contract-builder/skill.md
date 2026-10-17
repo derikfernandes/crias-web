@@ -6,7 +6,7 @@ Use quando criar, alterar ou documentar endpoints.
 
 ## Objetivo
 
-Manter contrato de API consistente entre painel, backend, app aluno e documentacao.
+Manter contrato de API consistente entre gestão, backend, app aluno e documentacao.
 
 ## Arquivos que deve ler
 

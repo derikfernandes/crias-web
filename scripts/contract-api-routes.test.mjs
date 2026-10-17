@@ -104,7 +104,7 @@ test('vercel.json preserva rewrites críticos de API', () => {
   }
 })
 
-test('vercel.json aponta o build para dist na raiz (espelho do painel)', () => {
+test('vercel.json aponta o build para dist na raiz (espelho da gestão)', () => {
   const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
   assert.equal(vercel.outputDirectory, 'dist')
   assert.equal(vercel.buildCommand, 'npm run build')
@@ -152,7 +152,7 @@ test('handlers de API exportam default (contrato Vercel)', () => {
 
 test('frontend deleteTrailCascade mantém DELETE /api/trails?id=', () => {
   const src = readFileSync(
-    join(root, 'frontend/crias-painel/src/lib/trailApi.ts'),
+    join(root, 'frontend/crias-gestao/src/lib/trailApi.ts'),
     'utf8',
   )
   assert.match(src, /['"]\/api\/trails['"]/)
@@ -162,7 +162,7 @@ test('frontend deleteTrailCascade mantém DELETE /api/trails?id=', () => {
 
 test('frontend deleteStudentCascade mantém DELETE /api/student?id=', () => {
   const src = readFileSync(
-    join(root, 'frontend/crias-painel/src/lib/studentApi.ts'),
+    join(root, 'frontend/crias-gestao/src/lib/studentApi.ts'),
     'utf8',
   )
   assert.match(src, /['"]\/api\/student['"]/)
@@ -181,7 +181,7 @@ test('api/student DELETE faz cascade em dependentes por student_id', () => {
 
 test('dashboardSummaryApi mantém GET /api/dashboard_summary', () => {
   const src = readFileSync(
-    join(root, 'frontend/crias-painel/src/lib/dashboardSummaryApi.ts'),
+    join(root, 'frontend/crias-gestao/src/lib/dashboardSummaryApi.ts'),
     'utf8',
   )
   assert.match(src, /\/api\/dashboard_summary/)

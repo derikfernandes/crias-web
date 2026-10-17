@@ -73,7 +73,7 @@ Critério de conclusão:
 ## Fase 3.5 — Action Routing Map
 
 - [x] Criar `specs/05_ACTION_ROUTING_MAP.md`.
-- [x] Separar ações do painel e ações do player aluno.
+- [x] Separar ações da gestão e ações do player aluno.
 - [x] Definir quais ações usam Firestore direto.
 - [x] Definir quais ações usam API HTTP.
 - [x] Definir base URL da API.
@@ -99,7 +99,7 @@ Critério de conclusão:
 - Fluxo de avanço está documentado.
 - Erros e bloqueios estão previstos.
 
-## Fase 5 — Melhorias do painel
+## Fase 5 — Melhorias da gestão
 
 - [ ] Melhorar tela de gerenciamento.
 - [ ] Adicionar indicadores básicos.
@@ -110,7 +110,7 @@ Critério de conclusão:
 
 Critério de conclusão:
 
-- Painel fica utilizável sem explicação externa.
+- Gestão fica utilizável sem explicação externa.
 - Erros principais aparecem na tela.
 - Fluxo de criação é compreensível.
 
@@ -175,5 +175,5 @@ Critério de conclusão:
 - [ ] Criar `architecture.md`.
 - [ ] Criar `firestore-schema.md`.
 - [ ] Criar `student-player-flow.md` (fluxo do player web).
-- [ ] Criar guia de operação do painel.
+- [ ] Criar guia de operação da gestão.
 - [ ] Criar guia de troubleshooting Firebase/Vercel.

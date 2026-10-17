@@ -2,7 +2,7 @@
 // Wave B / Ciclo 3 Red Team (I8 / ADR-008):
 // - Progresso do aluno NÃO é writable no Client SDK (só Admin SDK / API).
 // - Logs/attempts: write só via API.
-// - Leituras sensíveis exigem Firebase Auth (painel admin).
+// - Leituras sensíveis exigem Firebase Auth (gestão admin).
 
 rules_version = '2';
 service cloud.firestore {

@@ -29,6 +29,7 @@ import {
 import { ensureTrailAiContent } from '../server/lib/trail-ai/ensureTrailAiContent'
 import { getTrailHistoryPage } from '../server/lib/trail-engine/getHistory'
 import { askMariaTutor } from '../server/lib/maria/askMariaTutor'
+import { buildStudentPanel } from '../server/lib/studentPanelService'
 import {
   authorizeStudentResource,
   resolveAuthPrincipal,
@@ -80,6 +81,7 @@ function corsHeaders(): Record<string, string> {
 /** Allowlist RT-C1 — nunca tratar facade arbitrário como “skip Bearer”. */
 const KNOWN_FACADES = new Set([
   'home',
+  'panel',
   'next-content',
   'status',
   'advance',
@@ -616,6 +618,24 @@ async function handleRequest(request: Request): Promise<Response> {
         }
         throw e
       }
+    }
+
+    // Painel individual do aluno: só os dados do próprio aluno (INTERFACE.md 1.1.8).
+    if (facade === 'panel' && request.method === 'GET') {
+      const panelStudentId =
+        qStudentId ||
+        (() => {
+          const p = resolveAuthPrincipal(request.headers.get('Authorization'))
+          return p.kind === 'student' ? p.claims.student_id : null
+        })()
+      if (!panelStudentId) {
+        return respond(401, { status: 'error', code: 'unauthorized', error: 'Autenticação necessária.' })
+      }
+      const authz = requireFacadeAuth(request, panelStudentId)
+      if (!authz.ok) return respond(authz.status, authz.body)
+      const panel = await buildStudentPanel(db, panelStudentId)
+      if (!panel) return respond(404, { status: 'error', code: 'not_found', error: 'Aluno não encontrado.' })
+      return jsonResponse({ status: 'ok', ...panel }, { status: 200, headers: corsHeaders() })
     }
 
     if (facade === 'next-content' && request.method === 'GET') {

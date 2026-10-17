@@ -32,8 +32,23 @@ describe('ai-prompts registry', () => {
     expect(body).not.toMatch(/WhatsApp/)
   })
 
-  it('isAiPromptId valida', () => {
+  it('isAiPromptId valida e spacing_rules saiu do catálogo', () => {
     expect(isAiPromptId('parceiro_estudo')).toBe(true)
+    expect(isAiPromptId('spacing_rules')).toBe(false)
     expect(isAiPromptId('nope')).toBe(false)
+    expect(AI_PROMPT_IDS).not.toContain('spacing_rules')
+  })
+
+  it('gerador e parceiro usam linhas vazias e FORMATO DO APP', () => {
+    for (const id of ['gerador_trilha', 'parceiro_estudo'] as const) {
+      const body = getFallbackPromptBody(id)
+      expect(body).toMatch(/FORMATO DO APP/i)
+      expect(body).not.toMatch(/FORMATO WHATSAPP/i)
+      expect(body).not.toMatch(/utilizando exatamente o marcador \|\|\|/)
+      expect(body).toMatch(/Não use o marcador legado \|\|\|/)
+      expect(body).toMatch(/ênfase forte/i)
+      expect(body).toMatch(/dois asteriscos/i)
+      expect(body).not.toMatch(/negrito com um asterisco de cada lado/)
+    }
   })
 })

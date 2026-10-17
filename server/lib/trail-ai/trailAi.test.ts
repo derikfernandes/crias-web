@@ -4,7 +4,7 @@ import {
   buildTrailAiPrompt,
   formatContextFromLogs,
 } from './buildTrailAiPrompt'
-import { formatAiAnswer, TRAIL_AI_SPACING_RULES } from './formatAiAnswer'
+import { formatAiAnswer } from './formatAiAnswer'
 import {
   buildVertexGenerateContentUrl,
   DEFAULT_VERTEX_LOCATION,
@@ -34,8 +34,13 @@ describe('buildTrailAiPrompt', () => {
       context: 'Sistema: Olá\nAluno: oi',
       trail_title: 'Matemática',
     })
-    expect(built.systemInstruction).toContain(TRAIL_AI_SPACING_RULES.slice(0, 40))
+    expect(built.systemInstruction).not.toMatch(
+      /utilizando exatamente o marcador \|\|\|/,
+    )
+    expect(built.systemInstruction).not.toMatch(/ESPAÇAMENTO OBRIGATÓRIO/)
+    expect(built.systemInstruction).toMatch(/Não use o marcador legado \|\|\|/)
     expect(built.systemInstruction).toContain('Matemática')
+    expect(built.systemInstruction).toMatch(/linha vazia/i)
     expect(built.userText).toContain('NAME: Ana')
     expect(built.userText).toContain('SCHOOL_GRADE: 8º ano')
     expect(built.userText).toContain('STUDENT_LEVEL: 2')

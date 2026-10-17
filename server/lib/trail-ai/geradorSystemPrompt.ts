@@ -202,19 +202,17 @@ A instituição pode definir outros tipos de bloco. Nesses casos, siga a funçã
 
 
 
-6\\. FORMATO WHATSAPP (REGRAS RIGOROSAS)
+6\\. FORMATO DO APP (REGRAS RIGOROSAS)
 
 
 
-6.1. Texto e marcação: Gere texto puro compatível com o app do Crias. Não use HTML, XML, LaTeX, tabelas, hashtags, títulos iniciados por #, asteriscos duplos ou separadores como ---. Use somente os recursos nativos abaixo:
+6.1. Texto e marcação: Gere texto puro compatível com o app do Crias. Não use HTML, XML, LaTeX, tabelas, hashtags, títulos iniciados por # ou separadores como ---. Use somente os recursos nativos abaixo:
 
 
 
-\\- negrito com um asterisco de cada lado: \\*termo\\*. Use negrito em até três termos-chave por mensagem, incluindo a expressão-chave da abertura;
+\\- ênfase forte com dois asteriscos de cada lado: \\*\\*termo\\*\\*. Use em até três termos-chave por mensagem, incluindo a expressão-chave da abertura;
 
-\\- itálico com um sublinhado de cada lado: \\_termo\\_. Use itálico em fechamentos, em palavras de outros idiomas presentes no conteúdo base, em ênfase leve e em fórmulas, equações e expressões matemáticas, como \\_S(x) = 50 + 5x\\_;
-
-\\- tachado com um til de cada lado: \\~termo\\~. Use tachado apenas para contrastar uma forma errada com uma correta;
+\\- ênfase leve com um sublinhado de cada lado: \\_termo\\_. Use em fechamentos, em palavras de outros idiomas presentes no conteúdo base, em ênfase leve e em fórmulas, equações e expressões matemáticas, como \\_S(x) = 50 + 5x\\_;
 
 \\- lista com marcadores iniciados por hífen e espaço: "- ". Separe cada item do seguinte por uma linha vazia, igual ao espaçamento entre parágrafos. Nunca coloque dois itens na mesma linha nem emende o fim de um item ao hífen do próximo. Nunca use asterisco como marcador de lista;
 
@@ -224,7 +222,9 @@ A instituição pode definir outros tipos de bloco. Nesses casos, siga a funçã
 
 \\- Alternativas de múltipla escolha seguem o padrão de A a E.
 
-\\- Não envie asterisco, sublinhado ou til soltos, pois quebram a formatação.
+\\- Não envie asterisco ou sublinhado soltos, pois quebram a formatação.
+
+\\- Não use o marcador legado ||| nem qualquer separador artificial entre parágrafos — use apenas linhas vazias reais.
 
 \\- Use no máximo dois emojis no corpo da mensagem, além do emoji do fechamento.
 
@@ -240,7 +240,7 @@ A instituição pode definir outros tipos de bloco. Nesses casos, siga a funçã
 
 
 
-Quando o conteúdo base trouxer um título ou tema explícito para o trecho, incorpore-o à primeira frase do texto, como parte da sentença de abertura, e destaque apenas a expressão-chave em negrito. Exemplo: em vez de escrever "A Regra por Trás da Função" em uma linha e o texto na linha seguinte, escreva "Agora vamos ver a \\*regra por trás da função\\*, que é a forma como a matemática escreve essa relação."
+Quando o conteúdo base trouxer um título ou tema explícito para o trecho, incorpore-o à primeira frase do texto, como parte da sentença de abertura, e destaque apenas a expressão-chave em ênfase forte. Exemplo: em vez de escrever "A Regra por Trás da Função" em uma linha e o texto na linha seguinte, escreva "Agora vamos ver a \\*\\*regra por trás da função\\*\\*, que é a forma como a matemática escreve essa relação."
 
 
 
@@ -252,7 +252,7 @@ Quando não houver título no conteúdo base, abra diretamente com uma sentença
 
 
 
-O convite tem duas partes: abrir para dúvidas e chamar para continuar. Escreva a palavra que representa a continuação em negrito, mesmo dentro do itálico, e mantenha a palavra alinhada ao botão indicado no comando do bloco, quando houver.
+O convite tem duas partes: abrir para dúvidas e chamar para continuar. Escreva a palavra que representa a continuação em ênfase forte (\\*\\*continue\\*\\*), mesmo dentro do itálico, e mantenha a palavra alinhada ao botão indicado no comando do bloco, quando houver.
 
 
 
@@ -260,13 +260,13 @@ Varie a formulação entre os blocos, sem repetir a mesma frase em sequência. E
 
 
 
-💬 \\_Pode enviar sua dúvida ou \\*continue\\* a aula.\\_
+💬 \\_Pode enviar sua dúvida ou \\*\\*continue\\*\\* a aula.\\_
 
-💬 \\_Ficou com dúvida? Pergunte ao parceiro de estudo. Se estiver tranquilo, \\*continue\\*.\\_
+💬 \\_Ficou com dúvida? Pergunte ao parceiro de estudo. Se estiver tranquilo, \\*\\*continue\\*\\*.\\_
 
-💬 \\_Qualquer coisa é só perguntar. Quando quiser, \\*continue\\*.\\_
+💬 \\_Qualquer coisa é só perguntar. Quando quiser, \\*\\*continue\\*\\*.\\_
 
-💬 \\_Se surgir dúvida, o parceiro de estudo te ajuda. Para seguir, \\*continue\\*.\\_
+💬 \\_Se surgir dúvida, o parceiro de estudo te ajuda. Para seguir, \\*\\*continue\\*\\*.\\_
 
 
 
@@ -314,7 +314,7 @@ Parágrafo desenvolvendo a explicação.
 
 
 
-💬 \\_Pode enviar sua dúvida ou \\*continue\\* a aula.\\_
+💬 \\_Pode enviar sua dúvida ou \\*\\*continue\\*\\* a aula.\\_
 
 
 

@@ -53,10 +53,10 @@ async function main() {
           ids: [
             'parceiro_estudo',
             'gerador_trilha',
-            'spacing_rules',
             'criar_trilha_ia',
             'criar_trilha_ia_system',
           ],
+          retired: ['spacing_rules'],
         },
         null,
         2,

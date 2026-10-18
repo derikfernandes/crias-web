@@ -4730,9 +4730,14 @@ export default function PlayerPage() {
     if (exerciseCardAt < 0) exerciseCardAt = chatMessages.length
   }
 
-  /** Estados da barra de mensagem (v1.0, seção 11). */
+  /**
+   * Estados da barra de mensagem (v1.0, seção 11).
+   * No sidechat do monitor, NÃO trocar o composer por "Aguarde..." —
+   * o Continuar (exit_maria) precisa ficar tocável mid-flight e após o ack.
+   */
   const composerWaiting =
     !trailDone &&
+    !mariaSidechat &&
     (trailBusy ||
       mariaBusyWaiting ||
       mariaBusyPending ||
@@ -5171,9 +5176,13 @@ export default function PlayerPage() {
                           data-action={composerPrimaryAction.action}
                           disabled={composerPrimaryAction.disabled}
                           aria-busy={composerPrimaryAction.busy || undefined}
-                          aria-label="Continuar"
+                          aria-label={
+                            composerPrimaryAction.action === 'exit_maria'
+                              ? 'Continuar (sair da conversa com o monitor)'
+                              : 'Continuar'
+                          }
                         >
-                          Continuar
+                          {composerPrimaryAction.label || 'Continuar'}
                           <ArrowRightIcon />
                         </button>
                       ) : (

@@ -11,6 +11,7 @@ import {
   formatAtividadeLabel,
   formatEtapaLabel,
 } from '../lib/trailProgressLabel'
+import { sanitizeUiCopy } from '../lib/sanitizeUiCopy'
 import CriasSymbol from '../components/CriasSymbol'
 import MonitorBox from '../components/MonitorBox'
 
@@ -182,10 +183,11 @@ export default function TrailsPage() {
                 )
                 const completed = row.status === 'completed'
                 const titles = activities?.[row.trail_id] ?? []
-                const now = completed
+                const nowRaw = completed
                   ? 'Trilha concluída'
                   : titles.find((t) => t.number === row.current_question_number)
                       ?.title || `Atividade ${Math.max(row.current_question_number, 1)}`
+                const now = sanitizeUiCopy(nowRaw)
                 return (
                   <Link
                     key={row.id}

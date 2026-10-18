@@ -204,6 +204,23 @@ describe('mainButtonState — um botão principal', () => {
       visible: true,
       action: 'exit_maria',
       label: MAIN_BUTTON_CONTINUE_LABEL,
+      disabled: false,
+    })
+  })
+  it('sidechat mid-flight: Continuar (sair) permanece tocável', () => {
+    expect(
+      mainButtonState({
+        ...idle,
+        mariaSidechat: true,
+        busy: true,
+        busyReason: 'maria',
+        mariaInFlight: true,
+      }),
+    ).toMatchObject({
+      visible: true,
+      action: 'exit_maria',
+      disabled: false,
+      busy: true,
     })
   })
   it('rascunho para a Maria pausa o Continuar', () => {

@@ -1,4 +1,5 @@
 import type { ConversationLogRow } from './api'
+import { sanitizeUiCopy } from './sanitizeUiCopy'
 
 export type ChatMessage = {
   id: string
@@ -543,7 +544,7 @@ export type MessagePart = {
 
 /** Autolink + embed YT/Drive/imagens (ibb) — markdown inline preservado. */
 export function renderMessageLines(text: string): MessagePart[] {
-  const lines = text.split('\n')
+  const lines = sanitizeUiCopy(text).split('\n')
   const out: MessagePart[] = []
   const urlRe = /(https?:\/\/[^\s<]+)/gi
 

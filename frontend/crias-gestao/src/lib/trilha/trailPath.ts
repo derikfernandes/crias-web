@@ -79,13 +79,13 @@ export function sessionEffortHint(
     return null
   }
   if (nextAction === 'await_answer' || stageType === 'exercise') {
-    return 'Próxima etapa: 1 exercício (~3–5 min)'
+    return 'Próxima etapa: 1 exercício (cerca de 3 a 5 min)'
   }
   if (stageType === 'ai') {
     return 'Próxima etapa: atividade com IA (leitura curta)'
   }
   if (nextAction === 'deliver_content' || stageType === 'fixed') {
-    return 'Próxima etapa: leitura curta (~3–5 min)'
+    return 'Próxima etapa: leitura curta (cerca de 3 a 5 min)'
   }
   return null
 }
@@ -122,7 +122,7 @@ export function nowFocusCopy(
       }
     case 'await_release':
       return {
-        title: 'Pausa — aguardando liberação',
+        title: 'Pausa: aguardando liberação',
         detail: `A próxima etapa (${pos}) ainda não foi liberado. O seu progresso está seguro.`,
         cta: null,
       }

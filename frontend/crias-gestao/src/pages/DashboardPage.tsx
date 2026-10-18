@@ -209,7 +209,7 @@ function answersMatch(studentAnswer: string, correctOption: string): boolean {
 /** Exibe gabarito numérico como letra: 1→A, 2→B, 3→C. */
 function formatGabaritoLetter(value: string): string {
   const normalized = normalizeAnswer(value).toLowerCase()
-  if (!normalized) return '—'
+  if (!normalized) return 'N/A'
   const fromNumber: Record<string, string> = {
     '1': 'A',
     '2': 'B',
@@ -1536,11 +1536,11 @@ export function DashboardPage() {
 
   const studentsCharts = useMemo(() => {
     const completionBuckets = [
-      { key: '0-20', label: '0–20%', count: 0 },
-      { key: '21-40', label: '21–40%', count: 0 },
-      { key: '41-60', label: '41–60%', count: 0 },
-      { key: '61-80', label: '61–80%', count: 0 },
-      { key: '81-100', label: '81–100%', count: 0 },
+      { key: '0-20', label: '0-20%', count: 0 },
+      { key: '21-40', label: '21-40%', count: 0 },
+      { key: '41-60', label: '41-60%', count: 0 },
+      { key: '61-80', label: '61-80%', count: 0 },
+      { key: '81-100', label: '81-100%', count: 0 },
     ]
     const statusCounts = {
       notStarted: 0,
@@ -1737,10 +1737,10 @@ export function DashboardPage() {
         key,
         trailId,
         trailName: trail?.name || trailId,
-        subject: trail?.subject?.trim() || '—',
+        subject: trail?.subject?.trim() || 'N/A',
         stageNumber,
         questionNumber,
-        title: question?.title || '—',
+        title: question?.title || 'N/A',
         content: question?.content ?? '',
         gabarito: formatGabaritoLetter(
           gradablePillQuestions.get(key) ??
@@ -1857,11 +1857,11 @@ export function DashboardPage() {
     )
     const studentIds = new Set<string>()
     const buckets = [
-      { label: '0–20%', count: 0 },
-      { label: '21–40%', count: 0 },
-      { label: '41–60%', count: 0 },
-      { label: '61–80%', count: 0 },
-      { label: '81–100%', count: 0 },
+      { label: '0-20%', count: 0 },
+      { label: '21-40%', count: 0 },
+      { label: '41-60%', count: 0 },
+      { label: '61-80%', count: 0 },
+      { label: '81-100%', count: 0 },
     ]
     const byTrail = new Map<
       string,
@@ -2300,7 +2300,7 @@ export function DashboardPage() {
   const stagePickerItems = availableStages.map((s) => ({
     id: s.key,
     label: `${s.trailName} · Tópico ${s.stageNumber}${
-      s.title ? ` — ${s.title}` : ''
+      s.title ? `: ${s.title}` : ''
     } (${s.stageType})`,
   }))
   const stagePickerSelectedIds = availableStages

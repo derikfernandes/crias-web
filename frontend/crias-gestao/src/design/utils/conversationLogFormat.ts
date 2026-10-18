@@ -3,7 +3,7 @@ import type { ConversationLog } from '../../types/conversationLog'
 export function formatLogWhen(row: ConversationLog): string {
   if (row.created_at_brasilia) return row.created_at_brasilia
   if (row.created_at?.toDate) return row.created_at.toDate().toLocaleString('pt-BR')
-  return '—'
+  return 'N/A'
 }
 
 export function getLogDate(row: ConversationLog): Date | null {

@@ -60,7 +60,7 @@ function StatCard({
 }
 
 function progressPctLabel(ratio: number | null): string {
-  if (typeof ratio !== 'number' || !Number.isFinite(ratio)) return '—'
+  if (typeof ratio !== 'number' || !Number.isFinite(ratio)) return 'N/A'
   return `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`
 }
 
@@ -146,7 +146,7 @@ function TrailCard({
           <div>
             <dt>Etapas totais</dt>
             <dd>
-              {typeof card.totalStages === 'number' ? card.totalStages : '—'}
+              {typeof card.totalStages === 'number' ? card.totalStages : 'N/A'}
             </dd>
           </div>
           {typeof card.totalQuestions === 'number' ? (
@@ -193,7 +193,7 @@ function TrailCard({
         ) : null}
         {!canContinue && !isCompleted && card.nextAction === 'await_release' ? (
           <p className="trilha-home-dash__hint muted">
-            Pausa esperada — a próxima etapa ainda não foi liberada.
+            Pausa esperada: a próxima etapa ainda não foi liberada.
           </p>
         ) : null}
       </div>
@@ -267,7 +267,7 @@ export function TrilhaHomePageView({
           <p className="trilha-home__hello">Olá, {studentName}</p>
           <h1>Minhas trilhas</h1>
           <p className="admin__lede muted">
-            Trilhas vinculadas à sua conta — continue de onde parou.
+            Trilhas vinculadas à sua conta. Continue de onde parou.
           </p>
         </div>
         <section className="home-dash__stats" aria-label="Resumo do aluno">

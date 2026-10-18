@@ -101,11 +101,11 @@ export function snapshotToTrailStageQuestion(
 export function formatTrailStageQuestionTs(
   value: TrailStageQuestion['created_at'],
 ): string {
-  if (!value || typeof value.toDate !== 'function') return '—'
+  if (!value || typeof value.toDate !== 'function') return 'N/A'
   try {
     return value.toDate().toLocaleString('pt-BR')
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 

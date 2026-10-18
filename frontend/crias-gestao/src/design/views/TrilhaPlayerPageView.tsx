@@ -247,7 +247,7 @@ export function TrilhaPlayerPageView({
 
       {nextAction === 'await_release' || nextAction === 'blocked' ? (
         <TrilhaEmptyState
-          title="Pausa — aguardando liberação"
+          title="Pausa: aguardando liberação"
           message="O próximo conteúdo ainda não foi liberado. O seu progresso está seguro. Volte mais tarde ou fale com a escola."
           actionLabel="Voltar ao mapa"
           onAction={onBack}
@@ -257,7 +257,7 @@ export function TrilhaPlayerPageView({
       {nextAction === 'completed' ? (
         <TrilhaEmptyState
           title="Trilha concluída"
-          message="Parabéns — concluiu esta trilha."
+          message="Parabéns: concluiu esta trilha."
           actionLabel="Voltar ao mapa"
           onAction={onBack}
         />
@@ -298,7 +298,7 @@ export function TrilhaPlayerPageView({
                 {feedbackState === 'correct'
                   ? 'Boa! Resposta correta.'
                   : feedbackState === 'incorrect'
-                    ? 'Ainda não — mas o progresso segue. Pode rever depois na Revisão.'
+                    ? 'Ainda não, mas o progresso segue. Pode rever depois na Revisão.'
                     : 'Resposta registada. Pode seguir para o próxima etapa.'}
               </p>
               <button

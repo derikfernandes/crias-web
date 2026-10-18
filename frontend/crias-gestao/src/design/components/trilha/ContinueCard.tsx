@@ -27,7 +27,7 @@ export function ContinueCard({
       <div className="trilha-continue-card trilha-continue-card--muted">
         <TrilhaEmptyState
           title="Pausa esperada"
-          message="O próximo conteúdo ainda não foi liberado. O seu progresso está seguro — volte mais tarde ou fale com a escola."
+          message="O próximo conteúdo ainda não foi liberado. O seu progresso está seguro. Volte mais tarde ou fale com a escola."
         />
       </div>
     )
@@ -48,7 +48,7 @@ export function ContinueCard({
     return (
       <div className="trilha-continue-card trilha-continue-card--done">
         <p className="banner banner--success" role="status">
-          Parabéns — concluiu esta trilha.
+          Parabéns .  concluiu esta trilha.
         </p>
         <p className="trilha-continue-card__detail">{detail}</p>
         {celebrateAction}

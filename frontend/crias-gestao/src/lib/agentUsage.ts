@@ -81,9 +81,9 @@ export function agentLabelForTrailId(trailId: string): string {
 }
 
 export function formatAgentLastActivity(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return 'N/A'
   const ms = Date.parse(iso)
-  if (Number.isNaN(ms)) return '—'
+  if (Number.isNaN(ms)) return 'N/A'
   try {
     return new Intl.DateTimeFormat('pt-BR', {
       timeZone: 'America/Sao_Paulo',
@@ -94,7 +94,7 @@ export function formatAgentLastActivity(iso: string | null): string {
       minute: '2-digit',
     }).format(new Date(ms))
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 

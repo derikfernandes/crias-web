@@ -42,13 +42,13 @@ describe('exercício gravado no banco', () => {
     expect(f.content).toBe('Quanto é 1/2 + 1/4?\nA) 3/4\nB) 1/6\nC) 2/6')
     expect(f.correct_option).toBe('A')
     expect(f.options).toEqual([{ key: 'A', text: '3/4' }, { key: 'B', text: '1/6' }, { key: 'C', text: '2/6' }])
-    expect(f.title).toBe('Atividade 2 — Frações')
+    expect(f.title).toBe('Atividade 2: Frações')
     expect(composeExerciseContent('x', ['a'])).toBe('x\nA) a')
   })
 
   it('lê as células do banco de volta em atividades', () => {
     const row = (stage: number, q: number, extra: Partial<TrailStageQuestion>): TrailStageQuestion =>
-      ({ id: `${stage}-${q}`, trail_id: 't', stage_number: stage, question_number: q, title: `Atividade ${q} — Tema`, content: '', correct_option: null, options: null, explanation: null, annulled: false, annulled_at: null, annulled_reason: null, is_released: true, active: true, created_at: null, updated_at: null, ...extra }) as TrailStageQuestion
+      ({ id: `${stage}-${q}`, trail_id: 't', stage_number: stage, question_number: q, title: `Atividade ${q}: Tema`, content: '', correct_option: null, options: null, explanation: null, annulled: false, annulled_at: null, annulled_reason: null, is_released: true, active: true, created_at: null, updated_at: null, ...extra }) as TrailStageQuestion
     const acts = activitiesFromRows(
       [row(1, 1, { content: 'a' }), row(2, 1, { content: 'b' }), row(3, 1, { content: 'c' }), row(4, 1, { content: 'Pergunta\nA) x\nB) y', correct_option: '2' })],
       phases,

@@ -130,7 +130,7 @@ export function TrilhaHistoryPageView({
       </header>
       <h1 className="trilha-history__heading">Revisão</h1>
       <p className="trilha-history__lead muted">
-        O que você já aprendeu nesta trilha. Só leitura — respostas antigas não
+        O que você já aprendeu nesta trilha. Só leitura: respostas antigas não
         mudam o progresso.
       </p>
 
@@ -281,7 +281,7 @@ export function TrilhaHistoryPageView({
                             {expanded ? (
                               <div id={bodyId} className="trilha-history__expand">
                                 <div className="trilha-content__body trilha-history__body">
-                                  <SafeMarkdown text={item.body || '—'} />
+                                  <SafeMarkdown text={item.body || 'N/A'} />
                                 </div>
                                 {item.studentAnswer != null &&
                                 item.studentAnswer !== '' ? (

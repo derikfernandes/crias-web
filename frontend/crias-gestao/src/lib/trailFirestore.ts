@@ -97,11 +97,11 @@ export function snapshotToTrail(
 }
 
 export function formatTrailTs(value: Trail['created_at']): string {
-  if (!value || typeof value.toDate !== 'function') return '—'
+  if (!value || typeof value.toDate !== 'function') return 'N/A'
   try {
     return value.toDate().toLocaleString('pt-BR')
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 
@@ -338,7 +338,7 @@ export async function saveTrailContentDraft(
           trail_id: trailId,
           stage_number: stageNumber,
           question_number: questionNumber,
-          title: `${etapaLabel} — ${questionLabel}`,
+          title: `${etapaLabel}: ${questionLabel}`,
           content: contentValue,
           correct_option:
             phase.phaseType === 'exercise'

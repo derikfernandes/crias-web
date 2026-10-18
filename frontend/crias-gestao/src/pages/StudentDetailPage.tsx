@@ -447,10 +447,10 @@ export function StudentDetailPage() {
       status: row.status,
       startedAtLabel: row.started_at?.toDate
         ? row.started_at.toDate().toLocaleString('pt-BR')
-        : '—',
+        : 'N/A',
       lastInteractionAtLabel: row.last_interaction_at?.toDate
         ? row.last_interaction_at.toDate().toLocaleString('pt-BR')
-        : '—',
+        : 'N/A',
     }
   })
 
@@ -509,7 +509,7 @@ export function StudentDetailPage() {
       linkableTrails={linkableTrails.map((t) => ({
         id: t.id,
         label: `${t.name?.trim() ? `${t.name} (${t.id})` : t.id}${
-          !t.active ? ' — inativa' : ''
+          !t.active ? ' (inativa)' : ''
         }`,
       }))}
       onLinkTrailSubmit={(e) => void handleLinkTrail(e)}

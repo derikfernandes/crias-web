@@ -5,7 +5,7 @@ export type ProgressSummaryProps = {
   progressRatio: number | null
   statusLabel: string
   totalStages?: number | null
-  /** True quando next_action/status === completed — glance deve ser N de N. */
+  /** True quando next_action/status === completed .  glance deve ser N de N. */
   completed?: boolean
   /** Resumo curto do que já foi feito (derivado do cursor / completed). */
   doneSummary?: string | null
@@ -43,7 +43,7 @@ export function ProgressSummary({
         ? `${Math.floor(totalStages)} de ${Math.floor(totalStages)} etapas concluídas.`
         : 'Todas as etapas concluídas.'
       : stagesDone === 0
-        ? 'Ainda no começo — nenhuma etapa concluída.'
+        ? 'Ainda no começo: nenhuma etapa concluída.'
         : typeof totalStages === 'number' && totalStages > 0
           ? `${stagesDone} de ${totalStages} etapas concluídas.`
           : `${stagesDone} etapa${stagesDone === 1 ? '' : 's'} concluída${stagesDone === 1 ? '' : 's'}.`)

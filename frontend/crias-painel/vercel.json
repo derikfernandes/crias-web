@@ -3,5 +3,11 @@
   "framework": "vite",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npm run build && rm -rf frontend/crias-painel/dist && cp -R dist frontend/crias-painel/dist",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://crias-web.vercel.app/api/:path*"
+    }
+  ]
 }

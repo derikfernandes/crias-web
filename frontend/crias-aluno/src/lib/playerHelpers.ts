@@ -257,7 +257,8 @@ export function mainButtonState(i: MainButtonInput): MainButtonState {
     }
   }
 
-  // Sidechat: Continuar sai da Maria sem avançar a etapa.
+  // Sidechat: Continuar sai do monitor sem avançar a etapa.
+  // Mid-flight: CTA fica habilitado para sair (não esconder atrás de "Aguarde...").
   if (i.mariaSidechat) {
     if (trailBusy) {
       return { visible: true, action: 'none', label: i.trailBusyLabel, disabled: true, busy: true }
@@ -267,7 +268,7 @@ export function mainButtonState(i: MainButtonInput): MainButtonState {
       visible: true,
       action: 'exit_maria',
       label: MAIN_BUTTON_CONTINUE_LABEL,
-      disabled: mariaReplying || i.busy || i.offline || i.hasMariaDraft,
+      disabled: i.offline || i.hasMariaDraft,
       busy: mariaReplying,
     }
   }

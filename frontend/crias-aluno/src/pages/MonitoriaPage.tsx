@@ -122,7 +122,7 @@ export default function MonitoriaPage() {
     void loadHistory()
   }, [loadHistory])
 
-  /** Pergunta vinda da barra "Pergunte ao seu monitor…" do Início. */
+  /** Pergunta vinda da barra "Pergunte ao seu monitor..." do Início. */
   useEffect(() => {
     try {
       const key = `crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`
@@ -286,7 +286,7 @@ export default function MonitoriaPage() {
                     className="v1-0-composer__input"
                     rows={1}
                     value={draft}
-                    placeholder="Pergunte ao seu monitor…"
+                    placeholder="Pergunte ao seu monitor..."
                     aria-label="Pergunte ao seu monitor"
                     autoComplete="off"
                     onChange={(e) => {

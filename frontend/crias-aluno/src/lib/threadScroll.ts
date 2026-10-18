@@ -249,21 +249,45 @@ export function attachThreadScroll(
   upd(0)
 
   const toBottom = (instant?: boolean) => {
+    /**
+     * Desce ao fim e repete enquanto o scrollHeight ainda cresce
+     * (histórico idle, imagens, content-visibility). Sem isso a trilha
+     * abria “no fim” do layout parcial e parava no meio da conversa.
+     */
     const go = () => {
       stop()
-      const to = t.scrollHeight - t.clientHeight
+      const to = Math.max(0, t.scrollHeight - t.clientHeight)
       if (instant === true) {
         t.scrollTop = to
         return
       }
       jumpTo(to)
     }
-    requestAnimationFrame(() => requestAnimationFrame(go))
-    const id = window.setTimeout(() => {
-      timers.delete(id)
+    const settle = (left: number) => {
+      const before = t.scrollHeight
       go()
-    }, 350)
-    timers.add(id)
+      if (left <= 0) return
+      requestAnimationFrame(() => {
+        if (t.scrollHeight > before + 2) {
+          settle(left - 1)
+          return
+        }
+        // content-visibility: forçar um passo além do fim aparente revela mais.
+        if (instant === true && t.scrollTop < t.scrollHeight - t.clientHeight - 2) {
+          t.scrollTop = t.scrollHeight
+          settle(left - 1)
+        }
+      })
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => settle(6)))
+    // Histórico chega em idle (~1s+); reforça depois do primeiro paint.
+    for (const ms of instant === true ? [350, 800, 1500, 2500] : [350]) {
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        settle(4)
+      }, ms)
+      timers.add(id)
+    }
   }
 
   return {

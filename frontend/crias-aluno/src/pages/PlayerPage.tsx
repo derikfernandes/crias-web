@@ -2099,13 +2099,15 @@ export default function PlayerPage() {
   const ensureFirstExerciseOptionVisible = useCallback(
     (scroller: HTMLElement) => {
       const opts = [
-        ...scroller.querySelectorAll('.chat-exercise__option'),
+        ...scroller.querySelectorAll(
+          '.v1-0-opt, .chat-exercise__option',
+        ),
       ] as HTMLElement[]
       if (!opts.length) return false
       const first = opts[0]!
       const sRect = scroller.getBoundingClientRect()
       const prompt = scroller.querySelector(
-        '.chat-exercise__prompt',
+        '.v1-0-ex__prompt, .chat-exercise__prompt',
       ) as HTMLElement | null
       const promptSticky =
         prompt && getComputedStyle(prompt).position === 'sticky'
@@ -2115,7 +2117,12 @@ export default function PlayerPage() {
       const usefulTop = promptBottom + 6
 
       let dockTop = sRect.bottom
-      for (const sel of ['.chat-cta-slot', '.chat-composer'] as const) {
+      for (const sel of [
+        '.v1-0-dock',
+        '.chat-cta-slot',
+        '.chat-composer',
+        '.v1-0-composer',
+      ] as const) {
         const el = document.querySelector(sel) as HTMLElement | null
         if (!el) continue
         const cs = getComputedStyle(el)
@@ -2140,7 +2147,9 @@ export default function PlayerPage() {
         const cy = (r.top + r.bottom) / 2
         if (cy < usefulTop || cy > usefulBottom) return false
         const hit = document.elementFromPoint(cx, cy)
-        return Boolean(hit?.closest?.('.chat-exercise__option'))
+        return Boolean(
+          hit?.closest?.('.v1-0-opt, .chat-exercise__option'),
+        )
       }
       const firstHit = hitAt(first)
       const anyHit = opts.some((o) => hitAt(o))
@@ -2184,10 +2193,10 @@ export default function PlayerPage() {
       if (current?.status === 'ok' && current.stage_type === 'exercise') {
         programmaticScrollRef.current = true
         const exerciseRoot = scroller.querySelector(
-          '.chat-exercise',
+          '.v1-0-ex, .chat-exercise',
         ) as HTMLElement | null
         const lastOpt = scroller.querySelector(
-          '.chat-exercise__option:last-of-type',
+          '.v1-0-opt:last-of-type, .chat-exercise__option:last-of-type',
         ) as HTMLElement | null
         if (lastOpt) {
           lastOpt.scrollIntoView({ block: 'end', behavior: 'auto' })
@@ -4118,12 +4127,12 @@ export default function PlayerPage() {
    */
   const exerciseLockLabel =
     exercisePhase === 'submitting'
-      ? 'Aguarde…'
+      ? 'Aguarde...'
       : exercisePhase === 'error'
         ? 'Falha ao enviar. Toque de novo'
         : selectedOptionKey
           ? 'Toque para enviar a resposta'
-          : 'Selecione uma alternativa e continue…'
+          : 'Selecione uma alternativa e continue...'
 
   const exercisePrompt =
     content?.status === 'ok' && content.stage_type === 'exercise'
@@ -4278,12 +4287,12 @@ export default function PlayerPage() {
     content == null
       ? historyReady
         ? 'Trilha indisponível no momento'
-        : 'Carregando a trilha…'
+        : 'Carregando a trilha...'
       : content.status === 'completed'
         ? statusToSystemText(content)
         : content.status !== 'ok'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte ao seu monitor…'
+          : 'Pergunte ao seu monitor...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -4640,14 +4649,14 @@ export default function PlayerPage() {
     answerMark && answerMark.cellKey === currentCell ? answerMark : null
   const exerciseCard = hasExerciseCard ? (
       <fieldset
-        className="v1-0-ex"
+        className="v1-0-ex chat-exercise"
         aria-label="Responda o exercício"
         aria-busy={exerciseSubmitting || exerciseResyncLock || undefined}
         data-exercise-phase={exerciseResyncLock ? 'resyncing' : exercisePhase}
       >
         <span className="v1-0-ex__tag">Exercício</span>
         {exercisePromptParts.length > 0 ? (
-          <div className="v1-0-ex__prompt">
+          <div className="v1-0-ex__prompt chat-exercise__prompt">
             {exercisePromptParts.map((part) => renderMessagePart(part))}
           </div>
         ) : null}
@@ -4690,7 +4699,7 @@ export default function PlayerPage() {
                 role="radio"
                 aria-checked={exerciseDone ? exerciseMark?.picked === opt.key : selected}
                 tabIndex={rovingTabIndex}
-                className={`v1-0-opt${state ? ` ${state}` : ''}`}
+                className={`v1-0-opt chat-exercise__option${state ? ` ${state}` : ''}`}
                 disabled={
                   busy || exerciseSubmitting || exerciseResyncLock || exerciseDone
                 }

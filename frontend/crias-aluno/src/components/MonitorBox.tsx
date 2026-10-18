@@ -2,7 +2,7 @@ import { useRef, type FormEvent, type KeyboardEvent } from 'react'
 import { autoGrow, isMobileViewport } from '../lib/autoGrow'
 
 /**
- * Barra "Pergunte ao seu monitor…" do Início (v1.0, seção 9).
+ * Barra "Pergunte ao seu monitor..." do Início (v1.0, seção 9).
  * Botão de enviar sempre visível, verde, com seta para cima.
  */
 type Props = {
@@ -39,7 +39,7 @@ export default function MonitorBox({ draft, onDraft, onSend, idSuffix }: Props) 
         className="v1-0-composer__input"
         rows={1}
         value={draft}
-        placeholder="Pergunte ao seu monitor…"
+        placeholder="Pergunte ao seu monitor..."
         aria-label="Pergunte ao seu monitor"
         autoComplete="off"
         onChange={(e) => {

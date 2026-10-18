@@ -1,9 +1,9 @@
 /**
  * Rolagem da conversa (v1.0, seções 12 e 12.1). Portada do protótipo.
  *
- * - Suave sempre: roda do mouse soma no máximo 20px ao alvo, limitado a 110px
- *   da posição atual, e a conversa segue o alvo com 12% da distância por quadro.
- *   No toque, o dedo move a 60% do arrasto, limitado a 140px por quadro, com um
+ * - Suave sempre: roda do mouse soma até 100px ao alvo, limitado a 400px
+ *   da posição atual, e a conversa segue o alvo com 20% da distância por quadro.
+ *   No toque, o dedo acompanha o arrasto (1:1), limitado a 280px por quadro, com um
  *   pequeno impulso final.
  * - Pontas: tentar passar do topo ou do fim faz um único movimento curto (5px).
  * - Esmaecer a base: com conteúdo abaixo, os últimos 56px da área esmaecem.
@@ -147,7 +147,7 @@ export function attachThreadScroll(
       raf = 0
       return
     }
-    t.scrollTop += d * 0.12
+    t.scrollTop += d * 0.2
     raf = requestAnimationFrame(glide)
   }
 
@@ -171,8 +171,8 @@ export function attachThreadScroll(
     ) {
       e.preventDefault()
       if (tgt === null) tgt = t.scrollTop
-      tgt = tgt + Math.max(-40, Math.min(40, e.deltaY)) * 0.5
-      tgt = Math.max(t.scrollTop - 110, Math.min(t.scrollTop + 110, tgt))
+      tgt = tgt + Math.max(-100, Math.min(100, e.deltaY))
+      tgt = Math.max(t.scrollTop - 400, Math.min(t.scrollTop + 400, tgt))
       tgt = Math.max(0, Math.min(max, tgt))
       if (!raf) raf = requestAnimationFrame(glide)
       return
@@ -197,7 +197,7 @@ export function attachThreadScroll(
     const max = t.scrollHeight - t.clientHeight
     vel = lastY - y
     lastY = y
-    const want = st0 + (ty0 - y) * 0.6
+    const want = st0 + (ty0 - y)
     if (max <= 1 || want < 0 || want > max) {
       if (want < -4) bounce(1)
       else if (want > max + 4) bounce(-1)
@@ -205,7 +205,7 @@ export function attachThreadScroll(
     if (max > 1) {
       if (e.cancelable) e.preventDefault()
       let next = Math.max(0, Math.min(max, want))
-      next = Math.max(t.scrollTop - 140, Math.min(t.scrollTop + 140, next))
+      next = Math.max(t.scrollTop - 280, Math.min(t.scrollTop + 280, next))
       tgt = next
       if (!raf) raf = requestAnimationFrame(glide)
     }
@@ -215,7 +215,7 @@ export function attachThreadScroll(
     if (ty0 !== null && tgt !== null) {
       const max = t.scrollHeight - t.clientHeight
       let next = Math.max(0, Math.min(max, tgt + Math.max(-30, Math.min(30, vel * 3))))
-      next = Math.max(t.scrollTop - 140, Math.min(t.scrollTop + 140, next))
+      next = Math.max(t.scrollTop - 280, Math.min(t.scrollTop + 280, next))
       tgt = next
       if (!raf) raf = requestAnimationFrame(glide)
     }
@@ -249,21 +249,45 @@ export function attachThreadScroll(
   upd(0)
 
   const toBottom = (instant?: boolean) => {
+    /**
+     * Desce ao fim e repete enquanto o scrollHeight ainda cresce
+     * (histórico idle, imagens, content-visibility). Sem isso a trilha
+     * abria “no fim” do layout parcial e parava no meio da conversa.
+     */
     const go = () => {
       stop()
-      const to = t.scrollHeight - t.clientHeight
+      const to = Math.max(0, t.scrollHeight - t.clientHeight)
       if (instant === true) {
         t.scrollTop = to
         return
       }
       jumpTo(to)
     }
-    requestAnimationFrame(() => requestAnimationFrame(go))
-    const id = window.setTimeout(() => {
-      timers.delete(id)
+    const settle = (left: number) => {
+      const before = t.scrollHeight
       go()
-    }, 350)
-    timers.add(id)
+      if (left <= 0) return
+      requestAnimationFrame(() => {
+        if (t.scrollHeight > before + 2) {
+          settle(left - 1)
+          return
+        }
+        // content-visibility: forçar um passo além do fim aparente revela mais.
+        if (instant === true && t.scrollTop < t.scrollHeight - t.clientHeight - 2) {
+          t.scrollTop = t.scrollHeight
+          settle(left - 1)
+        }
+      })
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => settle(6)))
+    // Histórico chega em idle (~1s+); reforça depois do primeiro paint.
+    for (const ms of instant === true ? [350, 800, 1500, 2500] : [350]) {
+      const id = window.setTimeout(() => {
+        timers.delete(id)
+        settle(4)
+      }, ms)
+      timers.add(id)
+    }
   }
 
   return {

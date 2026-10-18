@@ -109,6 +109,8 @@ const STICKY_BOTTOM_PX = 120
  * aluno desce até (quase) o fim — não basta estar dentro de STICKY_BOTTOM_PX.
  */
 const RESUME_FOLLOW_PX = 24
+const ANCHOR_LONG_LESSON_AT_TITLE: boolean = false
+
 /** Janela em que um scroll ainda é atribuído ao último input do aluno (wheel/tecla). */
 const USER_INPUT_WINDOW_MS = 350
 
@@ -1422,7 +1424,9 @@ export default function PlayerPage() {
         return
       }
       // C2-R21 N02: refetch posição ao voltar — Continuar age na etapa atual.
-      void resyncIfStale()
+      // Silencioso: o foco da janela chega junto do primeiro toque, e travar o
+      // chrome aqui desabilitava o Continuar e descartava esse toque.
+      void resyncIfStale(undefined, { silent: true })
       const open = externalMediaOpenRef.current
       if (!open) return
       if (Date.now() - open.at > 30 * 60_000) {
@@ -1720,7 +1724,9 @@ export default function PlayerPage() {
       setShowTyping(false)
       return
     }
-    const t = window.setTimeout(() => setShowTyping(true), TYPING_MIN_DELAY_MS)
+    // Continuar (trilha): os três pontos aparecem na hora (INTERFACE.md, regra 18).
+    const delay = busyReasonRef.current === 'trail' ? 0 : TYPING_MIN_DELAY_MS
+    const t = window.setTimeout(() => setShowTyping(true), delay)
     return () => window.clearTimeout(t)
   }, [busy])
 
@@ -2632,6 +2638,9 @@ export default function PlayerPage() {
    * Retorna true se ancorou no topo da lição.
    */
   function anchorLongLessonAtTitle(el: HTMLElement): boolean {
+    // v1.1: a trilha sempre abre no fim da conversa. Ancorar no título da aula longa
+    // subia a tela e a rolagem para o fim descia de novo (sobe e desce ao abrir).
+    if (ANCHOR_LONG_LESSON_AT_TITLE === false) return false
     const current = contentRef.current
     if (!current || current.status !== 'ok') return false
     if (current.stage_type === 'exercise') return false
@@ -2916,6 +2925,7 @@ export default function PlayerPage() {
    */
   async function resyncIfStale(
     prefetched?: NextContentOk | NextContentStatus,
+    opts?: { silent?: boolean },
   ): Promise<'same' | 'updated' | 'busy' | 'error'> {
     if (advanceInFlightRef.current || resyncInFlightRef.current) return 'busy'
     const liveSession = getSession()
@@ -2927,9 +2937,12 @@ export default function PlayerPage() {
     const mariaActive = mariaSidechatRef.current
     const prelockedTrail =
       busyReasonRef.current === 'trail' && !advanceInFlightRef.current
+    const silent = opts?.silent === true
     const ownChrome =
-      !mariaActive && (busyReasonRef.current == null || prelockedTrail)
-    if (!mariaActive && busyReasonRef.current == null) {
+      !silent && !mariaActive && (busyReasonRef.current == null || prelockedTrail)
+    if (silent) {
+      // sem trava de chrome: só aplica a etapa se o servidor estiver à frente
+    } else if (!mariaActive && busyReasonRef.current == null) {
       setBusy(true)
       setBusyReason('trail')
       busyReasonRef.current = 'trail'
@@ -3263,7 +3276,12 @@ export default function PlayerPage() {
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
     // C2-R22 N01: resync silencioso em voo — não POST /advance em paralelo.
+    // Espera o resync terminar (até 2s) em vez de descartar o toque no Continuar.
+    for (let i = 0; i < 40 && resyncInFlightRef.current; i += 1) {
+      await new Promise((r) => window.setTimeout(r, 50))
+    }
     if (resyncInFlightRef.current) return
+    if (advanceInFlightRef.current || busy) return
     // C2-R23 N04: Voltar mid-Maria não pode liberar advance enquanto askMaria voa.
     if (mariaInFlightRef.current) return
     // C2-R9 N01: rascunho Maria compete com avanço — não avançar.
@@ -4456,7 +4474,7 @@ export default function PlayerPage() {
     showTyping &&
     (busyReason === 'maria' ||
       busyReason === 'exercise' ||
-      (busyReason === 'trail' && !showLessonCard))
+      busyReason === 'trail')
 
   const chatMessagesAll = visibleMessages.filter((msg) => {
     if (!String(msg.text ?? '').trim()) return false

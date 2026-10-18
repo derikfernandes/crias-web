@@ -95,6 +95,8 @@ export type DashboardStudentChartFilter =
 export type DashboardStudentsLessonBar = {
   key: string
   label: string
+  /** Nome completo para tooltip (pode ser longo). */
+  fullLabel?: string
   lessonNumber: number
   count: number
   enrolledCount: number

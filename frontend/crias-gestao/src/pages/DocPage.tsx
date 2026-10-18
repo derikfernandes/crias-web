@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { DocPageView } from '../design/views/DocPageView'
-import { PRODUCTION_API_DOC_BASE, PRODUCTION_APP_ORIGIN } from '../lib/site'
+import {
+  PRODUCTION_API_DOC_BASE,
+  PRODUCTION_GESTAO_ORIGIN,
+} from '../lib/site'
 
 export function DocPage() {
   const viteApiBase = import.meta.env.VITE_API_BASE_URL
@@ -12,7 +15,7 @@ export function DocPage() {
   return (
     <DocPageView
       baseUrl={baseUrl}
-      appOrigin={PRODUCTION_APP_ORIGIN}
+      appOrigin={PRODUCTION_GESTAO_ORIGIN}
       showDefaultBaseHint={!viteApiBase}
     />
   )

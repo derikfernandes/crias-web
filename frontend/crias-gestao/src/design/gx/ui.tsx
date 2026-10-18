@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useLocation } from 'react-router-dom'
 
 /* Peças de interface da Gestão v1.1 (INTERFACE.md 1.1.x). Só apresentação. */
 
@@ -228,16 +229,31 @@ export function Stat({
   value,
   bar,
   barTone = 'gradient',
+  hint,
 }: {
   label: string
   value: ReactNode
   /** 0 a 100. Sem barra quando undefined. */
   bar?: number | null
   barTone?: 'gradient' | 'green' | 'red'
+  /** Tooltip curto (ex.: diferença entre ativos e ativos 7 dias). */
+  hint?: string
 }) {
   return (
-    <div className="gx-stat">
-      <span>{label}</span>
+    <div className="gx-stat" title={hint} aria-label={hint ? `${label}: ${hint}` : undefined}>
+      <span>
+        {label}
+        {hint ? (
+          <abbr
+            className="gx-stat__hint"
+            title={hint}
+            aria-label={hint}
+            style={{ marginLeft: 6, fontWeight: 700, color: 'var(--v-t3)', textDecoration: 'none', cursor: 'help' }}
+          >
+            ?
+          </abbr>
+        ) : null}
+      </span>
       <strong>{value}</strong>
       {typeof bar === 'number' ? (
         <span
@@ -501,6 +517,18 @@ export function FilterPopover({
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const location = useLocation()
+  useEffect(() => {
+    setOpen(false)
+  }, [location.pathname, location.search])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
   const sorted = useMemo(
     () => [...options].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     [options],
@@ -669,9 +697,17 @@ export function SortHead({
   numeric?: boolean
 }) {
   const dir = sort?.key === sortKey ? sort.dir : undefined
+  const nextDir = dir === 'asc' ? 'desc' : 'asc'
+  const hint =
+    dir === 'asc'
+      ? `${label}: crescente. Clique para decrescente.`
+      : dir === 'desc'
+        ? `${label}: decrescente. Clique para crescente.`
+        : `${label}: ordenar crescente.`
   return (
     <th
       className={numeric ? 'num' : undefined}
+      data-col={sortKey === 'name' || sortKey === 'level' || sortKey === 'code' ? sortKey : undefined}
       aria-sort={
         dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none'
       }
@@ -679,26 +715,16 @@ export function SortHead({
       <button
         type="button"
         className="gx-sort"
-        data-dir={dir}
-        onClick={() =>
-          onSort({ key: sortKey, dir: dir === 'asc' ? 'desc' : 'asc' })
-        }
+        data-dir={dir ?? ''}
+        data-active={dir ? '1' : '0'}
+        title={hint}
+        aria-label={hint}
+        onClick={() => onSort({ key: sortKey, dir: nextDir })}
       >
         {label}
-        <svg
-          width="10"
-          height="14"
-          viewBox="0 0 10 14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M2 5l3-3 3 3" />
-          <path d="M2 9l3 3 3-3" />
-        </svg>
+        <span className="gx-sort__mark" aria-hidden="true">
+          {dir === 'asc' ? '↑' : dir === 'desc' ? '↓' : '↕'}
+        </span>
       </button>
     </th>
   )
@@ -745,7 +771,7 @@ export function pageNumbers(page: number, pages: number): (number | null)[] {
 /** Rodapé de tabela: "X trilhas de Y", tamanho da página, Anterior, números (1 2 3…) e Próxima (1.1.24). */
 export function Pager({
   pager,
-  noun,
+  noun: _noun,
   nounPlural,
   sizes,
   gateAt = 0,
@@ -757,8 +783,12 @@ export function Pager({
   /** Anterior e Próxima só ficam ativos quando há mais itens que isto. */
   gateAt?: number
 }) {
-  const shown = pager.slice.length
-  const label = `${shown} ${shown === 1 ? noun : nounPlural} de ${pager.total}`
+  const start = pager.total === 0 ? 0 : (pager.page - 1) * pager.size + 1
+  const end = pager.total === 0 ? 0 : Math.min(pager.page * pager.size, pager.total)
+  const label =
+    pager.total === 0
+      ? `0 ${nounPlural} de 0`
+      : `${start} a ${end} de ${pager.total}`
   const enabled = pager.total > gateAt
   return (
     <div className="gx-pager">

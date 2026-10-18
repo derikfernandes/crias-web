@@ -46,7 +46,7 @@ export function StudentsListPage() {
   const trails = useCollection('trails', snapshotToTrail)
   const [byName, setByName] = useState<Set<string> | null>(null)
   const [byCode, setByCode] = useState<Set<string> | null>(null)
-  const [sort, setSort] = useState<SortState | null>({ key: 'name', dir: 'asc' })
+  const [sort, setSort] = useState<SortState | null>({ key: 'code', dir: 'asc' })
 
   const scoped = useMemo(
     () => students.rows.filter((s) => g.scopedIds.has(s.institution_id)),
@@ -186,20 +186,20 @@ export function StudentsListPage() {
             <tbody>
               {pager.slice.map((l) => (
                 <tr key={l.student.id}>
-                  <td>
-                    <Link to={`/alunos/${l.student.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
+                  <td data-col="name">
+                    <Link to={`/alunos/${l.student.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }} data-fade="1">
                       {l.student.name || l.student.id}
                     </Link>
                   </td>
-                  <td className="num">{na(l.code)}</td>
-                  <td>{l.trail}</td>
+                  <td className="num" data-col="code">{na(l.code)}</td>
+                  <td data-col="trail">{l.trail}</td>
                   <td className="num">{na(l.stage)}</td>
                   <td className="num">{na(l.question)}</td>
                   <td>
                     <span className={statusPillClass(l.status)}>{l.status ? STATUS_LABEL[l.status] : 'N/A'}</span>
                   </td>
-                  <td>{na(l.student.phone_number)}</td>
-                  <td>{schooling(l.student)}</td>
+                  <td data-col="phone">{na(l.student.phone_number)}</td>
+                  <td data-col="level">{schooling(l.student)}</td>
                   <td>{na(PED[l.student.student_level])}</td>
                   <td>
                     <span className={activePillClass(l.student.active)}>{l.student.active ? 'Sim' : 'Não'}</span>

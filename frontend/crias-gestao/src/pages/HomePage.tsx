@@ -66,12 +66,19 @@ function StatsRow({ m }: { m: InstitutionMetrics }) {
 function ArrowButton({
   label,
   onClick,
+  ariaLabel,
 }: {
   label: string
   onClick: () => void
+  ariaLabel?: string
 }) {
   return (
-    <button type="button" className="gx-btn gx-btn--outline" onClick={onClick}>
+    <button
+      type="button"
+      className="gx-btn gx-btn--outline"
+      onClick={onClick}
+      aria-label={ariaLabel ?? label}
+    >
       {label}
       <span style={{ color: 'var(--v-green)', display: 'inline-flex' }}>
         <Icon name="chev-right" size={14} />
@@ -97,7 +104,11 @@ function SuperHome({
     return [
       { label: 'Instituições', value: g.scopedInstitutions.length },
       { label: 'Alunos ativos', value: sum((m) => m.activeStudents) },
-      { label: 'Ativos (7 dias)', value: sum((m) => m.activeLast7Days) },
+      {
+        label: 'Ativos (7 dias)',
+        value: sum((m) => m.activeLast7Days),
+        hint: 'Alunos com interação nos últimos 7 dias. Pode ser menor que Alunos ativos (cadastro ativo sem uso recente).',
+      },
       { label: 'Trilhas ativas', value: sum((m) => m.activeTrails) },
       { label: 'Em andamento', value: sum((m) => m.inProgress) },
     ]
@@ -134,23 +145,41 @@ function SuperHome({
         <>
           <div className="gx-stats" aria-label="Resumo">
             {totals.map((t) => (
-              <Stat key={t.label} label={t.label} value={t.value} />
+              <Stat
+                key={t.label}
+                label={t.label}
+                value={t.value}
+                hint={'hint' in t ? t.hint : undefined}
+              />
             ))}
           </div>
           <section aria-label="Instituições" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {g.scopedInstitutions.map((inst) => {
               const m = metrics.get(inst.id)
+              const instName = inst.name || inst.id
               return (
                 <article className="gx-card" key={inst.id}>
                   <header className="gx-card__head">
                     <div style={{ minWidth: 0 }}>
-                      <Fade as="h3">{inst.name || inst.id}</Fade>
+                      <Fade as="h3">{instName}</Fade>
                       <p className="gx-muted">{na(inst.type)}</p>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <ArrowButton label="Dados" onClick={() => openScoped(inst, '/dashboard')} />
-                      <ArrowButton label="Trilhas" onClick={() => openScoped(inst, '/trilhas')} />
-                      <ArrowButton label="Alunos" onClick={() => openScoped(inst, '/alunos')} />
+                      <ArrowButton
+                        label="Dados"
+                        ariaLabel={`Dados de ${instName}`}
+                        onClick={() => openScoped(inst, '/dashboard')}
+                      />
+                      <ArrowButton
+                        label="Trilhas"
+                        ariaLabel={`Trilhas de ${instName}`}
+                        onClick={() => openScoped(inst, '/trilhas')}
+                      />
+                      <ArrowButton
+                        label="Alunos"
+                        ariaLabel={`Alunos de ${instName}`}
+                        onClick={() => openScoped(inst, '/alunos')}
+                      />
                     </div>
                   </header>
                   {m ? <StatsRow m={m} /> : null}

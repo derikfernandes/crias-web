@@ -227,7 +227,7 @@ html {
 .gx-nav__group { margin: 24px 0 6px; padding: 0 10px; display: flex; align-items: center; gap: 10px; }
 .gx-nav__group span:first-child { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--v-lab); white-space: nowrap; }
 .gx-nav__group span:last-child { flex: 1; height: 1px; background: var(--v-lab); opacity: 0.25; transform: scaleY(0.5); }
-.gx-nav__head { margin: 10px 0 2px; padding: 0 10px; font-size: 12px; font-weight: 700; color: var(--v-t3); }
+/* Subtítulo de grupo (ex.: Sistema): rótulo, não link. */
 .gx-side__foot { position: relative; flex: none; padding: 11px 10px max(18px, env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 6px; }
 .gx-side__foot::before { content: ''; position: absolute; top: 0; left: 20px; right: 20px; height: 1px; background: var(--v-lab); opacity: 0.25; transform: scaleY(0.5); pointer-events: none; }
 .gx-switch { display: flex; gap: 2px; padding: 3px; margin: 0 2px 0 12px; border-radius: 999px; background: var(--v-soft2); border: 1px solid var(--v-line); }
@@ -350,7 +350,8 @@ html {
 .gx-table td.num, .gx-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .gx-table__empty { text-align: center; color: var(--v-t3); padding: 24px !important; }
 .gx-sort { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; }
-.gx-sort svg { opacity: 0.35; } .gx-sort[data-dir='asc'] svg path:first-child, .gx-sort[data-dir='desc'] svg path:last-child { opacity: 1; stroke: var(--v-ink); }
+.gx-sort__mark { font-size: 12px; font-weight: 700; opacity: 0.4; line-height: 1; }
+.gx-sort[data-active='1'] .gx-sort__mark { opacity: 1; color: var(--v-gink); }
 .gx-cell { display: block; min-width: 0; max-width: 260px; white-space: nowrap; overflow: hidden; }
 .gx-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--v-t3); }
 .gx-pager__ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -535,3 +536,98 @@ html {
 .gx-root pre { background: var(--v-soft); border: 1px solid var(--v-line); border-radius: 12px; color: var(--v-ink); }
 .gx-root h1, .gx-root h2, .gx-root h3 { letter-spacing: 0; }
 .gx-root table { color: var(--v-ink); }
+
+/* ===== Dados: gráfico de atividades (scroll interno, sem overflow da página) ===== */
+.gx-card--chart { min-width: 0; overflow: hidden; }
+.gx-lesson-chart { width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; }
+.gx-lesson-chart__track {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  min-width: min-content;
+  padding: 0 2px;
+}
+.gx-lesson-chart__col {
+  flex: 0 0 44px;
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+  min-width: 0;
+}
+.gx-lesson-chart__n { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--v-ink); }
+.gx-lesson-chart__bar {
+  width: 70%;
+  min-height: 4px;
+  border-radius: 6px;
+  background: linear-gradient(to top, #ffd500, #00be85);
+}
+.gx-lesson-chart__label {
+  display: block;
+  width: 100%;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--v-t3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.gx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.gx-skel {
+  display: block;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--v-soft) 0%, var(--v-soft2) 50%, var(--v-soft) 100%);
+  background-size: 200% 100%;
+  animation: gx-skel 1.2s ease-in-out infinite;
+  min-height: 14px;
+}
+@keyframes gx-skel {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+.gx-table th[data-col='name'], .gx-table td[data-col='name'] { min-width: 220px; max-width: 320px; width: 22%; }
+.gx-table th[data-col='level'], .gx-table td[data-col='level'] { min-width: 180px; max-width: 260px; width: 16%; }
+.gx-table th[data-col='code'], .gx-table td[data-col='code'] { min-width: 72px; width: 72px; }
+.gx-table th[data-col='trail'], .gx-table td[data-col='trail'] { min-width: 140px; max-width: 220px; }
+.gx-table th[data-col='phone'], .gx-table td[data-col='phone'] { min-width: 130px; }
+.gx-table td[data-col='name'] a,
+.gx-table td[data-col='level'],
+.gx-table td[data-col='trail'] {
+  white-space: nowrap;
+  overflow: hidden;
+  display: block;
+  max-width: 320px;
+}
+.gx-user-email,
+.gx-user-email:disabled,
+.gx-input.gx-user-email:disabled {
+  color: var(--v-ink) !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: var(--v-ink);
+}
+.gx-nav__head {
+  pointer-events: none;
+  cursor: default;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-t3);
+  margin: 14px 0 4px;
+  padding: 0 10px;
+}

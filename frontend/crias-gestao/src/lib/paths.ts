@@ -2,7 +2,7 @@ import { PRODUCTION_APP_ORIGIN } from './site'
 
 /**
  * Origem dos links públicos e do campo `public_link`. Sempre o domínio de produção
- * (`crias-trilhas.vercel.app`), salvo override explícito — inclusive em `npm run dev`, para
+ * (`crias-web.vercel.app`), salvo override explícito — inclusive em `npm run dev`, para
  * não aparecer `localhost` em URLs compartilháveis.
  * Para links locais raros: `VITE_PUBLIC_APP_ORIGIN=http://localhost:5173` no `.env`.
  */

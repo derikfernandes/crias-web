@@ -15,7 +15,7 @@ const LOCKED = new Set(['criar_trilha_ia'])
 
 /** Prompts (1.1.14): seletor "Agente", texto, nota da versão, Salvar e versões anteriores. */
 export function AiPromptsPage() {
-  const { isMaster } = usePermissions()
+  const { isMaster, permissionsLoading } = usePermissions()
   const [prompts, setPrompts] = useState<AiPromptRecord[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState('')
@@ -33,7 +33,7 @@ export function AiPromptsPage() {
   const dirty = selected ? draft.trim() !== selected.body.trim() : false
 
   const load = useCallback(async () => {
-    if (!isMaster) return
+    if (permissionsLoading || !isMaster) return
     setLoading(true)
     setError(null)
     try {
@@ -45,7 +45,7 @@ export function AiPromptsPage() {
     } finally {
       setLoading(false)
     }
-  }, [isMaster])
+  }, [isMaster, permissionsLoading])
 
   useEffect(() => {
     void load()
@@ -100,6 +100,7 @@ export function AiPromptsPage() {
     }
   }
 
+  if (permissionsLoading) return <BootSymbol />
   if (!isMaster) {
     return (
       <div className="gx-page">

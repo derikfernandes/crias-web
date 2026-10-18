@@ -225,17 +225,34 @@ export function mergeAgentRowsByLabel(
   return ordered
 }
 
+/** Dias de calendário cobertos pela série (primeiro ao último dia com dado). */
+export function calendarDaySpan(dates: string[]): number {
+  const times = dates
+    .map((d) => Date.parse(d))
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b)
+  if (times.length === 0) return 1
+  if (times.length === 1) return 1
+  return Math.max(1, Math.round((times[times.length - 1]! - times[0]!) / 86_400_000) + 1)
+}
+
 export function messagesPerTutorPerDay(input: {
   totalMessages: number
   activeTutorCount: number
   periodDays: number
   activeDayCount: number
+  /** Datas YYYY-MM-DD da série (usado no período "Todo"). */
+  seriesDates?: string[]
 }): number {
   const tutors = Math.max(0, input.activeTutorCount)
   if (input.totalMessages <= 0 || tutors <= 0) return 0
-  const days =
-    input.periodDays > 0
-      ? input.periodDays
-      : Math.max(1, input.activeDayCount)
+  let days: number
+  if (input.periodDays > 0) {
+    days = input.periodDays
+  } else if (input.seriesDates && input.seriesDates.length > 0) {
+    days = calendarDaySpan(input.seriesDates)
+  } else {
+    days = Math.max(1, input.activeDayCount)
+  }
   return Math.round((input.totalMessages / tutors / days) * 10) / 10
 }

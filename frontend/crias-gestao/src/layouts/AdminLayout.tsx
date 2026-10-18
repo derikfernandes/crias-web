@@ -93,13 +93,15 @@ function NavLink({
  * desenham o conteúdo.
  */
 function Shell({ children }: { children: ReactNode }) {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const { canNav, permissionsLoading, isMaster } = usePermissions()
   const { isSuper, institutions, selectedIds, setSelectedIds, institutionsLoading, myInstitutionId, institutionName } =
     useGestao()
   const location = useLocation()
   const navigate = useNavigate()
   const authed = Boolean(user)
+  // Enquanto o Auth resolve, não mostrar menu de visitante (Entrar / só doc).
+  const authSettling = authLoading || (authed && permissionsLoading)
   const mainRef = useRef<HTMLElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile())
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -185,7 +187,8 @@ function Shell({ children }: { children: ReactNode }) {
     if (isMobile()) setSidebarOpen(false)
   }
 
-  const loadingBoot = authed && (permissionsLoading || institutionsLoading)
+  const loadingBoot =
+    authLoading || (authed && (permissionsLoading || institutionsLoading))
   const email = user?.email ?? ''
 
   return (
@@ -209,7 +212,11 @@ function Shell({ children }: { children: ReactNode }) {
           </div>
           <nav className="gx-nav" data-navfade="1">
             <div className="gx-nav__inner">
-              {authed ? (
+              {authSettling ? (
+                <p className="gx-muted" style={{ padding: '8px 10px', margin: 0, fontSize: 13 }}>
+                  Carregando…
+                </p>
+              ) : authed ? (
                 entries.map((e) =>
                   e.type === 'link' ? (
                     <NavLink key={e.section} item={e} on={section === e.section} onGo={closeOnMobile} />
@@ -221,7 +228,7 @@ function Shell({ children }: { children: ReactNode }) {
                       </p>
                       {e.children.map((c) =>
                         c.type === 'head' ? (
-                          <p key={`h-${c.label}`} className="gx-nav__head">
+                          <p key={`h-${c.label}`} className="gx-nav__head" role="presentation">
                             {c.label}
                           </p>
                         ) : (
@@ -239,7 +246,7 @@ function Shell({ children }: { children: ReactNode }) {
               )}
             </div>
           </nav>
-          {authed ? (
+          {authed && !authSettling ? (
             <div className="gx-side__foot">
               <div className="gx-switch" role="group" aria-label="Alternar entre gestão e aluno">
                 <button type="button" className="is-on" aria-pressed="true">

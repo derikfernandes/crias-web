@@ -20,7 +20,12 @@ export function UsersPage() {
   const isSuper = hasFullAccess || Boolean(adminProfile?.is_super_admin)
 
   const crias = useMemo(
-    () => users.rows.filter((u) => u.is_super_admin || u.all_institutions || u.institution_ids.length === 0),
+    () =>
+      users.rows.filter((u) => {
+        const email = (u.email || '').toLowerCase()
+        if (email.endsWith('@crias.ai') || email.endsWith('@crias.org')) return true
+        return u.is_super_admin || u.all_institutions || u.institution_ids.length === 0
+      }),
     [users.rows],
   )
   const inst = useMemo(

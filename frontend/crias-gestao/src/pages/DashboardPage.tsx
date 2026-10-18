@@ -7,6 +7,7 @@ import {
 } from 'react'
 import type * as XLSX from 'xlsx'
 import { collection, getDocs, query, where } from 'firebase/firestore'
+import { useSearchParams } from 'react-router-dom'
 import { DashboardPageView } from '../design/views/DashboardPageView'
 import {
   DASHBOARD_STUDENT_COLUMNS,
@@ -28,6 +29,17 @@ import {
   INSTITUTIONS_COLLECTION,
   snapshotToInstitution,
 } from '../lib/institutionFirestore'
+import {
+  snapshotToExerciseAttempt,
+  EXERCISE_ATTEMPTS_COLLECTION,
+} from '../lib/exerciseAttemptFirestore'
+import { activityCountByTrail } from '../lib/gestaoMetrics'
+import {
+  accuracyFromAttempts,
+  engagementFromLinks,
+  isActivityDoneOnLink,
+  progressFromLinks,
+} from '../lib/dashboardTrailProgress'
 import { snapshotToStudent, STUDENTS_COLLECTION } from '../lib/studentFirestore'
 import {
   snapshotToStudentTrail,
@@ -84,6 +96,7 @@ type StudentRow = {
   correct: number
   wrong: number
   accuracyPct: number | null
+  engagementStatus: StudentEngagementStatus
 }
 
 type StudentEngagementStatus = 'notStarted' | 'inProgress' | 'completed'
@@ -91,11 +104,7 @@ type StudentEngagementStatus = 'notStarted' | 'inProgress' | 'completed'
 function getStudentEngagementStatus(
   row: StudentRow,
 ): StudentEngagementStatus {
-  const completion = row.completionPct
-  if (row.released === 0 || completion === null || completion <= 0) {
-    return 'notStarted'
-  }
-  return completion >= 100 ? 'completed' : 'inProgress'
+  return row.engagementStatus
 }
 
 function getCompletionBucketKey(completion: number | null): string | null {
@@ -520,6 +529,8 @@ function appendLessonsProgressSheet(
 export function DashboardPage() {
   const { filterInstitutions } = usePermissions()
   const gestao = useGestao()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const instFromUrl = searchParams.get('inst')?.trim() || null
   const [trailFilter, setTrailFilter] = useState<Set<string> | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('students')
   // Oportunidades (menor e maior acerto) aparecem sempre; os dados dos exercícios entram desde o início.
@@ -528,13 +539,24 @@ export function DashboardPage() {
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [loadingInst, setLoadingInst] = useState(true)
   const [instError, setInstError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => gestao.scopedInstitutions[0]?.id ?? null,
-  )
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('inst')?.trim()
+    if (fromUrl) return fromUrl
+    try {
+      const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
+      if (stored?.trim()) return stored.trim()
+    } catch {
+      // ignore
+    }
+    return gestao.scopedInstitutions[0]?.id ?? null
+  })
 
   const [students, setStudents] = useState<Student[]>([])
   const [trails, setTrails] = useState<Trail[]>([])
   const [studentTrails, setStudentTrails] = useState<StudentTrail[]>([])
+  const [attempts, setAttempts] = useState<
+    import('../types/exerciseAttempt').ExerciseAttempt[]
+  >([])
   const [logAggregates, setLogAggregates] = useState<LogAggregates>(
     EMPTY_LOG_AGGREGATES,
   )
@@ -658,14 +680,42 @@ export function DashboardPage() {
     window.localStorage.setItem(LAST_INSTITUTION_ID_STORAGE_KEY, selectedId)
   }, [selectedId])
 
-  // A instituição vem do filtro global do topo (Super admin) ou é a própria (perfil Instituição).
+  // Instituição: URL ?inst= > seleção atual válida no escopo > storage > primeira do escopo.
+  // Não cair silenciosamente em "Todas" mostrando só a primeira (ex.: Crias).
   useEffect(() => {
-    const first = gestao.scopedInstitutions[0]?.id ?? null
-    setSelectedId((current) =>
-      current && gestao.scopedIds.has(current) ? current : first,
-    )
+    const scoped = gestao.scopedInstitutions
+    const scopedIds = gestao.scopedIds
+    const first = scoped[0]?.id ?? null
+    const urlId = instFromUrl && scopedIds.has(instFromUrl) ? instFromUrl : null
+
+    setSelectedId((current) => {
+      if (urlId) return urlId
+      if (current && scopedIds.has(current)) return current
+      try {
+        const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
+        if (stored && scopedIds.has(stored)) return stored
+      } catch {
+        // ignore
+      }
+      return first
+    })
     setTrailFilter(null)
-  }, [gestao.scopedInstitutions, gestao.scopedIds])
+  }, [gestao.scopedInstitutions, gestao.scopedIds, instFromUrl])
+
+  // Persiste a instituição na URL para F5 / deep link.
+  useEffect(() => {
+    if (!selectedId?.trim()) return
+    const cur = searchParams.get('inst')
+    if (cur === selectedId) return
+    const next = new URLSearchParams(searchParams)
+    next.set('inst', selectedId)
+    setSearchParams(next, { replace: true })
+  }, [selectedId, searchParams, setSearchParams])
+
+  function selectInstitution(id: string) {
+    setSelectedId(id)
+    gestao.setSelectedIds(new Set([id]))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -675,6 +725,7 @@ export function DashboardPage() {
         setStudents([])
         setTrails([])
         setStudentTrails([])
+        setAttempts([])
         setLogAggregates(EMPTY_LOG_AGGREGATES)
         setAgentUsage(EMPTY_AGENT_USAGE)
         setAgentUsagePresent(true)
@@ -728,7 +779,8 @@ export function DashboardPage() {
 
       // One-shot: dashboard não precisa de realtime nestas coleções.
       try {
-        const [studentsSnap, trailsSnap, studentTrailsSnap] = await Promise.all([
+        const [studentsSnap, trailsSnap, studentTrailsSnap, attemptsSnap] =
+          await Promise.all([
           getDocs(
             query(
               collection(dbOk, STUDENTS_COLLECTION),
@@ -747,6 +799,12 @@ export function DashboardPage() {
               where('institution_id', '==', selectedId),
             ),
           ),
+          getDocs(
+            query(
+              collection(dbOk, EXERCISE_ATTEMPTS_COLLECTION),
+              where('institution_id', '==', selectedId),
+            ),
+          ),
         ])
         if (cancelled) return
         setStudents(studentsSnap.docs.map(snapshotToStudent))
@@ -755,6 +813,7 @@ export function DashboardPage() {
         done('trails')
         setStudentTrails(studentTrailsSnap.docs.map(snapshotToStudentTrail))
         done('studentTrails')
+        setAttempts(attemptsSnap.docs.map(snapshotToExerciseAttempt))
         setDataError(null)
       } catch (err) {
         if (cancelled) return
@@ -764,6 +823,7 @@ export function DashboardPage() {
         setStudents([])
         setTrails([])
         setStudentTrails([])
+        setAttempts([])
         done('students')
         done('trails')
         done('studentTrails')
@@ -1239,10 +1299,15 @@ export function DashboardPage() {
     return map
   }, [questionsByTrail])
 
+  const activityTotals = useMemo(
+    () => activityCountByTrail(questions),
+    [questions],
+  )
+
   const studentRows = useMemo<StudentRow[]>(() => {
     const relevantIds = new Set(relevantTrails.map((t) => t.id))
 
-    // Trilhas inscritas (com progresso) de cada aluno, restritas às trilhas ativas.
+    // Trilhas inscritas de cada aluno, restritas às trilhas ativas/filtradas.
     const trailsByStudent = new Map<string, StudentTrail[]>()
     for (const st of studentTrails) {
       if (!relevantIds.has(st.trail_id)) continue
@@ -1251,18 +1316,14 @@ export function DashboardPage() {
       else trailsByStudent.set(st.student_id, [st])
     }
 
-    const attemptsByStudent = new Map<string, { correct: number; wrong: number }>()
-    for (const student of students) {
-      const enrolled = trailsByStudent.get(student.id) ?? []
-      const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
-      attemptsByStudent.set(
-        student.id,
-        scoreStudentFromAnswerMap(
-          student.id,
-          enrolledTrailIds,
-          studentAnswerMap,
-          stageByKey,
-          questionByKey,
+    // Atividades por trilha (já com filtros de tópico/atividade).
+    const activitiesByTrail = new Map<string, number[]>()
+    for (const trail of relevantTrails) {
+      activitiesByTrail.set(
+        trail.id,
+        trailLessonNumbers(
+          trail.id,
+          questionsByTrail,
           deselectedStages,
           deselectedQuestions,
         ),
@@ -1270,45 +1331,43 @@ export function DashboardPage() {
     }
 
     const rows: StudentRow[] = students.map((student) => {
-      let released = 0
-      let done = 0
       const enrolled = trailsByStudent.get(student.id) ?? []
-      const studentDone = enrichedDoneByStudent.get(student.id) ?? new Set()
-      for (const st of enrolled) {
-        const positions = questionsByTrail.get(st.trail_id) ?? []
-        const selected = positions.filter(
-          (p) =>
-            !deselectedStages.has(`${st.trail_id}|${p.stage}`) &&
-            !deselectedQuestions.has(p.question),
-        )
-        released += selected.length
-
-        for (const p of selected) {
-          const key = `${st.trail_id}|${p.stage}|${p.question}`
-          if (studentDone.has(key)) done += 1
-        }
-      }
-
-      const lessonMetrics = computeLessonMetricsForTrails(
-        enrolled.map((st) => st.trail_id),
-        questionsByTrail,
-        studentDone,
+      const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
+      const progress = progressFromLinks({
+        links: enrolled,
+        activitiesByTrail,
+        activityTotals,
+      })
+      // Acerto: mesma fonte do Início (exercise_attempts). Fallback ao mapa de logs.
+      const fromAttempts = accuracyFromAttempts(
+        attempts,
+        student.id,
+        enrolledTrailIds,
+      )
+      const fromLogs = scoreStudentFromAnswerMap(
+        student.id,
+        enrolledTrailIds,
+        studentAnswerMap,
+        stageByKey,
+        questionByKey,
         deselectedStages,
         deselectedQuestions,
       )
-
-      const agg = attemptsByStudent.get(student.id) ?? { correct: 0, wrong: 0 }
+      const useAttempts = fromAttempts.correct + fromAttempts.wrong > 0
+      const correct = useAttempts ? fromAttempts.correct : fromLogs.correct
+      const wrong = useAttempts ? fromAttempts.wrong : fromLogs.wrong
       return {
         student,
-        released,
-        done,
-        completionPct: pct(done, released),
-        lessonsReleased: lessonMetrics.lessonsReleased,
-        lessonsDone: lessonMetrics.lessonsDone,
-        lessonsCompletionPct: lessonMetrics.lessonsCompletionPct,
-        correct: agg.correct,
-        wrong: agg.wrong,
-        accuracyPct: pct(agg.correct, agg.correct + agg.wrong),
+        released: progress.released,
+        done: progress.done,
+        completionPct: progress.completionPct,
+        lessonsReleased: progress.lessonsReleased,
+        lessonsDone: progress.lessonsDone,
+        lessonsCompletionPct: progress.lessonsCompletionPct,
+        correct,
+        wrong,
+        accuracyPct: pct(correct, correct + wrong),
+        engagementStatus: engagementFromLinks(enrolled),
       }
     })
 
@@ -1318,11 +1377,12 @@ export function DashboardPage() {
     relevantTrails,
     studentTrails,
     questionsByTrail,
+    activityTotals,
+    attempts,
     stageByKey,
     questionByKey,
     deselectedStages,
     deselectedQuestions,
-    enrichedDoneByStudent,
     studentAnswerMap,
   ])
 
@@ -1565,10 +1625,17 @@ export function DashboardPage() {
     const lessonBars: {
       key: string
       label: string
+      fullLabel?: string
       lessonNumber: number
       count: number
       enrolledCount: number
     }[] = []
+
+    // Índice rápido: vínculo aluno-trilha (fonte Início).
+    const linkByStudentTrail = new Map<string, StudentTrail>()
+    for (const st of studentTrails) {
+      linkByStudentTrail.set(`${st.student_id}|${st.trail_id}`, st)
+    }
 
     for (const trail of relevantTrails) {
       const lessonNumbers = trailLessonNumbers(
@@ -1577,37 +1644,30 @@ export function DashboardPage() {
         deselectedStages,
         deselectedQuestions,
       )
-      const byQuestion = groupTopicsByLesson(
-        filterTrailTopicPositions(
-          trail.id,
-          questionsByTrail.get(trail.id) ?? [],
-          deselectedStages,
-          deselectedQuestions,
-        ),
-      )
+      const totalActs = activityTotals.get(trail.id) ?? lessonNumbers.length
 
       for (const lessonNumber of lessonNumbers) {
-        const topics = byQuestion.get(lessonNumber) ?? []
-        if (topics.length === 0) continue
-
         let enrolledCount = 0
         let count = 0
         for (const row of filteredStudentRows) {
           const enrolled = trailsByStudentIds.get(row.student.id)
           if (!enrolled?.has(trail.id)) continue
           enrolledCount += 1
-          const studentDone =
-            enrichedDoneByStudent.get(row.student.id) ?? new Set()
-          if (isLessonCompleteForTrail(trail.id, topics, studentDone)) {
+          const link = linkByStudentTrail.get(`${row.student.id}|${trail.id}`)
+          if (link && isActivityDoneOnLink(link, lessonNumber, totalActs)) {
             count += 1
           }
         }
 
+        const trailLabel = (trail.name || trail.id).trim()
         lessonBars.push({
           key: `${trail.id}|${lessonNumber}`,
           label: multiTrail
-            ? `A${lessonNumber} · ${trail.name || trail.id}`
+            ? `A${lessonNumber} · ${trailLabel}`
             : `A${lessonNumber}`,
+          fullLabel: multiTrail
+            ? `A${lessonNumber} · ${trailLabel}`
+            : `Atividade ${lessonNumber}`,
           lessonNumber,
           count,
           enrolledCount,
@@ -1644,7 +1704,8 @@ export function DashboardPage() {
     deselectedStages,
     deselectedQuestions,
     trailsByStudentIds,
-    enrichedDoneByStudent,
+    studentTrails,
+    activityTotals,
   ])
 
   // Ranking de pílulas — itera só respostas existentes no mapa
@@ -2383,6 +2444,7 @@ export function DashboardPage() {
         activeTutorCount,
         periodDays: agentPeriodDays,
         activeDayCount,
+        seriesDates: agentUsage.series.map((point) => point.date),
       }),
       agents,
       series: agentUsage.series.map((point) => {
@@ -2465,7 +2527,8 @@ export function DashboardPage() {
       institutionOptions={institutionOptions}
       selectedId={selectedId}
       onSelectInstitution={(id) => {
-        setSelectedId(id)
+        if (!id) return
+        selectInstitution(id)
         setStudentChartFilter(null)
         setActiveTab('students')
         setQuestionsDataEnabled(false)

@@ -34,14 +34,40 @@ function accuracyBar(p: number): string {
   return 'gx-bar gx-bar--red'
 }
 
-function BarRow({ label, count, max }: { label: string; count: number; max: number }) {
+function BarRow({
+  label,
+  count,
+  max,
+  labelWidth = 110,
+}: {
+  label: string
+  count: number
+  max: number
+  labelWidth?: number
+}) {
+  const tip = `${label}: ${count}`
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-      <span style={{ width: 96, color: 'var(--v-t3)', flex: 'none' }}>{label}</span>
-      <span className="gx-bar" style={{ flex: 1, height: 10 }}>
+    <div
+      className="gx-chart-row"
+      style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}
+      title={tip}
+    >
+      <span
+        style={{
+          width: labelWidth,
+          color: 'var(--v-t3)',
+          flex: 'none',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {label}
+      </span>
+      <span className="gx-bar" style={{ flex: 1, height: 10 }} aria-label={tip}>
         <span style={{ width: `${max > 0 ? (count / max) * 100 : 0}%` }} />
       </span>
-      <strong style={{ width: 28, textAlign: 'right' }}>{count}</strong>
+      <strong style={{ width: 36, textAlign: 'right', flex: 'none' }}>{count}</strong>
     </div>
   )
 }
@@ -211,15 +237,34 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         subtitle="Informações de uso dos alunos."
         tools={
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 32, width: '100%' }}>
-            <div
-              className="gx-filter__btn gx-filter__btn--field"
-              style={{ width: 'auto', maxWidth: '100%', cursor: 'default', flex: '0 1 auto', display: 'flex' }}
-              aria-label="Instituição"
-            >
-              <span data-fade="1" style={{ fontWeight: 700 }}>
-                {p.institutionName}
-              </span>
-            </div>
+            {p.institutionOptions.length > 1 ? (
+              <label className="gx-field" style={{ margin: 0, minWidth: 200, flex: '0 1 280px' }}>
+                <span className="gx-sr-only">Instituição</span>
+                <select
+                  className="gx-input"
+                  style={{ height: 36, borderRadius: 999, paddingInline: 16, fontWeight: 700 }}
+                  aria-label="Instituição"
+                  value={p.selectedId ?? ''}
+                  onChange={(e) => p.onSelectInstitution(e.target.value || null)}
+                >
+                  {p.institutionOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div
+                className="gx-filter__btn gx-filter__btn--field"
+                style={{ width: 'auto', maxWidth: '100%', cursor: 'default', flex: '0 1 auto', display: 'flex' }}
+                aria-label="Instituição"
+              >
+                <span data-fade="1" style={{ fontWeight: 700 }}>
+                  {p.institutionName}
+                </span>
+              </div>
+            )}
             <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0 }}>
               <FilterPopover
                 variant="field"
@@ -255,7 +300,11 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             <span className="gx-bar" style={{ marginTop: 6 }}>
               <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
             </span>
-          ) : null}
+          ) : (
+            <span className="gx-bar" style={{ marginTop: 6 }} aria-hidden="true">
+              <span style={{ width: 0 }} />
+            </span>
+          )}
         </div>
         <div className="gx-stat">
           <span>Acerto médio</span>
@@ -264,7 +313,16 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }}>
               <span style={{ width: `${p.summary.avgAccuracy}%` }} />
             </span>
-          ) : null}
+          ) : (
+            <>
+              <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+                <span style={{ width: 0 }} />
+              </span>
+              <span className="gx-muted" style={{ fontSize: 12 }}>
+                sem exercícios
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -279,29 +337,36 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           <section className="gx-card">
             <h2 style={{ fontSize: 16 }}>Situação dos alunos</h2>
             {charts.statuses.map((b) => (
-              <BarRow key={b.key} label={b.label} count={b.count} max={statusMax} />
+              <BarRow
+                key={b.key}
+                label={b.key === 'completed' ? 'Concluiu' : b.label}
+                count={b.count}
+                max={statusMax}
+                labelWidth={100}
+              />
             ))}
           </section>
-          <section className="gx-card">
+          <section className="gx-card gx-card--chart">
             <h2 style={{ fontSize: 16 }}>Alunos por atividade concluída</h2>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
-              {charts.lessonBars.map((b) => (
-                <div
-                  key={b.key}
-                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', minWidth: 0 }}
-                >
-                  <strong style={{ fontSize: 12 }}>{b.count}</strong>
-                  <span
-                    style={{
-                      width: '70%',
-                      height: `${Math.max(4, (b.count / lessonMax) * 80)}%`,
-                      borderRadius: 6,
-                      background: 'linear-gradient(to top, #ffd500, #00be85)',
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: 'var(--v-t3)' }}>{b.label}</span>
-                </div>
-              ))}
+            <div className="gx-lesson-chart" role="img" aria-label="Alunos por atividade concluída">
+              <div className="gx-lesson-chart__track">
+                {charts.lessonBars.map((b) => {
+                  const tip = `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
+                  return (
+                    <div key={b.key} className="gx-lesson-chart__col" title={tip}>
+                      <strong className="gx-lesson-chart__n">{b.count}</strong>
+                      <span
+                        className="gx-lesson-chart__bar"
+                        style={{ height: `${Math.max(4, (b.count / lessonMax) * 80)}%` }}
+                        aria-label={tip}
+                      />
+                      <span className="gx-lesson-chart__label" data-fade="1">
+                        {b.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </section>
         </div>

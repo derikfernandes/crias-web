@@ -4,6 +4,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   query,
   runTransaction,
@@ -66,6 +67,7 @@ export function StudentDetailPage() {
   const [logsVisibleCount, setLogsVisibleCount] = useState(LOGS_PAGE_SIZE)
 
   const [institutionTrails, setInstitutionTrails] = useState<Trail[]>([])
+  const [extraTrails, setExtraTrails] = useState<Trail[]>([])
   const [loadingInstitutionTrails, setLoadingInstitutionTrails] = useState(false)
   const [institutionTrailsError, setInstitutionTrailsError] = useState<
     string | null
@@ -244,11 +246,60 @@ export function StudentDetailPage() {
     })
   }, [trails])
 
+  // Trilhas vinculadas cujo doc não veio no escopo da instituição (nome some como t47).
+  useEffect(() => {
+    if (!db) {
+      setExtraTrails([])
+      return
+    }
+    const known = new Set(institutionTrails.map((t) => t.id))
+    const missing = [
+      ...new Set(
+        trails
+          .map((t) => t.trail_id)
+          .filter((id): id is string => Boolean(id) && !known.has(id)),
+      ),
+    ]
+    if (missing.length === 0) {
+      setExtraTrails([])
+      return
+    }
+    const dbOk = db
+    let cancelled = false
+    void (async () => {
+      const found: Trail[] = []
+      await Promise.all(
+        missing.map(async (trailId) => {
+          try {
+            const snap = await getDoc(doc(dbOk, TRAILS_COLLECTION, trailId))
+            if (snap.exists()) found.push(snapshotToTrail(snap))
+          } catch {
+            // sem acesso / inexistente: mantém o id na UI
+          }
+        }),
+      )
+      if (!cancelled) setExtraTrails(found)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [trails, institutionTrails])
+
   const trailById = useMemo(() => {
     const m = new Map<string, Trail>()
     for (const t of institutionTrails) m.set(t.id, t)
+    for (const t of extraTrails) m.set(t.id, t)
     return m
-  }, [institutionTrails])
+  }, [institutionTrails, extraTrails])
+
+  const trailNameMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const [id, t] of trailById) {
+      const name = t.name?.trim()
+      if (name) m.set(id, name)
+    }
+    return m
+  }, [trailById])
 
   const linkedTrailIdSet = useMemo(() => {
     return new Set(trails.map((t) => t.trail_id).filter(Boolean))
@@ -537,6 +588,7 @@ export function StudentDetailPage() {
             logs={logs}
             visibleCount={logsVisibleCount}
             showTrail={agentTrailFilters.length === 0}
+            trailNames={trailNameMap}
             onLoadMore={() =>
               setLogsVisibleCount((count) =>
                 Math.min(count + LOGS_PAGE_SIZE, logs.length),

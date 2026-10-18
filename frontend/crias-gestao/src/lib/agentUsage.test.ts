@@ -66,4 +66,17 @@ describe('messagesPerTutorPerDay (FE)', () => {
       }),
     ).toBe(10)
   })
+
+  it('Todo o período usa dias de calendário da série (não só dias com msg)', () => {
+    // 10 msgs, 1 tutor, série de 1 a 10 (10 dias) → 1,0/dia
+    expect(
+      messagesPerTutorPerDay({
+        totalMessages: 10,
+        activeTutorCount: 1,
+        periodDays: 0,
+        activeDayCount: 2,
+        seriesDates: ['2026-01-01', '2026-01-10'],
+      }),
+    ).toBe(1)
+  })
 })

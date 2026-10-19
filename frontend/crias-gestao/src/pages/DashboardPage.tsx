@@ -876,16 +876,6 @@ export function DashboardPage() {
     }
   }, [selectedId])
 
-  const studentIdsKey = useMemo(
-    () =>
-      students
-        .map((s) => s.id)
-        .filter(Boolean)
-        .sort()
-        .join('\0'),
-    [students],
-  )
-
   const trailIdsKey = useMemo(
     () =>
       trails

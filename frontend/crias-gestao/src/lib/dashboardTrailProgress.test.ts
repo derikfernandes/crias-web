@@ -42,7 +42,7 @@ describe('engagementFromLinks', () => {
 })
 
 describe('accuracyFromAttempts', () => {
-  it('conta por student_id mesmo sem filtrar trilha vazia', () => {
+  it('conta por student_id sem filtro de trilha (como o card)', () => {
     const attempts = [
       {
         student_id: 's1',
@@ -51,12 +51,27 @@ describe('accuracyFromAttempts', () => {
       },
       {
         student_id: 's1',
-        trail_id: 't1',
+        trail_id: 't99',
         is_correct: false,
       },
+      {
+        student_id: 's2',
+        trail_id: 't1',
+        is_correct: true,
+      },
+    ] as ExerciseAttempt[]
+    const r = accuracyFromAttempts(attempts, 's1')
+    expect(r.correct).toBe(1)
+    expect(r.wrong).toBe(1)
+  })
+
+  it('filtra por trilha só quando o set é informado e não vazio', () => {
+    const attempts = [
+      { student_id: 's1', trail_id: 't1', is_correct: true },
+      { student_id: 's1', trail_id: 't99', is_correct: false },
     ] as ExerciseAttempt[]
     const r = accuracyFromAttempts(attempts, 's1', new Set(['t1']))
     expect(r.correct).toBe(1)
-    expect(r.wrong).toBe(1)
+    expect(r.wrong).toBe(0)
   })
 })

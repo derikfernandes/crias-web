@@ -590,6 +590,7 @@ export function DashboardPage() {
   const [agentUsageLoading, setAgentUsageLoading] = useState(false)
   const [agentUsagePresent, setAgentUsagePresent] = useState(true)
   const initialLogsLoadedRef = useRef(false)
+  const agentSummaryInstRef = useRef<string | null>(null)
   const dashboardLoadStartedAtRef = useRef(0)
   const loadProgressRef = useRef({ done: 0, total: TOTAL_LOAD_STEPS })
   const loadTargetPercentRef = useRef(0)
@@ -695,17 +696,25 @@ export function DashboardPage() {
     const first = scoped[0]?.id ?? null
     const urlId = instFromUrl && scopedIds.has(instFromUrl) ? instFromUrl : null
 
+    let nextId: string | null = null
     setSelectedId((current) => {
-      if (urlId) return urlId
-      if (current && scopedIds.has(current)) return current
-      try {
-        const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
-        if (stored && scopedIds.has(stored)) return stored
-      } catch {
-        // ignore
+      if (urlId) nextId = urlId
+      else if (current && scopedIds.has(current)) nextId = current
+      else {
+        try {
+          const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
+          if (stored && scopedIds.has(stored)) nextId = stored
+        } catch {
+          // ignore
+        }
+        if (!nextId) nextId = first
       }
-      return first
+      return nextId
     })
+    // Topo "Filtrar instituições": F5 com ?inst= deve mostrar "1 de N", não "Todas".
+    if (urlId) {
+      gestao.setSelectedIds(new Set([urlId]))
+    }
     setTrailFilter(null)
   }, [gestao.scopedInstitutions, gestao.scopedIds, instFromUrl])
 
@@ -718,6 +727,14 @@ export function DashboardPage() {
     next.set('inst', selectedId)
     setSearchParams(next, { replace: true })
   }, [selectedId, searchParams, setSearchParams])
+
+  // Dados é 1 instituição: filtro do topo acompanha selectedId / ?inst= (não "Todas").
+  useEffect(() => {
+    if (!selectedId?.trim() || !gestao.isSuper) return
+    if (gestao.selectedIds.size === 1 && gestao.selectedIds.has(selectedId)) return
+    gestao.setSelectedIds(new Set([selectedId]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a selectedId / isSuper
+  }, [selectedId, gestao.isSuper])
 
   function selectInstitution(id: string) {
     setSelectedId(id)
@@ -758,13 +775,9 @@ export function DashboardPage() {
       dashboardLoadStartedAtRef.current = performance.now()
       setLoadingData(true)
       // Evita frame com dashboard zerado entre o fim do loadingData e o início
-      // dos efeitos de metadados/logs.
+      // dos efeitos de metadados.
       setLoadingMeta(true)
-      setLoadingLogs(true)
-      initialLogsLoadedRef.current = false
-      setAgentUsageLoading(false)
       setSelectedAgentTrailId(null)
-      setLogsError(null)
       setLoadStepsDone(0)
       setLoadStepsTotal(TOTAL_LOAD_STEPS)
       setLoadPercent(0)
@@ -783,8 +796,9 @@ export function DashboardPage() {
       }
 
       // One-shot: dashboard não precisa de realtime nestas coleções.
-      // Tentativas: por student_id (mesma junção do Início). institution_id no
-      // attempt às vezes falta e a query por instituição vinha vazia → Acertos N/A.
+      // Tentativas: por student_id (mesma junção do card Início). institution_id
+      // no attempt às vezes falta e a query por instituição vinha vazia.
+      // Mantém loadingData até attempts chegarem (evita tabela Acertos 0/N/A).
       try {
         const [studentsSnap, trailsSnap, studentTrailsSnap] = await Promise.all([
           getDocs(
@@ -808,12 +822,10 @@ export function DashboardPage() {
         ])
         if (cancelled) return
         const nextStudents = studentsSnap.docs.map(snapshotToStudent)
-        setStudents(nextStudents)
-        done('students')
-        setTrails(trailsSnap.docs.map(snapshotToTrail))
-        done('trails')
-        setStudentTrails(studentTrailsSnap.docs.map(snapshotToStudentTrail))
-        done('studentTrails')
+        const nextTrails = trailsSnap.docs.map(snapshotToTrail)
+        const nextStudentTrails = studentTrailsSnap.docs.map(
+          snapshotToStudentTrail,
+        )
 
         const studentIds = nextStudents.map((s) => s.id).filter(Boolean)
         let nextAttempts: import('../types/exerciseAttempt').ExerciseAttempt[] =
@@ -835,8 +847,14 @@ export function DashboardPage() {
           )
         }
         if (cancelled) return
+        setStudents(nextStudents)
+        setTrails(nextTrails)
+        setStudentTrails(nextStudentTrails)
         setAttempts(nextAttempts)
         setDataError(null)
+        done('students')
+        done('trails')
+        done('studentTrails')
       } catch (err) {
         if (cancelled) return
         const message =
@@ -969,57 +987,35 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, trailIdsKey, loadingData])
 
-  // Métricas dos alunos + uso de agentes: somente /api/dashboard_summary.
-  // Sem fallback que baixa conversation_logs no browser.
+  // Uso do monitor + answerMap: /api/dashboard_summary.
+  // Carrega assim que há institution_id (não espera alunos/meta). Async após
+  // o primeiro paint é OK; não zerar uso enquanto a instituição ainda carrega.
   useEffect(() => {
     let cancelled = false
 
-    if (!db || !selectedId || loadingData) {
+    if (!selectedId) {
+      agentSummaryInstRef.current = null
+      initialLogsLoadedRef.current = false
+      setAgentUsage(EMPTY_AGENT_USAGE)
+      setAgentUsagePresent(true)
+      setAgentUsageLoading(false)
+      setLoadingLogs(false)
       return () => {
         cancelled = true
       }
     }
 
     const institutionId = selectedId
-    const studentIds = studentIdsKey ? studentIdsKey.split('\0') : []
-    if (studentIds.length === 0) {
-      setLogAggregates(EMPTY_LOG_AGGREGATES)
-      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
-      setAgentUsagePresent(true)
-      setLogsError(null)
-      setLoadingLogs(false)
-      setAgentUsageLoading(false)
-      initialLogsLoadedRef.current = true
-      loadProgressRef.current.done = loadProgressRef.current.total
-      syncLoadProgress('', { complete: true })
-      return () => {
-        cancelled = true
-      }
+    const institutionChanged = agentSummaryInstRef.current !== institutionId
+    if (institutionChanged) {
+      agentSummaryInstRef.current = institutionId
+      initialLogsLoadedRef.current = false
     }
-
-    const refreshingAgentsOnly = initialLogsLoadedRef.current
+    const refreshingAgentsOnly =
+      initialLogsLoadedRef.current && !institutionChanged
     setLoadingLogs(true)
-    if (refreshingAgentsOnly) setAgentUsageLoading(true)
+    setAgentUsageLoading(true)
     setLogsError(null)
-    loadProgressRef.current.done = Math.min(
-      loadProgressRef.current.done,
-      DATA_SOURCES + META_SOURCES,
-    )
-    if (!refreshingAgentsOnly) {
-      syncLoadProgress('Calculando métricas dos alunos…')
-    }
-
-    const finishProgress = () => {
-      loadProgressRef.current.done = Math.min(
-        loadProgressRef.current.done + 1,
-        loadProgressRef.current.total,
-      )
-      const complete =
-        loadProgressRef.current.done >= loadProgressRef.current.total
-      syncLoadProgress(complete ? '' : 'Calculando métricas dos alunos…', {
-        complete,
-      })
-    }
 
     async function run() {
       try {
@@ -1037,7 +1033,6 @@ export function DashboardPage() {
         setLoadingLogs(false)
         setAgentUsageLoading(false)
         initialLogsLoadedRef.current = true
-        if (!refreshingAgentsOnly) finishProgress()
       } catch (err) {
         if (cancelled) return
         setLogsError(
@@ -1048,10 +1043,8 @@ export function DashboardPage() {
         if (!refreshingAgentsOnly) {
           setLogAggregates(EMPTY_LOG_AGGREGATES)
           setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
-          // Libera o gate para o banner de erro + retry ficarem acessíveis.
+          setAgentUsagePresent(false)
           initialLogsLoadedRef.current = true
-          loadProgressRef.current.done = loadProgressRef.current.total
-          syncLoadProgress('', { complete: true })
         }
         // Refetch de período: mantém último snapshot (keep-previous).
         setLoadingLogs(false)
@@ -1064,15 +1057,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    selectedId,
-    studentIdsKey,
-    trailIdsKey,
-    loadingData,
-    logsRetryKey,
-    agentPeriodDays,
-  ])
+  }, [selectedId, logsRetryKey, agentPeriodDays])
 
   const sortedInstitutions = useMemo(() => {
     return filterInstitutions(institutions).sort((a, b) => {
@@ -1357,12 +1342,9 @@ export function DashboardPage() {
         activitiesByTrail,
         activityTotals,
       })
-      // Acerto: mesma fonte do Início (exercise_attempts). Fallback ao mapa de logs.
-      const fromAttempts = accuracyFromAttempts(
-        attempts,
-        student.id,
-        enrolledTrailIds,
-      )
+      // Acerto: mesma fonte do card Início (exercise_attempts por student_id),
+      // sem filtrar por trilha matriculada (attempt.trail_id às vezes diverge).
+      const fromAttempts = accuracyFromAttempts(attempts, student.id)
       const fromLogs = scoreStudentFromAnswerMap(
         student.id,
         enrolledTrailIds,

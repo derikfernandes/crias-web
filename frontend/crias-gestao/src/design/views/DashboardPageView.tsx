@@ -71,11 +71,11 @@ function BarRow({
       >
         {label}
       </span>
-      <span className="gx-bar" style={{ flex: 1, height: 10 }} aria-label={tip}>
+      <span className="gx-bar" style={{ flex: 1, height: 10 }} aria-label={tip} title={tip}>
         {pctWidth > 0 ? (
-          <span style={{ width: `${pctWidth}%`, minWidth: 0 }} />
+          <span style={{ width: `${pctWidth}%` }} />
         ) : (
-          <span style={{ width: 0, minWidth: 0, background: 'transparent' }} />
+          <span className="gx-bar__empty" />
         )}
       </span>
       <strong style={{ width: 36, textAlign: 'right', flex: 'none' }}>{count}</strong>
@@ -321,7 +321,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             </span>
           ) : (
             <span className="gx-bar" style={{ marginTop: 6 }} aria-hidden="true">
-              <span style={{ width: 0 }} />
+              <span className="gx-bar__empty" />
             </span>
           )}
         </div>
@@ -335,7 +335,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           ) : (
             <>
               <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
-                <span style={{ width: 0 }} />
+                <span className="gx-bar__empty" />
               </span>
               <span className="gx-muted" style={{ fontSize: 12 }}>
                 sem exercícios
@@ -379,18 +379,27 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                       ? Math.max(4, (b.count / lessonMax) * 80)
                       : 0
                   return (
-                    <div key={b.key} className="gx-lesson-chart__col" title={tip}>
-                      <strong className="gx-lesson-chart__n">{b.count}</strong>
+                    <div
+                      key={b.key}
+                      className="gx-lesson-chart__col"
+                      title={tip}
+                      aria-label={tip}
+                    >
+                      <strong className="gx-lesson-chart__n" title={tip}>
+                        {b.count}
+                      </strong>
                       <span
                         className="gx-lesson-chart__bar"
                         style={{
-                          height: `${barH}%`,
-                          minHeight: barH > 0 ? 4 : 0,
+                          height: barH > 0 ? `${barH}%` : 4,
+                          minHeight: 4,
                           background: barH > 0 ? undefined : 'transparent',
+                          opacity: barH > 0 ? 1 : 0.35,
                         }}
                         aria-label={tip}
+                        title={tip}
                       />
-                      <span className="gx-lesson-chart__label" data-fade="1">
+                      <span className="gx-lesson-chart__label" data-fade="1" title={tip}>
                         {b.label}
                       </span>
                     </div>

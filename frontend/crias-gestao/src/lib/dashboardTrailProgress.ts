@@ -90,20 +90,22 @@ export function progressFromLinks(input: {
   }
 }
 
+/**
+ * Acerto por aluno: mesma fonte do card Início / Acerto médio.
+ * Conta tentativas por student_id. `enrolledTrailIds` é opcional: se vazio,
+ * conta todas as tentativas do aluno (como institutionMetrics no Início).
+ */
 export function accuracyFromAttempts(
   attempts: ExerciseAttempt[],
   studentId: string,
-  enrolledTrailIds: Set<string>,
+  enrolledTrailIds?: Set<string>,
 ): { correct: number; wrong: number; accuracyPct: number | null } {
   let correct = 0
   let wrong = 0
+  const filterTrails = enrolledTrailIds != null && enrolledTrailIds.size > 0
   for (const a of attempts) {
     if (a.student_id !== studentId) continue
-    if (
-      enrolledTrailIds.size > 0 &&
-      a.trail_id &&
-      !enrolledTrailIds.has(a.trail_id)
-    ) {
+    if (filterTrails && a.trail_id && !enrolledTrailIds!.has(a.trail_id)) {
       continue
     }
     if (a.is_correct) correct += 1

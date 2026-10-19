@@ -33,11 +33,16 @@ import {
   snapshotToExerciseAttempt,
   EXERCISE_ATTEMPTS_COLLECTION,
 } from '../lib/exerciseAttemptFirestore'
-import { activityCountByTrail } from '../lib/gestaoMetrics'
+import {
+  activityCountByTrail,
+  activityKeysByTrail,
+  isActivityKeyDoneOnLink,
+  isStageDoneOnLink,
+  type ActivityKey,
+} from '../lib/gestaoMetrics'
 import {
   accuracyFromAttempts,
   engagementFromLinks,
-  isActivityDoneOnLink,
   progressFromLinks,
 } from '../lib/dashboardTrailProgress'
 import { snapshotToStudent, STUDENTS_COLLECTION } from '../lib/studentFirestore'
@@ -268,6 +273,8 @@ function scoreStudentFromAnswerMap(
     const stage = Number(rest.slice(sep1 + 1, sep2))
     const question = Number(rest.slice(sep2 + 1))
     if (!Number.isFinite(stage) || !Number.isFinite(question)) continue
+    // Clamp: ignora chaves fora de faixa (ex.: question 101 / stage 13).
+    if (stage < 1 || question < 1) continue
     if (!enrolledTrailIds.has(trailId)) continue
     if (deselectedStages.has(`${trailId}|${stage}`)) continue
     if (deselectedQuestions.has(question)) continue
@@ -276,9 +283,11 @@ function scoreStudentFromAnswerMap(
     if (stageRec?.stage_type !== 'exercise') continue
 
     const questionRec = questionByKey.get(`${trailId}|${stage}|${question}`)
+    // Sem registro no catálogo = fora de faixa → ignora.
+    if (!questionRec) continue
     // Atividade anulada: fora do denominador (nem acerto nem erro).
-    if (questionRec?.annulled === true) continue
-    const gabarito = (questionRec?.correct_option ?? '').trim()
+    if (questionRec.annulled === true) continue
+    const gabarito = (questionRec.correct_option ?? '').trim()
     if (!gabarito) continue
 
     if (answersMatch(answer, gabarito)) correct += 1
@@ -1293,6 +1302,11 @@ export function DashboardPage() {
     return map
   }, [questionsByTrail])
 
+  const activityCatalogs = useMemo(
+    () => activityKeysByTrail(questions),
+    [questions],
+  )
+
   const activityTotals = useMemo(
     () => activityCountByTrail(questions),
     [questions],
@@ -1310,8 +1324,9 @@ export function DashboardPage() {
       else trailsByStudent.set(st.student_id, [st])
     }
 
-    // Atividades por trilha (já com filtros de tópico/atividade).
+    // Atividades por trilha (legado question_number + catálogo stage,question).
     const activitiesByTrail = new Map<string, number[]>()
+    const filteredKeysByTrail = new Map<string, ActivityKey[]>()
     for (const trail of relevantTrails) {
       activitiesByTrail.set(
         trail.id,
@@ -1322,6 +1337,14 @@ export function DashboardPage() {
           deselectedQuestions,
         ),
       )
+      const catalog = activityCatalogs.get(trail.id) ?? []
+      const filtered = catalog.filter((k) => {
+        const stageKey = `${trail.id}|${k.stage}`
+        if (deselectedStages.has(stageKey)) return false
+        if (deselectedQuestions.has(k.question)) return false
+        return true
+      })
+      filteredKeysByTrail.set(trail.id, filtered)
     }
 
     const rows: StudentRow[] = students.map((student) => {
@@ -1331,9 +1354,10 @@ export function DashboardPage() {
         links: enrolled,
         activitiesByTrail,
         activityTotals,
+        activityCatalogs,
+        activityKeysByTrail: filteredKeysByTrail,
       })
-      // Acerto: mesma fonte do card Início (exercise_attempts por student_id),
-      // sem filtrar por trilha matriculada (attempt.trail_id às vezes diverge).
+      // Acerto: mesma fonte do Início (exercise_attempts por student_id).
       const fromAttempts = accuracyFromAttempts(attempts, student.id)
       const fromLogs = scoreStudentFromAnswerMap(
         student.id,
@@ -1358,7 +1382,11 @@ export function DashboardPage() {
         correct,
         wrong,
         accuracyPct: pct(correct, correct + wrong),
-        engagementStatus: engagementFromLinks(enrolled, activityTotals),
+        engagementStatus: engagementFromLinks(
+          enrolled,
+          activityTotals,
+          activityCatalogs,
+        ),
       }
     })
 
@@ -1369,6 +1397,7 @@ export function DashboardPage() {
     studentTrails,
     questionsByTrail,
     activityTotals,
+    activityCatalogs,
     attempts,
     stageByKey,
     questionByKey,
@@ -1629,15 +1658,51 @@ export function DashboardPage() {
     }
 
     for (const trail of relevantTrails) {
-      const lessonNumbers = trailLessonNumbers(
-        trail.id,
-        questionsByTrail,
-        deselectedStages,
-        deselectedQuestions,
+      const catalog = (activityCatalogs.get(trail.id) ?? []).filter((k) => {
+        const stageKey = `${trail.id}|${k.stage}`
+        if (deselectedStages.has(stageKey)) return false
+        if (deselectedQuestions.has(k.question)) return false
+        return true
+      })
+      const trailLabel = (trail.name || trail.id).trim()
+      const stages = [...new Set(catalog.map((k) => k.stage))].sort(
+        (a, b) => a - b,
       )
-      const totalActs = activityTotals.get(trail.id) ?? lessonNumbers.length
 
-      for (const lessonNumber of lessonNumbers) {
+      // Com muitas atividades (ex.: 12×100), agrega por etapa (E1..En).
+      // Com poucas, mostra E{n} A{m} (stage, question).
+      const aggregateByStage = catalog.length > 40 || stages.length > 1
+
+      if (aggregateByStage) {
+        for (const stage of stages) {
+          let enrolledCount = 0
+          let count = 0
+          for (const row of filteredStudentRows) {
+            const enrolled = trailsByStudentIds.get(row.student.id)
+            if (!enrolled?.has(trail.id)) continue
+            enrolledCount += 1
+            const link = linkByStudentTrail.get(
+              `${row.student.id}|${trail.id}`,
+            )
+            if (link && isStageDoneOnLink(link, stage, catalog)) {
+              count += 1
+            }
+          }
+          lessonBars.push({
+            key: `${trail.id}|E${stage}`,
+            label: multiTrail ? `E${stage} · ${trailLabel}` : `E${stage}`,
+            fullLabel: multiTrail
+              ? `Etapa ${stage} · ${trailLabel}`
+              : `Etapa ${stage}`,
+            lessonNumber: stage,
+            count,
+            enrolledCount,
+          })
+        }
+        continue
+      }
+
+      for (const activity of catalog) {
         let enrolledCount = 0
         let count = 0
         for (const row of filteredStudentRows) {
@@ -1645,21 +1710,18 @@ export function DashboardPage() {
           if (!enrolled?.has(trail.id)) continue
           enrolledCount += 1
           const link = linkByStudentTrail.get(`${row.student.id}|${trail.id}`)
-          if (link && isActivityDoneOnLink(link, lessonNumber, totalActs)) {
+          if (link && isActivityKeyDoneOnLink(link, activity, catalog)) {
             count += 1
           }
         }
-
-        const trailLabel = (trail.name || trail.id).trim()
+        const short = `E${activity.stage} A${activity.question}`
         lessonBars.push({
-          key: `${trail.id}|${lessonNumber}`,
-          label: multiTrail
-            ? `A${lessonNumber} · ${trailLabel}`
-            : `A${lessonNumber}`,
+          key: `${trail.id}|${activity.stage}|${activity.question}`,
+          label: multiTrail ? `${short} · ${trailLabel}` : short,
           fullLabel: multiTrail
-            ? `A${lessonNumber} · ${trailLabel}`
-            : `Atividade ${lessonNumber}`,
-          lessonNumber,
+            ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
+            : `Etapa ${activity.stage} · Atividade ${activity.question}`,
+          lessonNumber: activity.question,
           count,
           enrolledCount,
         })
@@ -1691,12 +1753,11 @@ export function DashboardPage() {
   }, [
     filteredStudentRows,
     relevantTrails,
-    questionsByTrail,
     deselectedStages,
     deselectedQuestions,
     trailsByStudentIds,
     studentTrails,
-    activityTotals,
+    activityCatalogs,
   ])
 
   // Ranking de pílulas — itera só respostas existentes no mapa

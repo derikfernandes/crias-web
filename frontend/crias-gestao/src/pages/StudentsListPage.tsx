@@ -4,7 +4,7 @@ import { snapshotToStudent } from '../lib/studentFirestore'
 import { snapshotToStudentTrail } from '../lib/studentTrailFirestore'
 import { snapshotToTrail } from '../lib/trailFirestore'
 import { snapshotToTrailStageQuestion } from '../lib/trailStageQuestionFirestore'
-import { activityCountByTrail } from '../lib/gestaoMetrics'
+import { activityKeysByTrail } from '../lib/gestaoMetrics'
 import {
   activePillClass,
   fmtDate,
@@ -39,16 +39,20 @@ function schooling(s: Student): string {
   return [level, s.school_grade].filter(Boolean).join(' · ') || 'N/A'
 }
 
-/** Exibe atividade atual limitada ao total da trilha (só display). */
-function clampActivity(
+/** Exibe atividade atual limitada ao máximo da etapa atual (só display). */
+function clampActivityInStage(
+  stage: number | null | undefined,
   question: number | null | undefined,
-  trailTotal: number | null | undefined,
+  catalog: Array<{ stage: number; question: number }>,
 ): number | null {
   if (question == null || !Number.isFinite(question)) return null
-  if (trailTotal != null && trailTotal > 0) {
-    return Math.min(Math.max(1, question), trailTotal)
+  if (stage == null || !Number.isFinite(stage) || catalog.length === 0) {
+    return Math.max(1, question)
   }
-  return question
+  const inStage = catalog.filter((a) => a.stage === stage)
+  if (inStage.length === 0) return Math.max(1, question)
+  const maxQ = Math.max(...inStage.map((a) => a.question))
+  return Math.min(Math.max(1, question), maxQ)
 }
 
 /** Página Alunos (1.1.12): blocos de cadastro e remoção em massa, filtros por nome e código, tabela. */
@@ -63,8 +67,8 @@ export function StudentsListPage() {
   const [byCode, setByCode] = useState<Set<string> | null>(null)
   const [sort, setSort] = useState<SortState | null>({ key: 'code', dir: 'asc' })
 
-  const activityTotals = useMemo(
-    () => activityCountByTrail(questions.rows),
+  const activityCatalogs = useMemo(
+    () => activityKeysByTrail(questions.rows),
     [questions.rows],
   )
 
@@ -80,17 +84,18 @@ export function StudentsListPage() {
         .sort((a, b) => (b.last_interaction_at?.toMillis?.() ?? 0) - (a.last_interaction_at?.toMillis?.() ?? 0))
       const top = mine[0]
       const code = studentCode(s.id)
-      const trailTotal = top ? (activityTotals.get(top.trail_id) ?? null) : null
+      const catalog = top ? (activityCatalogs.get(top.trail_id) ?? []) : []
+      const stage = top?.current_stage_number ?? null
       return {
         student: s,
         code,
         trail: top ? (trailName.get(top.trail_id) ?? 'N/A') : 'N/A',
-        stage: top?.current_stage_number ?? null,
-        question: clampActivity(top?.current_question_number, trailTotal),
+        stage,
+        question: clampActivityInStage(stage, top?.current_question_number, catalog),
         status: (top?.status ?? null) as StudentTrailStatus | null,
       }
     })
-  }, [scoped, links.rows, trails.rows, activityTotals])
+  }, [scoped, links.rows, trails.rows, activityCatalogs])
 
   const nameOptions = useMemo(() => scoped.map((s) => ({ id: s.id, name: s.name || s.id })), [scoped])
   const codeOptions = useMemo(

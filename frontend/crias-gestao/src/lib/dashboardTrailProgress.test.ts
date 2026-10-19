@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   engagementFromLinks,
   accuracyFromAttempts,
+  progressFromLinks,
 } from './dashboardTrailProgress'
+import { activityKeysByTrail, doneActivities } from './gestaoMetrics'
 import type { StudentTrail } from '../types/studentTrail'
 import type { ExerciseAttempt } from '../types/exerciseAttempt'
 
@@ -24,20 +26,73 @@ function link(
   }
 }
 
+const catalog2x3 = activityKeysByTrail(
+  [1, 2].flatMap((stage) =>
+    [1, 2, 3].map((question) => ({
+      trail_id: 't1',
+      stage_number: stage,
+      question_number: question,
+      active: true,
+    })),
+  ),
+)
+
 describe('engagementFromLinks', () => {
+  it('Concluiu só com progresso real 100% (não só status completed)', () => {
+    const totals = new Map([['t1', 6]])
+    expect(
+      engagementFromLinks(
+        [
+          link({
+            trail_id: 't1',
+            status: 'completed',
+            current_stage_number: 1,
+            current_question_number: 2,
+          }),
+        ],
+        totals,
+        catalog2x3,
+      ),
+    ).toBe('inProgress')
+  })
+
   it('trata 100% de atividades como Concluiu mesmo com status in_progress', () => {
-    const totals = new Map([['t1', 3]])
+    const totals = new Map([['t1', 6]])
     const status = engagementFromLinks(
-      [link({ trail_id: 't1', status: 'in_progress', current_question_number: 4 })],
+      [
+        link({
+          trail_id: 't1',
+          status: 'in_progress',
+          current_stage_number: 2,
+          current_question_number: 4,
+        }),
+      ],
       totals,
+      catalog2x3,
     )
     expect(status).toBe('completed')
   })
+})
 
-  it('status completed explícito', () => {
-    expect(
-      engagementFromLinks([link({ trail_id: 't1', status: 'completed' })]),
-    ).toBe('completed')
+describe('progressFromLinks multi-stage', () => {
+  it('usa catálogo (stage, question) igual ao Início', () => {
+    const totals = new Map([['t1', 6]])
+    const r = progressFromLinks({
+      links: [
+        link({
+          trail_id: 't1',
+          status: 'in_progress',
+          current_stage_number: 2,
+          current_question_number: 2,
+        }),
+      ],
+      activitiesByTrail: new Map([['t1', [1, 2, 3]]]),
+      activityTotals: totals,
+      activityCatalogs: catalog2x3,
+    })
+    expect(r.released).toBe(6)
+    expect(r.done).toBe(4)
+    expect(r.completionPct).toBe(66.7)
   })
 })
 
@@ -73,5 +128,22 @@ describe('accuracyFromAttempts', () => {
     const r = accuracyFromAttempts(attempts, 's1', new Set(['t1']))
     expect(r.correct).toBe(1)
     expect(r.wrong).toBe(0)
+  })
+})
+
+describe('doneActivities exportado via gestaoMetrics', () => {
+  it('fixture 2×3: etapa 2 questão 1 → 3', () => {
+    const cat = catalog2x3.get('t1')!
+    expect(
+      doneActivities(
+        link({
+          trail_id: 't1',
+          status: 'in_progress',
+          current_stage_number: 2,
+          current_question_number: 1,
+        }),
+        cat,
+      ),
+    ).toBe(3)
   })
 })

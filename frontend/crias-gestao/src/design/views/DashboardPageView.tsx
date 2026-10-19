@@ -366,8 +366,8 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             ))}
           </section>
           <section className="gx-card gx-card--chart">
-            <h2 style={{ fontSize: 16 }}>Alunos por atividade concluída</h2>
-            <div className="gx-lesson-chart" role="img" aria-label="Alunos por atividade concluída">
+            <h2 style={{ fontSize: 16 }}>Alunos por etapa concluída</h2>
+            <div className="gx-lesson-chart" role="img" aria-label="Alunos por etapa concluída">
               <div className="gx-lesson-chart__track">
                 {charts.lessonBars.map((b) => {
                   const tip =

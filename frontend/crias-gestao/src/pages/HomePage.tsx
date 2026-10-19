@@ -10,6 +10,7 @@ import {
 } from '../lib/gestaoFormat'
 import {
   activityCountByTrail,
+  activityKeysByTrail,
   formatPct,
   institutionMetrics,
   type InstitutionMetrics,
@@ -107,7 +108,7 @@ function SuperHome({
       {
         label: 'Ativos (7 dias)',
         value: sum((m) => m.activeLast7Days),
-        hint: 'Alunos com interação nos últimos 7 dias. Pode ser menor que Alunos ativos (cadastro ativo sem uso recente).',
+        hint: 'Alunos com exercise_attempts nos últimos 7 dias. Não usa last_interaction_at do vínculo (pode ter atualização em lote).',
       },
       { label: 'Trilhas ativas', value: sum((m) => m.activeTrails) },
       { label: 'Em andamento', value: sum((m) => m.inProgress) },
@@ -549,6 +550,7 @@ export function HomePage() {
 
   const metrics = useMemo(() => {
     const totals = activityCountByTrail(questions.rows)
+    const catalogs = activityKeysByTrail(questions.rows)
     const map = new Map<string, InstitutionMetrics>()
     for (const inst of g.institutions) {
       map.set(
@@ -559,6 +561,7 @@ export function HomePage() {
           trails: trails.rows,
           studentTrails: links.rows,
           activityTotals: totals,
+          activityCatalogs: catalogs,
           attempts: attempts.rows,
         }),
       )

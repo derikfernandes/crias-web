@@ -20,10 +20,21 @@ export interface ConversationChatProps {
 }
 
 /** Mensagens espúrias do bot/engine (ex.: literal "0") não entram no histórico. */
-function isNoiseMessage(text: string | null | undefined): boolean {
-  const t = (text ?? '').trim()
+export function isNoiseMessage(text: string | null | undefined): boolean {
+  const raw = (text ?? '').replace(/[\u200B-\u200D\uFEFF]/g, '')
+  const t = raw.trim()
   if (!t) return true
-  if (t === '0' || t === 'null' || t === 'undefined') return true
+  // "0" / '0' / 0 / 0.0
+  const unquoted = t.replace(/^["'`]+|["'`]+$/g, '').trim()
+  if (
+    unquoted === '0' ||
+    unquoted === 'null' ||
+    unquoted === 'undefined' ||
+    unquoted === 'NaN'
+  ) {
+    return true
+  }
+  if (/^0+(\.0+)?$/.test(unquoted)) return true
   return false
 }
 
@@ -120,7 +131,9 @@ export function ConversationChat({
                     ) : null}
                   </div>
                   <div className="chat__text">
-                    {renderSafeMarkdownInline(row.message_text || '')}
+                    {renderSafeMarkdownInline(row.message_text || '', {
+                      singleAsterisk: 'italic',
+                    })}
                   </div>
                   <div className="chat__foot">
                     <time dateTime={row.created_at_brasilia ?? undefined}>

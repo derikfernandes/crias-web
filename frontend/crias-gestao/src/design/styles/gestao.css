@@ -331,7 +331,8 @@ html {
 .gx-stat > span:first-child { font-size: 13px; color: var(--v-t3); font-weight: 600; }
 .gx-stat > strong { font-family: Outfit, sans-serif; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--v-ink); }
 .gx-bar { display: block; height: 4px; border-radius: 999px; background: var(--v-line); overflow: hidden; }
-.gx-bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(to right, #ffd500, #00be85); }
+.gx-bar > span { display: block; height: 100%; min-width: 0; border-radius: 999px; background: linear-gradient(to right, #ffd500, #00be85); }
+.gx-bar > span[style*='width: 0'], .gx-bar > span[style*='width:0'] { background: transparent !important; }
 .gx-bar--green > span { background: var(--v-green); }
 .gx-bar--red > span { background: var(--v-err); }
 .gx-empty { margin: 0; padding: 24px; border-radius: 16px; background: var(--v-soft); color: var(--v-t3); }
@@ -599,18 +600,19 @@ html {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
 }
-.gx-table th[data-col='name'], .gx-table td[data-col='name'] { min-width: 220px; max-width: 320px; width: 22%; }
-.gx-table th[data-col='level'], .gx-table td[data-col='level'] { min-width: 180px; max-width: 260px; width: 16%; }
+.gx-table th[data-col='name'], .gx-table td[data-col='name'] { min-width: 200px; max-width: 280px; width: 18%; }
+.gx-table th[data-col='level'], .gx-table td[data-col='level'] { min-width: 200px; max-width: 280px; width: 18%; }
 .gx-table th[data-col='code'], .gx-table td[data-col='code'] { min-width: 72px; width: 72px; }
-.gx-table th[data-col='trail'], .gx-table td[data-col='trail'] { min-width: 140px; max-width: 220px; }
-.gx-table th[data-col='phone'], .gx-table td[data-col='phone'] { min-width: 130px; }
+.gx-table th[data-col='trail'], .gx-table td[data-col='trail'] { min-width: 120px; max-width: 180px; }
+.gx-table th[data-col='phone'], .gx-table td[data-col='phone'] { min-width: 120px; }
+.gx-table { min-width: 1100px; }
 .gx-table td[data-col='name'] a,
 .gx-table td[data-col='level'],
 .gx-table td[data-col='trail'] {
   white-space: nowrap;
   overflow: hidden;
   display: block;
-  max-width: 320px;
+  max-width: 280px;
 }
 .gx-user-email,
 .gx-user-email:disabled,

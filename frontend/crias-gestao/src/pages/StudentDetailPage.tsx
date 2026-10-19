@@ -25,6 +25,7 @@ import {
   snapshotToConversationLog,
 } from '../lib/conversationLogFirestore'
 import { agentLabelForTrailId } from '../lib/agentUsage'
+import { formatSaoPauloDateTime } from '../lib/formatSaoPaulo'
 import { StudentForm } from '../components/StudentForm'
 import {
   ConversationChat,
@@ -496,12 +497,8 @@ export function StudentDetailPage() {
       stageDisplay: row.current_stage_number,
       questionDisplay: row.current_question_number,
       status: row.status,
-      startedAtLabel: row.started_at?.toDate
-        ? row.started_at.toDate().toLocaleString('pt-BR')
-        : 'N/A',
-      lastInteractionAtLabel: row.last_interaction_at?.toDate
-        ? row.last_interaction_at.toDate().toLocaleString('pt-BR')
-        : 'N/A',
+      startedAtLabel: formatSaoPauloDateTime(row.started_at),
+      lastInteractionAtLabel: formatSaoPauloDateTime(row.last_interaction_at),
     }
   })
 

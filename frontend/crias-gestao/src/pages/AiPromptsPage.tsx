@@ -9,6 +9,13 @@ import {
   type AiPromptVersion,
 } from '../lib/aiPromptsApi'
 import { Banner, BootSymbol, ConfirmDialog, Icon, na, PageHead } from '../design/gx/ui'
+import { formatSaoPauloDateTimeShort } from '../lib/formatSaoPaulo'
+
+function fmtWhen(raw: string | null | undefined): string {
+  if (!raw) return 'N/A'
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) return formatSaoPauloDateTimeShort(raw)
+  return raw
+}
 
 /** Prompt fixo do sistema: só leitura, invisível para a escola (orientações 1 e 14). */
 const LOCKED = new Set(['criar_trilha_ia'])
@@ -138,7 +145,7 @@ export function AiPromptsPage() {
           {selected ? (
             <p className="gx-muted" style={{ flex: '1 1 260px', lineHeight: 1.5 }}>
               {selected.description}
-              {' · '}Última edição: {na(selected.updated_by_email)} · {na(selected.updated_at)}
+              {' · '}Última edição: {na(selected.updated_by_email)} · {fmtWhen(selected.updated_at)}
             </p>
           ) : null}
         </div>
@@ -234,7 +241,7 @@ export function AiPromptsPage() {
                           {v.note || 'Sem nota'}
                         </strong>
                         <span className="gx-muted" style={{ fontSize: 12 }}>
-                          {na(v.updated_by_email)} · {na(v.updated_at)}
+                          {na(v.updated_by_email)} · {fmtWhen(v.updated_at)}
                         </span>
                       </span>
                       <Icon name={open ? 'chev-up' : 'chev-down'} />

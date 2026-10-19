@@ -104,7 +104,15 @@ type StudentEngagementStatus = 'notStarted' | 'inProgress' | 'completed'
 function getStudentEngagementStatus(
   row: StudentRow,
 ): StudentEngagementStatus {
-  return row.engagementStatus
+  if (row.completionPct !== null && row.completionPct >= 100) return 'completed'
+  if (row.engagementStatus === 'completed') return 'completed'
+  if (
+    row.engagementStatus === 'inProgress' ||
+    (row.completionPct !== null && row.completionPct > 0)
+  ) {
+    return 'inProgress'
+  }
+  return 'notStarted'
 }
 
 function getCompletionBucketKey(completion: number | null): string | null {
@@ -581,7 +589,6 @@ export function DashboardPage() {
   >(null)
   const [agentUsageLoading, setAgentUsageLoading] = useState(false)
   const [agentUsagePresent, setAgentUsagePresent] = useState(true)
-  const [initialLogsLoaded, setInitialLogsLoaded] = useState(false)
   const initialLogsLoadedRef = useRef(false)
   const dashboardLoadStartedAtRef = useRef(0)
   const loadProgressRef = useRef({ done: 0, total: TOTAL_LOAD_STEPS })
@@ -734,7 +741,6 @@ export function DashboardPage() {
         setLoadingData(false)
         setLoadingMeta(false)
         setLoadingLogs(false)
-        setInitialLogsLoaded(false)
         initialLogsLoadedRef.current = false
         setAgentUsageLoading(false)
         setSelectedAgentTrailId(null)
@@ -755,7 +761,6 @@ export function DashboardPage() {
       // dos efeitos de metadados/logs.
       setLoadingMeta(true)
       setLoadingLogs(true)
-      setInitialLogsLoaded(false)
       initialLogsLoadedRef.current = false
       setAgentUsageLoading(false)
       setSelectedAgentTrailId(null)
@@ -778,9 +783,10 @@ export function DashboardPage() {
       }
 
       // One-shot: dashboard não precisa de realtime nestas coleções.
+      // Tentativas: por student_id (mesma junção do Início). institution_id no
+      // attempt às vezes falta e a query por instituição vinha vazia → Acertos N/A.
       try {
-        const [studentsSnap, trailsSnap, studentTrailsSnap, attemptsSnap] =
-          await Promise.all([
+        const [studentsSnap, trailsSnap, studentTrailsSnap] = await Promise.all([
           getDocs(
             query(
               collection(dbOk, STUDENTS_COLLECTION),
@@ -799,21 +805,37 @@ export function DashboardPage() {
               where('institution_id', '==', selectedId),
             ),
           ),
-          getDocs(
-            query(
-              collection(dbOk, EXERCISE_ATTEMPTS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
         ])
         if (cancelled) return
-        setStudents(studentsSnap.docs.map(snapshotToStudent))
+        const nextStudents = studentsSnap.docs.map(snapshotToStudent)
+        setStudents(nextStudents)
         done('students')
         setTrails(trailsSnap.docs.map(snapshotToTrail))
         done('trails')
         setStudentTrails(studentTrailsSnap.docs.map(snapshotToStudentTrail))
         done('studentTrails')
-        setAttempts(attemptsSnap.docs.map(snapshotToExerciseAttempt))
+
+        const studentIds = nextStudents.map((s) => s.id).filter(Boolean)
+        let nextAttempts: import('../types/exerciseAttempt').ExerciseAttempt[] =
+          []
+        if (studentIds.length > 0) {
+          const chunks = chunkArray(studentIds, FIRESTORE_IN_LIMIT)
+          const attemptSnaps = await Promise.all(
+            chunks.map((chunk) =>
+              getDocs(
+                query(
+                  collection(dbOk, EXERCISE_ATTEMPTS_COLLECTION),
+                  where('student_id', 'in', chunk),
+                ),
+              ),
+            ),
+          )
+          nextAttempts = attemptSnaps.flatMap((snap) =>
+            snap.docs.map(snapshotToExerciseAttempt),
+          )
+        }
+        if (cancelled) return
+        setAttempts(nextAttempts)
         setDataError(null)
       } catch (err) {
         if (cancelled) return
@@ -967,7 +989,6 @@ export function DashboardPage() {
       setLogsError(null)
       setLoadingLogs(false)
       setAgentUsageLoading(false)
-      setInitialLogsLoaded(true)
       initialLogsLoadedRef.current = true
       loadProgressRef.current.done = loadProgressRef.current.total
       syncLoadProgress('', { complete: true })
@@ -1015,7 +1036,6 @@ export function DashboardPage() {
         setAgentUsagePresent(summary.agentUsagePresent)
         setLoadingLogs(false)
         setAgentUsageLoading(false)
-        setInitialLogsLoaded(true)
         initialLogsLoadedRef.current = true
         if (!refreshingAgentsOnly) finishProgress()
       } catch (err) {
@@ -1029,7 +1049,6 @@ export function DashboardPage() {
           setLogAggregates(EMPTY_LOG_AGGREGATES)
           setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
           // Libera o gate para o banner de erro + retry ficarem acessíveis.
-          setInitialLogsLoaded(true)
           initialLogsLoadedRef.current = true
           loadProgressRef.current.done = loadProgressRef.current.total
           syncLoadProgress('', { complete: true })
@@ -1367,7 +1386,7 @@ export function DashboardPage() {
         correct,
         wrong,
         accuracyPct: pct(correct, correct + wrong),
-        engagementStatus: engagementFromLinks(enrolled),
+        engagementStatus: engagementFromLinks(enrolled, activityTotals),
       }
     })
 
@@ -2309,9 +2328,11 @@ export function DashboardPage() {
     selectedQuestionCount < availableQuestions.length ||
     selectedStageCount < availableStages.length
 
+  // Não espera conversation_logs / dashboard_summary (pode levar dezenas de s).
+  // Progresso e acerto vêm de student_trails + exercise_attempts; uso do monitor
+  // carrega em paralelo com spinner próprio.
   const isDashboardLoading =
-    Boolean(selectedId) &&
-    (loadingData || loadingMeta || !initialLogsLoaded)
+    Boolean(selectedId) && (loadingData || loadingMeta)
 
   useEffect(() => {
     if (isDashboardLoading) return
@@ -2564,7 +2585,6 @@ export function DashboardPage() {
       onRetryLogs={() => {
         // Reabre o gate no retry após falha de first-load (banner acessível).
         initialLogsLoadedRef.current = false
-        setInitialLogsLoaded(false)
         setLogsError(null)
         setLogsRetryKey((k) => k + 1)
       }}

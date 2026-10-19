@@ -116,7 +116,9 @@ function SuperHome({
 
   function openScoped(inst: Institution, path: string) {
     g.setSelectedIds(new Set([inst.id]))
-    navigate(path)
+    // Mesmo caminho do F5: Dados sempre com ?inst= (evita corrida com storage/filtro).
+    const sep = path.includes('?') ? '&' : '?'
+    navigate(`${path}${sep}inst=${encodeURIComponent(inst.id)}`)
   }
 
   return (

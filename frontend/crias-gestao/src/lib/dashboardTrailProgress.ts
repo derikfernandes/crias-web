@@ -20,8 +20,21 @@ export function isActivityDoneOnLink(
   return link.current_question_number > activityNumber
 }
 
-export function engagementFromLinks(links: StudentTrail[]): EngagementStatus {
+export function engagementFromLinks(
+  links: StudentTrail[],
+  activityTotals?: Map<string, number>,
+): EngagementStatus {
   if (links.length === 0) return 'notStarted'
+  // 100% de atividades (mesmo critério do card Conclusão) conta como concluiu,
+  // mesmo se o status no vínculo ainda estiver "in_progress".
+  if (activityTotals && links.length > 0) {
+    const allDone = links.every((l) => {
+      const total = activityTotals.get(l.trail_id) ?? 0
+      if (total <= 0) return l.status === 'completed'
+      return doneActivities(l, total) >= total
+    })
+    if (allDone) return 'completed'
+  }
   if (links.some((l) => l.status === 'in_progress')) return 'inProgress'
   if (links.some((l) => l.status === 'completed')) return 'completed'
   return 'notStarted'

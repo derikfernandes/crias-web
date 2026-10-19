@@ -246,6 +246,8 @@ export function messagesPerTutorPerDay(input: {
 }): number {
   const tutors = Math.max(0, input.activeTutorCount)
   if (input.totalMessages <= 0 || tutors <= 0) return 0
+  // 7/30: denominador fixo do período. Todo: dias de calendário 1º→último
+  // (nunca só "dias com mensagem", que inflava a média).
   let days: number
   if (input.periodDays > 0) {
     days = input.periodDays

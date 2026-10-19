@@ -39,13 +39,20 @@ function BarRow({
   count,
   max,
   labelWidth = 110,
+  enrolledCount,
 }: {
   label: string
   count: number
   max: number
   labelWidth?: number
+  /** Se 0, tooltip vira "sem alunos". */
+  enrolledCount?: number
 }) {
-  const tip = `${label}: ${count}`
+  const tip =
+    enrolledCount === 0
+      ? `${label}: sem alunos`
+      : `${label}: ${count}${enrolledCount != null ? ` de ${enrolledCount}` : ''}`
+  const pctWidth = count > 0 && max > 0 ? (count / max) * 100 : 0
   return (
     <div
       className="gx-chart-row"
@@ -65,7 +72,11 @@ function BarRow({
         {label}
       </span>
       <span className="gx-bar" style={{ flex: 1, height: 10 }} aria-label={tip}>
-        <span style={{ width: `${max > 0 ? (count / max) * 100 : 0}%` }} />
+        {pctWidth > 0 ? (
+          <span style={{ width: `${pctWidth}%`, minWidth: 0 }} />
+        ) : (
+          <span style={{ width: 0, minWidth: 0, background: 'transparent' }} />
+        )}
       </span>
       <strong style={{ width: 36, textAlign: 'right', flex: 'none' }}>{count}</strong>
     </div>
@@ -222,11 +233,19 @@ export function DashboardPageView(p: DashboardPageViewProps) {
   const statusMax = Math.max(0, ...charts.statuses.map((b) => b.count))
   const lessonMax = Math.max(1, ...charts.lessonBars.map((b) => b.count))
   const agent = p.agentUsage
+  const msgsDayHint =
+    p.agentPeriodDays === 0
+      ? 'Média no intervalo entre a primeira e a última mensagem do histórico (dias de calendário).'
+      : `Média dividida por ${p.agentPeriodDays} dias do período selecionado.`
   const agentKpis = [
     { label: 'Perguntas ao monitor', value: String(agent.totalMessages) },
     { label: 'Alunos que usaram', value: String(agent.uniqueStudents) },
     { label: 'Cobertura', value: pctText(agent.coveragePct) },
-    { label: 'Mensagens por dia', value: String(agent.msgsPerTutorPerDay).replace('.', ',') },
+    {
+      label: 'Mensagens por dia',
+      value: String(agent.msgsPerTutorPerDay).replace('.', ','),
+      hint: msgsDayHint,
+    },
   ]
   const errors = [p.instError, p.dataError, p.exportError].filter(Boolean) as string[]
 
@@ -351,13 +370,24 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             <div className="gx-lesson-chart" role="img" aria-label="Alunos por atividade concluída">
               <div className="gx-lesson-chart__track">
                 {charts.lessonBars.map((b) => {
-                  const tip = `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
+                  const tip =
+                    b.enrolledCount === 0
+                      ? `${b.fullLabel ?? b.label}: sem alunos`
+                      : `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
+                  const barH =
+                    b.count > 0 && lessonMax > 0
+                      ? Math.max(4, (b.count / lessonMax) * 80)
+                      : 0
                   return (
                     <div key={b.key} className="gx-lesson-chart__col" title={tip}>
                       <strong className="gx-lesson-chart__n">{b.count}</strong>
                       <span
                         className="gx-lesson-chart__bar"
-                        style={{ height: `${Math.max(4, (b.count / lessonMax) * 80)}%` }}
+                        style={{
+                          height: `${barH}%`,
+                          minHeight: barH > 0 ? 4 : 0,
+                          background: barH > 0 ? undefined : 'transparent',
+                        }}
                         aria-label={tip}
                       />
                       <span className="gx-lesson-chart__label" data-fade="1">
@@ -397,8 +427,25 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         </div>
         <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
           {agentKpis.map((k) => (
-            <div className="gx-stat" key={k.label}>
-              <span>{k.label}</span>
+            <div className="gx-stat" key={k.label} title={'hint' in k ? k.hint : undefined}>
+              <span>
+                {k.label}
+                {'hint' in k && k.hint ? (
+                  <abbr
+                    title={k.hint}
+                    aria-label={k.hint}
+                    style={{
+                      marginLeft: 6,
+                      fontWeight: 700,
+                      color: 'var(--v-t3)',
+                      textDecoration: 'none',
+                      cursor: 'help',
+                    }}
+                  >
+                    ?
+                  </abbr>
+                ) : null}
+              </span>
               <strong>{k.value}</strong>
             </div>
           ))}

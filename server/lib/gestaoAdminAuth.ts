@@ -1,7 +1,10 @@
 /**
- * Autenticação das APIs da Gestão: Bearer Firebase ID token + escopo
- * de instituição (Master/super/`all_institutions`/sem perfil legado vê
- * todas; escola só a sua). Espelha `adminPermissions` do client.
+ * Autenticação das APIs da Gestão (modelo PR #32):
+ * 1. Master (`MASTER_ADMIN_EMAILS` ou `admin_users.is_master`) → todas
+ * 2. Doc em `admin_users` ativo → só as instituições do perfil
+ * 3. Sem perfil e não Master → 403
+ *
+ * Sem token / token inválido → 401.
  */
 
 import { getAuth } from 'firebase-admin/auth'
@@ -14,8 +17,8 @@ export type GestaoAdminPrincipal = {
   uid: string
   isMaster: boolean
   /**
-   * `null` = acesso a todas as instituições (Master, super admin ou
-   * all_institutions). Caso contrário, lista permitida.
+   * `null` = todas as instituições (Master / super / all_institutions).
+   * Caso contrário, lista permitida.
    */
   allowedInstitutionIds: string[] | null
 }
@@ -36,6 +39,10 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
+function adminUserDocId(email: string): string {
+  return normalizeEmail(email).replace(/\./g, '_')
+}
+
 function extractBearer(authorizationHeader: string | null): string | null {
   if (!authorizationHeader) return null
   const m = authorizationHeader.match(/^Bearer\s+(.+)$/i)
@@ -52,23 +59,12 @@ type AdminUserRow = {
   institution_ids: string[]
 }
 
-export async function loadAdminUserByEmail(
-  db: Firestore,
-  email: string,
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<AdminUserRow | null> {
-  const collection = env.ADMIN_USERS_COLLECTION?.trim() || 'admin_users'
-  const normalized = normalizeEmail(email)
-  const snap = await db
-    .collection(collection)
-    .where('email', '==', normalized)
-    .limit(1)
-    .get()
-  if (snap.empty) return null
-  const data = snap.docs[0]?.data() ?? {}
+function rowFromData(data: Record<string, unknown>): AdminUserRow {
   const idsRaw = data.institution_ids
   const institution_ids = Array.isArray(idsRaw)
-    ? idsRaw.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+    ? idsRaw.filter(
+        (x): x is string => typeof x === 'string' && x.trim().length > 0,
+      )
     : []
   return {
     active: data.active !== false,
@@ -79,10 +75,31 @@ export async function loadAdminUserByEmail(
   }
 }
 
+export async function loadAdminUserByEmail(
+  db: Firestore,
+  email: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AdminUserRow | null> {
+  const collection = env.ADMIN_USERS_COLLECTION?.trim() || 'admin_users'
+  const normalized = normalizeEmail(email)
+
+  const snap = await db
+    .collection(collection)
+    .where('email', '==', normalized)
+    .limit(1)
+    .get()
+  if (!snap.empty) {
+    return rowFromData((snap.docs[0]?.data() ?? {}) as Record<string, unknown>)
+  }
+
+  // Fallback: doc id = e-mail com "." → "_" (mesmo padrão do client).
+  const byId = await db.collection(collection).doc(adminUserDocId(normalized)).get()
+  if (!byId.exists) return null
+  return rowFromData((byId.data() ?? {}) as Record<string, unknown>)
+}
+
 /**
  * Verifica Firebase ID token e resolve o escopo de instituições do admin.
- * Sem token / token inválido → 401.
- * Sem papel de Gestão → 403.
  */
 export async function requireGestaoAdminFromRequest(
   db: Firestore,
@@ -139,6 +156,7 @@ export async function requireGestaoAdminFromRequest(
     }
   }
 
+  // 1) Master → todas
   if (master) {
     return {
       ok: true,
@@ -151,20 +169,13 @@ export async function requireGestaoAdminFromRequest(
     }
   }
 
-  /**
-   * Espelha `adminPermissions` no client: sem registro em `admin_users`
-   * = acesso total (compatibilidade legada). Continua exigindo login
-   * Firebase válido (401 sem token).
-   */
+  // 3) Sem perfil e não Master → 403
   if (!profile) {
     return {
-      ok: true,
-      principal: {
-        email,
-        uid: decoded.uid,
-        isMaster: false,
-        allowedInstitutionIds: null,
-      },
+      ok: false,
+      status: 403,
+      code: 'forbidden',
+      error: 'Sem acesso. Conta sem perfil de administrador.',
     }
   }
 
@@ -177,13 +188,14 @@ export async function requireGestaoAdminFromRequest(
     }
   }
 
+  // 2) Doc em admin_users → escopo do perfil
   if (profile.is_super_admin || profile.all_institutions) {
     return {
       ok: true,
       principal: {
         email,
         uid: decoded.uid,
-        isMaster: profile.is_master,
+        isMaster: false,
         allowedInstitutionIds: null,
       },
     }
@@ -203,13 +215,13 @@ export async function requireGestaoAdminFromRequest(
     principal: {
       email,
       uid: decoded.uid,
-      isMaster: profile.is_master,
+      isMaster: false,
       allowedInstitutionIds: profile.institution_ids,
     },
   }
 }
 
-/** Master / super: todas. Escola: só as liberadas. */
+/** Master / super / all_institutions: todas. Escola: só as liberadas. */
 export function canAccessInstitution(
   principal: GestaoAdminPrincipal,
   institutionId: string,

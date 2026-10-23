@@ -416,7 +416,11 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           <div>
             <h2>Uso do monitor</h2>
             <p className="gx-muted">
-              {p.agentUsageUnavailable ? 'Dados de uso indisponíveis neste momento.' : 'Perguntas que os alunos fizeram ao monitor'}
+              {p.logsError
+                ? 'Não foi possível carregar o uso do monitor.'
+                : p.agentUsageUnavailable
+                  ? 'Dados de uso indisponíveis neste momento.'
+                  : 'Perguntas que os alunos fizeram ao monitor'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 4, background: 'var(--v-soft)', borderRadius: 999, padding: 4 }}>
@@ -428,65 +432,84 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                 style={{ height: 32, padding: '0 14px', flex: 'none' }}
                 aria-selected={p.agentPeriodDays === days}
                 onClick={() => p.onAgentPeriodDaysChange(days)}
+                disabled={Boolean(p.logsError) && !p.agentUsageLoading}
               >
                 {label}
               </button>
             ))}
           </div>
         </div>
-        <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
-          {agentKpis.map((k) => (
-            <div className="gx-stat" key={k.label} title={'hint' in k ? k.hint : undefined}>
-              <span>
-                {k.label}
-                {'hint' in k && k.hint ? (
-                  <abbr
-                    title={k.hint}
-                    aria-label={k.hint}
-                    style={{
-                      marginLeft: 6,
-                      fontWeight: 700,
-                      color: 'var(--v-t3)',
-                      textDecoration: 'none',
-                      cursor: 'help',
-                    }}
-                  >
-                    ?
-                  </abbr>
-                ) : null}
-              </span>
-              <strong>{k.value}</strong>
-            </div>
-          ))}
-        </div>
+        {p.logsError ? (
+          <div style={{ padding: 24 }}>
+            <p className="gx-muted" role="alert">
+              Erro: {p.logsError}
+            </p>
+          </div>
+        ) : (
+          <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
+            {agentKpis.map((k) => (
+              <div className="gx-stat" key={k.label} title={'hint' in k ? k.hint : undefined}>
+                <span>
+                  {k.label}
+                  {'hint' in k && k.hint ? (
+                    <abbr
+                      title={k.hint}
+                      aria-label={k.hint}
+                      style={{
+                        marginLeft: 6,
+                        fontWeight: 700,
+                        color: 'var(--v-t3)',
+                        textDecoration: 'none',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </abbr>
+                  ) : null}
+                </span>
+                <strong>{k.value}</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="gx-card" aria-label="Oportunidades" style={{ padding: 24, gap: 28 }}>
         <div>
           <h2>Oportunidades</h2>
-          <p className="gx-muted">Clique em um exercício para ver o enunciado</p>
+          <p className="gx-muted">
+            {p.logsError
+              ? 'Não foi possível carregar as oportunidades.'
+              : 'Clique em um exercício para ver o enunciado'}
+          </p>
         </div>
-        <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 32 }}>
-          {(
-            [
-              ['Menor acerto', p.worstPills],
-              ['Maior acerto', p.bestPills],
-            ] as const
-          ).map(([title, list]) => (
-            <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-              <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
-              {list.map((row) => (
-                <Opportunity
-                  key={`${title}-${row.key}`}
-                  row={row}
-                  open={openOpp === `${title}-${row.key}`}
-                  onToggle={() => setOpenOpp((c) => (c === `${title}-${row.key}` ? null : `${title}-${row.key}`))}
-                />
-              ))}
-              {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
-            </div>
-          ))}
-        </div>
+        {p.logsError ? (
+          <p className="gx-muted" role="alert">
+            Erro: {p.logsError}
+          </p>
+        ) : (
+          <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 32 }}>
+            {(
+              [
+                ['Menor acerto', p.worstPills],
+                ['Maior acerto', p.bestPills],
+              ] as const
+            ).map(([title, list]) => (
+              <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
+                {list.map((row) => (
+                  <Opportunity
+                    key={`${title}-${row.key}`}
+                    row={row}
+                    open={openOpp === `${title}-${row.key}`}
+                    onToggle={() => setOpenOpp((c) => (c === `${title}-${row.key}` ? null : `${title}-${row.key}`))}
+                  />
+                ))}
+                {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="gx-card" aria-label="Alunos e exercícios" style={{ padding: 0, gap: 0, overflow: 'visible' }}>

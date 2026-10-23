@@ -36,8 +36,14 @@ describe('Master access', () => {
     expect(canAccessNav(p, 'ai_prompts', { userEmail: p.email })).toBe(false)
   })
 
-  it('perfil inativo não é Master', () => {
+  it('perfil inativo não é Master (só pelo doc)', () => {
     const p = profile({ is_master: true, active: false })
     expect(isMasterAccess(p, p.email)).toBe(false)
+  })
+
+  it('sem perfil e sem e-mail Master → sem nav', () => {
+    expect(canAccessNav(null, 'home', { userEmail: 'outro@exemplo.com' })).toBe(
+      false,
+    )
   })
 })

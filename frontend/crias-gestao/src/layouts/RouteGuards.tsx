@@ -10,10 +10,11 @@ import { loadTrilhaSession } from '../lib/trilha/trilhaSession'
 const firebaseOk = !firebaseConfigError && db
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, adminProfile } = useAuth()
+  const { user, loading, adminProfile, permissionsLoading } = useAuth()
+  const { hasGestaoAccess } = usePermissions()
   const location = useLocation()
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return <p className="muted">Carregando…</p>
   }
 
@@ -29,16 +30,32 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     )
   }
 
+  if (!hasGestaoAccess) {
+    return (
+      <p className="banner banner--error" role="alert">
+        Sem acesso. Sua conta não tem perfil de administrador na Gestão.
+      </p>
+    )
+  }
+
   return children
 }
 
 export function RequireNavPermission({ children }: { children: ReactNode }) {
-  const { canNav, permissionsLoading } = usePermissions()
+  const { canNav, permissionsLoading, hasGestaoAccess } = usePermissions()
   const location = useLocation()
   const required = navPermissionForPath(location.pathname)
 
   if (permissionsLoading) {
     return <p className="muted">Carregando permissões…</p>
+  }
+
+  if (!hasGestaoAccess) {
+    return (
+      <p className="banner banner--error" role="alert">
+        Sem acesso. Sua conta não tem perfil de administrador na Gestão.
+      </p>
+    )
   }
 
   if (!canNav(required)) {

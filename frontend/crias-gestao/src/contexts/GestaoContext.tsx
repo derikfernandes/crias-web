@@ -42,7 +42,7 @@ export function GestaoProvider({ children }: { children: ReactNode }) {
 
   const isSuper = useMemo(() => {
     if (hasFullAccess) return true
-    if (!adminProfile) return true
+    if (!adminProfile) return false
     if (adminProfile.all_institutions) return true
     return adminProfile.institution_ids.length !== 1
   }, [adminProfile, hasFullAccess])

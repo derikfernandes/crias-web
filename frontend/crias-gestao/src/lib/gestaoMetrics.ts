@@ -298,12 +298,14 @@ export function institutionMetrics(input: {
   )
   const active = students.filter((s) => s.active)
   const activeIds = new Set(active.map((s) => s.id))
+  // Alinha com Dados: só trilhas ativas da instituição.
   const trails = input.trails.filter(
-    (t) => t.institution_id === input.institutionId,
+    (t) => t.institution_id === input.institutionId && t.active,
   )
   const trailIds = new Set(trails.map((t) => t.id))
   const links = input.studentTrails.filter(
-    (st) => st.institution_id === input.institutionId,
+    (st) =>
+      st.institution_id === input.institutionId && trailIds.has(st.trail_id),
   )
 
   const inProgress = new Set<string>()

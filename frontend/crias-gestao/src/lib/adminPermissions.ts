@@ -128,7 +128,12 @@ export function parseMasterAdminEmailsFromEnv(): string[] {
 }
 
 /**
- * Master: env list (trim + minúsculas) OU `admin_users.is_master` ativo.
+ * Master global (todas as instituições + Prompts):
+ * - e-mail em `VITE_MASTER_ADMIN_EMAILS`, ou
+ * - `is_master` **e** (`all_institutions` ou `is_super_admin`).
+ *
+ * Admin de escola usa `is_master` só como perfil local (Senhas na própria
+ * instituição) e NÃO entra aqui.
  */
 export function isMasterAccess(
   profile: AdminUser | null,
@@ -136,11 +141,27 @@ export function isMasterAccess(
 ): boolean {
   const email = userEmail ? normalizeAdminEmail(userEmail) : ''
   if (email && parseMasterAdminEmailsFromEnv().includes(email)) return true
-  if (profile?.active && profile.is_master) return true
+  if (
+    profile?.active &&
+    profile.is_master &&
+    (profile.all_institutions || profile.is_super_admin)
+  ) {
+    return true
+  }
   return false
 }
 
-/** Acesso a todas as instituições: Master ou super / all_institutions. */
+/** Senhas: Master global OU admin de escola (`is_master` no perfil). */
+export function canAccessStudentPasswords(
+  profile: AdminUser | null,
+  userEmail: string | null | undefined,
+): boolean {
+  if (isMasterAccess(profile, userEmail)) return true
+  if (profile?.active && profile.is_master) return true
+  return Boolean(profile?.nav_permissions.includes('student_passwords'))
+}
+
+/** Acesso a todas as instituições: Master global ou super / all_institutions. */
 export function hasFullAccess(
   profile: AdminUser | null,
   userEmail?: string | null,
@@ -167,8 +188,9 @@ export function canAccessNav(
 ): boolean {
   const email = opts?.userEmail ?? profile?.email ?? null
   if (isMasterAccess(profile, email)) return true
-  if (permission === 'student_passwords' || permission === 'ai_prompts') {
-    return false
+  if (permission === 'ai_prompts') return false
+  if (permission === 'student_passwords') {
+    return canAccessStudentPasswords(profile, email)
   }
   if (profile === null) return false
   if (!profile.active) return false

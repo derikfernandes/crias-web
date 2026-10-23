@@ -9,6 +9,7 @@
 
 import {
   EMPTY_AGENT_USAGE,
+  agentLabelForTrailId,
   mergeAgentRowsByLabel,
   type AgentUsagePeriodDays,
   type AgentUsageRowView,
@@ -130,13 +131,16 @@ function parseAgentUsage(
                   )
                 : []
 
+          const rawLabel =
+            typeof row.label === 'string' && row.label.trim()
+              ? row.label.trim()
+              : agentLabelForTrailId(trailId)
+          const label = rawLabel === 'Maria' ? 'Monitor' : rawLabel
+
           return {
             trailId,
             trailIds,
-            label:
-              typeof row.label === 'string' && row.label.trim()
-                ? row.label.trim()
-                : trailId,
+            label,
             messages: typeof row.messages === 'number' ? row.messages : 0,
             uniqueStudents:
               typeof row.unique_students === 'number'

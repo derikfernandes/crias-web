@@ -1642,6 +1642,13 @@ export function DashboardPage() {
     }
 
     const multiTrail = relevantTrails.length > 1
+    /** Prefixo curto da trilha para eixo multi-trilha (ex.: Aurora → Aur). */
+    function trailShortTag(name: string, id: string): string {
+      const raw = (name || id).trim()
+      const letters = raw.replace(/[^A-Za-zÀ-ÿ0-9]/g, '')
+      if (letters.length >= 3) return letters.slice(0, 3)
+      return (id.replace(/^t/i, 'T') || 'T').slice(0, 3)
+    }
     const lessonBars: {
       key: string
       label: string
@@ -1665,6 +1672,7 @@ export function DashboardPage() {
         return true
       })
       const trailLabel = (trail.name || trail.id).trim()
+      const tag = trailShortTag(trailLabel, trail.id)
       const stages = [...new Set(catalog.map((k) => k.stage))].sort(
         (a, b) => a - b,
       )
@@ -1688,10 +1696,10 @@ export function DashboardPage() {
               count += 1
             }
           }
-          // Rótulo curto na barra (E1, E2…); nome completo só no tooltip.
+          // 1 trilha: E1…En. Várias: Tag·E1 (respeita filtro de trilhas).
           lessonBars.push({
             key: `${trail.id}|E${stage}`,
-            label: `E${stage}`,
+            label: multiTrail ? `${tag}·E${stage}` : `E${stage}`,
             fullLabel: multiTrail
               ? `Etapa ${stage} · ${trailLabel}`
               : `Etapa ${stage}`,
@@ -1715,10 +1723,10 @@ export function DashboardPage() {
             count += 1
           }
         }
-        const short = `E${activity.stage}`
+        const short = `E${activity.stage} A${activity.question}`
         lessonBars.push({
           key: `${trail.id}|${activity.stage}|${activity.question}`,
-          label: short,
+          label: multiTrail ? `${tag}·${short}` : short,
           fullLabel: multiTrail
             ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
             : `Etapa ${activity.stage} · Atividade ${activity.question}`,

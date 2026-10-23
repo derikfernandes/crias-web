@@ -387,10 +387,8 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                     b.count > 0 && lessonMax > 0
                       ? Math.max(4, (b.count / lessonMax) * 80)
                       : 0
-                  // Rótulo curto E1, E2… (evita truncar "E1 Pro.." no celular).
-                  const shortLabel = /^E\d+/i.test(b.label.trim())
-                    ? b.label.trim().match(/^E\d+/i)![0].toUpperCase()
-                    : b.label.trim()
+                  // Usa o label já curto do page (E1 ou Tag·E1); sem strip agressivo.
+                  const shortLabel = b.label.trim() || 'E?'
                   return (
                     <div
                       key={b.key}

@@ -42,6 +42,13 @@ type Json = Record<string, unknown>
 
 const FIRESTORE_IN_LIMIT = 30
 
+/** Cache em memória da instância (warm): reduz ~20s+ em recargas próximas. */
+const SUMMARY_CACHE_TTL_MS = 90_000
+const summaryCache = new Map<
+  string,
+  { expires: number; body: Json }
+>()
+
 function corsHeaders(request: Request): Record<string, string> {
   return gestaoCorsHeaders(request, 'GET,OPTIONS')
 }
@@ -132,12 +139,17 @@ async function handleRequest(request: Request): Promise<Response> {
     })
   }
 
-  const respond = (status: number, body: Json): Response => {
+  const respond = (
+    status: number,
+    body: Json,
+    extraHeaders?: Record<string, string>,
+  ): Response => {
     return new Response(JSON.stringify(body), {
       status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         ...corsHeaders(request),
+        ...(extraHeaders ?? {}),
       },
     })
   }
@@ -175,6 +187,15 @@ async function handleRequest(request: Request): Promise<Response> {
     return respond(403, {
       error: 'Sem permissão para esta instituição.',
       code: 'forbidden',
+    })
+  }
+
+  const cacheKey = `${institutionId}|${periodDays}`
+  const hit = summaryCache.get(cacheKey)
+  if (hit && hit.expires > Date.now()) {
+    return respond(200, hit.body, {
+      'Cache-Control': 'private, max-age=60',
+      'X-Summary-Cache': 'HIT',
     })
   }
 
@@ -295,12 +316,20 @@ async function handleRequest(request: Request): Promise<Response> {
 
     const agent_usage = aggregateAgentUsage(agentLogs, periodDays)
 
-    return respond(200, {
+    const body: Json = {
       institution_id: institutionId,
       student_count: studentIds.length,
       trail_ids: trailIdList,
       students,
       agent_usage,
+    }
+    summaryCache.set(cacheKey, {
+      expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+      body,
+    })
+    return respond(200, body, {
+      'Cache-Control': 'private, max-age=60',
+      'X-Summary-Cache': 'MISS',
     })
   } catch (e) {
     return respond(500, {

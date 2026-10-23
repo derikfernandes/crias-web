@@ -11,7 +11,7 @@ const firebaseOk = !firebaseConfigError && db
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading, adminProfile, permissionsLoading } = useAuth()
-  const { hasGestaoAccess } = usePermissions()
+  const { hasGestaoAccess, isMaster } = usePermissions()
   const location = useLocation()
 
   if (loading || permissionsLoading) {
@@ -22,7 +22,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  if (adminProfile && !adminProfile.active) {
+  // Master do env prevalece sobre doc admin_users inativo.
+  if (adminProfile && !adminProfile.active && !isMaster) {
     return (
       <p className="banner banner--error" role="alert">
         Sua conta está desativada. Fale com um administrador.

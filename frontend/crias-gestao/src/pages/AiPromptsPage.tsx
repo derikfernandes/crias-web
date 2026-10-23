@@ -125,7 +125,7 @@ export function AiPromptsPage() {
     <div className="gx-page">
       <PageHead
         title="Prompts"
-        subtitle="Instruções que orientam a IA. Cada salvamento cria uma nova versão e fica registrado."
+        subtitle="Instruções que orientam a geração de conteúdo. Cada salvamento cria uma nova versão e fica registrado."
       />
       {error ? <Banner onRetry={() => void load()}>{error}</Banner> : null}
       {message ? <Banner tone="ok">{message}</Banner> : null}

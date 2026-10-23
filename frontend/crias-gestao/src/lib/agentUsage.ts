@@ -21,7 +21,7 @@ export const CANONICAL_AGENT_LABELS = [
   'Humanas',
   'Natureza',
   'Linguagens',
-  'Maria',
+  'Monitor',
 ] as const
 
 export type AgentUsagePeriodDays = 0 | 7 | 30
@@ -72,11 +72,14 @@ export function agentLabelForTrailId(trailId: string): string {
     'Trilha - Humanas': 'Humanas',
     'Trilha - Natureza': 'Natureza',
     'Tutor - Linguagens': 'Linguagens',
-    'Tutor - Maria': 'Maria',
+    'Tutor - Maria': 'Monitor',
   }
   if (id in canonical) return canonical[id]!
   if (id.startsWith('Trilha -')) return id.slice('Trilha -'.length).trim() || id
-  if (id.startsWith('Tutor -')) return id.slice('Tutor -'.length).trim() || id
+  if (id.startsWith('Tutor -')) {
+    const rest = id.slice('Tutor -'.length).trim() || id
+    return rest === 'Maria' ? 'Monitor' : rest
+  }
   return id
 }
 
@@ -112,7 +115,8 @@ export function mergeAgentRowsByLabel(
     Humanas: 'Trilha - Humanas',
     Natureza: 'Trilha - Natureza',
     Linguagens: 'Tutor - Linguagens',
-    Maria: MARIA_AGENT_TRAIL_ID,
+    Monitor: MARIA_AGENT_TRAIL_ID,
+    Maria: MARIA_AGENT_TRAIL_ID, // legado da API
   }
 
   for (const row of rows) {

@@ -506,6 +506,8 @@ export function FilterPopover({
   variant = 'pill',
   align = 'right',
   emptyText = 'Nada encontrado.',
+  /** Toque no nome: só esse item + fecha. Checkbox continua multi-select. */
+  exclusiveOnLabel = false,
 }: {
   label: string
   options: FilterOption[]
@@ -514,6 +516,7 @@ export function FilterPopover({
   variant?: 'pill' | 'field'
   align?: 'left' | 'right'
   emptyText?: string
+  exclusiveOnLabel?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -551,6 +554,12 @@ export function FilterPopover({
     onChange(next)
   }
 
+  function selectOnly(id: string) {
+    onChange(new Set([id]))
+    setOpen(false)
+    setQ('')
+  }
+
   return (
     <div className="gx-filter">
       <button
@@ -571,7 +580,11 @@ export function FilterPopover({
       </button>
       {open ? (
         <>
-          <div className="gx-scrim" onClick={() => setOpen(false)} />
+          <div
+            className="gx-scrim"
+            aria-hidden="true"
+            onClick={() => setOpen(false)}
+          />
           <div
             role="dialog"
             aria-label={label}
@@ -621,22 +634,45 @@ export function FilterPopover({
               {visible.map((o) => {
                 const on = selected.has(o.id)
                 return (
-                  <button
+                  <div
                     key={o.id}
-                    type="button"
                     role="option"
                     aria-selected={on}
                     className="gx-filter__opt"
-                    onClick={() => toggle(o.id)}
                   >
-                    <span
-                      className={on ? 'gx-filter__box is-on' : 'gx-filter__box'}
-                      aria-hidden="true"
+                    <button
+                      type="button"
+                      className={
+                        on ? 'gx-filter__check is-on' : 'gx-filter__check'
+                      }
+                      aria-label={
+                        on
+                          ? `Desmarcar ${o.name}`
+                          : `Marcar ${o.name}`
+                      }
+                      aria-pressed={on}
+                      onClick={() => toggle(o.id)}
                     >
-                      {on ? <Icon name="check" size={12} /> : null}
-                    </span>
-                    <span style={{ minWidth: 0 }}>{o.name}</span>
-                  </button>
+                      <span
+                        className={
+                          on ? 'gx-filter__box is-on' : 'gx-filter__box'
+                        }
+                        aria-hidden="true"
+                      >
+                        {on ? <Icon name="check" size={12} /> : null}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="gx-filter__name"
+                      onClick={() => {
+                        if (exclusiveOnLabel) selectOnly(o.id)
+                        else toggle(o.id)
+                      }}
+                    >
+                      <span data-fade="1">{o.name}</span>
+                    </button>
+                  </div>
                 )
               })}
               {visible.length === 0 ? (

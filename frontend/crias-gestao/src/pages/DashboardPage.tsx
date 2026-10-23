@@ -737,13 +737,25 @@ export function DashboardPage() {
     setSearchParams(next, { replace: true })
   }, [selectedId, searchParams, setSearchParams])
 
-  // Dados é 1 instituição: filtro do topo acompanha selectedId / ?inst= (não "Todas").
+  // Dados é 1 instituição: topo ↔ selectedId / ?inst= (toque no nome no topo troca e recarrega).
   useEffect(() => {
-    if (!selectedId?.trim() || !gestao.isSuper) return
-    if (gestao.selectedIds.size === 1 && gestao.selectedIds.has(selectedId)) return
-    gestao.setSelectedIds(new Set([selectedId]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a selectedId / isSuper
-  }, [selectedId, gestao.isSuper])
+    if (!gestao.isSuper) return
+    if (gestao.selectedIds.size === 1) {
+      const only = [...gestao.selectedIds][0]
+      if (only && only !== selectedId) setSelectedId(only)
+      return
+    }
+    // Multi/vazio no topo: Dados precisa de uma; pin no selectedId atual (ou primeira do escopo).
+    if (selectedId?.trim()) {
+      if (
+        gestao.selectedIds.size !== 1 ||
+        !gestao.selectedIds.has(selectedId)
+      ) {
+        gestao.setSelectedIds(new Set([selectedId]))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync bidirecional selectedIds ↔ selectedId
+  }, [selectedId, gestao.isSuper, gestao.selectedIds])
 
   function selectInstitution(id: string) {
     setSelectedId(id)

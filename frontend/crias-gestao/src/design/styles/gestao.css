@@ -389,17 +389,34 @@ html {
 .gx-filter__btn { height: 36px; padding: 0 12px 0 14px; border: 1px solid rgba(0, 190, 133, 0.28); border-radius: 999px; background: var(--v-gsoft); color: var(--v-gink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; max-width: min(360px, calc(100vw - 140px)); }
 .gx-filter__btn--field { height: 40px; border-radius: 12px; border: 1px solid var(--v-line); background: var(--v-soft); color: var(--v-ink); font-size: 14px; width: 100%; padding: 0 14px; }
 .gx-filter__count { margin-left: auto; font-size: 12px; font-weight: 700; color: #00593d; background: #fff; border-radius: 999px; padding: 2px 8px; }
-.gx-filter__panel { position: absolute; top: 44px; right: 0; z-index: 31; width: min(340px, calc(100vw - 48px)); background: var(--v-raise); border: 1px solid var(--v-line); border-radius: 16px; box-shadow: var(--v-card), 0 18px 44px rgba(0, 28, 14, 0.16); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.gx-filter__panel { position: absolute; top: 44px; right: 0; z-index: 81; width: min(340px, calc(100vw - 48px)); max-height: min(420px, calc(100dvh - 120px)); background: var(--v-raise); border: 1px solid var(--v-line); border-radius: 16px; box-shadow: var(--v-card), 0 18px 44px rgba(0, 28, 14, 0.16); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .gx-filter__panel--left { right: auto; left: 0; }
-.gx-filter__list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; border-top: 1px solid var(--v-soft2); padding-top: 6px; scrollbar-width: thin; }
-.gx-filter__opt { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 8px; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 600; color: var(--v-ink); cursor: pointer; text-align: left; }
+.gx-filter__list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; border-top: 1px solid var(--v-soft2); padding-top: 6px; scrollbar-width: thin; flex: 1 1 auto; min-height: 0; }
+.gx-filter__opt { display: flex; align-items: stretch; gap: 4px; width: 100%; min-height: 44px; border: 0; background: transparent; padding: 0; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 600; color: var(--v-ink); text-align: left; }
 .gx-filter__opt:hover { background: var(--v-soft); }
+.gx-filter__check { flex: none; width: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.gx-filter__name { flex: 1 1 auto; min-width: 0; min-height: 44px; margin: 0; padding: 0 10px 0 2px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; text-align: left; }
 .gx-filter__box { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--v-t3); display: flex; align-items: center; justify-content: center; flex: none; }
 .gx-filter__box.is-on { background: var(--v-green); border-color: var(--v-green); }
 .gx-filter__tools { display: flex; justify-content: space-between; gap: 8px; }
+@media (max-width: 768px) {
+  .gx-filter__panel,
+  .gx-filter__panel--left {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: min(52dvh, 380px);
+    z-index: 81;
+  }
+  .gx-filter__list { max-height: none; }
+}
 .gx-linkbtn { border: 0; background: transparent; padding: 4px 6px; font: inherit; font-size: 13px; font-weight: 700; color: var(--v-gink); cursor: pointer; border-radius: 8px; }
 .gx-linkbtn:hover { background: var(--v-gsoft); }
-.gx-scrim { position: fixed; inset: 0; z-index: 30; }
+/* Acima do menu lateral (z 70) para toque fora fechar também sobre o menu. */
+.gx-scrim { position: fixed; inset: 0; z-index: 80; }
 
 /* Carregando */
 .gx-boot { position: fixed; inset: 0; z-index: 900; background: var(--v-bg); display: flex; align-items: center; justify-content: center; }

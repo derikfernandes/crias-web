@@ -330,6 +330,7 @@ function Shell({ children }: { children: ReactNode }) {
                   options={institutions.map((i) => ({ id: i.id, name: i.name || i.id }))}
                   selected={selectedIds}
                   onChange={setSelectedIds}
+                  exclusiveOnLabel
                   emptyText="Nenhuma instituição encontrada."
                 />
               ) : null}

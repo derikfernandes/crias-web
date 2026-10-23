@@ -1,6 +1,7 @@
 /**
  * Autenticação das APIs da Gestão: Bearer Firebase ID token + escopo
- * de instituição (Master/super vê todas; escola só a sua).
+ * de instituição (Master/super/`all_institutions`/sem perfil legado vê
+ * todas; escola só a sua). Espelha `adminPermissions` do client.
  */
 
 import { getAuth } from 'firebase-admin/auth'
@@ -150,12 +151,29 @@ export async function requireGestaoAdminFromRequest(
     }
   }
 
-  if (!profile || !profile.active) {
+  /**
+   * Espelha `adminPermissions` no client: sem registro em `admin_users`
+   * = acesso total (compatibilidade legada). Continua exigindo login
+   * Firebase válido (401 sem token).
+   */
+  if (!profile) {
+    return {
+      ok: true,
+      principal: {
+        email,
+        uid: decoded.uid,
+        isMaster: false,
+        allowedInstitutionIds: null,
+      },
+    }
+  }
+
+  if (!profile.active) {
     return {
       ok: false,
       status: 403,
       code: 'forbidden',
-      error: 'Acesso restrito a administradores da Gestão.',
+      error: 'Conta de administrador desativada.',
     }
   }
 

@@ -1,3 +1,5 @@
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
+
 function resolveApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL?.trim()
   if (raw) return raw.replace(/\/+$/, '')
@@ -24,7 +26,7 @@ export async function updateStudentPassword(
 
   const res = await fetch(url.toString(), {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await gestaoAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ password: plain }),
   })
 
@@ -49,7 +51,10 @@ export async function deleteStudentCascade(studentId: string): Promise<void> {
   const url = new URL('/api/student', resolveApiBaseUrl())
   url.searchParams.set('id', id)
 
-  const res = await fetch(url.toString(), { method: 'DELETE' })
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: await gestaoAuthHeaders(),
+  })
   if (res.status === 204) return
 
   let message = `Falha ao excluir aluno (HTTP ${res.status}).`

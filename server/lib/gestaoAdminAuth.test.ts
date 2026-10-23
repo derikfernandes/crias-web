@@ -104,13 +104,39 @@ describe('gestaoAdminAuth', () => {
     }
   })
 
-  it('usuário sem admin_users e sem Master → 403', async () => {
+  it('usuário sem admin_users (legado) vê todas as instituições', async () => {
     verifyIdToken.mockResolvedValue({
       email: 'random@exemplo.com',
       uid: 'u3',
     })
     const r = await requireGestaoAdminFromRequest(
       mockDb([]),
+      'Bearer good',
+      { MASTER_ADMIN_EMAILS: '' } as NodeJS.ProcessEnv,
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.principal.allowedInstitutionIds).toBeNull()
+      expect(canAccessInstitution(r.principal, 'i2')).toBe(true)
+    }
+  })
+
+  it('admin_users inativo → 403', async () => {
+    verifyIdToken.mockResolvedValue({
+      email: 'off@exemplo.com',
+      uid: 'u3b',
+    })
+    const r = await requireGestaoAdminFromRequest(
+      mockDb([
+        {
+          email: 'off@exemplo.com',
+          active: false,
+          is_super_admin: true,
+          all_institutions: true,
+          is_master: false,
+          institution_ids: [],
+        },
+      ]),
       'Bearer good',
       { MASTER_ADMIN_EMAILS: '' } as NodeJS.ProcessEnv,
     )

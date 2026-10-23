@@ -1,3 +1,4 @@
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
 import type { ContentEtapa, StructurePhase } from './trailEditor'
 
 export type AiTrailDraft = {
@@ -37,6 +38,7 @@ function apiBase(): string {
 export async function fetchDefaultAiTrailPrompt(): Promise<string> {
   const res = await fetch(`${apiBase()}/api/ai_trail_generate`, {
     method: 'GET',
+    headers: await gestaoAuthHeaders({ Accept: 'application/json' }),
   })
   if (!res.ok) {
     throw new Error(`Não foi possível carregar o prompt padrão (${res.status}).`)
@@ -73,7 +75,7 @@ export async function generateAiTrailFromFiles(input: {
 
   const res = await fetch(`${apiBase()}/api/ai_trail_generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await gestaoAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ prompt: input.prompt, files }),
     signal: input.signal,
   })

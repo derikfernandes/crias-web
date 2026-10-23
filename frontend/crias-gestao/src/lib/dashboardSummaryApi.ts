@@ -14,6 +14,7 @@ import {
   type AgentUsageRowView,
   type AgentUsageView,
 } from './agentUsage'
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
 
 export type DashboardLogSummary = {
   doneByStudent: Map<string, Set<string>>
@@ -185,18 +186,6 @@ function parseAgentUsage(
   }
 }
 
-async function gestaoAuthHeaders(): Promise<HeadersInit> {
-  const { auth } = await import('./firebase')
-  if (!auth?.currentUser) {
-    throw new Error('Faça login na Gestão para carregar as métricas.')
-  }
-  const token = await auth.currentUser.getIdToken()
-  return {
-    Accept: 'application/json',
-    Authorization: `Bearer ${token}`,
-  }
-}
-
 export async function fetchDashboardLogSummary(
   institutionId: string,
   periodDays: AgentUsagePeriodDays = 0,
@@ -208,7 +197,7 @@ export async function fetchDashboardLogSummary(
   }
 
   const res = await fetch(url.toString(), {
-    headers: await gestaoAuthHeaders(),
+    headers: await gestaoAuthHeaders({ Accept: 'application/json' }),
   })
 
   let body: DashboardSummaryResponse | null = null

@@ -1,3 +1,5 @@
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
+
 function resolveApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL?.trim()
   if (raw) return raw.replace(/\/+$/, '')
@@ -11,7 +13,10 @@ export async function deleteTrailCascade(trailId: string): Promise<void> {
   const url = new URL('/api/trails', resolveApiBaseUrl())
   url.searchParams.set('id', id)
 
-  const res = await fetch(url.toString(), { method: 'DELETE' })
+  const res = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: await gestaoAuthHeaders(),
+  })
   if (res.status === 204) return
 
   let message = `Falha ao excluir trilha (HTTP ${res.status}).`

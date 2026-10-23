@@ -185,6 +185,18 @@ function parseAgentUsage(
   }
 }
 
+async function gestaoAuthHeaders(): Promise<HeadersInit> {
+  const { auth } = await import('./firebase')
+  if (!auth?.currentUser) {
+    throw new Error('Faça login na Gestão para carregar as métricas.')
+  }
+  const token = await auth.currentUser.getIdToken()
+  return {
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
+
 export async function fetchDashboardLogSummary(
   institutionId: string,
   periodDays: AgentUsagePeriodDays = 0,
@@ -196,7 +208,7 @@ export async function fetchDashboardLogSummary(
   }
 
   const res = await fetch(url.toString(), {
-    headers: { Accept: 'application/json' },
+    headers: await gestaoAuthHeaders(),
   })
 
   let body: DashboardSummaryResponse | null = null

@@ -8,12 +8,17 @@ import {
   periodCutoffMillis,
   type AgentUsageLogInput,
 } from '../server/lib/agentUsage'
+import {
+  canAccessInstitution,
+  requireGestaoAdminFromRequest,
+} from '../server/lib/gestaoAdminAuth'
+import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
 
 /**
  * Agregação server-side dos conversation_logs para o dashboard da gestão admin.
  *
- * Endpoint somente leitura (GET). Não altera nenhuma coleção nem interfere nos
- * demais endpoints da API usados pelo motor do produto.
+ * Endpoint somente leitura (GET). Exige Bearer Firebase ID token da Gestão.
+ * Escola: só a própria instituição. Master/super: todas.
  *
  * Resposta (formato compacto para ficar bem abaixo do limite de 4,5 MB de
  * payload das functions da Vercel — trilhas são referenciadas por índice em
@@ -37,12 +42,8 @@ type Json = Record<string, unknown>
 
 const FIRESTORE_IN_LIMIT = 30
 
-function corsHeaders(): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  }
+function corsHeaders(request: Request): Record<string, string> {
+  return gestaoCorsHeaders(request, 'GET,OPTIONS')
 }
 
 let cachedDb: ReturnType<typeof getFirestore> | null = null
@@ -125,7 +126,10 @@ function pickBestStudentAnswer(candidates: AnswerCandidate[]): string {
 
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders() })
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(request),
+    })
   }
 
   const respond = (status: number, body: Json): Response => {
@@ -133,7 +137,7 @@ async function handleRequest(request: Request): Promise<Response> {
       status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
-        ...corsHeaders(),
+        ...corsHeaders(request),
       },
     })
   }
@@ -158,6 +162,20 @@ async function handleRequest(request: Request): Promise<Response> {
     const msg =
       e instanceof Error ? e.message : 'Erro ao inicializar Firebase Admin.'
     return respond(500, { error: msg })
+  }
+
+  const auth = await requireGestaoAdminFromRequest(
+    db,
+    request.headers.get('Authorization'),
+  )
+  if (!auth.ok) {
+    return respond(auth.status, { error: auth.error, code: auth.code })
+  }
+  if (!canAccessInstitution(auth.principal, institutionId)) {
+    return respond(403, {
+      error: 'Sem permissão para esta instituição.',
+      code: 'forbidden',
+    })
   }
 
   const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'

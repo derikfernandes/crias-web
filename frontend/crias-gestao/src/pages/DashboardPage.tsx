@@ -1688,9 +1688,10 @@ export function DashboardPage() {
               count += 1
             }
           }
+          // Rótulo curto na barra (E1, E2…); nome completo só no tooltip.
           lessonBars.push({
             key: `${trail.id}|E${stage}`,
-            label: multiTrail ? `E${stage} · ${trailLabel}` : `E${stage}`,
+            label: `E${stage}`,
             fullLabel: multiTrail
               ? `Etapa ${stage} · ${trailLabel}`
               : `Etapa ${stage}`,
@@ -1714,10 +1715,10 @@ export function DashboardPage() {
             count += 1
           }
         }
-        const short = `E${activity.stage} A${activity.question}`
+        const short = `E${activity.stage}`
         lessonBars.push({
           key: `${trail.id}|${activity.stage}|${activity.question}`,
-          label: multiTrail ? `${short} · ${trailLabel}` : short,
+          label: short,
           fullLabel: multiTrail
             ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
             : `Etapa ${activity.stage} · Atividade ${activity.question}`,

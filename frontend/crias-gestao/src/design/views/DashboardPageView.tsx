@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import type {
   DashboardPageViewProps,
@@ -368,7 +368,16 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           <section className="gx-card gx-card--chart">
             <h2 style={{ fontSize: 16 }}>Alunos por etapa concluída</h2>
             <div className="gx-lesson-chart" role="img" aria-label="Alunos por etapa concluída">
-              <div className="gx-lesson-chart__track">
+              <div
+                className="gx-lesson-chart__track"
+                style={
+                  {
+                    ['--gx-lesson-cols']: String(
+                      Math.max(1, charts.lessonBars.length),
+                    ),
+                  } as CSSProperties
+                }
+              >
                 {charts.lessonBars.map((b) => {
                   const tip =
                     b.enrolledCount === 0
@@ -378,6 +387,10 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                     b.count > 0 && lessonMax > 0
                       ? Math.max(4, (b.count / lessonMax) * 80)
                       : 0
+                  // Rótulo curto E1, E2… (evita truncar "E1 Pro.." no celular).
+                  const shortLabel = /^E\d+/i.test(b.label.trim())
+                    ? b.label.trim().match(/^E\d+/i)![0].toUpperCase()
+                    : b.label.trim()
                   return (
                     <div
                       key={b.key}
@@ -399,8 +412,8 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                         aria-label={tip}
                         title={tip}
                       />
-                      <span className="gx-lesson-chart__label" data-fade="1" title={tip}>
-                        {b.label}
+                      <span className="gx-lesson-chart__label" title={tip}>
+                        {shortLabel}
                       </span>
                     </div>
                   )

@@ -271,17 +271,67 @@ export const METRICS_CLIENT_TIMEOUT_MS = 55_000
 /** Revalidação SWR (já tem sessão): falha rápido. */
 export const METRICS_SWR_TIMEOUT_MS = 12_000
 
-/** Fetch métricas; usa sessão; SWR se já houver cache.
- *  `force` (refresh=1) só para botão Atualizar explícito; load normal nunca força. */
+async function fetchMetricsOnce(
+  id: string,
+  opts: { force?: boolean; timeoutMs: number },
+): Promise<InstitutionDashboardMetricsView> {
+  const url = new URL('/api/dashboard_metrics', resolveApiBaseUrl())
+  url.searchParams.set('institution_id', id)
+  if (opts.force) url.searchParams.set('refresh', '1')
+  const headers = await gestaoAuthHeaders()
+  const started = performance.now()
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), opts.timeoutMs)
+  let res: Response
+  try {
+    res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...headers },
+      credentials: 'same-origin',
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(
+        `Tempo esgotado ao carregar métricas (${Math.round(opts.timeoutMs / 1000)}s).`,
+      )
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timer)
+  }
+  const body = (await res.json().catch(() => null)) as MetricsResponse | null
+  if (!res.ok) {
+    const err = new Error(
+      body?.error?.trim() ||
+        `Falha ao carregar métricas (HTTP ${res.status}).`,
+    ) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
+  if (!body || typeof body.institution_id !== 'string') {
+    throw new Error('Resposta inválida de /api/dashboard_metrics.')
+  }
+  const parsed = parseMetrics(body)
+  session.set(id, parsed)
+  console.info(
+    `[metrics] ${id} ${Math.round(performance.now() - started)}ms cache=${res.headers.get('X-Metrics-Cache') ?? '?'} acerto=${parsed.avgAccuracy} exercicios=${parsed.exerciseCount} monitor0=${parsed.agentUsageByPeriod[0]?.totalMessages ?? '?'}`,
+  )
+  return parsed
+}
+
+/** Fetch métricas; sessão; SWR com rede quando `revalidate`.
+ *  `force` (refresh=1) só Atualizar; load normal nunca força.
+ *  5xx: retry com backoff (pós-deploy frio). */
 export async function fetchInstitutionMetrics(
   institutionId: string,
-  opts?: { force?: boolean; timeoutMs?: number },
+  opts?: { force?: boolean; revalidate?: boolean; timeoutMs?: number },
 ): Promise<InstitutionDashboardMetricsView> {
   const id = institutionId.trim()
   if (!id) throw new Error('institution_id vazio')
 
   const hadSession = Boolean(session.get(id))
-  if (!opts?.force) {
+  if (!opts?.force && !opts?.revalidate) {
     const hit = session.get(id)
     if (hit) return hit
     const pending = inflight.get(id)
@@ -295,47 +345,30 @@ export async function fetchInstitutionMetrics(
       : METRICS_CLIENT_TIMEOUT_MS)
 
   const run = (async () => {
-    const url = new URL('/api/dashboard_metrics', resolveApiBaseUrl())
-    url.searchParams.set('institution_id', id)
-    if (opts?.force) url.searchParams.set('refresh', '1')
-    const headers = await gestaoAuthHeaders()
-    const started = performance.now()
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), timeoutMs)
-    let res: Response
-    try {
-      res = await fetch(url.toString(), {
-        method: 'GET',
-        headers: { Accept: 'application/json', ...headers },
-        credentials: 'same-origin',
-        signal: controller.signal,
-      })
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new Error(
-          `Tempo esgotado ao carregar métricas (${Math.round(timeoutMs / 1000)}s).`,
-        )
+    const maxAttempts = opts?.force ? 1 : 3
+    let lastErr: unknown
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await fetchMetricsOnce(id, {
+          force: opts?.force,
+          timeoutMs,
+        })
+      } catch (err) {
+        lastErr = err
+        const status = (err as { status?: number })?.status
+        const retryable =
+          status === 500 ||
+          status === 503 ||
+          status === 504 ||
+          (err instanceof Error && /Tempo esgotado/i.test(err.message))
+        if (!retryable || attempt === maxAttempts - 1) throw err
+        const waitMs = 400 * 2 ** attempt
+        await new Promise((r) => window.setTimeout(r, waitMs))
       }
-      throw err
-    } finally {
-      window.clearTimeout(timer)
     }
-    const body = (await res.json().catch(() => null)) as MetricsResponse | null
-    if (!res.ok) {
-      throw new Error(
-        body?.error?.trim() ||
-          `Falha ao carregar métricas (HTTP ${res.status}).`,
-      )
-    }
-    if (!body || typeof body.institution_id !== 'string') {
-      throw new Error('Resposta inválida de /api/dashboard_metrics.')
-    }
-    const parsed = parseMetrics(body)
-    session.set(id, parsed)
-    console.info(
-      `[metrics] ${id} ${Math.round(performance.now() - started)}ms cache=${res.headers.get('X-Metrics-Cache') ?? '?'} acerto=${parsed.avgAccuracy} exercicios=${parsed.exerciseCount}`,
-    )
-    return parsed
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error('Falha ao carregar métricas.')
   })()
 
   inflight.set(id, run)

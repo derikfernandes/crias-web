@@ -49,7 +49,7 @@ import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
  * O conjunto "feito" de cada aluno = chaves de `answers` + `extra_done`.
  * trail_ids de agente NÃO entram em trail_ids / students (progressão tN).
  *
- * Undated (at <= 0): contam só em period 0; períodos 7 e 30 ignoram.
+ * Undated (at <= 0): NUNCA contam (Crias Todo inflava 22 vs 10).
  */
 
 export const config = {
@@ -520,14 +520,20 @@ function inflateCompactAgentUsage(raw: unknown, periodDays: number): AgentUsageA
   const series = Array.isArray(obj.series)
     ? (obj.series as AgentUsageAggregate['series'])
     : []
+  const uniquePeriod =
+    typeof obj.unique_students === 'number' && obj.unique_students > 0
+      ? obj.unique_students
+      : agents.reduce((n, a) => n + (a.unique_students || 0), 0)
   return {
     period_days:
       typeof obj.period_days === 'number' ? obj.period_days : periodDays,
     total_messages:
       typeof obj.total_messages === 'number' ? obj.total_messages : 0,
+    // Campo extra no JSON compact (tipo AgentUsageAggregate não declara).
+    unique_students: uniquePeriod,
     agents,
     series,
-  }
+  } as AgentUsageAggregate & { unique_students: number }
 }
 
 function inflateAgentUsageByPeriod(raw: unknown): AgentUsageByPeriod {

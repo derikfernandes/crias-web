@@ -110,6 +110,21 @@ async function readProbeBody(
   }
 
   const m = fresh.metrics
+  const agentBy = m.agent_usage_by_period ?? {}
+  const agentSnap = (key: '0' | '7' | '30') => {
+    const a = agentBy[key] as
+      | { total_messages?: number; unique_students?: number; agents?: Array<{ unique_students?: number }> }
+      | undefined
+    if (!a) return { total_messages: 0, unique_students: 0 }
+    const unique =
+      typeof a.unique_students === 'number' && a.unique_students > 0
+        ? a.unique_students
+        : (a.agents ?? []).reduce((n, row) => n + (row.unique_students || 0), 0)
+    return {
+      total_messages: typeof a.total_messages === 'number' ? a.total_messages : 0,
+      unique_students: unique,
+    }
+  }
   return {
     status: 200,
     body: {
@@ -127,6 +142,9 @@ async function readProbeBody(
       exercise_count: m.exercise_count,
       active_students: m.active_students,
       accuracy_tried: m.accuracy_tried,
+      agent_0: agentSnap('0'),
+      agent_7: agentSnap('7'),
+      agent_30: agentSnap('30'),
     },
   }
 }

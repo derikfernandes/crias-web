@@ -65,6 +65,7 @@ function StatsRow({
       <Stat label="Trilhas ativas" value={m.activeTrails} />
       <Stat
         label="Conclusão média"
+        hint="% de atividades concluídas (não por etapa)"
         value={metricsLoading ? 'Carregando…' : formatPct(m.avgCompletion)}
         bar={metricsLoading ? null : m.avgCompletion}
       />
@@ -715,8 +716,10 @@ export function HomePage() {
       let firstError: string | null = null
       const loadOne = async (id: string) => {
         try {
-          // Nunca force no load: só leitura de cache / DERIVED.
-          const m = await fetchInstitutionMetrics(id)
+          // Sem refresh=1; revalidate=true força rede mesmo com sessão.
+          const m = await fetchInstitutionMetrics(id, {
+            revalidate: getCachedMetrics(id) != null,
+          })
           if (cancelled) return
           setServerMetrics((prev) => {
             const next = new Map(prev)

@@ -22,6 +22,12 @@ function pctText(v: number | null | undefined): string {
   return `${String(v).replace('.', ',')} %`
 }
 
+/** % de acerto sem tentativas: estado vazio documentado (sem travessão). */
+function accuracyCellText(v: number | null | undefined): string {
+  if (v === null || v === undefined) return 'sem exercícios'
+  return pctText(v)
+}
+
 function accuracySummaryText(
   value: number | null | undefined,
   loading?: boolean,
@@ -336,7 +342,22 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           <strong>{p.summary.activeTrails}</strong>
         </div>
         <div className="gx-stat">
-          <span>Conclusão média</span>
+          <span title="% de atividades concluídas">
+            Conclusão média
+            <abbr
+              title="% de atividades concluídas (não por etapa)"
+              aria-label="% de atividades concluídas"
+              style={{
+                marginLeft: 6,
+                fontWeight: 700,
+                color: 'var(--v-t3)',
+                textDecoration: 'none',
+                cursor: 'help',
+              }}
+            >
+              ?
+            </abbr>
+          </span>
           <strong>
             {p.summary.completionLoading
               ? 'Carregando…'
@@ -703,7 +724,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                       <td className="num">{r.correct}</td>
                       <td className="num">{r.wrong}</td>
                       <td className="num">
-                        <strong>{pctText(r.accuracyPct)}</strong>
+                        <strong>{accuracyCellText(r.accuracyPct)}</strong>
                         {r.accuracyPct !== null ? (
                           <span className="gx-bar" style={{ marginTop: 4 }}>
                             <span style={{ width: `${r.accuracyPct}%` }} />

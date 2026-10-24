@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -626,11 +627,22 @@ export function DashboardPage() {
   const [loadingData, setLoadingData] = useState(false)
   const [loadingMeta, setLoadingMeta] = useState(false)
   /** Já houve pelo menos um load completo: troca de filtro não usa BootSymbol. */
-  const [hasDashboardContent, setHasDashboardContent] = useState(false)
+  const [hasDashboardContent, setHasDashboardContent] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean)
+    if (ids.length === 0) return false
+    return ids.every((id) => Boolean(getCachedInstitution(id)))
+  })
   /** Atualizando em segundo plano (cache hit ou keep-previous). */
   const [isRefreshing, setIsRefreshing] = useState(false)
   /** selectedIdsKey cujos students/attempts estão na tela (evita % instável). */
-  const [dataScopeKey, setDataScopeKey] = useState('')
+  const [dataScopeKey, setDataScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    if (ids.every((id) => Boolean(getCachedInstitution(id)))) {
+      return ids.join('|')
+    }
+    return ''
+  })
   const [loadingLogs, setLoadingLogs] = useState(false)
   /** Instituições com summary pronto no escopo atual. */
   const [logsReadyIds, setLogsReadyIds] = useState<Set<string>>(() => new Set())
@@ -934,6 +946,30 @@ export function DashboardPage() {
       next.set('inst', formatted)
       setSearchParams(next, { replace: true })
     }
+    // Síncrono: nunca mostra monitor/métricas da instituição anterior.
+    const hit = getCachedMetrics(id)
+    if (hit) {
+      const map = new Map([[id, hit]])
+      setMetricsByInst(map)
+      setMetricsScopeKey(id)
+      const usage = agentUsageFromMetrics(hit, agentPeriodDays)
+      if (usage) {
+        setAgentUsage(usage)
+        setAgentScopeKey(`${id}|${agentPeriodDays}`)
+        setAgentUsageLoading(false)
+        setAgentUsagePresent(true)
+      } else {
+        setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+        setAgentScopeKey('')
+        setAgentUsageLoading(true)
+      }
+    } else {
+      setMetricsByInst(new Map())
+      setMetricsScopeKey('')
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
   }
 
   // Troca do conjunto ativo: limpa filtro de trilhas.
@@ -944,6 +980,32 @@ export function DashboardPage() {
     }
     prevActiveIdsRef.current = selectedIdsKey
   }, [selectedIdsKey])
+
+  // Antes do paint: monitor/métricas só da instituição nova (topo/URL também).
+  useLayoutEffect(() => {
+    const ids = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+    if (ids.length === 0) return
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of ids) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    if (seed.size === ids.length) {
+      setMetricsByInst(seed)
+      setMetricsScopeKey(scopeKey)
+      applyAgentFromMetrics(scopeKey, ids, seed, agentPeriodDays)
+      return
+    }
+    // Sem cache da nova: Carregando… (nunca valor da anterior).
+    if (metricsScopeKey && metricsScopeKey !== scopeKey) {
+      setMetricsScopeKey('')
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyAgent defined below; intentional sync gate
+  }, [selectedIdsKey, activeInstitutionIds, agentPeriodDays])
 
   // Após 1º conteúdo: prefetch das outras instituições (Sol primeiro).
   useEffect(() => {
@@ -1486,16 +1548,16 @@ export function DashboardPage() {
       console.info(
         `[dashboard] metrics cache-hit ${Math.round(performance.now() - started)}ms scope=${scopeKey}`,
       )
-      // SWR: revalida em background sem limpar UI.
+      // SWR: rede mesmo com sessão (senão nunca atualiza Crias 22→10).
       void (async () => {
         const next = new Map(seed)
         for (const id of instIds) {
           if (cancelled || generation !== metricsGenerationRef.current) return
           try {
-            const m = await fetchInstitutionMetrics(id)
+            const m = await fetchInstitutionMetrics(id, { revalidate: true })
             next.set(id, m)
           } catch {
-            // mantém
+            // mantém seed
           }
         }
         if (cancelled || generation !== metricsGenerationRef.current) return
@@ -1555,8 +1617,10 @@ export function DashboardPage() {
         applyAgentFromMetrics(scopeKey, instIds, next, agentPeriodDays)
         initialLogsLoadedRef.current = true
       } else {
-        setAgentUsageLoading(false)
-        setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+        // Não publica agentScopeKey sem dados — evita KPI da instituição anterior.
+        setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+        setAgentScopeKey('')
+        setAgentUsageLoading(true)
       }
       console.info(
         `[dashboard] metrics ${Math.round(performance.now() - started)}ms scope=${scopeKey} ready=${[...next.keys()].join(',')}`,
@@ -2198,6 +2262,39 @@ export function DashboardPage() {
       filteredKeysByTrail.set(trail.id, filtered)
     }
 
+    const metricsReady =
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    const metricsByStudent = new Map<
+      string,
+      {
+        done: number
+        released: number
+        lessonsDone: number
+        lessonsReleased: number
+        correct: number
+        wrong: number
+        accuracyPct: number | null
+      }
+    >()
+    if (metricsReady) {
+      for (const id of activeInstitutionIds) {
+        const m = metricsByInst.get(id)
+        if (!m) continue
+        for (const s of m.students) {
+          metricsByStudent.set(s.id, {
+            done: s.done,
+            released: s.released,
+            lessonsDone: s.lessonsDone,
+            lessonsReleased: s.lessonsReleased,
+            correct: s.correct,
+            wrong: s.wrong,
+            accuracyPct: s.accuracyPct,
+          })
+        }
+      }
+    }
+
     const rows: StudentRow[] = students.map((student) => {
       const enrolled = trailsByStudent.get(student.id) ?? []
       const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
@@ -2221,19 +2318,41 @@ export function DashboardPage() {
         deselectedQuestions,
       )
       const useLogs = fromLogs.correct + fromLogs.wrong > 0
-      const correct = useLogs ? fromLogs.correct : fromAttempts.correct
-      const wrong = useLogs ? fromLogs.wrong : fromAttempts.wrong
+      const sm = metricsByStudent.get(student.id)
+      const correct = useLogs
+        ? fromLogs.correct
+        : fromAttempts.correct + fromAttempts.wrong > 0
+          ? fromAttempts.correct
+          : (sm?.correct ?? 0)
+      const wrong = useLogs
+        ? fromLogs.wrong
+        : fromAttempts.correct + fromAttempts.wrong > 0
+          ? fromAttempts.wrong
+          : (sm?.wrong ?? 0)
+      const tried = correct + wrong
+      const accuracyPct =
+        tried > 0
+          ? pct(correct, tried)
+          : sm && sm.correct + sm.wrong === 0
+            ? null
+            : (sm?.accuracyPct ?? null)
       return {
         student,
-        released: progress.released,
-        done: progress.done,
-        completionPct: progress.completionPct,
-        lessonsReleased: progress.lessonsReleased,
-        lessonsDone: progress.lessonsDone,
-        lessonsCompletionPct: progress.lessonsCompletionPct,
+        released: sm?.released ?? progress.released,
+        done: sm?.done ?? progress.done,
+        completionPct:
+          sm && sm.released > 0
+            ? Math.round((sm.done / sm.released) * 1000) / 10
+            : progress.completionPct,
+        lessonsReleased: sm?.lessonsReleased ?? progress.lessonsReleased,
+        lessonsDone: sm?.lessonsDone ?? progress.lessonsDone,
+        lessonsCompletionPct:
+          sm && sm.lessonsReleased > 0
+            ? Math.round((sm.lessonsDone / sm.lessonsReleased) * 1000) / 10
+            : progress.lessonsCompletionPct,
         correct,
         wrong,
-        accuracyPct: pct(correct, correct + wrong),
+        accuracyPct,
         engagementStatus: engagementFromLinks(
           enrolled,
           activityTotals,
@@ -2256,6 +2375,10 @@ export function DashboardPage() {
     deselectedStages,
     deselectedQuestions,
     studentAnswerMap,
+    metricsScopeKey,
+    selectedIdsKey,
+    activeInstitutionIds,
+    metricsByInst,
   ])
 
   const filteredStudentRows = useMemo(() => {
@@ -2496,15 +2619,23 @@ export function DashboardPage() {
       }).avgAccuracy
     }
 
-    const completionLoading = gate.avgAccuracyLoading
+    // Sem métricas do escopo atual: Carregando… (nunca % da instituição anterior).
+    const completionLoading = !metricsReady || gate.avgAccuracyLoading
     return {
-      activeStudents: mergedMetrics?.activeStudents ?? activeRows.length,
-      activeTrails: mergedMetrics?.activeTrails ?? activeTrails.length,
-      avgCompletion: mergedMetrics?.avgCompletion ?? avgCompletion,
-      avgLessonCompletion:
-        mergedMetrics?.avgLessonCompletion ?? avgLessonCompletion,
-      avgAccuracy,
-      avgAccuracyLoading: gate.avgAccuracyLoading,
+      activeStudents: metricsReady
+        ? (mergedMetrics?.activeStudents ?? activeRows.length)
+        : activeRows.length,
+      activeTrails: metricsReady
+        ? (mergedMetrics?.activeTrails ?? activeTrails.length)
+        : activeTrails.length,
+      avgCompletion: metricsReady
+        ? (mergedMetrics?.avgCompletion ?? avgCompletion)
+        : null,
+      avgLessonCompletion: metricsReady
+        ? (mergedMetrics?.avgLessonCompletion ?? avgLessonCompletion)
+        : null,
+      avgAccuracy: metricsReady ? avgAccuracy : null,
+      avgAccuracyLoading: !metricsReady || gate.avgAccuracyLoading,
       completionLoading,
     }
   }, [

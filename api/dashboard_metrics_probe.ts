@@ -122,6 +122,7 @@ async function readProbeBody(
       stale: fresh.stale,
       computed_at: m.computed_at,
       avg_accuracy: m.avg_accuracy,
+      avg_completion: m.avg_completion,
       avg_lesson_completion: m.avg_lesson_completion,
       exercise_count: m.exercise_count,
       active_students: m.active_students,

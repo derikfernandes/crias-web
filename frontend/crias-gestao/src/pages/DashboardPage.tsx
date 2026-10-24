@@ -3229,17 +3229,19 @@ export function DashboardPage() {
     selectedQuestionCount < availableQuestions.length ||
     selectedStageCount < availableStages.length
 
-  // Não espera conversation_logs / dashboard_summary (pode levar dezenas de s).
-  // Progresso e acerto vêm de student_trails + exercise_attempts; uso do monitor
-  // carrega em paralelo com spinner próprio.
-  // BootSymbol só no 1º load (sem conteúdo). Trocas: KPIs em Carregando…
-  // (não "Atualizando…" enquanto meta/summary do escopo ainda não batem).
+  // Métricas pré-agregadas liberam KPIs sem esperar core/meta Firestore.
+  // BootSymbol só quando ainda não há métricas NEM conteúdo local.
+  const metricsPageReady =
+    metricsScopeKey === selectedIdsKey &&
+    activeInstitutionIds.length > 0 &&
+    activeInstitutionIds.every((id) => metricsByInst.has(id))
   const isDashboardLoading =
     Boolean(selectedId || activeInstitutionIds.length > 0) &&
     !hasDashboardContent &&
+    !metricsPageReady &&
     (loadingData || loadingMeta)
   const isDashboardRefreshing =
-    hasDashboardContent &&
+    (hasDashboardContent || metricsPageReady) &&
     dataScopeKey === selectedIdsKey &&
     !loadingMeta &&
     !loadingData &&

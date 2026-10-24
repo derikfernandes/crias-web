@@ -8,6 +8,7 @@ import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admi
 import { getFirestore } from 'firebase-admin/firestore'
 
 import {
+  ensureMetricsFromExistingCache,
   readMetricsFromCache,
   warmInstitutionSummary,
 } from './dashboard_summary'
@@ -149,6 +150,23 @@ async function handleRequest(request: Request): Promise<Response> {
       }
     } catch {
       // miss → compute
+    }
+
+    // Cache antigo (answers sem metrics): deriva metrics sem rescanear logs.
+    try {
+      const derived = await ensureMetricsFromExistingCache(institutionId)
+      if (derived) {
+        metricsL1.set(institutionId, {
+          expires: Date.now() + METRICS_L1_TTL_MS,
+          metrics: derived,
+        })
+        return respond(200, derived as unknown as Json, {
+          'Cache-Control': 'private, max-age=60',
+          'X-Metrics-Cache': 'DERIVED',
+        })
+      }
+    } catch {
+      // segue para warm completo
     }
   }
 

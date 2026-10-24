@@ -653,6 +653,179 @@ export async function warmInstitutionSummary(
   await writeFirestoreCache(db, payload)
 }
 
+/**
+ * Se o cache Firestore já tem answers (chunks) mas ainda sem `metrics`,
+ * calcula o doc pequeno SEM rescanear conversation_logs (bem mais rápido).
+ */
+export async function ensureMetricsFromExistingCache(
+  institutionId: string,
+): Promise<InstitutionDashboardMetrics | null> {
+  const db = getDb()
+  const existing = await readFirestoreCache(db, institutionId, {
+    allowStale: true,
+  })
+  if (!existing) return null
+  if (existing.payload.metrics?.exercise_count != null) {
+    return existing.payload.metrics
+  }
+
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
+  const studentTrailsCollection =
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails'
+  const stagesCollection =
+    process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+
+  const trailIdList = existing.payload.trail_ids
+  const [studentsSnap, trailsSnap, linksSnap] = await Promise.all([
+    db
+      .collection(studentsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('name', 'active')
+      .get(),
+    db
+      .collection(trailsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('name', 'active')
+      .get(),
+    db
+      .collection(studentTrailsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('student_id', 'trail_id', 'status')
+      .get(),
+  ])
+
+  let stages: Array<{
+    trail_id: string
+    stage_number: number
+    stage_type?: string
+    title?: string
+  }> = []
+  let questions: Array<{
+    trail_id: string
+    stage_number: number
+    question_number: number
+    title?: string
+    correct_option?: string
+    annulled?: boolean
+    active?: boolean
+  }> = []
+  if (trailIdList.length > 0) {
+    const trailChunks = chunkArray(trailIdList, FIRESTORE_IN_LIMIT)
+    const [stageSnaps, questionSnaps] = await Promise.all([
+      Promise.all(
+        trailChunks.map((chunk) =>
+          db
+            .collection(stagesCollection)
+            .where('trail_id', 'in', chunk)
+            .select('trail_id', 'stage_number', 'stage_type', 'title')
+            .get(),
+        ),
+      ),
+      Promise.all(
+        trailChunks.map((chunk) =>
+          db
+            .collection(questionsCollection)
+            .where('trail_id', 'in', chunk)
+            .select(
+              'trail_id',
+              'stage_number',
+              'question_number',
+              'title',
+              'correct_option',
+              'annulled',
+              'active',
+            )
+            .get(),
+        ),
+      ),
+    ])
+    stages = stageSnaps.flatMap((snap) =>
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>
+        return {
+          trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+          stage_number:
+            typeof data.stage_number === 'number' ? data.stage_number : 0,
+          stage_type:
+            typeof data.stage_type === 'string' ? data.stage_type : undefined,
+          title: typeof data.title === 'string' ? data.title : undefined,
+        }
+      }),
+    )
+    questions = questionSnaps.flatMap((snap) =>
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>
+        return {
+          trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+          stage_number:
+            typeof data.stage_number === 'number' ? data.stage_number : 0,
+          question_number:
+            typeof data.question_number === 'number'
+              ? data.question_number
+              : 0,
+          title: typeof data.title === 'string' ? data.title : undefined,
+          correct_option:
+            typeof data.correct_option === 'string'
+              ? data.correct_option
+              : undefined,
+          annulled: data.annulled === true,
+          active: data.active === false ? false : true,
+        }
+      }),
+    )
+  }
+
+  const metrics = computeInstitutionDashboardMetrics({
+    institutionId,
+    trailIds: trailIdList,
+    studentsMap: existing.payload.students,
+    students: studentsSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        id: d.id,
+        name: typeof data.name === 'string' ? data.name : d.id,
+        active: data.active === false ? false : true,
+      }
+    }),
+    trails: trailsSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        id: d.id,
+        name: typeof data.name === 'string' ? data.name : d.id,
+        active: data.active === false ? false : true,
+      }
+    }),
+    studentTrails: linksSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        student_id:
+          typeof data.student_id === 'string' ? data.student_id : '',
+        trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+        status: typeof data.status === 'string' ? data.status : undefined,
+      }
+    }),
+    questions,
+    stages,
+    agentUsageByPeriod: existing.payload.agent_usage_by_period,
+  })
+
+  const payload: SummaryPayload = { ...existing.payload, metrics }
+  summaryCache.set(institutionId, {
+    expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+    payload,
+  })
+  // Atualiza só o meta (mantém chunks).
+  await db
+    .collection(CACHE_COLLECTION)
+    .doc(institutionId)
+    .set({ metrics, computed_at: Date.now() }, { merge: true })
+
+  return metrics
+}
+
 function scheduleSummaryRecompute(db: Firestore, institutionId: string): void {
   if (recomputeInflight.has(institutionId)) return
   const run = (async () => {

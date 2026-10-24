@@ -176,6 +176,23 @@ describe('DashboardPageView acerto / monitor loading', () => {
     expect(acerto?.textContent).not.toMatch(/\bN\/A\b/)
   })
 
+  it('mostra Carregando… em Menor/Maior acerto enquanto exercisesLoading', () => {
+    render(
+      <MemoryRouter>
+        <DashboardPageView
+          {...baseProps({
+            exercisesLoading: true,
+            worstPills: [],
+            bestPills: [],
+          })}
+        />
+      </MemoryRouter>,
+    )
+    const opp = screen.getByLabelText('Oportunidades')
+    expect(opp.textContent).toContain('Carregando…')
+    expect(opp.textContent).not.toMatch(/\bN\/A\b/)
+  })
+
   it('mostra Carregando… nos KPIs do monitor (não vaza total da instituição anterior)', () => {
     render(
       <MemoryRouter>

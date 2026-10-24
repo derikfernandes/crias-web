@@ -11,6 +11,7 @@ describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
       selectedIds: ['i2', 'i4'],
       dataScopeKey: 'i2',
       loadingData: true,
+      metaReady: false,
       logsReadyIds: new Set(['i2']),
       loadingLogs: true,
       logsFailed: false,
@@ -26,6 +27,7 @@ describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
       selectedIds: ['i2', 'i4'],
       dataScopeKey: 'i2\0i4',
       loadingData: false,
+      metaReady: true,
       logsReadyIds: new Set(['i4']),
       loadingLogs: true,
       logsFailed: false,
@@ -35,12 +37,29 @@ describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
     expect(g.canPublishAccuracy).toBe(false)
   })
 
+  it('logs prontos sem meta (stages/questions): Carregando, não N/A', () => {
+    const g = dashboardAccuracyGate({
+      selectedIdsKey: 'i2',
+      selectedIds: ['i2'],
+      dataScopeKey: 'i2',
+      loadingData: false,
+      metaReady: false,
+      logsReadyIds: new Set(['i2']),
+      loadingLogs: false,
+      logsFailed: false,
+    })
+    expect(g.avgAccuracyLoading).toBe(true)
+    expect(g.canPublishAccuracy).toBe(false)
+    expect(g.exercisesLoading).toBe(true)
+  })
+
   it('todas prontas: pode publicar', () => {
     const g = dashboardAccuracyGate({
       selectedIdsKey: 'i2\0i4',
       selectedIds: ['i2', 'i4'],
       dataScopeKey: 'i2\0i4',
       loadingData: false,
+      metaReady: true,
       logsReadyIds: new Set(['i2', 'i4']),
       loadingLogs: false,
       logsFailed: false,
@@ -56,6 +75,7 @@ describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
       selectedIds: ['i2'],
       dataScopeKey: 'i2',
       loadingData: false,
+      metaReady: true,
       logsReadyIds: new Set(),
       loadingLogs: false,
       logsFailed: true,
@@ -70,6 +90,7 @@ describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
       selectedIds: ['i1'],
       dataScopeKey: 'i1',
       loadingData: false,
+      metaReady: true,
       logsReadyIds: new Set(['i1']),
       loadingLogs: false,
       logsFailed: false,

@@ -959,7 +959,7 @@ export function DashboardPage() {
         warmComplete
           ? 'Atualizando…'
           : cached
-            ? 'Atualizando…'
+            ? 'Carregando…'
             : 'Carregando alunos e trilhas…',
       )
 
@@ -1355,8 +1355,19 @@ export function DashboardPage() {
       setAgentUsagePresent(agentMerged.present)
       setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
       setAgentUsageLoading(false)
+      if (instIds.length > 1) {
+        console.info(
+          `[dashboard] monitor merge scope=${scopeKey} total=${agentMerged.usage.totalMessages} parts=${instIds
+            .map((id) => {
+              const u = mergeSessionAgentUsage([id], agentPeriodDays)
+              return `${id}:${u.complete ? u.usage.totalMessages : '?'}`
+            })
+            .join('+')}`,
+        )
+      }
     } else {
       // Troca de instituição/período sem cache: Carregando… (não números velhos).
+      // agentScopeKey fica '' até o fetch — prop deriva loading pelo mismatch.
       setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
       setAgentScopeKey('')
       setAgentUsageLoading(true)
@@ -1364,11 +1375,10 @@ export function DashboardPage() {
 
     setLogsFailed(false)
     setLogsError(null)
-    // Só fetch o que falta; se tudo na sessão, revalida Sol em background.
+    // Só o que falta na sessão. NÃO refetch só por troca de instituição
+    // (Início→Dados / Sol↔Teste devem reutilizar a mesma chave de sessão).
     const needFetch =
-      fromSession.missingIds.length > 0 ||
-      !agentMerged.complete ||
-      institutionChanged
+      fromSession.missingIds.length > 0 || !agentMerged.complete
     setLoadingLogs(fromSession.missingIds.length > 0)
     const logsStarted = performance.now()
 
@@ -1511,12 +1521,23 @@ export function DashboardPage() {
             series: [],
           })
           setAgentUsagePresent(agentRef.present)
-          setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
-          setAgentUsageLoading(false)
+          if (instIds.length > 1) {
+            console.info(
+              `[dashboard] monitor fetch-merge scope=${scopeKey} total=${agentRef.usage.totalMessages} parts=${instIds
+                .map((id) => {
+                  const u = mergeSessionAgentUsage([id], agentPeriodDays)
+                  return `${id}:${u.complete ? u.usage.totalMessages : '?'}`
+                })
+                .join('+')}`,
+            )
+          }
         } else {
-          setAgentUsageLoading(false)
-          setAgentScopeKey('')
+          // Escopo publicado vazio: evita Carregando… eterno (agentScopeKey '').
+          setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+          setAgentUsagePresent(false)
         }
+        setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+        setAgentUsageLoading(false)
 
         setLogsFailed(failedHard)
         setLogsError(
@@ -2107,12 +2128,15 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    // Acerto: só publica quando TODAS as instituições selecionadas carregaram.
+    // Acerto: só publica com meta (gabarito) + TODAS as instituições do filtro.
+    const metaReady =
+      !loadingMeta && questions.length > 0 && stages.length > 0
     const gate = dashboardAccuracyGate({
       selectedIdsKey,
       selectedIds: activeInstitutionIds,
       dataScopeKey,
       loadingData,
+      metaReady,
       logsReadyIds,
       loadingLogs,
       logsFailed,
@@ -2155,8 +2179,10 @@ export function DashboardPage() {
     selectedIdsKey,
     activeInstitutionIds,
     loadingData,
+    loadingMeta,
     loadingLogs,
     trails,
+    stages,
     attempts,
     questions,
     studentAnswerMap,
@@ -2350,10 +2376,10 @@ export function DashboardPage() {
     activityCatalogs,
   ])
 
-  // Ranking de pílulas — itera só respostas existentes no mapa
+  // Ranking de pílulas — itera só respostas existentes no mapa.
+  // Sempre calcula (aba + Menor/Maior + contador); não depende do tab Exercícios.
   const gradablePillQuestions = useMemo(() => {
     const map = new Map<string, string>()
-    if (!questionsDataEnabled) return map
 
     for (const trail of activeTrails) {
       const positions = questionsByTrail.get(trail.id) ?? []
@@ -2370,17 +2396,9 @@ export function DashboardPage() {
       }
     }
     return map
-  }, [
-    activeTrails,
-    questionsByTrail,
-    stageByKey,
-    questionByKey,
-    questionsDataEnabled,
-  ])
+  }, [activeTrails, questionsByTrail, stageByKey, questionByKey])
 
   const pillRows = useMemo<PillRow[]>(() => {
-    if (!questionsDataEnabled) return []
-
     const byKey = new Map<string, { correct: number; wrong: number; picks: Map<string, number> }>()
 
     for (const [answerKey, answer] of studentAnswerMap) {
@@ -2457,14 +2475,7 @@ export function DashboardPage() {
       })
     }
     return rows
-  }, [
-    studentAnswerMap,
-    gradablePillQuestions,
-    trailById,
-    questionByKey,
-    questionsDataEnabled,
-    stages,
-  ])
+  }, [studentAnswerMap, gradablePillQuestions, trailById, questionByKey, stages])
 
   const filteredPillRows = useMemo(() => {
     const query = pillSearch.trim().toLowerCase()
@@ -2954,14 +2965,18 @@ export function DashboardPage() {
   // Não espera conversation_logs / dashboard_summary (pode levar dezenas de s).
   // Progresso e acerto vêm de student_trails + exercise_attempts; uso do monitor
   // carrega em paralelo com spinner próprio.
-  // BootSymbol só no 1º load (sem conteúdo). Trocas usam keep-previous + hint.
+  // BootSymbol só no 1º load (sem conteúdo). Trocas: KPIs em Carregando…
+  // (não "Atualizando…" enquanto meta/summary do escopo ainda não batem).
   const isDashboardLoading =
     Boolean(selectedId || activeInstitutionIds.length > 0) &&
     !hasDashboardContent &&
     (loadingData || loadingMeta)
   const isDashboardRefreshing =
     hasDashboardContent &&
-    (isRefreshing || loadingData || loadingMeta)
+    dataScopeKey === selectedIdsKey &&
+    !loadingMeta &&
+    !loadingData &&
+    isRefreshing
 
   useEffect(() => {
     if (isDashboardLoading || isDashboardRefreshing) return
@@ -3237,12 +3252,13 @@ export function DashboardPage() {
       }
       summary={summary}
       exercisesLoading={
-        loadingMeta ||
         dashboardAccuracyGate({
           selectedIdsKey,
           selectedIds: activeInstitutionIds,
           dataScopeKey,
           loadingData,
+          metaReady:
+            !loadingMeta && questions.length > 0 && stages.length > 0,
           logsReadyIds,
           loadingLogs,
           logsFailed,

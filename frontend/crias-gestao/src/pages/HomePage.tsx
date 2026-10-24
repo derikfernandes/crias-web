@@ -9,6 +9,7 @@ import {
   setCachedAnswerMap,
 } from '../lib/answerMapCache'
 import { inicioAcertoReady } from '../lib/dashboardAccuracyGate'
+import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
 import { mergeAcertoAggregates } from '../lib/acertoMedio'
 import {
   fmtDate,
@@ -669,11 +670,25 @@ export function HomePage() {
         console.info(
           `[inicio] answerMap revalidado em ${Math.round(performance.now() - started)}ms (${staleOrMissing.length} inst)`,
         )
+        // Dados reutiliza o mesmo L1: aquece Sol (e irmãs) em background.
+        prefetchSiblingInstitutions([], ids)
       }
     })()
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
+  }, [instIdsKey])
+
+  // Se o summary já estava fresco, ainda assim garante L1 do Dados (Sol).
+  useEffect(() => {
+    const ids = g.institutions.map((i) => i.id).filter(Boolean)
+    if (ids.length === 0) return
+    if (!ids.every((id) => getCachedAnswerMap(id))) return
+    const t = window.setTimeout(() => {
+      prefetchSiblingInstitutions([], ids)
+    }, 200)
+    return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
   }, [instIdsKey])
 

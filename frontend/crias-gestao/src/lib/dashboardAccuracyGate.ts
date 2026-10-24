@@ -9,6 +9,11 @@ export type AccuracyGateInput = {
   selectedIds: string[]
   dataScopeKey: string
   loadingData: boolean
+  /**
+   * Stages + questions do escopo prontos (gabarito). Sem isso o acerto
+   * e o contador de exercícios saem N/A / (0) / 340↔349 — nunca publicar.
+   */
+  metaReady: boolean
   /** Instituições cujo summary (answerMap) já chegou para o escopo atual. */
   logsReadyIds: ReadonlySet<string>
   /** Fetch de logs em voo para o escopo atual. */
@@ -36,7 +41,8 @@ export function dashboardAccuracyGate(input: AccuracyGateInput): AccuracyGate {
   const scopeReady =
     Boolean(input.selectedIdsKey) &&
     input.dataScopeKey === input.selectedIdsKey &&
-    !input.loadingData
+    !input.loadingData &&
+    input.metaReady
 
   const allInstitutionsReady =
     selected.length > 0 &&
@@ -45,7 +51,7 @@ export function dashboardAccuracyGate(input: AccuracyGateInput): AccuracyGate {
   const canPublishAccuracy =
     scopeReady && allInstitutionsReady && !input.logsFailed
 
-  // Enquanto falta alguma instituição OU ainda há fetch: Carregando.
+  // Enquanto falta meta/summary OU ainda há fetch: Carregando.
   // Falha total: não fica em loading eterno (banner + retry).
   const avgAccuracyLoading =
     Boolean(input.selectedIdsKey) &&
@@ -55,7 +61,10 @@ export function dashboardAccuracyGate(input: AccuracyGateInput): AccuracyGate {
   const exercisesLoading =
     Boolean(input.selectedIdsKey) &&
     !input.logsFailed &&
-    (!allInstitutionsReady || input.loadingLogs || input.loadingData)
+    (!input.metaReady ||
+      !allInstitutionsReady ||
+      input.loadingLogs ||
+      input.loadingData)
 
   return {
     avgAccuracyLoading,

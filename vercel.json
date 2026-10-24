@@ -3,8 +3,17 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "crons": [
+    {
+      "path": "/api/dashboard_summary_warm?institution_ids=i1,i2,i4",
+      "schedule": "0 10 * * *"
+    }
+  ],
   "functions": {
     "api/dashboard_summary.ts": {
+      "maxDuration": 60
+    },
+    "api/dashboard_summary_warm.ts": {
       "maxDuration": 60
     },
     "api/student_trails.ts": {

@@ -56,9 +56,16 @@ const FIRESTORE_IN_LIMIT = 30
 
 /** L1 em memória da instância (warm). */
 const SUMMARY_CACHE_TTL_MS = 5 * 60_000
-/** Cache persistente em Firestore. */
-const FIRESTORE_CACHE_TTL_MS = 10 * 60_000
+/** Cache Firestore "fresco": serve sem recompute. */
+const FIRESTORE_CACHE_TTL_MS = 30 * 60_000
+/**
+ * Janela stale-while-revalidate: ainda serve o cache (escolas não pagam
+ * o calc de 57k respostas) e regenera em background.
+ */
+const FIRESTORE_CACHE_STALE_MS = 24 * 60 * 60_000
 const CACHE_COLLECTION = 'gestao_dashboard_cache'
+/** Evita N regenerates paralelos da mesma instituição na instância. */
+const recomputeInflight = new Map<string, Promise<void>>()
 /** Bem abaixo do limite de 1 MiB do Firestore (~900KB pedido). */
 const MAX_CHUNK_JSON_BYTES = 800_000
 
@@ -374,7 +381,8 @@ export function chunkStudentsMap(students: StudentsMap): StudentsMap[] {
 async function readFirestoreCache(
   db: Firestore,
   institutionId: string,
-): Promise<SummaryPayload | null> {
+  opts?: { allowStale?: boolean },
+): Promise<{ payload: SummaryPayload; stale: boolean } | null> {
   const col = db.collection(CACHE_COLLECTION)
   const metaRef = col.doc(institutionId)
   const metaSnap = await metaRef.get()
@@ -383,9 +391,11 @@ async function readFirestoreCache(
   const meta = metaSnap.data() as Record<string, unknown>
   const computedAt =
     typeof meta.computed_at === 'number' ? meta.computed_at : 0
-  if (!computedAt || Date.now() - computedAt > FIRESTORE_CACHE_TTL_MS) {
-    return null
-  }
+  if (!computedAt) return null
+  const age = Date.now() - computedAt
+  if (age > FIRESTORE_CACHE_STALE_MS) return null
+  const stale = age > FIRESTORE_CACHE_TTL_MS
+  if (stale && !opts?.allowStale) return null
 
   const chunkCount =
     typeof meta.chunk_count === 'number' && meta.chunk_count >= 0
@@ -415,11 +425,14 @@ async function readFirestoreCache(
   }
 
   return {
-    institution_id: institutionId,
-    student_count: studentCount,
-    trail_ids: trailIds,
-    students,
-    agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+    payload: {
+      institution_id: institutionId,
+      student_count: studentCount,
+      trail_ids: trailIds,
+      students,
+      agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+    },
+    stale,
   }
 }
 
@@ -502,6 +515,7 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const periodDays = parsePeriodDays(url.searchParams.get('period_days'))
+  const forceRefresh = url.searchParams.get('refresh') === '1'
 
   let db: ReturnType<typeof getFirestore>
   try {
@@ -526,173 +540,213 @@ async function handleRequest(request: Request): Promise<Response> {
     })
   }
 
-  // L1: um payload por instituição (todos os períodos já calculados).
-  const l1 = summaryCache.get(institutionId)
-  if (l1 && l1.expires > Date.now()) {
-    return respond(200, buildBody(l1.payload, periodDays), {
-      'Cache-Control': 'private, max-age=60',
-      'X-Summary-Cache': 'HIT',
-    })
-  }
-
-  // L2: Firestore derivado.
-  try {
-    const fromFs = await readFirestoreCache(db, institutionId)
-    if (fromFs) {
-      summaryCache.set(institutionId, {
-        expires: Date.now() + SUMMARY_CACHE_TTL_MS,
-        payload: fromFs,
-      })
-      return respond(200, buildBody(fromFs, periodDays), {
+  if (!forceRefresh) {
+    // L1: um payload por instituição (todos os períodos já calculados).
+    const l1 = summaryCache.get(institutionId)
+    if (l1 && l1.expires > Date.now()) {
+      return respond(200, buildBody(l1.payload, periodDays), {
         'Cache-Control': 'private, max-age=60',
-        'X-Summary-Cache': 'FIRESTORE',
+        'X-Summary-Cache': 'HIT',
       })
     }
-  } catch {
-    // Cache miss: segue para computar.
+
+    // L2: Firestore derivado (fresco ou stale-while-revalidate).
+    try {
+      const fromFs = await readFirestoreCache(db, institutionId, {
+        allowStale: true,
+      })
+      if (fromFs) {
+        summaryCache.set(institutionId, {
+          expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+          payload: fromFs.payload,
+        })
+        if (fromFs.stale) {
+          scheduleSummaryRecompute(db, institutionId)
+        }
+        return respond(200, buildBody(fromFs.payload, periodDays), {
+          'Cache-Control': 'private, max-age=60',
+          'X-Summary-Cache': fromFs.stale ? 'FIRESTORE-STALE' : 'FIRESTORE',
+        })
+      }
+    } catch {
+      // Cache miss: segue para computar.
+    }
   }
 
-  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
-  const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
-  const logsCollection =
-    process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
-
   try {
-    // select() sem campos: baixa apenas os IDs dos documentos.
-    const [studentsSnap, trailsSnap] = await Promise.all([
-      db
-        .collection(studentsCollection)
-        .where('institution_id', '==', institutionId)
-        .select()
-        .get(),
-      db
-        .collection(trailsCollection)
-        .where('institution_id', '==', institutionId)
-        .select()
-        .get(),
-    ])
-
-    const studentIds = studentsSnap.docs.map((d) => d.id)
-    const trailIdList = trailsSnap.docs.map((d) => d.id)
-    const trailIndexById = new Map(trailIdList.map((id, idx) => [id, idx]))
-
-    /** studentId -> chave compacta "trailIdx|stage|question" -> candidatos. */
-    const perStudent = new Map<string, Map<string, AnswerCandidate[]>>()
-    const agentLogs: AgentUsageLogInput[] = []
-
-    const chunks = chunkArray(studentIds, FIRESTORE_IN_LIMIT)
-    await Promise.all(
-      chunks.map(async (chunk) => {
-        // Sem filtro de sender: progressão usa sender=student; agentes contam todos.
-        const snap = await db
-          .collection(logsCollection)
-          .where('student_id', 'in', chunk)
-          .select(
-            'student_id',
-            'trail_id',
-            'stage_number',
-            'question_number',
-            'message_text',
-            'message_type',
-            'sender',
-            'created_at',
-            'created_at_brasilia',
-          )
-          .get()
-
-        for (const doc of snap.docs) {
-          const data = doc.data() as Record<string, unknown>
-
-          const studentId =
-            typeof data.student_id === 'string' ? data.student_id : ''
-          const trailId = typeof data.trail_id === 'string' ? data.trail_id : ''
-          if (!studentId || !trailId) continue
-
-          const at = logTimestampMillis(data.created_at, data.created_at_brasilia)
-
-          if (isAgentTrailId(trailId)) {
-            // Coleta todos; filtro de período na agregação multi-período.
-            agentLogs.push({ student_id: studentId, trail_id: trailId, at })
-            continue
-          }
-
-          // Progressão: apenas mensagens do aluno em trilhas reais da instituição.
-          if (data.sender !== 'student') continue
-          const trailIdx = trailIndexById.get(trailId)
-          if (trailIdx === undefined) continue
-
-          const stageRaw = data.stage_number
-          const questionRaw = data.question_number
-          const stageNumber =
-            typeof stageRaw === 'number' && Number.isFinite(stageRaw)
-              ? stageRaw
-              : 0
-          const questionNumber =
-            typeof questionRaw === 'number' && Number.isFinite(questionRaw)
-              ? questionRaw
-              : 0
-          if (stageNumber < 1 || questionNumber < 1) continue
-
-          const compactKey = `${trailIdx}|${stageNumber}|${questionNumber}`
-          let byKey = perStudent.get(studentId)
-          if (!byKey) {
-            byKey = new Map()
-            perStudent.set(studentId, byKey)
-          }
-          const list = byKey.get(compactKey) ?? []
-          list.push({
-            text: typeof data.message_text === 'string' ? data.message_text : '',
-            at,
-            isExercise: data.message_type === 'exercise',
-            logId: doc.id,
-          })
-          byKey.set(compactKey, list)
-        }
-      }),
-    )
-
-    const students: StudentsMap = {}
-    for (const [studentId, byKey] of perStudent) {
-      const answers: Record<string, string> = {}
-      const extraDone: string[] = []
-      for (const [key, candidates] of byKey) {
-        const best = pickBestStudentAnswer(candidates)
-        if (best.trim()) answers[key] = best
-        else extraDone.push(key)
-      }
-      students[studentId] = { answers, extra_done: extraDone }
-    }
-
-    const agent_usage_by_period = aggregateAgentUsageByPeriod(agentLogs)
-
-    const payload: SummaryPayload = {
-      institution_id: institutionId,
-      student_count: studentIds.length,
-      trail_ids: trailIdList,
-      students,
-      agent_usage_by_period,
-    }
-
+    const payload = await computeSummaryPayload(db, institutionId)
     summaryCache.set(institutionId, {
       expires: Date.now() + SUMMARY_CACHE_TTL_MS,
       payload,
     })
-
-    // Persistência best-effort: falha de escrita não derruba a resposta.
     try {
       await writeFirestoreCache(db, payload)
     } catch {
       // ignore
     }
-
     return respond(200, buildBody(payload, periodDays), {
       'Cache-Control': 'private, max-age=60',
-      'X-Summary-Cache': 'MISS',
+      'X-Summary-Cache': forceRefresh ? 'REFRESH' : 'MISS',
     })
   } catch (e) {
     return respond(500, {
       error: e instanceof Error ? e.message : 'Erro interno',
     })
+  }
+}
+
+/** Regenera e persiste o summary (cron / warm). */
+export async function warmInstitutionSummary(
+  institutionId: string,
+): Promise<void> {
+  const db = getDb()
+  const payload = await computeSummaryPayload(db, institutionId)
+  summaryCache.set(institutionId, {
+    expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+    payload,
+  })
+  await writeFirestoreCache(db, payload)
+}
+
+function scheduleSummaryRecompute(db: Firestore, institutionId: string): void {
+  if (recomputeInflight.has(institutionId)) return
+  const run = (async () => {
+    try {
+      const payload = await computeSummaryPayload(db, institutionId)
+      summaryCache.set(institutionId, {
+        expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+        payload,
+      })
+      await writeFirestoreCache(db, payload)
+    } catch (err) {
+      console.warn('[dashboard_summary] recompute falhou', institutionId, err)
+    } finally {
+      recomputeInflight.delete(institutionId)
+    }
+  })()
+  recomputeInflight.set(institutionId, run)
+}
+
+async function computeSummaryPayload(
+  db: Firestore,
+  institutionId: string,
+): Promise<SummaryPayload> {
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
+  const logsCollection =
+    process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
+
+  // select() sem campos: baixa apenas os IDs dos documentos.
+  const [studentsSnap, trailsSnap] = await Promise.all([
+    db
+      .collection(studentsCollection)
+      .where('institution_id', '==', institutionId)
+      .select()
+      .get(),
+    db
+      .collection(trailsCollection)
+      .where('institution_id', '==', institutionId)
+      .select()
+      .get(),
+  ])
+
+  const studentIds = studentsSnap.docs.map((d) => d.id)
+  const trailIdList = trailsSnap.docs.map((d) => d.id)
+  const trailIndexById = new Map(trailIdList.map((id, idx) => [id, idx]))
+
+  /** studentId -> chave compacta "trailIdx|stage|question" -> candidatos. */
+  const perStudent = new Map<string, Map<string, AnswerCandidate[]>>()
+  const agentLogs: AgentUsageLogInput[] = []
+
+  const chunks = chunkArray(studentIds, FIRESTORE_IN_LIMIT)
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      // Sem filtro de sender: progressão usa sender=student; agentes contam todos.
+      const snap = await db
+        .collection(logsCollection)
+        .where('student_id', 'in', chunk)
+        .select(
+          'student_id',
+          'trail_id',
+          'stage_number',
+          'question_number',
+          'message_text',
+          'message_type',
+          'sender',
+          'created_at',
+          'created_at_brasilia',
+        )
+        .get()
+
+      for (const doc of snap.docs) {
+        const data = doc.data() as Record<string, unknown>
+
+        const studentId =
+          typeof data.student_id === 'string' ? data.student_id : ''
+        const trailId = typeof data.trail_id === 'string' ? data.trail_id : ''
+        if (!studentId || !trailId) continue
+
+        const at = logTimestampMillis(data.created_at, data.created_at_brasilia)
+
+        if (isAgentTrailId(trailId)) {
+          // Coleta todos; filtro de período na agregação multi-período.
+          agentLogs.push({ student_id: studentId, trail_id: trailId, at })
+          continue
+        }
+
+        // Progressão: apenas mensagens do aluno em trilhas reais da instituição.
+        if (data.sender !== 'student') continue
+        const trailIdx = trailIndexById.get(trailId)
+        if (trailIdx === undefined) continue
+
+        const stageRaw = data.stage_number
+        const questionRaw = data.question_number
+        const stageNumber =
+          typeof stageRaw === 'number' && Number.isFinite(stageRaw)
+            ? stageRaw
+            : 0
+        const questionNumber =
+          typeof questionRaw === 'number' && Number.isFinite(questionRaw)
+            ? questionRaw
+            : 0
+        if (stageNumber < 1 || questionNumber < 1) continue
+
+        const compactKey = `${trailIdx}|${stageNumber}|${questionNumber}`
+        let byKey = perStudent.get(studentId)
+        if (!byKey) {
+          byKey = new Map()
+          perStudent.set(studentId, byKey)
+        }
+        const list = byKey.get(compactKey) ?? []
+        list.push({
+          text: typeof data.message_text === 'string' ? data.message_text : '',
+          at,
+          isExercise: data.message_type === 'exercise',
+          logId: doc.id,
+        })
+        byKey.set(compactKey, list)
+      }
+    }),
+  )
+
+  const students: StudentsMap = {}
+  for (const [studentId, byKey] of perStudent) {
+    const answers: Record<string, string> = {}
+    const extraDone: string[] = []
+    for (const [key, candidates] of byKey) {
+      const best = pickBestStudentAnswer(candidates)
+      if (best.trim()) answers[key] = best
+      else extraDone.push(key)
+    }
+    students[studentId] = { answers, extra_done: extraDone }
+  }
+
+  return {
+    institution_id: institutionId,
+    student_count: studentIds.length,
+    trail_ids: trailIdList,
+    students,
+    agent_usage_by_period: aggregateAgentUsageByPeriod(agentLogs),
   }
 }
 

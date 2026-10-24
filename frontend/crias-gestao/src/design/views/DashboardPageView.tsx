@@ -572,15 +572,25 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             ).map(([title, list]) => (
               <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
                 <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
-                {list.map((row) => (
-                  <Opportunity
-                    key={`${title}-${row.key}`}
-                    row={row}
-                    open={openOpp === `${title}-${row.key}`}
-                    onToggle={() => setOpenOpp((c) => (c === `${title}-${row.key}` ? null : `${title}-${row.key}`))}
-                  />
-                ))}
-                {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
+                {p.exercisesLoading ? (
+                  <p className="gx-muted">Carregando…</p>
+                ) : (
+                  <>
+                    {list.map((row) => (
+                      <Opportunity
+                        key={`${title}-${row.key}`}
+                        row={row}
+                        open={openOpp === `${title}-${row.key}`}
+                        onToggle={() =>
+                          setOpenOpp((c) =>
+                            c === `${title}-${row.key}` ? null : `${title}-${row.key}`,
+                          )
+                        }
+                      />
+                    ))}
+                    {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
+                  </>
+                )}
               </div>
             ))}
           </div>

@@ -42,11 +42,18 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
-/** Prefetch idempotente; no-op se já está em cache ou em voo. */
+function isWarmComplete(
+  snap: ReturnType<typeof getCachedInstitution>,
+): boolean {
+  return Boolean(snap && snap.stages.length > 0 && snap.questions.length > 0)
+}
+
+/** Prefetch idempotente; no-op se L1 completo ou em voo. */
 export function prefetchInstitutionDashboard(institutionId: string): void {
   const id = institutionId.trim()
   if (!id || !db) return
-  if (getCachedInstitution(id)) return
+  // Incomplete (só core) não bloqueia: Dados precisa de stages/questions.
+  if (isWarmComplete(getCachedInstitution(id))) return
   if (inflight.has(id)) return
 
   const run = (async () => {

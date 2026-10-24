@@ -72,6 +72,10 @@ import { loadXlsx } from '../lib/loadXlsx'
 import { studentPath, trailPath } from '../lib/paths'
 import { usePermissions } from '../hooks/usePermissions'
 import { useGestao } from '../hooks/useGestao'
+import {
+  shouldPinTopFilterToSelectedId,
+  shouldSyncTopFilterFromUrl,
+} from '../lib/dadosInstitutionSync'
 import { downloadText, toCsv } from '../lib/tableFiles'
 import { correctToLetter, letterOf } from '../lib/trailActivities'
 import { resolveExerciseOptions } from '../lib/trilha/exerciseOptions'
@@ -697,35 +701,39 @@ export function DashboardPage() {
     window.localStorage.setItem(LAST_INSTITUTION_ID_STORAGE_KEY, selectedId)
   }, [selectedId])
 
+  // Chave estável: Set novo a cada render quebrava deps e gerava loop de setState.
+  const scopedIdsKey = useMemo(
+    () => [...gestao.scopedIds].sort().join('|'),
+    [gestao.scopedIds],
+  )
+  const selectedIdsKey = useMemo(
+    () => [...gestao.selectedIds].sort().join('|'),
+    [gestao.selectedIds],
+  )
+
   // Instituição: URL ?inst= > seleção atual válida no escopo > storage > primeira do escopo.
-  // Não cair silenciosamente em "Todas" mostrando só a primeira (ex.: Crias).
   useEffect(() => {
-    const scoped = gestao.scopedInstitutions
     const scopedIds = gestao.scopedIds
-    const first = scoped[0]?.id ?? null
+    const first = gestao.scopedInstitutions[0]?.id ?? null
     const urlId = instFromUrl && scopedIds.has(instFromUrl) ? instFromUrl : null
 
-    let nextId: string | null = null
     setSelectedId((current) => {
-      if (urlId) nextId = urlId
-      else if (current && scopedIds.has(current)) nextId = current
-      else {
-        try {
-          const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
-          if (stored && scopedIds.has(stored)) nextId = stored
-        } catch {
-          // ignore
-        }
-        if (!nextId) nextId = first
+      if (urlId) return urlId
+      if (current && scopedIds.has(current)) return current
+      try {
+        const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
+        if (stored && scopedIds.has(stored)) return stored
+      } catch {
+        // ignore
       }
-      return nextId
+      return first
     })
-    // Topo "Filtrar instituições": F5 com ?inst= deve mostrar "1 de N", não "Todas".
-    if (urlId) {
-      gestao.setSelectedIds(new Set([urlId]))
+    // Topo "Filtrar instituições": F5 com ?inst= → "1 de N" (só se ainda não estiver assim).
+    if (shouldSyncTopFilterFromUrl(urlId, gestao.selectedIds)) {
+      gestao.setSelectedIds(new Set([urlId!]))
     }
-    setTrailFilter(null)
-  }, [gestao.scopedInstitutions, gestao.scopedIds, instFromUrl])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopedIdsKey evita loop por identidade de Set
+  }, [scopedIdsKey, instFromUrl])
 
   // Persiste a instituição na URL para F5 / deep link.
   useEffect(() => {
@@ -737,30 +745,43 @@ export function DashboardPage() {
     setSearchParams(next, { replace: true })
   }, [selectedId, searchParams, setSearchParams])
 
-  // Dados é 1 instituição: topo ↔ selectedId / ?inst= (toque no nome no topo troca e recarrega).
+  // Dados: topo com exatamente 1 id → selectedId (e URL via efeito acima).
   useEffect(() => {
     if (!gestao.isSuper) return
-    if (gestao.selectedIds.size === 1) {
-      const only = [...gestao.selectedIds][0]
-      if (only && only !== selectedId) setSelectedId(only)
-      return
-    }
-    // Multi/vazio no topo: Dados precisa de uma; pin no selectedId atual (ou primeira do escopo).
-    if (selectedId?.trim()) {
-      if (
-        gestao.selectedIds.size !== 1 ||
-        !gestao.selectedIds.has(selectedId)
-      ) {
-        gestao.setSelectedIds(new Set([selectedId]))
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync bidirecional selectedIds ↔ selectedId
-  }, [selectedId, gestao.isSuper, gestao.selectedIds])
+    if (gestao.selectedIds.size !== 1) return
+    const only = [...gestao.selectedIds][0]
+    if (only && only !== selectedId) setSelectedId(only)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedIdsKey estável
+  }, [gestao.isSuper, selectedIdsKey, selectedId])
+
+  // Dados precisa de 1 no topo: só pin quando multi/vazio.
+  // Se já há exatamente 1 id (mesmo ≠ selectedId), o efeito acima alinha selectedId —
+  // pin aqui com o selectedId antigo sobrescrevia a troca (Crias←Sol).
+  useEffect(() => {
+    if (!gestao.isSuper || !selectedId?.trim()) return
+    if (!shouldPinTopFilterToSelectedId(gestao.selectedIds.size)) return
+    gestao.setSelectedIds(new Set([selectedId]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedIdsKey estável
+  }, [gestao.isSuper, selectedId, selectedIdsKey])
 
   function selectInstitution(id: string) {
     setSelectedId(id)
     gestao.setSelectedIds(new Set([id]))
+    if (searchParams.get('inst') !== id) {
+      const next = new URLSearchParams(searchParams)
+      next.set('inst', id)
+      setSearchParams(next, { replace: true })
+    }
   }
+
+  // Troca de instituição: limpa filtro de trilhas (catálogo muda).
+  const prevSelectedIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (prevSelectedIdRef.current && prevSelectedIdRef.current !== selectedId) {
+      setTrailFilter(null)
+    }
+    prevSelectedIdRef.current = selectedId
+  }, [selectedId])
 
   useEffect(() => {
     let cancelled = false

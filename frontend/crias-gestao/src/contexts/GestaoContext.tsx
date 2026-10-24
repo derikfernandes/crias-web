@@ -7,6 +7,7 @@ import {
 } from '../lib/institutionFirestore'
 import { usePermissions } from '../hooks/usePermissions'
 import type { Institution } from '../types/institution'
+import { sameIdSet } from '../lib/sameIdSet'
 import { GestaoContext, type GestaoContextValue } from './gestao-context'
 
 /**
@@ -60,23 +61,50 @@ export function GestaoProvider({ children }: { children: ReactNode }) {
     return next
   }, [institutions, picked])
 
+  /** Evita setState no-op que recria Set e dispara loops de useEffect. */
+  const setSelectedIds = (next: Set<string>) => {
+    setPicked((prev) => {
+      const nextSet = new Set(next)
+      if (sameIdSet(prev, nextSet)) return prev
+      return nextSet
+    })
+  }
+
+  const scopedInstitutions = useMemo(
+    () =>
+      isSuper
+        ? institutions.filter((i) => selectedIds.has(i.id))
+        : institutions.filter((i) => i.id === myInstitutionId),
+    [isSuper, institutions, selectedIds, myInstitutionId],
+  )
+
+  const scopedIds = useMemo(
+    () => new Set(scopedInstitutions.map((i) => i.id)),
+    [scopedInstitutions],
+  )
+
   const value = useMemo<GestaoContextValue>(() => {
-    const scopedInstitutions = isSuper
-      ? institutions.filter((i) => selectedIds.has(i.id))
-      : institutions.filter((i) => i.id === myInstitutionId)
     return {
       institutions,
       institutionsLoading: loading,
       isSuper,
       myInstitutionId,
       selectedIds,
-      setSelectedIds: (next) => setPicked(new Set(next)),
+      setSelectedIds,
       scopedInstitutions,
-      scopedIds: new Set(scopedInstitutions.map((i) => i.id)),
+      scopedIds,
       institutionName: (id) =>
         institutions.find((i) => i.id === id)?.name || 'N/A',
     }
-  }, [institutions, loading, isSuper, myInstitutionId, selectedIds])
+  }, [
+    institutions,
+    loading,
+    isSuper,
+    myInstitutionId,
+    selectedIds,
+    scopedInstitutions,
+    scopedIds,
+  ])
 
   return (
     <GestaoContext.Provider value={value}>{children}</GestaoContext.Provider>

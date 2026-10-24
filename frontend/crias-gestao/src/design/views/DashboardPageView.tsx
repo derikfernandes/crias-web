@@ -228,6 +228,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
 
   if (p.loadingInst || p.isDashboardLoading) return <BootSymbol />
 
+  const refreshing = Boolean(p.isDashboardRefreshing)
   const charts = p.studentsCharts
   const bucketMax = Math.max(0, ...charts.completionBuckets.map((b) => b.count))
   const statusMax = Math.max(0, ...charts.statuses.map((b) => b.count))
@@ -307,8 +308,17 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         <Banner key={e}>{e}</Banner>
       ))}
       {p.logsError ? <Banner onRetry={p.onRetryLogs}>{p.logsError}</Banner> : null}
+      {refreshing ? (
+        <p className="gx-refresh-hint" role="status" aria-live="polite">
+          Atualizando…
+        </p>
+      ) : null}
 
-      <div className="gx-stats" aria-label="Resumo">
+      <div
+        className={refreshing ? 'gx-stats is-refreshing' : 'gx-stats'}
+        aria-label="Resumo"
+        aria-busy={refreshing || undefined}
+      >
         <div className="gx-stat">
           <span>Alunos ativos</span>
           <strong>{p.summary.activeStudents}</strong>

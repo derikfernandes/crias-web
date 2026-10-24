@@ -523,7 +523,13 @@ export function FilterPopover({
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  // UI otimista: o checkmark atualiza no mesmo tick do clique, sem esperar
+  // o pai (Dashboard refetch / URL) re-renderizar o `selected`.
+  const [draft, setDraft] = useState(selected)
   const location = useLocation()
+  useEffect(() => {
+    setDraft(selected)
+  }, [selected])
   // Só fecha na troca de rota. Mudança de ?inst= (multi-select) não deve
   // fechar o painel no meio do clique no checkbox.
   useEffect(() => {
@@ -547,24 +553,28 @@ export function FilterPopover({
       ? sorted.filter((o) => o.name.toLowerCase().includes(needle))
       : sorted
   }, [sorted, q])
+  // "Todas" quando todas estão marcadas (intencional; equivalente a N de N).
   const count =
-    selected.size === options.length
+    draft.size === options.length && options.length > 0
       ? 'Todas'
-      : `${selected.size} de ${options.length}`
+      : `${draft.size} de ${options.length}`
 
   function toggle(id: string) {
-    const next = new Set(selected)
+    const next = new Set(draft)
     if (next.has(id)) {
       if (next.size <= minSelected) return
       next.delete(id)
     } else {
       next.add(id)
     }
+    setDraft(next)
     onChange(next)
   }
 
   function selectOnly(id: string) {
-    onChange(new Set([id]))
+    const next = new Set([id])
+    setDraft(next)
+    onChange(next)
     setOpen(false)
     setQ('')
   }
@@ -618,8 +628,9 @@ export function FilterPopover({
                 type="button"
                 className="gx-linkbtn"
                 onClick={() => {
-                  const next = new Set(selected)
+                  const next = new Set(draft)
                   for (const o of visible) next.add(o.id)
+                  setDraft(next)
                   onChange(next)
                 }}
               >
@@ -629,16 +640,19 @@ export function FilterPopover({
                 type="button"
                 className="gx-linkbtn"
                 style={{ color: 'var(--v-t2)' }}
-                disabled={minSelected > 0 && selected.size <= minSelected}
+                disabled={minSelected > 0 && draft.size <= minSelected}
                 onClick={() => {
                   if (minSelected <= 0) {
-                    onChange(new Set())
+                    const empty = new Set<string>()
+                    setDraft(empty)
+                    onChange(empty)
                     return
                   }
                   // Mantém os primeiros N (ordem da lista visível).
                   const keep = new Set(
                     visible.slice(0, minSelected).map((o) => o.id),
                   )
+                  setDraft(keep)
                   onChange(keep)
                 }}
               >
@@ -652,7 +666,7 @@ export function FilterPopover({
               aria-multiselectable="true"
             >
               {visible.map((o) => {
-                const on = selected.has(o.id)
+                const on = draft.has(o.id)
                 return (
                   <div
                     key={o.id}

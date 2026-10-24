@@ -327,6 +327,14 @@ html {
 .gx-card h2, .gx-card h3, .gx-h { margin: 0; font-family: Outfit, sans-serif; font-weight: 600; font-size: 19px; color: var(--v-ink); border: 0; }
 .gx-muted { color: var(--v-t3); font-size: 13px; margin: 0; }
 .gx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+.gx-stats.is-refreshing { opacity: 0.72; transition: opacity 0.2s ease; }
+.gx-refresh-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v-t3);
+  letter-spacing: 0.01em;
+}
 .gx-stat { background: var(--v-soft); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .gx-stat > span:first-child { font-size: 13px; color: var(--v-t3); font-weight: 600; }
 .gx-stat > strong { font-family: Outfit, sans-serif; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--v-ink); }

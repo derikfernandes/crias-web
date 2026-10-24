@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -332,7 +333,10 @@ function Shell({ children }: { children: ReactNode }) {
                   onChange={(next) => {
                     // Mínimo 1: ignora limpar/desmarcar o último.
                     if (next.size === 0) return
-                    setSelectedIds(next)
+                    // Transição: checkmark otimista no popover; dados em baixa prioridade.
+                    startTransition(() => {
+                      setSelectedIds(next)
+                    })
                   }}
                   exclusiveOnLabel
                   minSelected={1}

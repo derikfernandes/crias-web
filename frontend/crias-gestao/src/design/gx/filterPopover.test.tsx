@@ -57,6 +57,27 @@ describe('FilterPopover exclusiveOnLabel', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('checkbox fica marcado na hora (UI otimista, sem esperar o pai)', () => {
+    // Pai não re-renderiza `selected` — simula Dashboard lento.
+    const onChange = vi.fn()
+    renderFilter({ selected: new Set(['i1']), onChange, minSelected: 1 })
+    fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar Instituto Sol' }))
+    expect(
+      screen.getByRole('button', { name: 'Desmarcar Instituto Sol' }),
+    ).toBeTruthy()
+    expect(screen.getByText('2 de 3')).toBeTruthy()
+  })
+
+  it('com todas marcadas o contador mostra Todas (não N de N)', () => {
+    renderFilter({
+      selected: new Set(['i1', 'i2', 'i4']),
+      onChange: vi.fn(),
+      minSelected: 1,
+    })
+    expect(screen.getByText('Todas')).toBeTruthy()
+  })
+
   it('toque fora (scrim) fecha o menu', () => {
     renderFilter({ selected: new Set(['i1']), onChange: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))

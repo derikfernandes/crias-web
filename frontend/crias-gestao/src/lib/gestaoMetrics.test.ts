@@ -213,6 +213,51 @@ describe('isActivityKeyDoneOnLink / isStageDoneOnLink', () => {
   })
 })
 
+describe('institutionMetrics acerto (regressão Sol 86% vs 68%)', () => {
+  it('inclui tentativas de trilhas inativas da instituição', () => {
+    const students = [
+      { id: 's1', institution_id: 'i2', active: true },
+    ] as import('../types/student').Student[]
+    const trails = [
+      { id: 't-active', institution_id: 'i2', active: true },
+      { id: 't-old', institution_id: 'i2', active: false },
+    ] as import('../types/trail').Trail[]
+    const attempts = [
+      {
+        student_id: 's1',
+        trail_id: 't-active',
+        is_correct: true,
+        stage_number: 1,
+        question_number: 1,
+      },
+      {
+        student_id: 's1',
+        trail_id: 't-old',
+        is_correct: false,
+        stage_number: 1,
+        question_number: 1,
+      },
+      {
+        student_id: 's1',
+        trail_id: 't-old',
+        is_correct: false,
+        stage_number: 1,
+        question_number: 2,
+      },
+    ] as import('../types/exerciseAttempt').ExerciseAttempt[]
+    const m = institutionMetrics({
+      institutionId: 'i2',
+      students,
+      trails,
+      studentTrails: [],
+      activityTotals: new Map([['t-active', 1]]),
+      attempts,
+    })
+    // 1 certo + 2 errados = 33,3%. Só ativa daria 100% (bug antigo ~86% Sol).
+    expect(m.avgAccuracy).toBe(33.3)
+  })
+})
+
 describe('accuracyFromActiveStudents (unifica Início/Dados)', () => {
   it('conta por student_id dos ativos, sem exigir institution_id na tentativa', () => {
     const attempts = [

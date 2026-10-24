@@ -37,10 +37,17 @@ import {
 import {
   activityCountByTrail,
   activityKeysByTrail,
+  accuracyFromActiveStudents,
   isActivityKeyDoneOnLink,
   isStageDoneOnLink,
   type ActivityKey,
 } from '../lib/gestaoMetrics'
+import {
+  getCachedInstitution,
+  mergeCachedInstitutions,
+  setCachedInstitution,
+  type DashboardInstitutionSnapshot,
+} from '../lib/dashboardInstitutionCache'
 import {
   accuracyFromAttempts,
   engagementFromLinks,
@@ -588,6 +595,12 @@ export function DashboardPage() {
   const [questions, setQuestions] = useState<TrailStageQuestion[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [loadingMeta, setLoadingMeta] = useState(false)
+  /** Já houve pelo menos um load completo: troca de filtro não usa BootSymbol. */
+  const [hasDashboardContent, setHasDashboardContent] = useState(false)
+  /** Atualizando em segundo plano (cache hit ou keep-previous). */
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  /** selectedIdsKey cujos students/attempts estão na tela (evita % instável). */
+  const [dataScopeKey, setDataScopeKey] = useState('')
   const [, setLoadingLogs] = useState(false)
   const [loadStepsDone, setLoadStepsDone] = useState(0)
   const [loadStepsTotal, setLoadStepsTotal] = useState(TOTAL_LOAD_STEPS)
@@ -791,6 +804,65 @@ export function DashboardPage() {
   useEffect(() => {
     let cancelled = false
     const instIds = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+
+    function applyCoreSnapshot(
+      snap: DashboardInstitutionSnapshot,
+      key: string,
+    ) {
+      setStudents(snap.students)
+      setTrails(snap.trails)
+      setStudentTrails(snap.studentTrails)
+      setAttempts(snap.attempts)
+      if (snap.stages.length > 0 || snap.questions.length > 0) {
+        setStages(snap.stages)
+        setQuestions(snap.questions)
+      }
+      setDataScopeKey(key)
+      setHasDashboardContent(true)
+    }
+
+    function cacheSplit(input: {
+      students: Student[]
+      trails: Trail[]
+      studentTrails: StudentTrail[]
+      attempts: import('../types/exerciseAttempt').ExerciseAttempt[]
+      stages: TrailStage[]
+      questions: TrailStageQuestion[]
+    }) {
+      for (const id of instIds) {
+        const prev = getCachedInstitution(id)
+        const instStudents = input.students.filter(
+          (s) => s.institution_id === id,
+        )
+        const instStudentIds = new Set(instStudents.map((s) => s.id))
+        const instTrails = input.trails.filter((t) => t.institution_id === id)
+        const instTrailIds = new Set(instTrails.map((t) => t.id))
+        setCachedInstitution(id, {
+          students: instStudents,
+          trails: instTrails,
+          studentTrails: input.studentTrails.filter(
+            (l) => l.institution_id === id,
+          ),
+          attempts: input.attempts.filter((a) =>
+            instStudentIds.has(a.student_id),
+          ),
+          stages:
+            input.stages.length > 0
+              ? input.stages.filter((s) => instTrailIds.has(s.trail_id))
+              : (prev?.stages ?? []),
+          questions:
+            input.questions.length > 0
+              ? input.questions.filter((q) => instTrailIds.has(q.trail_id))
+              : (prev?.questions ?? []),
+          doneByStudent: prev?.doneByStudent ?? new Map(),
+          answerMap: prev?.answerMap ?? new Map(),
+          agentUsage: prev?.agentUsage ?? EMPTY_AGENT_USAGE,
+          agentUsagePresent: prev?.agentUsagePresent ?? true,
+          loadedAt: Date.now(),
+        })
+      }
+    }
 
     async function run() {
       if (!db || instIds.length === 0) {
@@ -805,6 +877,9 @@ export function DashboardPage() {
         setLogsError(null)
         setLoadingData(false)
         setLoadingMeta(false)
+        setIsRefreshing(false)
+        setHasDashboardContent(false)
+        setDataScopeKey('')
         setLoadingLogs(false)
         initialLogsLoadedRef.current = false
         setAgentUsageLoading(false)
@@ -818,17 +893,33 @@ export function DashboardPage() {
         return
       }
 
+      const cached = mergeCachedInstitutions(instIds)
       loadProgressRef.current = { done: 0, total: TOTAL_LOAD_STEPS }
       loadTargetPercentRef.current = 0
       dashboardLoadStartedAtRef.current = performance.now()
-      setLoadingData(true)
-      // Keep-previous: não zera alunos/trilhas aqui (evita flash + sensação >2s).
-      setLoadingMeta(true)
       setSelectedAgentTrailId(null)
       setLoadStepsDone(0)
       setLoadStepsTotal(TOTAL_LOAD_STEPS)
       setLoadPercent(0)
-      setLoadLabel('Carregando alunos e trilhas…')
+      setLoadLabel(
+        cached
+          ? 'Atualizando…'
+          : 'Carregando alunos e trilhas…',
+      )
+
+      if (cached) {
+        // Hit completo: UI na hora; refetch só revalida o cache.
+        applyCoreSnapshot(cached, scopeKey)
+        setLoadingData(false)
+        setLoadingMeta(cached.stages.length === 0 && cached.questions.length === 0)
+        setIsRefreshing(true)
+      } else {
+        // Miss: mantém conteúdo anterior (outro escopo) ou BootSymbol no 1º load.
+        setIsRefreshing(hasDashboardContent)
+        setLoadingData(true)
+        setLoadingMeta(true)
+      }
+
       const dbOk = db
       const loadedSources = new Set<string>()
 
@@ -862,21 +953,71 @@ export function DashboardPage() {
       }
 
       try {
+        // Busca só o que falta no cache; revalida o resto em paralelo.
+        const missingIds = instIds.filter((id) => !getCachedInstitution(id))
+        const fetchIds = missingIds.length > 0 ? missingIds : instIds
+
+        const fetchChunks = chunkArray(fetchIds, FIRESTORE_IN_LIMIT)
+        async function docsForFetch(collectionName: string) {
+          const snaps = await Promise.all(
+            fetchChunks.map((chunk) =>
+              getDocs(
+                query(
+                  collection(dbOk, collectionName),
+                  where(
+                    'institution_id',
+                    chunk.length === 1 ? '==' : 'in',
+                    chunk.length === 1 ? chunk[0]! : chunk,
+                  ),
+                ),
+              ),
+            ),
+          )
+          return snaps.flatMap((s) => s.docs)
+        }
+
+        const usePartial =
+          missingIds.length > 0 && missingIds.length < instIds.length
         const [studentDocs, trailDocs, linkDocs] = await Promise.all([
-          docsForInstitutions(STUDENTS_COLLECTION),
-          docsForInstitutions(TRAILS_COLLECTION),
-          docsForInstitutions(STUDENT_TRAILS_COLLECTION),
+          usePartial || !cached
+            ? docsForFetch(STUDENTS_COLLECTION)
+            : docsForInstitutions(STUDENTS_COLLECTION),
+          usePartial || !cached
+            ? docsForFetch(TRAILS_COLLECTION)
+            : docsForInstitutions(TRAILS_COLLECTION),
+          usePartial || !cached
+            ? docsForFetch(STUDENT_TRAILS_COLLECTION)
+            : docsForInstitutions(STUDENT_TRAILS_COLLECTION),
         ])
         if (cancelled) return
-        const nextStudents = studentDocs.map(snapshotToStudent)
-        const nextTrails = trailDocs.map(snapshotToTrail)
-        const nextStudentTrails = linkDocs.map(snapshotToStudentTrail)
+        let nextStudents = studentDocs.map(snapshotToStudent)
+        let nextTrails = trailDocs.map(snapshotToTrail)
+        let nextStudentTrails = linkDocs.map(snapshotToStudentTrail)
+
+        if (usePartial) {
+          for (const id of instIds) {
+            if (missingIds.includes(id)) continue
+            const prev = getCachedInstitution(id)
+            if (!prev) continue
+            nextStudents = nextStudents.concat(prev.students)
+            nextTrails = nextTrails.concat(prev.trails)
+            nextStudentTrails = nextStudentTrails.concat(prev.studentTrails)
+          }
+        }
 
         const studentIds = nextStudents.map((s) => s.id).filter(Boolean)
         let nextAttempts: import('../types/exerciseAttempt').ExerciseAttempt[] =
           []
         if (studentIds.length > 0) {
-          const chunks = chunkArray(studentIds, FIRESTORE_IN_LIMIT)
+          const needAttemptFetch = usePartial
+            ? nextStudents
+                .filter((s) => missingIds.includes(s.institution_id))
+                .map((s) => s.id)
+            : studentIds
+          const chunks = chunkArray(
+            needAttemptFetch.length > 0 ? needAttemptFetch : studentIds,
+            FIRESTORE_IN_LIMIT,
+          )
           const attemptSnaps = await Promise.all(
             chunks.map((chunk) =>
               getDocs(
@@ -890,13 +1031,38 @@ export function DashboardPage() {
           nextAttempts = attemptSnaps.flatMap((snap) =>
             snap.docs.map(snapshotToExerciseAttempt),
           )
+          if (usePartial) {
+            for (const id of instIds) {
+              if (missingIds.includes(id)) continue
+              const prev = getCachedInstitution(id)
+              if (prev) nextAttempts = nextAttempts.concat(prev.attempts)
+            }
+          }
         }
         if (cancelled) return
-        setStudents(nextStudents)
-        setTrails(nextTrails)
-        setStudentTrails(nextStudentTrails)
-        setAttempts(nextAttempts)
+
+        cacheSplit({
+          students: nextStudents,
+          trails: nextTrails,
+          studentTrails: nextStudentTrails,
+          attempts: nextAttempts,
+          stages: [],
+          questions: [],
+        })
+
+        const merged = mergeCachedInstitutions(instIds)
+        if (merged) {
+          applyCoreSnapshot(merged, scopeKey)
+        } else {
+          setStudents(nextStudents)
+          setTrails(nextTrails)
+          setStudentTrails(nextStudentTrails)
+          setAttempts(nextAttempts)
+          setDataScopeKey(scopeKey)
+          setHasDashboardContent(true)
+        }
         setDataError(null)
+        setIsRefreshing(false)
         done('students')
         done('trails')
         done('studentTrails')
@@ -905,10 +1071,13 @@ export function DashboardPage() {
         const message =
           err instanceof Error ? err.message : 'Erro ao carregar dados.'
         setDataError(message)
-        setStudents([])
-        setTrails([])
-        setStudentTrails([])
-        setAttempts([])
+        if (!hasDashboardContent) {
+          setStudents([])
+          setTrails([])
+          setStudentTrails([])
+          setAttempts([])
+        }
+        setIsRefreshing(false)
         done('students')
         done('trails')
         done('studentTrails')
@@ -919,6 +1088,8 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
+    // hasDashboardContent intencional fora das deps (só gate de UI).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdsKey, activeInstitutionIds])
 
   const trailIdsKey = useMemo(
@@ -959,6 +1130,7 @@ export function DashboardPage() {
         syncLoadProgress('Carregando conteúdo das trilhas…')
         if (source === 'questions') {
           setLoadingMeta(false)
+          setIsRefreshing(false)
         }
       }
 
@@ -970,7 +1142,12 @@ export function DashboardPage() {
         return
       }
 
-      setLoadingMeta(true)
+      // Com meta já no cache do escopo atual, só revalida em silêncio.
+      const metaFromCache =
+        dataScopeKey === selectedIdsKey &&
+        stages.length > 0 &&
+        questions.length > 0
+      if (!metaFromCache) setLoadingMeta(true)
       const chunks = chunkArray(trailIds, FIRESTORE_IN_LIMIT)
 
       try {
@@ -985,7 +1162,10 @@ export function DashboardPage() {
           ),
         )
         if (cancelled) return
-        setStages(stageSnaps.flatMap((snap) => snap.docs.map(snapshotToTrailStage)))
+        const nextStages = stageSnaps.flatMap((snap) =>
+          snap.docs.map(snapshotToTrailStage),
+        )
+        setStages(nextStages)
         metaDone('stages')
 
         const questionSnaps = await Promise.all(
@@ -999,17 +1179,30 @@ export function DashboardPage() {
           ),
         )
         if (cancelled) return
-        setQuestions(
-          questionSnaps.flatMap((snap) =>
-            snap.docs.map(snapshotToTrailStageQuestion),
-          ),
+        const nextQuestions = questionSnaps.flatMap((snap) =>
+          snap.docs.map(snapshotToTrailStageQuestion),
         )
+        setQuestions(nextQuestions)
+        // Atualiza cache por instituição com stages/questions.
+        for (const id of activeInstitutionIds) {
+          const prev = getCachedInstitution(id)
+          if (!prev) continue
+          const trailIdSet = new Set(prev.trails.map((t) => t.id))
+          setCachedInstitution(id, {
+            ...prev,
+            stages: nextStages.filter((s) => trailIdSet.has(s.trail_id)),
+            questions: nextQuestions.filter((q) => trailIdSet.has(q.trail_id)),
+            loadedAt: Date.now(),
+          })
+        }
         metaDone('questions')
       } catch (err) {
         if (cancelled) return
         setDataError(err instanceof Error ? err.message : 'Erro ao carregar conteúdo.')
-        setStages([])
-        setQuestions([])
+        if (!hasDashboardContent) {
+          setStages([])
+          setQuestions([])
+        }
         metaDone('stages')
         metaDone('questions')
       }
@@ -1631,7 +1824,8 @@ export function DashboardPage() {
   }, [sortedFilteredStudentRows.length, studentPage])
 
   // Cards de resumo — refletem os filtros da tabela de alunos
-  // (busca e faixa de % conclusão).
+  // (busca e faixa de % conclusão). Acerto = mesma função do Início
+  // (accuracyFromActiveStudents em todas as trilhas do escopo).
   const summary = useMemo(() => {
     const activeRows = filteredStudentRows.filter((r) => r.student.active)
 
@@ -1639,15 +1833,11 @@ export function DashboardPage() {
     let releasedTotal = 0
     let lessonsDoneTotal = 0
     let lessonsReleasedTotal = 0
-    let correct = 0
-    let total = 0
     for (const row of activeRows) {
       doneTotal += row.done
       releasedTotal += row.released
       lessonsDoneTotal += row.lessonsDone
       lessonsReleasedTotal += row.lessonsReleased
-      correct += row.correct
-      total += row.correct + row.wrong
     }
 
     const avgCompletion =
@@ -1660,8 +1850,29 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    const avgAccuracy =
-      total > 0 ? Math.round((correct / total) * 1000) / 10 : null
+    // Acerto unificado com Início. Só publica o % quando o escopo dos dados
+    // bate com a seleção (evita 50,9% → 68,3% no multi a meio do load).
+    const scopeReady = dataScopeKey === selectedIdsKey && !loadingData
+    const activeIds = new Set(activeRows.map((r) => r.student.id))
+    const allTrailIds = new Set(trails.map((t) => t.id))
+    let avgAccuracy: number | null = null
+    if (scopeReady) {
+      avgAccuracy = accuracyFromActiveStudents({
+        activeStudentIds: activeIds,
+        attempts,
+        trailIds: allTrailIds.size > 0 ? allTrailIds : undefined,
+      }).avgAccuracy
+    } else {
+      // Keep-previous: mantém o agregado das linhas visíveis (não flash N/A).
+      let correct = 0
+      let total = 0
+      for (const row of activeRows) {
+        correct += row.correct
+        total += row.correct + row.wrong
+      }
+      avgAccuracy =
+        total > 0 ? Math.round((correct / total) * 1000) / 10 : null
+    }
 
     return {
       activeStudents: activeRows.length,
@@ -1670,7 +1881,15 @@ export function DashboardPage() {
       avgLessonCompletion,
       avgAccuracy,
     }
-  }, [filteredStudentRows, activeTrails])
+  }, [
+    filteredStudentRows,
+    activeTrails,
+    dataScopeKey,
+    selectedIdsKey,
+    loadingData,
+    trails,
+    attempts,
+  ])
 
   const studentsCharts = useMemo(() => {
     const completionBuckets = [
@@ -2431,11 +2650,17 @@ export function DashboardPage() {
   // Não espera conversation_logs / dashboard_summary (pode levar dezenas de s).
   // Progresso e acerto vêm de student_trails + exercise_attempts; uso do monitor
   // carrega em paralelo com spinner próprio.
+  // BootSymbol só no 1º load (sem conteúdo). Trocas usam keep-previous + hint.
   const isDashboardLoading =
-    Boolean(selectedId) && (loadingData || loadingMeta)
+    Boolean(selectedId || activeInstitutionIds.length > 0) &&
+    !hasDashboardContent &&
+    (loadingData || loadingMeta)
+  const isDashboardRefreshing =
+    hasDashboardContent &&
+    (isRefreshing || loadingData || loadingMeta)
 
   useEffect(() => {
-    if (isDashboardLoading) return
+    if (isDashboardLoading || isDashboardRefreshing) return
     loadTargetPercentRef.current = 0
     if (selectedId && dashboardLoadStartedAtRef.current > 0) {
       const ms = Math.round(performance.now() - dashboardLoadStartedAtRef.current)
@@ -2445,10 +2670,10 @@ export function DashboardPage() {
         `[dashboard] pronto em ${ms}ms (institution_id=${selectedId})`,
       )
     }
-  }, [isDashboardLoading, selectedId])
+  }, [isDashboardLoading, isDashboardRefreshing, selectedId])
 
   useEffect(() => {
-    if (!isDashboardLoading) return
+    if (!isDashboardLoading && !isDashboardRefreshing) return
 
     const id = window.setInterval(() => {
       const target = loadTargetPercentRef.current
@@ -2460,7 +2685,7 @@ export function DashboardPage() {
     }, 40)
 
     return () => window.clearInterval(id)
-  }, [isDashboardLoading, loadStepsDone, loadStepsTotal])
+  }, [isDashboardLoading, isDashboardRefreshing, loadStepsDone, loadStepsTotal])
 
   const institutionOptions = sortedInstitutions.map((inst) => ({
     id: inst.id,
@@ -2689,6 +2914,7 @@ export function DashboardPage() {
       dataError={dataError}
       exportError={exportError}
       isDashboardLoading={isDashboardLoading}
+      isDashboardRefreshing={isDashboardRefreshing}
       loadLabel={loadLabel}
       loadPercent={loadPercent}
       logsError={logsError}

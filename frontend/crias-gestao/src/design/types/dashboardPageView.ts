@@ -223,6 +223,8 @@ export type DashboardPageViewProps = {
   dataError: string | null
   exportError: string | null
   isDashboardLoading: boolean
+  /** Troca de instituição com conteúdo anterior visível (sem BootSymbol). */
+  isDashboardRefreshing?: boolean
   loadLabel: string
   loadPercent: number
   logsError: string | null

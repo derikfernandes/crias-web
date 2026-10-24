@@ -360,10 +360,17 @@ export function institutionMetrics(input: {
     }
   }
 
+  // Acerto: por student_id dos ativos, em QUALQUER trilha da instituição
+  // (ativa ou não). Filtrar só ativas inflava o % (ex.: Sol 86% vs DB ~68%).
+  const allInstTrailIds = new Set(
+    input.trails
+      .filter((t) => t.institution_id === input.institutionId)
+      .map((t) => t.id),
+  )
   const acc = accuracyFromActiveStudents({
     activeStudentIds: activeIds,
     attempts: input.attempts,
-    trailIds,
+    trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
   })
 
   return {

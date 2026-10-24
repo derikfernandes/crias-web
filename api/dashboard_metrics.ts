@@ -165,9 +165,27 @@ async function handleRequest(request: Request): Promise<Response> {
           'X-Metrics-Cache': 'DERIVED',
         })
       }
-    } catch {
-      // segue para warm completo
+    } catch (e) {
+      console.warn(
+        '[dashboard_metrics] DERIVED falhou',
+        institutionId,
+        e instanceof Error ? e.message : e,
+      )
     }
+
+    // Sem refresh=1: NÃO recalcula Sol (57k). Cron / botão Atualizar usam refresh.
+    void warmInstitutionSummary(institutionId).catch((err) => {
+      console.warn(
+        '[dashboard_metrics] warm background falhou',
+        institutionId,
+        err instanceof Error ? err.message : err,
+      )
+    })
+    return respond(503, {
+      error:
+        'Métricas ainda não disponíveis para esta instituição. Tente de novo em alguns minutos.',
+      code: 'metrics_warming',
+    })
   }
 
   try {
@@ -186,9 +204,17 @@ async function handleRequest(request: Request): Promise<Response> {
     })
     return respond(200, fresh.metrics as unknown as Json, {
       'Cache-Control': 'private, max-age=60',
-      'X-Metrics-Cache': forceRefresh ? 'REFRESH' : 'MISS',
+      'X-Metrics-Cache': 'REFRESH',
+      ...(fresh.metaBytes
+        ? { 'X-Metrics-Meta-Bytes': String(fresh.metaBytes) }
+        : {}),
     })
   } catch (e) {
+    console.error(
+      '[dashboard_metrics] refresh falhou',
+      institutionId,
+      e instanceof Error ? e.message : e,
+    )
     return respond(500, {
       error: e instanceof Error ? e.message : 'Erro interno',
     })

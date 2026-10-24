@@ -254,10 +254,14 @@ function parseMetrics(body: MetricsResponse): InstitutionDashboardMetricsView {
 
 const inflight = new Map<string, Promise<InstitutionDashboardMetricsView>>()
 
-/** Fetch métricas; usa sessão; SWR se já houver cache. */
+/** Timeout do client: evita "Carregando…" eterno se a function travar. */
+export const METRICS_CLIENT_TIMEOUT_MS = 10_000
+
+/** Fetch métricas; usa sessão; SWR se já houver cache.
+ *  `force` (refresh=1) só para botão Atualizar explícito — nunca no load normal. */
 export async function fetchInstitutionMetrics(
   institutionId: string,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; timeoutMs?: number },
 ): Promise<InstitutionDashboardMetricsView> {
   const id = institutionId.trim()
   if (!id) throw new Error('institution_id vazio')
@@ -269,17 +273,34 @@ export async function fetchInstitutionMetrics(
     if (pending) return pending
   }
 
+  const timeoutMs = opts?.timeoutMs ?? METRICS_CLIENT_TIMEOUT_MS
+
   const run = (async () => {
     const url = new URL('/api/dashboard_metrics', resolveApiBaseUrl())
     url.searchParams.set('institution_id', id)
     if (opts?.force) url.searchParams.set('refresh', '1')
     const headers = await gestaoAuthHeaders()
     const started = performance.now()
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: { Accept: 'application/json', ...headers },
-      credentials: 'same-origin',
-    })
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+    let res: Response
+    try {
+      res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { Accept: 'application/json', ...headers },
+        credentials: 'same-origin',
+        signal: controller.signal,
+      })
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error(
+          `Tempo esgotado ao carregar métricas (${Math.round(timeoutMs / 1000)}s).`,
+        )
+      }
+      throw err
+    } finally {
+      window.clearTimeout(timer)
+    }
     const body = (await res.json().catch(() => null)) as MetricsResponse | null
     if (!res.ok) {
       throw new Error(

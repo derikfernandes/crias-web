@@ -72,6 +72,13 @@ const CACHE_COLLECTION = 'gestao_dashboard_cache'
 const recomputeInflight = new Map<string, Promise<void>>()
 /** Bem abaixo do limite de 1 MiB do Firestore (~900KB pedido). */
 const MAX_CHUNK_JSON_BYTES = 800_000
+/**
+ * Orçamento do doc meta (agent_usage + metrics + campos). Firestore = 1 MiB.
+ * Sol estoura se metrics repetir agent completo + exercise_pills + students.
+ */
+const MAX_META_BUDGET_BYTES = 900_000
+/** Sidecar de exercise_pills + students (fora do meta). */
+const METRICS_SIDECAR_SUFFIX = '_m'
 
 const PERIOD_KEYS = [0, 7, 30] as const
 type PeriodKey = (typeof PERIOD_KEYS)[number]
@@ -280,6 +287,103 @@ function compactAgentUsageByPeriod(byPeriod: AgentUsageByPeriod): Json {
   }
 }
 
+type StoredMetrics = InstitutionDashboardMetrics & {
+  /** true → exercise_pills/students estão em `{id}_m`. */
+  metrics_sidecar?: boolean
+}
+
+type MetricsStorageParts = {
+  metaMetrics: StoredMetrics
+  sidecar: {
+    exercise_pills: InstitutionDashboardMetrics['exercise_pills']
+    students: InstitutionDashboardMetrics['students']
+  } | null
+}
+
+function emptyAgentStub(periodDays: number): AgentUsageAggregate {
+  return {
+    period_days: periodDays,
+    total_messages: 0,
+    agents: [],
+    series: [],
+  }
+}
+
+/**
+ * Empacota metrics para o meta caber sob 1 MiB.
+ * - Não duplica agent_usage gordo no metrics (meta já tem o campo top-level).
+ * - Se exercise_pills+students estouram o orçamento, vão para `{id}_m`.
+ */
+export function packMetricsForMeta(
+  metrics: InstitutionDashboardMetrics,
+  agentUsageBytes: number,
+): MetricsStorageParts {
+  // Stub vazio: readMetricsFromCache reinsere o agent do meta.
+  const base: StoredMetrics = {
+    ...metrics,
+    agent_usage_by_period: {
+      '0': emptyAgentStub(0),
+      '7': emptyAgentStub(7),
+      '30': emptyAgentStub(30),
+    },
+  }
+
+  const overhead = 2_000 + agentUsageBytes
+  const budget = Math.max(80_000, MAX_META_BUDGET_BYTES - overhead)
+  if (JSON.stringify(base).length <= budget) {
+    return { metaMetrics: base, sidecar: null }
+  }
+
+  const sidecar = {
+    exercise_pills: base.exercise_pills,
+    students: base.students,
+  }
+  const withFlag: StoredMetrics = {
+    ...base,
+    exercise_pills: [],
+    students: [],
+    metrics_sidecar: true,
+  }
+  if (JSON.stringify(withFlag).length > budget) {
+    withFlag.stage_bars = withFlag.stage_bars.slice(0, 80)
+  }
+  return { metaMetrics: withFlag, sidecar }
+}
+
+/** Aplica sidecar ao metrics lido do meta. */
+async function inflateMetricsSidecar(
+  db: Firestore,
+  institutionId: string,
+  metrics: StoredMetrics,
+): Promise<InstitutionDashboardMetrics> {
+  if (!metrics.metrics_sidecar) {
+    const { metrics_sidecar: _f, ...rest } = metrics
+    return rest
+  }
+  const snap = await db
+    .collection(CACHE_COLLECTION)
+    .doc(`${institutionId}${METRICS_SIDECAR_SUFFIX}`)
+    .get()
+  const { metrics_sidecar: _flag, ...rest } = metrics
+  if (!snap.exists) return rest
+  const data = snap.data() as Record<string, unknown>
+  const pills = Array.isArray(data.exercise_pills)
+    ? (data.exercise_pills as InstitutionDashboardMetrics['exercise_pills'])
+    : rest.exercise_pills
+  const students = Array.isArray(data.students)
+    ? (data.students as InstitutionDashboardMetrics['students'])
+    : rest.students
+  return {
+    ...rest,
+    exercise_pills: pills,
+    students,
+    exercise_count:
+      typeof rest.exercise_count === 'number' && rest.exercise_count > 0
+        ? rest.exercise_count
+        : pills.length,
+  }
+}
+
 /**
  * Reconstrói AgentUsageAggregate a partir do compacto do meta.
  * student_stats / student_ids ficam vazios (drill-down só no MISS / L1 quente).
@@ -454,7 +558,7 @@ export async function readMetricsFromCache(
   db: Firestore,
   institutionId: string,
   opts?: { allowStale?: boolean },
-): Promise<{ metrics: InstitutionDashboardMetrics; stale: boolean } | null> {
+): Promise<{ metrics: InstitutionDashboardMetrics; stale: boolean; metaBytes?: number } | null> {
   const metaRef = db.collection(CACHE_COLLECTION).doc(institutionId)
   const metaSnap = await metaRef.get()
   if (!metaSnap.exists) return null
@@ -468,16 +572,21 @@ export async function readMetricsFromCache(
   if (stale && !opts?.allowStale) return null
   const metricsRaw = meta.metrics
   if (!metricsRaw || typeof metricsRaw !== 'object') return null
-  const metrics = metricsRaw as InstitutionDashboardMetrics
-  // Garante agent_usage no doc de métricas (compat meta antigo).
-  if (!metrics.agent_usage_by_period) {
-    metrics.agent_usage_by_period = inflateAgentUsageByPeriod(
-      meta.agent_usage_by_period,
-    )
+  let metrics = metricsRaw as StoredMetrics
+  // Agent no metrics é stub; o canônico é o top-level do meta.
+  metrics = {
+    ...metrics,
+    agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
   }
   if (!metrics.computed_at) metrics.computed_at = computedAt
   if (!metrics.institution_id) metrics.institution_id = institutionId
-  return { metrics, stale }
+  metrics = (await inflateMetricsSidecar(
+    db,
+    institutionId,
+    metrics,
+  )) as StoredMetrics
+  const metaBytes = JSON.stringify(meta).length
+  return { metrics, stale, metaBytes }
 }
 
 async function writeFirestoreCache(
@@ -487,6 +596,9 @@ async function writeFirestoreCache(
   const col = db.collection(CACHE_COLLECTION)
   const chunks = chunkStudentsMap(payload.students)
   const metaRef = col.doc(payload.institution_id)
+  const sidecarRef = col.doc(
+    `${payload.institution_id}${METRICS_SIDECAR_SUFFIX}`,
+  )
 
   // Lê chunk_count anterior para limpar sobras se o novo tiver menos chunks.
   let previousChunkCount = 0
@@ -500,6 +612,12 @@ async function writeFirestoreCache(
     // best-effort
   }
 
+  const agentCompact = compactAgentUsageByPeriod(payload.agent_usage_by_period)
+  const agentUsageBytes = JSON.stringify(agentCompact).length
+  const packed = payload.metrics
+    ? packMetricsForMeta(payload.metrics, agentUsageBytes)
+    : null
+
   const batch = db.batch()
   batch.set(metaRef, {
     institution_id: payload.institution_id,
@@ -507,8 +625,9 @@ async function writeFirestoreCache(
     student_count: payload.student_count,
     computed_at: Date.now(),
     chunk_count: chunks.length,
-    agent_usage_by_period: compactAgentUsageByPeriod(payload.agent_usage_by_period),
-    ...(payload.metrics ? { metrics: payload.metrics } : {}),
+    agent_usage_by_period: agentCompact,
+    metrics_sidecar: Boolean(packed?.sidecar),
+    ...(packed ? { metrics: packed.metaMetrics } : {}),
   })
 
   chunks.forEach((students, i) => {
@@ -523,7 +642,62 @@ async function writeFirestoreCache(
     batch.delete(col.doc(`${payload.institution_id}_s${i}`))
   }
 
+  if (packed?.sidecar) {
+    batch.set(sidecarRef, {
+      institution_id: payload.institution_id,
+      exercise_pills: packed.sidecar.exercise_pills,
+      students: packed.sidecar.students,
+    })
+  } else {
+    batch.delete(sidecarRef)
+  }
+
   await batch.commit()
+}
+
+/** Grava só metrics (DERIVED) sem reescrever chunks de answers. */
+async function writeMetricsOnly(
+  db: Firestore,
+  institutionId: string,
+  metrics: InstitutionDashboardMetrics,
+): Promise<{ metaBytes: number; sidecar: boolean }> {
+  const col = db.collection(CACHE_COLLECTION)
+  const metaRef = col.doc(institutionId)
+  const sidecarRef = col.doc(`${institutionId}${METRICS_SIDECAR_SUFFIX}`)
+
+  let agentUsageBytes = 0
+  try {
+    const prev = await metaRef.get()
+    if (prev.exists) {
+      const raw = (prev.data() as Record<string, unknown>).agent_usage_by_period
+      if (raw) agentUsageBytes = JSON.stringify(raw).length
+    }
+  } catch {
+    // ignore
+  }
+
+  const packed = packMetricsForMeta(metrics, agentUsageBytes)
+  const metaPatch = {
+    metrics: packed.metaMetrics,
+    computed_at: Date.now(),
+    metrics_sidecar: Boolean(packed.sidecar),
+  }
+  const batch = db.batch()
+  batch.set(metaRef, metaPatch, { merge: true })
+  if (packed.sidecar) {
+    batch.set(sidecarRef, {
+      institution_id: institutionId,
+      exercise_pills: packed.sidecar.exercise_pills,
+      students: packed.sidecar.students,
+    })
+  } else {
+    batch.delete(sidecarRef)
+  }
+  await batch.commit()
+  return {
+    metaBytes: JSON.stringify(metaPatch).length + agentUsageBytes,
+    sidecar: Boolean(packed.sidecar),
+  }
 }
 
 async function handleRequest(request: Request): Promise<Response> {
@@ -817,11 +991,11 @@ export async function ensureMetricsFromExistingCache(
     expires: Date.now() + SUMMARY_CACHE_TTL_MS,
     payload,
   })
-  // Atualiza só o meta (mantém chunks).
-  await db
-    .collection(CACHE_COLLECTION)
-    .doc(institutionId)
-    .set({ metrics, computed_at: Date.now() }, { merge: true })
+  // Atualiza só o meta (+ sidecar se preciso); mantém chunks de answers.
+  const wrote = await writeMetricsOnly(db, institutionId, metrics)
+  console.info(
+    `[dashboard_summary] DERIVED metrics ${institutionId} meta~${wrote.metaBytes}B sidecar=${wrote.sidecar}`,
+  )
 
   return metrics
 }

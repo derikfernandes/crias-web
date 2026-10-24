@@ -61,13 +61,21 @@ async function handleRequest(request: Request): Promise<Response> {
   // Default: Sol (maior) — 1º acesso do dia das escolas.
   if (unique.length === 0) unique.push('i2')
 
-  const results: Record<string, string> = {}
+  const results: Record<
+    string,
+    { ok: boolean; ms: number; error?: string }
+  > = {}
   for (const id of unique) {
+    const t0 = Date.now()
     try {
       await warmInstitutionSummary(id)
-      results[id] = 'ok'
+      results[id] = { ok: true, ms: Date.now() - t0 }
     } catch (e) {
-      results[id] = e instanceof Error ? e.message : 'erro'
+      results[id] = {
+        ok: false,
+        ms: Date.now() - t0,
+        error: e instanceof Error ? e.message : 'erro',
+      }
     }
   }
 

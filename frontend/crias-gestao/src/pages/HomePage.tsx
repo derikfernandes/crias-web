@@ -53,11 +53,11 @@ import {
 
 function StatsRow({
   m,
-  acertoLoading,
+  metricsLoading,
 }: {
   m: InstitutionMetrics
-  /** answerMap ainda não chegou → Carregando… (nunca N/A parcial). */
-  acertoLoading?: boolean
+  /** Métricas do servidor ainda não chegaram → Carregando… (nunca % parcial). */
+  metricsLoading?: boolean
 }) {
   return (
     <div className="gx-stats">
@@ -65,13 +65,13 @@ function StatsRow({
       <Stat label="Trilhas ativas" value={m.activeTrails} />
       <Stat
         label="Conclusão média"
-        value={formatPct(m.avgCompletion)}
-        bar={m.avgCompletion}
+        value={metricsLoading ? 'Carregando…' : formatPct(m.avgCompletion)}
+        bar={metricsLoading ? null : m.avgCompletion}
       />
       <Stat
         label="Acerto médio"
-        value={acertoLoading ? 'Carregando…' : formatPct(m.avgAccuracy)}
-        bar={acertoLoading ? null : m.avgAccuracy}
+        value={metricsLoading ? 'Carregando…' : formatPct(m.avgAccuracy)}
+        bar={metricsLoading ? null : m.avgAccuracy}
         barTone="green"
       />
     </div>
@@ -106,10 +106,18 @@ function ArrowButton({
 function SuperHome({
   metrics,
   metricsReady,
+  metricsFailed,
+  metricsError,
+  onRetryMetrics,
+  onForceRefreshMetrics,
 }: {
   metrics: Map<string, InstitutionMetrics>
   /** Instituições cujo /api/dashboard_metrics já chegou. */
   metricsReady: ReadonlySet<string>
+  metricsFailed: ReadonlySet<string>
+  metricsError: string | null
+  onRetryMetrics: () => void
+  onForceRefreshMetrics: () => void
 }) {
   const g = useGestao()
   const navigate = useNavigate()
@@ -125,6 +133,9 @@ function SuperHome({
       [...metricsReady].map((id) => [id, new Map<string, string>()] as const),
     )
     const acertoReady = inicioAcertoReady(scopedIds, readyMap)
+    const settled = scopedIds.every(
+      (id) => metricsReady.has(id) || metricsFailed.has(id),
+    )
     const combinedAcerto = acertoReady
       ? mergeAcertoAggregates(
           list
@@ -148,10 +159,10 @@ function SuperHome({
         { label: 'Em andamento', value: sum((m) => m.inProgress) },
       ],
       combinedAccuracy: combinedAcerto?.avgAccuracy ?? null,
-      combinedLoading: g.scopedInstitutions.length > 1 && !acertoReady,
+      combinedLoading: g.scopedInstitutions.length > 1 && !settled,
       showCombinedAccuracy: g.scopedInstitutions.length > 1,
     }
-  }, [g.scopedInstitutions, metrics, metricsReady])
+  }, [g.scopedInstitutions, metrics, metricsReady, metricsFailed])
 
   function openScoped(inst: Institution, path: string) {
     g.setSelectedIds(new Set([inst.id]))
@@ -167,6 +178,14 @@ function SuperHome({
         subtitle="Resumo das instituições cadastradas."
         actions={
           <>
+            <button
+              type="button"
+              className="gx-btn gx-btn--outline"
+              onClick={onForceRefreshMetrics}
+              title="Recalcular métricas no servidor"
+            >
+              Atualizar
+            </button>
             {canNav('admin') ? (
               <Link to="/usuarios" className="gx-btn">
                 Usuários
@@ -184,6 +203,9 @@ function SuperHome({
         <p className="gx-empty">Nenhuma instituição disponível para o seu usuário.</p>
       ) : (
         <>
+          {metricsError ? (
+            <Banner onRetry={onRetryMetrics}>{metricsError}</Banner>
+          ) : null}
           <div className="gx-stats" aria-label="Resumo">
             {totals.cards.map((t) => (
               <Stat
@@ -211,7 +233,8 @@ function SuperHome({
             {g.scopedInstitutions.map((inst) => {
               const m = metrics.get(inst.id)
               const instName = inst.name || inst.id
-              const acertoLoading = !metricsReady.has(inst.id)
+              const metricsLoading =
+                !metricsReady.has(inst.id) && !metricsFailed.has(inst.id)
               return (
                 <article className="gx-card" key={inst.id}>
                   <header className="gx-card__head">
@@ -237,7 +260,20 @@ function SuperHome({
                       />
                     </div>
                   </header>
-                  {m ? <StatsRow m={m} acertoLoading={acertoLoading} /> : null}
+                  {metricsFailed.has(inst.id) && !metricsReady.has(inst.id) ? (
+                    <p className="gx-muted" role="alert">
+                      Não foi possível carregar as métricas.{' '}
+                      <button
+                        type="button"
+                        className="gx-btn gx-btn--outline"
+                        onClick={onRetryMetrics}
+                      >
+                        Tentar de novo
+                      </button>
+                    </p>
+                  ) : m ? (
+                    <StatsRow m={m} metricsLoading={metricsLoading} />
+                  ) : null}
                 </article>
               )
             })}
@@ -261,14 +297,20 @@ type StudentLine = {
 function SchoolHome({
   institution,
   metrics,
-  acertoLoading,
+  metricsLoading,
+  metricsFailed,
+  metricsError,
+  onRetryMetrics,
   trails,
   students,
   studentTrails,
 }: {
   institution: Institution
   metrics: InstitutionMetrics | undefined
-  acertoLoading?: boolean
+  metricsLoading?: boolean
+  metricsFailed?: boolean
+  metricsError?: string | null
+  onRetryMetrics?: () => void
   trails: Trail[]
   students: Student[]
   studentTrails: StudentTrail[]
@@ -432,7 +474,23 @@ function SchoolHome({
           <ArrowButton label="Dados" onClick={() => navigate('/dashboard')} />
         </div>
       ) : null}
-      {metrics ? <StatsRow m={metrics} acertoLoading={acertoLoading} /> : null}
+      {metricsError ? (
+        <Banner onRetry={onRetryMetrics}>{metricsError}</Banner>
+      ) : null}
+      {metricsFailed && !metrics ? (
+        <p className="gx-muted" role="alert">
+          Não foi possível carregar as métricas.{' '}
+          <button
+            type="button"
+            className="gx-btn gx-btn--outline"
+            onClick={onRetryMetrics}
+          >
+            Tentar de novo
+          </button>
+        </p>
+      ) : metrics ? (
+        <StatsRow m={metrics} metricsLoading={metricsLoading} />
+      ) : null}
 
       {canNav('trail_new') ? (
         <div style={{ display: 'flex' }}>
@@ -608,6 +666,11 @@ export function HomePage() {
     }
     return seed
   })
+  const [metricsFailed, setMetricsFailed] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [metricsError, setMetricsError] = useState<string | null>(null)
+  const [metricsRetryKey, setMetricsRetryKey] = useState(0)
 
   const instIdsKey = useMemo(
     () => g.institutions.map((i) => i.id).sort().join('|'),
@@ -619,6 +682,8 @@ export function HomePage() {
     const ids = g.institutions.map((i) => i.id).filter(Boolean)
     if (ids.length === 0) {
       setServerMetrics(new Map())
+      setMetricsFailed(new Set())
+      setMetricsError(null)
       return
     }
 
@@ -630,6 +695,8 @@ export function HomePage() {
       }
       return next
     })
+    setMetricsFailed(new Set())
+    setMetricsError(null)
 
     const missing = ids.filter((id) => !getCachedMetrics(id))
     missing.sort((a, b) => {
@@ -637,41 +704,110 @@ export function HomePage() {
       if (b === 'i2') return 1
       return a.localeCompare(b)
     })
-    // Revalida todas em background (SWR); faltantes primeiro.
+    // Lê cache (sem refresh=1). Faltantes primeiro; já em sessão em background.
     const order = [...missing, ...ids.filter((id) => getCachedMetrics(id))]
     const unique = [...new Set(order)]
 
     void (async () => {
       const started = performance.now()
       const [first, ...rest] = unique
-      const loadOne = async (id: string, force: boolean) => {
+      const failed = new Set<string>()
+      let firstError: string | null = null
+      const loadOne = async (id: string) => {
         try {
-          const m = await fetchInstitutionMetrics(id, { force })
+          // Nunca force no load: só leitura de cache / DERIVED.
+          const m = await fetchInstitutionMetrics(id)
           if (cancelled) return
           setServerMetrics((prev) => {
             const next = new Map(prev)
             next.set(id, m)
             return next
           })
-        } catch {
-          // Mantém cache anterior se houver.
+          setMetricsFailed((prev) => {
+            if (!prev.has(id)) return prev
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        } catch (err) {
+          if (cancelled) return
+          failed.add(id)
+          if (!firstError) {
+            firstError =
+              err instanceof Error
+                ? err.message
+                : 'Não foi possível carregar as métricas.'
+          }
+          setMetricsFailed((prev) => {
+            const next = new Set(prev)
+            next.add(id)
+            return next
+          })
         }
       }
-      if (first) await loadOne(first, !getCachedMetrics(first))
-      await Promise.all(
-        rest.map((id) => loadOne(id, !getCachedMetrics(id))),
-      )
+      if (first) await loadOne(first)
+      await Promise.all(rest.map((id) => loadOne(id)))
       if (!cancelled) {
+        setMetricsError(
+          failed.size > 0
+            ? firstError ??
+                `Não foi possível carregar métricas (${failed.size}).`
+            : null,
+        )
         console.info(
-          `[inicio] metrics em ${Math.round(performance.now() - started)}ms (${unique.length} inst)`,
+          `[inicio] metrics em ${Math.round(performance.now() - started)}ms (${unique.length} inst) fail=${failed.size}`,
         )
       }
     })()
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
-  }, [instIdsKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey + retry
+  }, [instIdsKey, metricsRetryKey])
+
+  const retryMetrics = () => {
+    setMetricsError(null)
+    setMetricsFailed(new Set())
+    setMetricsRetryKey((k) => k + 1)
+  }
+
+  /** Recalc explícito (refresh=1). Cron também regenera; load normal nunca força. */
+  const forceRefreshMetrics = () => {
+    void (async () => {
+      const ids = g.institutions.map((i) => i.id).filter(Boolean)
+      setMetricsError(null)
+      setMetricsFailed(new Set())
+      const failed = new Set<string>()
+      let firstError: string | null = null
+      for (const id of ids) {
+        try {
+          const m = await fetchInstitutionMetrics(id, {
+            force: true,
+            timeoutMs: 55_000,
+          })
+          setServerMetrics((prev) => {
+            const next = new Map(prev)
+            next.set(id, m)
+            return next
+          })
+        } catch (err) {
+          failed.add(id)
+          if (!firstError) {
+            firstError =
+              err instanceof Error
+                ? err.message
+                : 'Falha ao atualizar métricas.'
+          }
+        }
+      }
+      setMetricsFailed(failed)
+      setMetricsError(
+        failed.size > 0
+          ? firstError ?? `Falha ao atualizar (${failed.size}).`
+          : null,
+      )
+    })()
+  }
 
   // Alunos/conclusão local; acerto vem do doc de métricas (sem 57k answers).
   const ready =
@@ -751,12 +887,24 @@ export function HomePage() {
         </Banner>
       ) : null}
       {g.isSuper || !mine ? (
-        <SuperHome metrics={metrics} metricsReady={metricsReady} />
+        <SuperHome
+          metrics={metrics}
+          metricsReady={metricsReady}
+          metricsFailed={metricsFailed}
+          metricsError={metricsError}
+          onRetryMetrics={retryMetrics}
+          onForceRefreshMetrics={forceRefreshMetrics}
+        />
       ) : (
         <SchoolHome
           institution={mine}
           metrics={metrics.get(mine.id)}
-          acertoLoading={!metricsReady.has(mine.id)}
+          metricsLoading={
+            !metricsReady.has(mine.id) && !metricsFailed.has(mine.id)
+          }
+          metricsFailed={metricsFailed.has(mine.id)}
+          metricsError={metricsError}
+          onRetryMetrics={retryMetrics}
           trails={trails.rows.filter((t) => t.institution_id === mine.id)}
           students={students.rows.filter((s) => s.institution_id === mine.id)}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}

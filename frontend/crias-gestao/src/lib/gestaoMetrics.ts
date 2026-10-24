@@ -1,3 +1,10 @@
+import {
+  accuracyAggregate,
+  answersFromAnswerMap,
+  answersFromAttempts,
+  gabaritoFromQuestions,
+  mergeAnswerSources,
+} from './acertoMedio'
 import type { ExerciseAttempt } from '../types/exerciseAttempt'
 import type { Student } from '../types/student'
 import type { StudentTrail } from '../types/studentTrail'
@@ -289,6 +296,23 @@ export function institutionMetrics(input: {
   /** Catálogo (stage, question) por trilha; se omitido, usa total numérico legado. */
   activityCatalogs?: Map<string, ActivityKey[]>
   attempts: ExerciseAttempt[]
+  /**
+   * Respostas densas (dashboard_summary / conversation_logs).
+   * Quando presente com `questions`, o acerto usa a definição unificada
+   * (exclui Continuar/0; logs + attempts) — não só exercise_attempts.
+   */
+  answerMap?: Map<string, string>
+  questions?: Array<
+    Pick<
+      TrailStageQuestion,
+      | 'trail_id'
+      | 'stage_number'
+      | 'question_number'
+      | 'correct_option'
+      | 'annulled'
+      | 'active'
+    >
+  >
   extraLastActivityMs?: Map<string, number>
   now?: number
 }): InstitutionMetrics {
@@ -360,18 +384,36 @@ export function institutionMetrics(input: {
     }
   }
 
-  // Acerto: por student_id dos ativos, em QUALQUER trilha da instituição
-  // (ativa ou não). Filtrar só ativas inflava o % (ex.: Sol 86% vs DB ~68%).
+  // Acerto unificado: logs densos + attempts, exclui Continuar/0.
+  // Só attempts na Sol ≈ 86% (136 docs); com logs ≈ 68,1% (fonte correta).
   const allInstTrailIds = new Set(
     input.trails
       .filter((t) => t.institution_id === input.institutionId)
       .map((t) => t.id),
   )
-  const acc = accuracyFromActiveStudents({
-    activeStudentIds: activeIds,
-    attempts: input.attempts,
-    trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
-  })
+  let avgAccuracy: number | null
+  const hasDenseLogs = Boolean(input.answerMap && input.answerMap.size > 0)
+  if (hasDenseLogs && input.questions && input.questions.length > 0) {
+    const { gabarito, annulled } = gabaritoFromQuestions(input.questions)
+    const answers = mergeAnswerSources(
+      answersFromAnswerMap(input.answerMap!),
+      answersFromAttempts(input.attempts),
+    )
+    avgAccuracy = accuracyAggregate({
+      activeStudentIds: activeIds,
+      answers,
+      gabarito,
+      annulled,
+      trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
+    }).avgAccuracy
+  } else {
+    // Fallback legado (sem logs): attempts por student_id (Sol ≈ 86% incompleto).
+    avgAccuracy = accuracyFromActiveStudents({
+      activeStudentIds: activeIds,
+      attempts: input.attempts,
+      trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
+    }).avgAccuracy
+  }
 
   return {
     activeStudents: active.length,
@@ -386,7 +428,7 @@ export function institutionMetrics(input: {
     completed: completed.size,
     notStarted,
     avgCompletion: pct(done, total),
-    avgAccuracy: acc.avgAccuracy,
+    avgAccuracy,
   }
 }
 

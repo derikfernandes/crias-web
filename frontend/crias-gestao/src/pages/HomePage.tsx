@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
+import { fetchDashboardLogSummary } from '../lib/dashboardSummaryApi'
 import {
   fmtDate,
   STATUS_LABEL,
@@ -543,9 +544,55 @@ export function HomePage() {
   const links = useCollection('student_trails', snapshotToStudentTrail)
   const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const attempts = useCollection('exercise_attempts', snapshotToExerciseAttempt)
+  /** answerMap por instituição (dashboard_summary) — fonte densa do acerto. */
+  const [answerMaps, setAnswerMaps] = useState<Map<string, Map<string, string>>>(
+    () => new Map(),
+  )
+  const [answerMapsReady, setAnswerMapsReady] = useState(false)
+
+  const instIdsKey = useMemo(
+    () => g.institutions.map((i) => i.id).sort().join('|'),
+    [g.institutions],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const ids = g.institutions.map((i) => i.id).filter(Boolean)
+    if (ids.length === 0) {
+      setAnswerMaps(new Map())
+      setAnswerMapsReady(true)
+      return
+    }
+    setAnswerMapsReady(false)
+    void (async () => {
+      const next = new Map<string, Map<string, string>>()
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const summary = await fetchDashboardLogSummary(id, 0)
+            if (!cancelled) next.set(id, summary.answerMap)
+          } catch {
+            if (!cancelled) next.set(id, new Map())
+          }
+        }),
+      )
+      if (cancelled) return
+      setAnswerMaps(next)
+      setAnswerMapsReady(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
+  }, [instIdsKey])
 
   const ready =
-    students.ready && trails.ready && links.ready && questions.ready && attempts.ready
+    students.ready &&
+    trails.ready &&
+    links.ready &&
+    questions.ready &&
+    attempts.ready &&
+    answerMapsReady
   const error = students.error ?? trails.error ?? links.error ?? questions.error ?? attempts.error
 
   const metrics = useMemo(() => {
@@ -563,11 +610,21 @@ export function HomePage() {
           activityTotals: totals,
           activityCatalogs: catalogs,
           attempts: attempts.rows,
+          answerMap: answerMaps.get(inst.id),
+          questions: questions.rows,
         }),
       )
     }
     return map
-  }, [g.institutions, students.rows, trails.rows, links.rows, questions.rows, attempts.rows])
+  }, [
+    g.institutions,
+    students.rows,
+    trails.rows,
+    links.rows,
+    questions.rows,
+    attempts.rows,
+    answerMaps,
+  ])
 
   if (!ready || g.institutionsLoading) return <BootSymbol />
 

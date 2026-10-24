@@ -102,16 +102,25 @@ describe('accuracyFromAttempts', () => {
       {
         student_id: 's1',
         trail_id: 't1',
+        student_answer: '1',
+        correct_option: '1',
+        score: 1,
         is_correct: true,
       },
       {
         student_id: 's1',
         trail_id: 't99',
+        student_answer: '2',
+        correct_option: '1',
+        score: 0,
         is_correct: false,
       },
       {
         student_id: 's2',
         trail_id: 't1',
+        student_answer: '1',
+        correct_option: '1',
+        score: 1,
         is_correct: true,
       },
     ] as ExerciseAttempt[]
@@ -122,10 +131,56 @@ describe('accuracyFromAttempts', () => {
 
   it('filtra por trilha só quando o set é informado e não vazio', () => {
     const attempts = [
-      { student_id: 's1', trail_id: 't1', is_correct: true },
-      { student_id: 's1', trail_id: 't99', is_correct: false },
+      {
+        student_id: 's1',
+        trail_id: 't1',
+        student_answer: '1',
+        correct_option: '1',
+        score: 1,
+        is_correct: true,
+      },
+      {
+        student_id: 's1',
+        trail_id: 't99',
+        student_answer: '2',
+        correct_option: '1',
+        score: 0,
+        is_correct: false,
+      },
     ] as ExerciseAttempt[]
     const r = accuracyFromAttempts(attempts, 's1', new Set(['t1']))
+    expect(r.correct).toBe(1)
+    expect(r.wrong).toBe(0)
+  })
+
+  it('ignora Continuar / 0 e sem gabarito', () => {
+    const attempts = [
+      {
+        student_id: 's1',
+        trail_id: 't1',
+        student_answer: 'Continuar',
+        correct_option: '1',
+        score: 0,
+        is_correct: false,
+      },
+      {
+        student_id: 's1',
+        trail_id: 't1',
+        student_answer: '1',
+        correct_option: '',
+        score: null,
+        is_correct: false,
+      },
+      {
+        student_id: 's1',
+        trail_id: 't1',
+        student_answer: '1',
+        correct_option: '1',
+        score: 1,
+        is_correct: true,
+      },
+    ] as ExerciseAttempt[]
+    const r = accuracyFromAttempts(attempts, 's1')
     expect(r.correct).toBe(1)
     expect(r.wrong).toBe(0)
   })

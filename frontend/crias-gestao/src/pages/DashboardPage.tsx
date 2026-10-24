@@ -37,17 +37,25 @@ import {
 import {
   activityCountByTrail,
   activityKeysByTrail,
-  accuracyFromActiveStudents,
   isActivityKeyDoneOnLink,
   isStageDoneOnLink,
   type ActivityKey,
 } from '../lib/gestaoMetrics'
+import {
+  accuracyAggregate,
+  answersFromAnswerMap,
+  answersFromAttempts,
+  gabaritoFromQuestions,
+  isNonGradableAnswer,
+  mergeAnswerSources,
+} from '../lib/acertoMedio'
 import {
   getCachedInstitution,
   mergeCachedInstitutions,
   setCachedInstitution,
   type DashboardInstitutionSnapshot,
 } from '../lib/dashboardInstitutionCache'
+import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
 import {
   accuracyFromAttempts,
   engagementFromLinks,
@@ -277,6 +285,8 @@ function scoreStudentFromAnswerMap(
 
   for (const [key, answer] of answerMap) {
     if (!key.startsWith(prefix) || !answer.trim()) continue
+    // Continuar / "0" / comandos de UI: fora do acerto.
+    if (isNonGradableAnswer(answer)) continue
 
     const rest = key.slice(prefix.length)
     const sep1 = rest.indexOf('|')
@@ -801,6 +811,18 @@ export function DashboardPage() {
     prevActiveIdsRef.current = selectedIdsKey
   }, [selectedIdsKey])
 
+  // Após 1º conteúdo: prefetch das outras instituições (Sol primeiro).
+  useEffect(() => {
+    if (!hasDashboardContent) return
+    const allIds = institutions.map((i) => i.id).filter(Boolean)
+    if (allIds.length <= 1) return
+    const t = window.setTimeout(() => {
+      prefetchSiblingInstitutions(activeInstitutionIds, allIds)
+    }, 400)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDashboardContent, selectedIdsKey, institutions])
+
   useEffect(() => {
     let cancelled = false
     const instIds = activeInstitutionIds
@@ -817,6 +839,15 @@ export function DashboardPage() {
       if (snap.stages.length > 0 || snap.questions.length > 0) {
         setStages(snap.stages)
         setQuestions(snap.questions)
+      }
+      if (snap.answerMap.size > 0 || snap.doneByStudent.size > 0) {
+        setLogAggregates({
+          doneByStudent: snap.doneByStudent,
+          answerMap: snap.answerMap,
+        })
+        setAgentUsage(snap.agentUsage)
+        setAgentUsagePresent(snap.agentUsagePresent)
+        initialLogsLoadedRef.current = true
       }
       setDataScopeKey(key)
       setHasDashboardContent(true)
@@ -1281,6 +1312,21 @@ export function DashboardPage() {
           series: [],
         })
         setAgentUsagePresent(agentUsagePresent)
+        // Persiste answerMap no cache por instituição (troca Sol aquecida).
+        for (let i = 0; i < instIds.length; i++) {
+          const id = instIds[i]!
+          const summary = summaries[i]!
+          const prev = getCachedInstitution(id)
+          if (!prev) continue
+          setCachedInstitution(id, {
+            ...prev,
+            doneByStudent: summary.doneByStudent,
+            answerMap: summary.answerMap,
+            agentUsage: summary.agentUsage,
+            agentUsagePresent: summary.agentUsagePresent,
+            loadedAt: Date.now(),
+          })
+        }
         setLoadingLogs(false)
         setAgentUsageLoading(false)
         initialLogsLoadedRef.current = true
@@ -1608,7 +1654,8 @@ export function DashboardPage() {
         activityCatalogs,
         activityKeysByTrail: filteredKeysByTrail,
       })
-      // Acerto: mesma fonte do Início (exercise_attempts por student_id).
+      // Acerto: logs densos (dashboard_summary) têm prioridade; attempts
+      // só quando o aluno ainda não tem respostas nos logs.
       const fromAttempts = accuracyFromAttempts(attempts, student.id)
       const fromLogs = scoreStudentFromAnswerMap(
         student.id,
@@ -1619,9 +1666,9 @@ export function DashboardPage() {
         deselectedStages,
         deselectedQuestions,
       )
-      const useAttempts = fromAttempts.correct + fromAttempts.wrong > 0
-      const correct = useAttempts ? fromAttempts.correct : fromLogs.correct
-      const wrong = useAttempts ? fromAttempts.wrong : fromLogs.wrong
+      const useLogs = fromLogs.correct + fromLogs.wrong > 0
+      const correct = useLogs ? fromLogs.correct : fromAttempts.correct
+      const wrong = useLogs ? fromLogs.wrong : fromAttempts.wrong
       return {
         student,
         released: progress.released,
@@ -1823,9 +1870,7 @@ export function DashboardPage() {
     return { start, end }
   }, [sortedFilteredStudentRows.length, studentPage])
 
-  // Cards de resumo — refletem os filtros da tabela de alunos
-  // (busca e faixa de % conclusão). Acerto = mesma função do Início
-  // (accuracyFromActiveStudents em todas as trilhas do escopo).
+  // Cards de resumo — mesma definição de acerto do Início (acertoMedio).
   const summary = useMemo(() => {
     const activeRows = filteredStudentRows.filter((r) => r.student.active)
 
@@ -1850,20 +1895,29 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    // Acerto unificado com Início. Só publica o % quando o escopo dos dados
-    // bate com a seleção (evita 50,9% → 68,3% no multi a meio do load).
+    // Acerto: logs densos + attempts, exclui Continuar/0, ponderado.
+    // Só publica quando o escopo bate (evita flash multi).
     const scopeReady = dataScopeKey === selectedIdsKey && !loadingData
     const activeIds = new Set(activeRows.map((r) => r.student.id))
     const allTrailIds = new Set(trails.map((t) => t.id))
     let avgAccuracy: number | null = null
-    if (scopeReady) {
-      avgAccuracy = accuracyFromActiveStudents({
+    if (scopeReady && studentAnswerMap.size > 0) {
+      const { gabarito, annulled } = gabaritoFromQuestions(questions)
+      const answers = mergeAnswerSources(
+        answersFromAnswerMap(studentAnswerMap),
+        answersFromAttempts(attempts),
+      )
+      avgAccuracy = accuracyAggregate({
         activeStudentIds: activeIds,
-        attempts,
+        answers,
+        gabarito,
+        annulled,
         trailIds: allTrailIds.size > 0 ? allTrailIds : undefined,
       }).avgAccuracy
+    } else if (scopeReady) {
+      // Logs ainda não chegaram: não publica attempts-only (Sol 86% falso).
+      avgAccuracy = null
     } else {
-      // Keep-previous: mantém o agregado das linhas visíveis (não flash N/A).
       let correct = 0
       let total = 0
       for (const row of activeRows) {
@@ -1889,6 +1943,8 @@ export function DashboardPage() {
     loadingData,
     trails,
     attempts,
+    questions,
+    studentAnswerMap,
   ])
 
   const studentsCharts = useMemo(() => {

@@ -2,6 +2,7 @@
  * Progresso do dashboard pela mesma fonte do Início: student_trails
  * (current_stage_number + current_question_number) e exercise_attempts.
  */
+import { isNonGradableAnswer } from './acertoMedio'
 import {
   doneActivities,
   isActivityKeyDoneOnLink,
@@ -160,6 +161,12 @@ export function accuracyFromAttempts(
       (a.question_number != null && a.question_number < 1)
     ) {
       continue
+    }
+    // Continuar / "0": fora do acerto (mesma regra do Início/Dados).
+    if (isNonGradableAnswer(a.student_answer ?? '')) continue
+    // Sem gabarito (score null): fora do denominador.
+    if (a.score === null || a.score === undefined) {
+      if (!(a.correct_option ?? '').trim()) continue
     }
     if (a.is_correct) correct += 1
     else wrong += 1

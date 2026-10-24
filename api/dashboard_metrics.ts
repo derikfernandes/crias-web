@@ -25,7 +25,8 @@ export const config = {
 
 type Json = Record<string, unknown>
 
-const METRICS_L1_TTL_MS = 5 * 60_000
+/** L1 ≤ frescor Firestore (10 min); curto o bastante para cron/SWR. */
+const METRICS_L1_TTL_MS = 2 * 60_000
 const metricsL1 = new Map<
   string,
   { expires: number; metrics: InstitutionDashboardMetrics }

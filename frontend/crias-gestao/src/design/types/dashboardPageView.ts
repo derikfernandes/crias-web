@@ -325,4 +325,7 @@ export type DashboardPageViewProps = {
   selectedAgentTrailId: string | null
   onSelectAgentTrailId: (trailId: string | null) => void
   selectedAgentStudents: DashboardAgentStudentLink[]
+  /** Ex.: "Atualizado às 14:30" (Brasília); null se ainda sem métricas. */
+  metricsUpdatedAtLabel?: string | null
+  onForceRefreshMetrics?: () => void
 }

@@ -61,9 +61,9 @@ type Json = Record<string, unknown>
 const FIRESTORE_IN_LIMIT = 30
 
 /** L1 em memória da instância (warm). */
-const SUMMARY_CACHE_TTL_MS = 5 * 60_000
-/** Cache Firestore "fresco": serve sem recompute. */
-const FIRESTORE_CACHE_TTL_MS = 30 * 60_000
+const SUMMARY_CACHE_TTL_MS = 2 * 60_000
+/** Cache Firestore "fresco": serve sem recompute (pedido owner: ≤10 min). */
+export const FIRESTORE_CACHE_TTL_MS = 10 * 60_000
 /**
  * Janela stale-while-revalidate: ainda serve o cache (escolas não pagam
  * o calc de 57k respostas) e regenera em background.

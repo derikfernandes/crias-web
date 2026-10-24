@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/dashboard_summary_warm?institution_ids=i1,i2,i4",
-      "schedule": "0 10 * * *"
+      "schedule": "*/10 * * * *"
     }
   ],
   "functions": {

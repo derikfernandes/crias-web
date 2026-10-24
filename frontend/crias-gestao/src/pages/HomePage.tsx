@@ -7,6 +7,11 @@ import {
   getCachedMetrics,
   type InstitutionDashboardMetricsView,
 } from '../lib/dashboardMetricsApi'
+import {
+  formatAtualizadoAs,
+  METRICS_FRESH_MS,
+  oldestComputedAt,
+} from '../lib/metricsUpdatedAt'
 import { inicioAcertoReady } from '../lib/dashboardAccuracyGate'
 import { mergeAcertoAggregates } from '../lib/acertoMedio'
 import {
@@ -111,6 +116,7 @@ function SuperHome({
   metricsError,
   onRetryMetrics,
   onForceRefreshMetrics,
+  metricsUpdatedAtLabel,
 }: {
   metrics: Map<string, InstitutionMetrics>
   /** Instituições cujo /api/dashboard_metrics já chegou. */
@@ -119,6 +125,7 @@ function SuperHome({
   metricsError: string | null
   onRetryMetrics: () => void
   onForceRefreshMetrics: () => void
+  metricsUpdatedAtLabel?: string | null
 }) {
   const g = useGestao()
   const navigate = useNavigate()
@@ -179,6 +186,11 @@ function SuperHome({
         subtitle="Resumo das instituições cadastradas."
         actions={
           <>
+            {metricsUpdatedAtLabel ? (
+              <span className="gx-muted" style={{ fontSize: 13, fontWeight: 600 }}>
+                {metricsUpdatedAtLabel}
+              </span>
+            ) : null}
             <button
               type="button"
               className="gx-btn gx-btn--outline"
@@ -302,6 +314,8 @@ function SchoolHome({
   metricsFailed,
   metricsError,
   onRetryMetrics,
+  onForceRefreshMetrics,
+  metricsUpdatedAtLabel,
   trails,
   students,
   studentTrails,
@@ -312,6 +326,8 @@ function SchoolHome({
   metricsFailed?: boolean
   metricsError?: string | null
   onRetryMetrics?: () => void
+  onForceRefreshMetrics?: () => void
+  metricsUpdatedAtLabel?: string | null
   trails: Trail[]
   students: Student[]
   studentTrails: StudentTrail[]
@@ -437,7 +453,29 @@ function SchoolHome({
 
   return (
     <div className="gx-page">
-      <PageHead title={institution.name || institution.id} subtitle="Resumo das informações da escola." />
+      <PageHead
+        title={institution.name || institution.id}
+        subtitle="Resumo das informações da escola."
+        actions={
+          <>
+            {metricsUpdatedAtLabel ? (
+              <span className="gx-muted" style={{ fontSize: 13, fontWeight: 600 }}>
+                {metricsUpdatedAtLabel}
+              </span>
+            ) : null}
+            {onForceRefreshMetrics ? (
+              <button
+                type="button"
+                className="gx-btn gx-btn--outline"
+                onClick={onForceRefreshMetrics}
+                title="Recalcular métricas no servidor"
+              >
+                Atualizar
+              </button>
+            ) : null}
+          </>
+        }
+      />
       {error ? <Banner>{error}</Banner> : null}
       <section className="gx-card" aria-label="Cadastro">
         <div className="gx-card__head">
@@ -812,6 +850,41 @@ export function HomePage() {
     })()
   }
 
+  // Refetch a cada 10 min com a tela aberta (SWR: não limpa valor).
+  useEffect(() => {
+    const ids = g.institutions.map((i) => i.id).filter(Boolean)
+    if (ids.length === 0) return
+    let cancelled = false
+    const tick = async () => {
+      if (document.visibilityState === 'hidden') return
+      for (const id of ids) {
+        try {
+          const m = await fetchInstitutionMetrics(id, { revalidate: true })
+          if (cancelled) return
+          setServerMetrics((prev) => {
+            const next = new Map(prev)
+            next.set(id, m)
+            return next
+          })
+        } catch {
+          // mantém
+        }
+      }
+    }
+    const timer = window.setInterval(() => {
+      void tick()
+    }, METRICS_FRESH_MS)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void tick()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [instIdsKey, g.institutions])
+
   // Alunos/conclusão local; acerto vem do doc de métricas (sem 57k answers).
   const ready =
     students.ready &&
@@ -879,6 +952,17 @@ export function HomePage() {
     ? g.institutions.find((i) => i.id === g.myInstitutionId)
     : undefined
 
+  const scopedIdsForStamp = g.isSuper
+    ? g.scopedInstitutions.map((i) => i.id)
+    : mine
+      ? [mine.id]
+      : []
+  const metricsUpdatedAtLabel = formatAtualizadoAs(
+    oldestComputedAt(
+      scopedIdsForStamp.map((id) => serverMetrics.get(id)?.computedAt),
+    ),
+  )
+
   return (
     <>
       {error ? (
@@ -902,6 +986,7 @@ export function HomePage() {
           metricsError={metricsError}
           onRetryMetrics={retryMetrics}
           onForceRefreshMetrics={forceRefreshMetrics}
+          metricsUpdatedAtLabel={metricsUpdatedAtLabel}
         />
       ) : (
         <SchoolHome
@@ -913,6 +998,8 @@ export function HomePage() {
           metricsFailed={metricsFailed.has(mine.id)}
           metricsError={metricsError}
           onRetryMetrics={retryMetrics}
+          onForceRefreshMetrics={forceRefreshMetrics}
+          metricsUpdatedAtLabel={metricsUpdatedAtLabel}
           trails={trails.rows.filter((t) => t.institution_id === mine.id)}
           students={students.rows.filter((s) => s.institution_id === mine.id)}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}

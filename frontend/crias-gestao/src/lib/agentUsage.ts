@@ -254,6 +254,8 @@ export function messagesPerTutorPerDay(input: {
   activeDayCount: number
   /** Datas YYYY-MM-DD da série (usado no período "Todo"). */
   seriesDates?: string[]
+  /** Fallback ISO de last_activity dos agentes quando a série veio vazia. */
+  lastActivityDates?: Array<string | null | undefined>
 }): number {
   const tutors = Math.max(0, input.activeTutorCount)
   if (input.totalMessages <= 0 || tutors <= 0) return 0
@@ -264,6 +266,22 @@ export function messagesPerTutorPerDay(input: {
     days = input.periodDays
   } else if (input.seriesDates && input.seriesDates.length > 0) {
     days = calendarDaySpan(input.seriesDates)
+  } else if (input.lastActivityDates && input.lastActivityDates.length > 0) {
+    const keys = input.lastActivityDates
+      .map((iso) => {
+        if (!iso) return ''
+        const t = Date.parse(iso)
+        if (Number.isNaN(t)) return ''
+        // Data civil em Brasília (mesma zona da série).
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Sao_Paulo',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(t))
+      })
+      .filter(Boolean)
+    days = calendarDaySpan(keys)
   } else {
     days = Math.max(1, input.activeDayCount)
   }

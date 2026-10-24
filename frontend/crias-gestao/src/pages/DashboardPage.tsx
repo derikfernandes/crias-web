@@ -67,6 +67,11 @@ import {
   type InstitutionDashboardMetricsView,
 } from '../lib/dashboardMetricsApi'
 import {
+  formatAtualizadoAs,
+  METRICS_FRESH_MS,
+  oldestComputedAt,
+} from '../lib/metricsUpdatedAt'
+import {
   getSummarySession,
   mergeSessionAgentUsage,
   mergeSessionAnswerMaps,
@@ -735,6 +740,7 @@ export function DashboardPage() {
     let total = 0
     let uniqueStudents = 0
     const agents = []
+    const series: AgentUsageView['series'] = []
     for (const u of usages) {
       total += u!.totalMessages
       uniqueStudents +=
@@ -743,6 +749,7 @@ export function DashboardPage() {
           : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
             u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
       agents.push(...u!.agents)
+      series.push(...u!.series)
     }
     return {
       periodDays: period,
@@ -753,7 +760,7 @@ export function DashboardPage() {
         pctOfTotal:
           total > 0 ? Math.round((row.messages / total) * 1000) / 10 : 0,
       })),
-      series: [],
+      series,
     }
   })
   const [selectedAgentTrailId, setSelectedAgentTrailId] = useState<
@@ -1460,6 +1467,7 @@ export function DashboardPage() {
     let total = 0
     let uniqueStudents = 0
     const agents = []
+    const series: AgentUsageView['series'] = []
     for (const u of usages) {
       total += u!.totalMessages
       uniqueStudents +=
@@ -1468,6 +1476,7 @@ export function DashboardPage() {
           : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
             u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
       agents.push(...u!.agents)
+      series.push(...u!.series)
     }
     const mergedAgents = mergeAgentRowsByLabel(agents).map((row) => ({
       ...row,
@@ -1479,7 +1488,7 @@ export function DashboardPage() {
       totalMessages: total,
       uniqueStudents,
       agents: mergedAgents,
-      series: [],
+      series,
     })
     setAgentUsagePresent(true)
     setAgentScopeKey(`${scopeKey}|${period}`)
@@ -1515,6 +1524,85 @@ export function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentPeriodDays])
+
+  // Refetch a cada 10 min com a tela aberta (SWR: não limpa valor).
+  useEffect(() => {
+    const ids = activeInstitutionIds
+    if (ids.length === 0) return
+    let cancelled = false
+    const tick = async () => {
+      if (document.visibilityState === 'hidden') return
+      const next = new Map<string, InstitutionDashboardMetricsView>()
+      for (const id of ids) {
+        const prev = getCachedMetrics(id)
+        if (prev) next.set(id, prev)
+      }
+      let changed = false
+      for (const id of ids) {
+        try {
+          const m = await fetchInstitutionMetrics(id, { revalidate: true })
+          if (cancelled) return
+          next.set(id, m)
+          changed = true
+        } catch {
+          // mantém
+        }
+      }
+      if (cancelled || !changed) return
+      setMetricsByInst(new Map(next))
+      if (ids.every((id) => next.has(id))) {
+        setMetricsScopeKey(selectedIdsKey)
+        applyAgentFromMetrics(selectedIdsKey, ids, next, agentPeriodDays)
+      }
+    }
+    const timer = window.setInterval(() => {
+      void tick()
+    }, METRICS_FRESH_MS)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void tick()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIdsKey, activeInstitutionIds, agentPeriodDays])
+
+  const forceRefreshMetrics = () => {
+    const ids = activeInstitutionIds
+    if (ids.length === 0) return
+    void (async () => {
+      const next = new Map<string, InstitutionDashboardMetricsView>()
+      for (const id of ids) {
+        const prev = getCachedMetrics(id)
+        if (prev) next.set(id, prev)
+      }
+      for (const id of ids) {
+        try {
+          const m = await fetchInstitutionMetrics(id, {
+            force: true,
+            timeoutMs: 55_000,
+          })
+          next.set(id, m)
+        } catch {
+          // mantém
+        }
+      }
+      setMetricsByInst(new Map(next))
+      if (ids.every((id) => next.has(id))) {
+        setMetricsScopeKey(selectedIdsKey)
+        applyAgentFromMetrics(selectedIdsKey, ids, next, agentPeriodDays)
+      }
+    })()
+  }
+
+  const metricsUpdatedAtLabel = formatAtualizadoAs(
+    oldestComputedAt(
+      activeInstitutionIds.map((id) => metricsByInst.get(id)?.computedAt),
+    ),
+  )
 
   // Métricas pré-agregadas (KB): desbloqueia Acerto/Exercícios/Monitor/Conclusão
   // sem baixar answerMap da Sol. Mesma chave de sessão do Início.
@@ -3633,6 +3721,7 @@ export function DashboardPage() {
         periodDays: agentPeriodDays,
         activeDayCount,
         seriesDates: agentUsage.series.map((point) => point.date),
+        lastActivityDates: agentUsage.agents.map((a) => a.lastActivity),
       }),
       agents,
       series: agentUsage.series.map((point) => {
@@ -3917,6 +4006,8 @@ export function DashboardPage() {
         setSelectedAgentTrailId(null)
       }}
       agentUsageUnavailable={!agentUsagePresent}
+      metricsUpdatedAtLabel={metricsUpdatedAtLabel}
+      onForceRefreshMetrics={forceRefreshMetrics}
       selectedAgentTrailId={selectedAgentTrailId}
       onSelectAgentTrailId={setSelectedAgentTrailId}
       selectedAgentStudents={selectedAgentStudents}

@@ -79,4 +79,20 @@ describe('messagesPerTutorPerDay (FE)', () => {
       }),
     ).toBe(1)
   })
+
+  it('Todo sem série usa lastActivity (não divide por 1 dia)', () => {
+    expect(
+      messagesPerTutorPerDay({
+        totalMessages: 10,
+        activeTutorCount: 1,
+        periodDays: 0,
+        activeDayCount: 0,
+        seriesDates: [],
+        lastActivityDates: [
+          '2026-01-01T12:00:00.000Z',
+          '2026-01-10T12:00:00.000Z',
+        ],
+      }),
+    ).toBe(1)
+  })
 })

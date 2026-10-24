@@ -269,6 +269,25 @@ export function DashboardPageView(p: DashboardPageViewProps) {
       <PageHead
         title="Dados"
         subtitle="Informações de uso dos alunos."
+        actions={
+          <>
+            {p.metricsUpdatedAtLabel ? (
+              <span className="gx-muted" style={{ fontSize: 13, fontWeight: 600 }}>
+                {p.metricsUpdatedAtLabel}
+              </span>
+            ) : null}
+            {p.onForceRefreshMetrics ? (
+              <button
+                type="button"
+                className="gx-btn gx-btn--outline"
+                onClick={p.onForceRefreshMetrics}
+                title="Recalcular métricas no servidor"
+              >
+                Atualizar
+              </button>
+            ) : null}
+          </>
+        }
         tools={
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 32, width: '100%' }}>
             {p.institutionOptions.length > 1 ? (

@@ -351,15 +351,31 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         <div className="gx-stat">
           <span>Acerto médio</span>
           <strong>
-            {accuracySummaryText(
-              p.summary.avgAccuracy,
-              p.summary.avgAccuracyLoading,
-            )}
+            {p.logsError && !p.summary.avgAccuracyLoading
+              ? 'Erro'
+              : accuracySummaryText(
+                  p.summary.avgAccuracy,
+                  p.summary.avgAccuracyLoading,
+                )}
           </strong>
           {p.summary.avgAccuracyLoading ? (
             <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
               <span className="gx-bar__empty" />
             </span>
+          ) : p.logsError ? (
+            <>
+              <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+                <span className="gx-bar__empty" />
+              </span>
+              <button
+                type="button"
+                className="gx-linkbtn"
+                style={{ marginTop: 6, fontSize: 12 }}
+                onClick={p.onRetryLogs}
+              >
+                Tentar de novo
+              </button>
+            </>
           ) : p.summary.avgAccuracy !== null ? (
             <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }}>
               <span style={{ width: `${p.summary.avgAccuracy}%` }} />
@@ -486,9 +502,26 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             <p className="gx-muted" role="alert">
               Erro: {p.logsError}
             </p>
+            <button
+              type="button"
+              className="gx-btn"
+              style={{ marginTop: 12 }}
+              onClick={p.onRetryLogs}
+            >
+              Tentar de novo
+            </button>
+          </div>
+        ) : p.agentUsageLoading ? (
+          <div className="gx-stats" style={{ padding: 24 }} aria-busy="true">
+            {agentKpis.map((k) => (
+              <div className="gx-stat" key={k.label}>
+                <span>{k.label}</span>
+                <strong>Carregando…</strong>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
+          <div className="gx-stats" style={{ padding: 24 }}>
             {agentKpis.map((k) => (
               <div className="gx-stat" key={k.label} title={'hint' in k ? k.hint : undefined}>
                 <span>

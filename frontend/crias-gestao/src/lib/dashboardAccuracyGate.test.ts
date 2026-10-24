@@ -1,59 +1,92 @@
 import { describe, expect, it } from 'vitest'
-import { dashboardAccuracyGate } from './dashboardAccuracyGate'
+import {
+  dashboardAccuracyGate,
+  inicioAcertoReady,
+} from './dashboardAccuracyGate'
 
-describe('dashboardAccuracyGate (race N/A / Exercícios 0)', () => {
+describe('dashboardAccuracyGate (race N/A / Exercícios 0 / parcial)', () => {
   it('durante troca de escopo: loading, não publica N/A', () => {
     const g = dashboardAccuracyGate({
       selectedIdsKey: 'i2\0i4',
-      dataScopeKey: 'i2', // ainda o escopo anterior
-      logsScopeKey: 'i2',
+      selectedIds: ['i2', 'i4'],
+      dataScopeKey: 'i2',
       loadingData: true,
+      logsReadyIds: new Set(['i2']),
       loadingLogs: true,
-      answerMapSize: 100,
+      logsFailed: false,
     })
     expect(g.avgAccuracyLoading).toBe(true)
     expect(g.canPublishAccuracy).toBe(false)
     expect(g.exercisesLoading).toBe(true)
   })
 
-  it('dados ok mas logs ainda subindo com map vazio: Carregando', () => {
+  it('Sol ainda sem summary (só Teste pronto): Carregando, não publica 79%', () => {
     const g = dashboardAccuracyGate({
       selectedIdsKey: 'i2\0i4',
+      selectedIds: ['i2', 'i4'],
       dataScopeKey: 'i2\0i4',
-      logsScopeKey: '',
       loadingData: false,
+      logsReadyIds: new Set(['i4']),
       loadingLogs: true,
-      answerMapSize: 0,
+      logsFailed: false,
     })
+    expect(g.allInstitutionsReady).toBe(false)
     expect(g.avgAccuracyLoading).toBe(true)
     expect(g.canPublishAccuracy).toBe(false)
-    expect(g.exercisesLoading).toBe(true)
   })
 
-  it('cache hit de logs no novo escopo: pode publicar', () => {
+  it('todas prontas: pode publicar', () => {
     const g = dashboardAccuracyGate({
       selectedIdsKey: 'i2\0i4',
+      selectedIds: ['i2', 'i4'],
       dataScopeKey: 'i2\0i4',
-      logsScopeKey: 'i2\0i4',
       loadingData: false,
+      logsReadyIds: new Set(['i2', 'i4']),
       loadingLogs: false,
-      answerMapSize: 50000,
+      logsFailed: false,
     })
     expect(g.avgAccuracyLoading).toBe(false)
     expect(g.canPublishAccuracy).toBe(true)
     expect(g.exercisesLoading).toBe(false)
   })
 
-  it('logs prontos e map vazio: N/A real (não loading)', () => {
+  it('falha sem cache: não fica Carregando nem N/A silencioso', () => {
+    const g = dashboardAccuracyGate({
+      selectedIdsKey: 'i2',
+      selectedIds: ['i2'],
+      dataScopeKey: 'i2',
+      loadingData: false,
+      logsReadyIds: new Set(),
+      loadingLogs: false,
+      logsFailed: true,
+    })
+    expect(g.avgAccuracyLoading).toBe(false)
+    expect(g.canPublishAccuracy).toBe(false)
+  })
+
+  it('Sol só: logs prontos e map vazio = N/A real (não loading)', () => {
     const g = dashboardAccuracyGate({
       selectedIdsKey: 'i1',
+      selectedIds: ['i1'],
       dataScopeKey: 'i1',
-      logsScopeKey: 'i1',
       loadingData: false,
+      logsReadyIds: new Set(['i1']),
       loadingLogs: false,
-      answerMapSize: 0,
+      logsFailed: false,
     })
     expect(g.avgAccuracyLoading).toBe(false)
     expect(g.canPublishAccuracy).toBe(true)
+  })
+})
+
+describe('inicioAcertoReady', () => {
+  it('exige answerMap em todas as do filtro', () => {
+    const maps = new Map<string, Map<string, string>>([
+      ['i4', new Map()],
+      ['i1', new Map()],
+    ])
+    expect(inicioAcertoReady(['i1', 'i2', 'i4'], maps)).toBe(false)
+    maps.set('i2', new Map([['a', '1']]))
+    expect(inicioAcertoReady(['i1', 'i2', 'i4'], maps)).toBe(true)
   })
 })

@@ -56,8 +56,14 @@ import {
   type DashboardInstitutionSnapshot,
 } from '../lib/dashboardInstitutionCache'
 import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
-import { setCachedAnswerMap } from '../lib/answerMapCache'
+import { getCachedAnswerMap, setCachedAnswerMap } from '../lib/answerMapCache'
 import { dashboardAccuracyGate } from '../lib/dashboardAccuracyGate'
+import {
+  getSummarySession,
+  mergeSessionAgentUsage,
+  mergeSessionAnswerMaps,
+  setSummarySession,
+} from '../lib/dashboardSummarySessionCache'
 import {
   accuracyFromAttempts,
   engagementFromLinks,
@@ -614,8 +620,12 @@ export function DashboardPage() {
   /** selectedIdsKey cujos students/attempts estão na tela (evita % instável). */
   const [dataScopeKey, setDataScopeKey] = useState('')
   const [loadingLogs, setLoadingLogs] = useState(false)
-  /** Escopo cujo answerMap/agentUsage já foi aplicado (evita N/A durante race). */
-  const [logsScopeKey, setLogsScopeKey] = useState('')
+  /** Instituições com summary pronto no escopo atual. */
+  const [logsReadyIds, setLogsReadyIds] = useState<Set<string>>(() => new Set())
+  /** Fetch terminou com falha sem cache para alguma selecionada. */
+  const [logsFailed, setLogsFailed] = useState(false)
+  /** Escopo do monitor (agentUsage) publicado — evita stale de outra instituição. */
+  const [agentScopeKey, setAgentScopeKey] = useState('')
   const [loadStepsDone, setLoadStepsDone] = useState(0)
   const loadGenerationRef = useRef(0)
   const logsGenerationRef = useRef(0)
@@ -853,9 +863,8 @@ export function DashboardPage() {
           doneByStudent: snap.doneByStudent,
           answerMap: snap.answerMap,
         })
-        setAgentUsage(snap.agentUsage)
-        setAgentUsagePresent(snap.agentUsagePresent)
-        setLogsScopeKey(key)
+        // Não publica agentUsage aqui (pode ser de outro período/escopo).
+        // O effect de logs hidrata monitor com sessão + periodDays.
         initialLogsLoadedRef.current = true
       }
       setDataScopeKey(key)
@@ -1266,7 +1275,9 @@ export function DashboardPage() {
       setAgentUsagePresent(true)
       setAgentUsageLoading(false)
       setLoadingLogs(false)
-      setLogsScopeKey('')
+      setLogsReadyIds(new Set())
+      setLogsFailed(false)
+      setAgentScopeKey('')
       return () => {
         cancelled = true
       }
@@ -1279,80 +1290,179 @@ export function DashboardPage() {
       initialLogsLoadedRef.current = false
     }
 
-    // Cache hit de logs: aplica na hora (sem flash N/A) e revalida.
-    const cachedLogs = mergeCachedInstitutions(instIds)
-    const hasCachedLogs = Boolean(
-      cachedLogs &&
-        (cachedLogs.answerMap.size > 0 || cachedLogs.doneByStudent.size > 0),
-    )
-    if (hasCachedLogs && cachedLogs) {
-      setLogAggregates({
-        doneByStudent: cachedLogs.doneByStudent,
-        answerMap: cachedLogs.answerMap,
-      })
-      setAgentUsage(cachedLogs.agentUsage)
-      setAgentUsagePresent(cachedLogs.agentUsagePresent)
-      setLogsScopeKey(scopeKey)
-      initialLogsLoadedRef.current = true
+    // Hidrata answerMap da sessão / answerMapCache / institution cache (Início→Dados).
+    const fromSession = mergeSessionAnswerMaps(instIds)
+    for (const id of instIds) {
+      if (fromSession.readyIds.includes(id)) continue
+      const am = getCachedAnswerMap(id)
+      const inst = getCachedInstitution(id)
+      if (am !== undefined) {
+        fromSession.readyIds.push(id)
+        fromSession.missingIds = fromSession.missingIds.filter((x) => x !== id)
+        for (const [k, v] of am) fromSession.answerMap.set(k, v)
+        if (inst) {
+          for (const [sid, keys] of inst.doneByStudent) {
+            const set = fromSession.doneByStudent.get(sid) ?? new Set<string>()
+            for (const k of keys) set.add(k)
+            fromSession.doneByStudent.set(sid, set)
+          }
+        }
+      } else if (inst && (inst.answerMap.size > 0 || inst.doneByStudent.size > 0)) {
+        fromSession.readyIds.push(id)
+        fromSession.missingIds = fromSession.missingIds.filter((x) => x !== id)
+        for (const [k, v] of inst.answerMap) fromSession.answerMap.set(k, v)
+        for (const [sid, keys] of inst.doneByStudent) {
+          const set = fromSession.doneByStudent.get(sid) ?? new Set<string>()
+          for (const k of keys) set.add(k)
+          fromSession.doneByStudent.set(sid, set)
+        }
+      }
     }
 
-    const refreshingAgentsOnly =
-      initialLogsLoadedRef.current && !institutionChanged
-    setLoadingLogs(!hasCachedLogs)
-    // Com cache: não esmaece KPIs durante revalidação em background.
-    setAgentUsageLoading(!hasCachedLogs)
+    const allAnswersReady = fromSession.missingIds.length === 0
+    if (fromSession.readyIds.length > 0) {
+      setLogAggregates({
+        doneByStudent: fromSession.doneByStudent,
+        answerMap: fromSession.answerMap,
+      })
+      setLogsReadyIds(new Set(fromSession.readyIds))
+      if (allAnswersReady) initialLogsLoadedRef.current = true
+    } else if (institutionChanged) {
+      // Sem cache do novo escopo: limpa stale (nunca mostrar Teste em Sol).
+      setLogAggregates(EMPTY_LOG_AGGREGATES)
+      setLogsReadyIds(new Set())
+    }
+
+    const agentMerged = mergeSessionAgentUsage(instIds, agentPeriodDays)
+    if (agentMerged.complete) {
+      const mergedAgents = mergeAgentRowsByLabel(agentMerged.usage.agents).map(
+        (row) => ({
+          ...row,
+          pctOfTotal:
+            agentMerged.usage.totalMessages > 0
+              ? Math.round(
+                  (row.messages / agentMerged.usage.totalMessages) * 1000,
+                ) / 10
+              : 0,
+        }),
+      )
+      setAgentUsage({
+        periodDays: agentPeriodDays,
+        totalMessages: agentMerged.usage.totalMessages,
+        agents: mergedAgents,
+        series: [],
+      })
+      setAgentUsagePresent(agentMerged.present)
+      setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+      setAgentUsageLoading(false)
+    } else {
+      // Troca de instituição/período sem cache: Carregando… (não números velhos).
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
+
+    setLogsFailed(false)
     setLogsError(null)
+    // Só fetch o que falta; se tudo na sessão, revalida Sol em background.
+    const needFetch =
+      fromSession.missingIds.length > 0 ||
+      !agentMerged.complete ||
+      institutionChanged
+    setLoadingLogs(fromSession.missingIds.length > 0)
     const logsStarted = performance.now()
 
     async function run() {
+      if (!needFetch && allAnswersReady && agentMerged.complete) {
+        // Revalidação silenciosa só da Sol (maior) para manter cache Firestore quente.
+        const warmId = instIds.includes('i2') ? 'i2' : instIds[0]!
+        try {
+          const summary = await fetchDashboardLogSummary(warmId, agentPeriodDays)
+          if (cancelled || generation !== logsGenerationRef.current) return
+          const prev = getCachedInstitution(warmId)
+          if (prev) {
+            setCachedInstitution(warmId, {
+              ...prev,
+              doneByStudent: summary.doneByStudent,
+              answerMap: summary.answerMap,
+              agentUsage: summary.agentUsage,
+              agentUsagePresent: summary.agentUsagePresent,
+              loadedAt: Date.now(),
+            })
+          }
+          const refreshed = mergeSessionAnswerMaps(instIds)
+          const agentRef = mergeSessionAgentUsage(instIds, agentPeriodDays)
+          if (refreshed.missingIds.length === 0) {
+            setLogAggregates({
+              doneByStudent: refreshed.doneByStudent,
+              answerMap: refreshed.answerMap,
+            })
+            setLogsReadyIds(new Set(refreshed.readyIds))
+          }
+          if (agentRef.complete) {
+            const mergedAgents = mergeAgentRowsByLabel(agentRef.usage.agents).map(
+              (row) => ({
+                ...row,
+                pctOfTotal:
+                  agentRef.usage.totalMessages > 0
+                    ? Math.round(
+                        (row.messages / agentRef.usage.totalMessages) * 1000,
+                      ) / 10
+                    : 0,
+              }),
+            )
+            setAgentUsage({
+              periodDays: agentPeriodDays,
+              totalMessages: agentRef.usage.totalMessages,
+              agents: mergedAgents,
+              series: [],
+            })
+            setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+          }
+        } catch {
+          // Best-effort warm; UI já tem dados.
+        }
+        setLoadingLogs(false)
+        setAgentUsageLoading(false)
+        return
+      }
+
       try {
+        const fetchIds =
+          fromSession.missingIds.length > 0 ? fromSession.missingIds : instIds
         const settled = await Promise.allSettled(
-          instIds.map((id) => fetchDashboardLogSummary(id, agentPeriodDays)),
+          fetchIds.map((id) => fetchDashboardLogSummary(id, agentPeriodDays)),
         )
         if (cancelled || generation !== logsGenerationRef.current) return
 
-        const doneByStudent = new Map<string, Set<string>>()
-        const answerMap = new Map<string, string>()
-        let agentUsagePresent = false
-        const agentRows: import('../lib/agentUsage').AgentUsageRowView[] = []
-        let totalMessages = 0
+        const ready = new Set(fromSession.readyIds)
         const errors: string[] = []
 
-        for (let i = 0; i < instIds.length; i++) {
-          const id = instIds[i]!
+        for (let i = 0; i < fetchIds.length; i++) {
+          const id = fetchIds[i]!
           const result = settled[i]!
           if (result.status === 'rejected') {
+            const sess = getSummarySession(id)
+            if (sess) {
+              ready.add(id)
+              continue
+            }
             errors.push(
               result.reason instanceof Error
                 ? result.reason.message
                 : String(result.reason),
             )
-            // Mantém cache parcial da instituição se houver.
-            const prev = getCachedInstitution(id)
-            if (prev) {
-              agentUsagePresent = agentUsagePresent || prev.agentUsagePresent
-              totalMessages += prev.agentUsage.totalMessages
-              agentRows.push(...prev.agentUsage.agents)
-              for (const [sid, keys] of prev.doneByStudent) {
-                const set = doneByStudent.get(sid) ?? new Set<string>()
-                for (const k of keys) set.add(k)
-                doneByStudent.set(sid, set)
-              }
-              for (const [k, v] of prev.answerMap) answerMap.set(k, v)
-            }
             continue
           }
           const summary = result.value
-          agentUsagePresent = agentUsagePresent || summary.agentUsagePresent
-          totalMessages += summary.agentUsage.totalMessages
-          for (const [sid, keys] of summary.doneByStudent) {
-            const set = doneByStudent.get(sid) ?? new Set<string>()
-            for (const k of keys) set.add(k)
-            doneByStudent.set(sid, set)
-          }
-          for (const [k, v] of summary.answerMap) answerMap.set(k, v)
-          agentRows.push(...summary.agentUsage.agents)
+          ready.add(id)
           setCachedAnswerMap(id, summary.answerMap)
+          setSummarySession(
+            id,
+            summary,
+            agentPeriodDays,
+            summary.agentUsageByPeriod,
+          )
           const prev = getCachedInstitution(id)
           if (prev) {
             setCachedInstitution(id, {
@@ -1366,50 +1476,84 @@ export function DashboardPage() {
           }
         }
 
-        const mergedAgents = mergeAgentRowsByLabel(agentRows).map((row) => ({
-          ...row,
-          pctOfTotal:
-            totalMessages > 0
-              ? Math.round((row.messages / totalMessages) * 1000) / 10
-              : 0,
-        }))
-
-        // Só publica se ainda é o escopo pedido (anti-race).
         if (generation !== logsGenerationRef.current) return
-        setLogAggregates({ doneByStudent, answerMap })
-        setAgentUsage({
-          periodDays: agentPeriodDays,
-          totalMessages,
-          agents: mergedAgents,
-          series: [],
-        })
-        setAgentUsagePresent(agentUsagePresent || answerMap.size > 0)
-        setLogsScopeKey(scopeKey)
+
+        const merged = mergeSessionAnswerMaps(instIds)
+        const allReady = instIds.every((id) => ready.has(id) || merged.readyIds.includes(id))
+        const failedHard =
+          !allReady && errors.length > 0 && merged.readyIds.length === 0
+
+        if (merged.readyIds.length > 0) {
+          setLogAggregates({
+            doneByStudent: merged.doneByStudent,
+            answerMap: merged.answerMap,
+          })
+        }
+        setLogsReadyIds(new Set([...ready, ...merged.readyIds]))
+
+        const agentRef = mergeSessionAgentUsage(instIds, agentPeriodDays)
+        if (agentRef.complete) {
+          const mergedAgents = mergeAgentRowsByLabel(agentRef.usage.agents).map(
+            (row) => ({
+              ...row,
+              pctOfTotal:
+                agentRef.usage.totalMessages > 0
+                  ? Math.round(
+                      (row.messages / agentRef.usage.totalMessages) * 1000,
+                    ) / 10
+                  : 0,
+            }),
+          )
+          setAgentUsage({
+            periodDays: agentPeriodDays,
+            totalMessages: agentRef.usage.totalMessages,
+            agents: mergedAgents,
+            series: [],
+          })
+          setAgentUsagePresent(agentRef.present)
+          setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+          setAgentUsageLoading(false)
+        } else {
+          setAgentUsageLoading(false)
+          setAgentScopeKey('')
+        }
+
+        setLogsFailed(failedHard)
         setLogsError(
-          errors.length === instIds.length
+          failedHard
             ? errors[0] ?? 'Erro ao carregar métricas dos alunos.'
-            : null,
+            : errors.length > 0 && !allReady
+              ? `Não foi possível carregar todas as instituições. ${errors[0] ?? ''}`
+              : null,
         )
         setLoadingLogs(false)
-        setAgentUsageLoading(false)
-        initialLogsLoadedRef.current = true
+        initialLogsLoadedRef.current = allReady
         console.info(
-          `[dashboard] logs ${Math.round(performance.now() - logsStarted)}ms scope=${scopeKey} map=${answerMap.size}`,
+          `[dashboard] logs ${Math.round(performance.now() - logsStarted)}ms scope=${scopeKey} ready=${[...ready].join(',')} map=${merged.answerMap.size}`,
         )
       } catch (err) {
         if (cancelled || generation !== logsGenerationRef.current) return
-        setLogsError(
+        const msg =
           err instanceof Error
             ? err.message
-            : 'Erro ao carregar métricas dos alunos.',
-        )
-        // Não zera aggregates se já há cache/UI para o escopo (evita N/A flash).
-        if (!refreshingAgentsOnly && !hasCachedLogs) {
+            : 'Erro ao carregar métricas dos alunos.'
+        setLogsError(msg)
+        const merged = mergeSessionAnswerMaps(instIds)
+        if (merged.readyIds.length === 0) {
+          setLogsFailed(true)
+          setLogsReadyIds(new Set())
+          // Não publica N/A: deixa loading false + erro + tentar de novo.
           setLogAggregates(EMPTY_LOG_AGGREGATES)
           setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
           setAgentUsagePresent(false)
-          setLogsScopeKey(scopeKey)
-          initialLogsLoadedRef.current = true
+          setAgentScopeKey('')
+        } else {
+          setLogsReadyIds(new Set(merged.readyIds))
+          setLogAggregates({
+            doneByStudent: merged.doneByStudent,
+            answerMap: merged.answerMap,
+          })
+          setLogsFailed(false)
         }
         setLoadingLogs(false)
         setAgentUsageLoading(false)
@@ -1963,14 +2107,15 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    // Acerto: logs densos + attempts, exclui Continuar/0 e anuladas, ponderado.
+    // Acerto: só publica quando TODAS as instituições selecionadas carregaram.
     const gate = dashboardAccuracyGate({
       selectedIdsKey,
+      selectedIds: activeInstitutionIds,
       dataScopeKey,
-      logsScopeKey,
       loadingData,
+      logsReadyIds,
       loadingLogs,
-      answerMapSize: studentAnswerMap.size,
+      logsFailed,
     })
     const activeIds = new Set(activeRows.map((r) => r.student.id))
     const allTrailIds = new Set(trails.map((t) => t.id))
@@ -1991,6 +2136,7 @@ export function DashboardPage() {
     }
     // Enquanto carrega: avgAccuracy null + avgAccuracyLoading (UI: Carregando…).
     // Logs vazios + canPublish → N/A real (sem exercícios).
+    // Falha → banner + tentar de novo (não N/A).
 
     return {
       activeStudents: activeRows.length,
@@ -2004,8 +2150,10 @@ export function DashboardPage() {
     filteredStudentRows,
     activeTrails,
     dataScopeKey,
-    logsScopeKey,
+    logsReadyIds,
+    logsFailed,
     selectedIdsKey,
+    activeInstitutionIds,
     loadingData,
     loadingLogs,
     trails,
@@ -3075,21 +3223,29 @@ export function DashboardPage() {
       loadPercent={loadPercent}
       logsError={logsError}
       onRetryLogs={() => {
-        // Reabre o gate no retry após falha de first-load (banner acessível).
+        // Reabre o gate no retry após falha (erro + tentar de novo, nunca 0 silencioso).
         initialLogsLoadedRef.current = false
+        setLogsFailed(false)
         setLogsError(null)
+        setLoadingLogs(true)
+        setAgentUsageLoading(true)
         setLogsRetryKey((k) => k + 1)
       }}
+      agentUsageLoading={
+        agentUsageLoading ||
+        agentScopeKey !== `${selectedIdsKey}|${agentPeriodDays}`
+      }
       summary={summary}
       exercisesLoading={
         loadingMeta ||
         dashboardAccuracyGate({
           selectedIdsKey,
+          selectedIds: activeInstitutionIds,
           dataScopeKey,
-          logsScopeKey,
           loadingData,
+          logsReadyIds,
           loadingLogs,
-          answerMapSize: studentAnswerMap.size,
+          logsFailed,
         }).exercisesLoading
       }
       missingGabaritoCount={missingGabaritoCount}
@@ -3217,7 +3373,6 @@ export function DashboardPage() {
         setAgentPeriodDays(days)
         setSelectedAgentTrailId(null)
       }}
-      agentUsageLoading={agentUsageLoading}
       agentUsageUnavailable={!agentUsagePresent}
       selectedAgentTrailId={selectedAgentTrailId}
       onSelectAgentTrailId={setSelectedAgentTrailId}

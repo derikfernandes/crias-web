@@ -8,6 +8,7 @@ import {
   isAnswerMapFresh,
   setCachedAnswerMap,
 } from '../lib/answerMapCache'
+import { inicioAcertoReady } from '../lib/dashboardAccuracyGate'
 import { mergeAcertoAggregates } from '../lib/acertoMedio'
 import {
   fmtDate,
@@ -51,7 +52,14 @@ import {
   type SortState,
 } from '../design/gx/ui'
 
-function StatsRow({ m }: { m: InstitutionMetrics }) {
+function StatsRow({
+  m,
+  acertoLoading,
+}: {
+  m: InstitutionMetrics
+  /** answerMap ainda não chegou → Carregando… (nunca N/A parcial). */
+  acertoLoading?: boolean
+}) {
   return (
     <div className="gx-stats">
       <Stat label="Alunos ativos" value={m.activeStudents} />
@@ -63,8 +71,8 @@ function StatsRow({ m }: { m: InstitutionMetrics }) {
       />
       <Stat
         label="Acerto médio"
-        value={formatPct(m.avgAccuracy)}
-        bar={m.avgAccuracy}
+        value={acertoLoading ? 'Carregando…' : formatPct(m.avgAccuracy)}
+        bar={acertoLoading ? null : m.avgAccuracy}
         barTone="green"
       />
     </div>
@@ -98,25 +106,32 @@ function ArrowButton({
 /** Início do Super admin: faixa de totais e uma linha por instituição (1.1.24). */
 function SuperHome({
   metrics,
+  answerMaps,
 }: {
   metrics: Map<string, InstitutionMetrics>
+  answerMaps: Map<string, Map<string, string>>
 }) {
   const g = useGestao()
   const navigate = useNavigate()
   const { canNav } = usePermissions()
 
   const totals = useMemo(() => {
+    const scopedIds = g.scopedInstitutions.map((i) => i.id)
     const list = g.scopedInstitutions.map((i) => metrics.get(i.id))
     const sum = (pick: (m: InstitutionMetrics) => number) =>
       list.reduce((n, m) => n + (m ? pick(m) : 0), 0)
-    const combinedAcerto = mergeAcertoAggregates(
-      list
-        .filter((m): m is InstitutionMetrics => Boolean(m))
-        .map((m) => ({
-          correct: m.accuracyCorrect,
-          tried: m.accuracyTried,
-        })),
-    )
+    // Só agrega quando TODAS as do filtro têm answerMap (evita 0% parcial).
+    const acertoReady = inicioAcertoReady(scopedIds, answerMaps)
+    const combinedAcerto = acertoReady
+      ? mergeAcertoAggregates(
+          list
+            .filter((m): m is InstitutionMetrics => Boolean(m))
+            .map((m) => ({
+              correct: m.accuracyCorrect,
+              tried: m.accuracyTried,
+            })),
+        )
+      : null
     return {
       cards: [
         { label: 'Instituições', value: g.scopedInstitutions.length },
@@ -129,11 +144,11 @@ function SuperHome({
         { label: 'Trilhas ativas', value: sum((m) => m.activeTrails) },
         { label: 'Em andamento', value: sum((m) => m.inProgress) },
       ],
-      /** Média ponderada das instituições no filtro (igual card Dados). */
-      combinedAccuracy: combinedAcerto.avgAccuracy,
+      combinedAccuracy: combinedAcerto?.avgAccuracy ?? null,
+      combinedLoading: g.scopedInstitutions.length > 1 && !acertoReady,
       showCombinedAccuracy: g.scopedInstitutions.length > 1,
     }
-  }, [g.scopedInstitutions, metrics])
+  }, [g.scopedInstitutions, metrics, answerMaps])
 
   function openScoped(inst: Institution, path: string) {
     g.setSelectedIds(new Set([inst.id]))
@@ -178,10 +193,14 @@ function SuperHome({
             {totals.showCombinedAccuracy ? (
               <Stat
                 label="Acerto médio (filtro)"
-                value={formatPct(totals.combinedAccuracy)}
-                bar={totals.combinedAccuracy}
+                value={
+                  totals.combinedLoading
+                    ? 'Carregando…'
+                    : formatPct(totals.combinedAccuracy)
+                }
+                bar={totals.combinedLoading ? null : totals.combinedAccuracy}
                 barTone="green"
-                hint="Média ponderada das instituições selecionadas (correct/tried), igual ao card Dados."
+                hint="Média ponderada das instituições selecionadas (correct/tried), igual ao card Dados. Só aparece quando todas carregaram."
               />
             ) : null}
           </div>
@@ -189,6 +208,7 @@ function SuperHome({
             {g.scopedInstitutions.map((inst) => {
               const m = metrics.get(inst.id)
               const instName = inst.name || inst.id
+              const acertoLoading = !answerMaps.has(inst.id)
               return (
                 <article className="gx-card" key={inst.id}>
                   <header className="gx-card__head">
@@ -214,7 +234,7 @@ function SuperHome({
                       />
                     </div>
                   </header>
-                  {m ? <StatsRow m={m} /> : null}
+                  {m ? <StatsRow m={m} acertoLoading={acertoLoading} /> : null}
                 </article>
               )
             })}
@@ -238,12 +258,14 @@ type StudentLine = {
 function SchoolHome({
   institution,
   metrics,
+  acertoLoading,
   trails,
   students,
   studentTrails,
 }: {
   institution: Institution
   metrics: InstitutionMetrics | undefined
+  acertoLoading?: boolean
   trails: Trail[]
   students: Student[]
   studentTrails: StudentTrail[]
@@ -407,7 +429,7 @@ function SchoolHome({
           <ArrowButton label="Dados" onClick={() => navigate('/dashboard')} />
         </div>
       ) : null}
-      {metrics ? <StatsRow m={metrics} /> : null}
+      {metrics ? <StatsRow m={metrics} acertoLoading={acertoLoading} /> : null}
 
       {canNav('trail_new') ? (
         <div style={{ display: 'flex' }}>
@@ -609,32 +631,40 @@ export function HomePage() {
     })
 
     const staleOrMissing = ids.filter((id) => !isAnswerMapFresh(id))
+    // Sol (i2) primeiro — maior e desbloqueia acerto do filtro.
+    staleOrMissing.sort((a, b) => {
+      if (a === 'i2') return -1
+      if (b === 'i2') return 1
+      return a.localeCompare(b)
+    })
     if (staleOrMissing.length === 0) return
 
     void (async () => {
       const started = performance.now()
-      await Promise.all(
-        staleOrMissing.map(async (id) => {
-          try {
-            const summary = await fetchDashboardLogSummary(id, 0)
-            if (cancelled) return
-            setCachedAnswerMap(id, summary.answerMap)
-            setAnswerMaps((prev) => {
-              const next = new Map(prev)
-              next.set(id, summary.answerMap)
-              return next
-            })
-          } catch {
-            if (cancelled) return
-            setAnswerMaps((prev) => {
-              if (prev.has(id)) return prev
-              const next = new Map(prev)
-              next.set(id, new Map())
-              return next
-            })
-          }
-        }),
-      )
+      // Sequencial na Sol, paralelo no resto (evita saturar a function fria).
+      const [first, ...rest] = staleOrMissing
+      const loadOne = async (id: string) => {
+        try {
+          const summary = await fetchDashboardLogSummary(id, 0)
+          if (cancelled) return
+          setCachedAnswerMap(id, summary.answerMap)
+          setAnswerMaps((prev) => {
+            const next = new Map(prev)
+            next.set(id, summary.answerMap)
+            return next
+          })
+        } catch {
+          if (cancelled) return
+          setAnswerMaps((prev) => {
+            if (prev.has(id)) return prev
+            const next = new Map(prev)
+            next.set(id, new Map())
+            return next
+          })
+        }
+      }
+      if (first) await loadOne(first)
+      await Promise.all(rest.map(loadOne))
       if (!cancelled) {
         console.info(
           `[inicio] answerMap revalidado em ${Math.round(performance.now() - started)}ms (${staleOrMissing.length} inst)`,
@@ -709,11 +739,12 @@ export function HomePage() {
         </Banner>
       ) : null}
       {g.isSuper || !mine ? (
-        <SuperHome metrics={metrics} />
+        <SuperHome metrics={metrics} answerMaps={answerMaps} />
       ) : (
         <SchoolHome
           institution={mine}
           metrics={metrics.get(mine.id)}
+          acertoLoading={!answerMaps.has(mine.id)}
           trails={trails.rows.filter((t) => t.institution_id === mine.id)}
           students={students.rows.filter((s) => s.institution_id === mine.id)}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}

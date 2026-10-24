@@ -313,9 +313,17 @@ function buildBody(
 
 /** Versão mínima (sem student_stats / student_ids) para caber no doc meta. */
 function compactAgentUsageMinimal(usage: AgentUsageAggregate): Json {
+  const allStudentIds = new Set<string>()
+  for (const a of usage.agents) {
+    for (const id of a.student_ids ?? []) {
+      if (id) allStudentIds.add(id)
+    }
+  }
   return {
     period_days: usage.period_days,
     total_messages: usage.total_messages,
+    // Período: alunos distintos (UI não depende de student_ids no compact).
+    unique_students: allStudentIds.size,
     agents: usage.agents.map((a: AgentUsageRow) => ({
       trail_id: a.trail_id,
       label: a.label,

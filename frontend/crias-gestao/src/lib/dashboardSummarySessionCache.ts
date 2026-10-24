@@ -88,6 +88,7 @@ export function mergeSessionAgentUsage(
   periodDays: AgentUsagePeriodDays,
 ): { usage: AgentUsageView; present: boolean; complete: boolean } {
   let totalMessages = 0
+  let uniqueStudents = 0
   let present = false
   const agents: AgentUsageView['agents'] = []
   for (const id of ids) {
@@ -101,12 +102,18 @@ export function mergeSessionAgentUsage(
     }
     present = true
     totalMessages += u.totalMessages
+    uniqueStudents +=
+      typeof u.uniqueStudents === 'number' && u.uniqueStudents > 0
+        ? u.uniqueStudents
+        : new Set(u.agents.flatMap((a) => a.studentIds)).size ||
+          u.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
     agents.push(...u.agents)
   }
   return {
     usage: {
       periodDays,
       totalMessages,
+      uniqueStudents,
       agents,
       series: [],
     },

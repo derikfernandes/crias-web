@@ -592,8 +592,13 @@ export function DashboardPage() {
   // Oportunidades (menor e maior acerto) aparecem sempre; os dados dos exercícios entram desde o início.
   const [questionsDataEnabled, setQuestionsDataEnabled] = useState(true)
   const [isQuestionsPending, startQuestionsTransition] = useTransition()
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [loadingInst, setLoadingInst] = useState(true)
+  // Seed do GestaoContext: volta Início↔Dados sem BootSymbol por getDocs.
+  const [institutions, setInstitutions] = useState<Institution[]>(() =>
+    gestao.institutions.length > 0 ? gestao.institutions : [],
+  )
+  const [loadingInst, setLoadingInst] = useState(
+    () => gestao.institutions.length === 0,
+  )
   const [instError, setInstError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('inst')?.trim()
@@ -631,13 +636,63 @@ export function DashboardPage() {
   const [logsReadyIds, setLogsReadyIds] = useState<Set<string>>(() => new Set())
   /** Fetch terminou com falha sem cache para alguma selecionada. */
   const [logsFailed, setLogsFailed] = useState(false)
-  /** Escopo do monitor (agentUsage) publicado — evita stale de outra instituição. */
-  const [agentScopeKey, setAgentScopeKey] = useState('')
+  /** Persiste o período do monitor entre troca de instituição e Início↔Dados. */
+  const [agentPeriodDays, setAgentPeriodDays] =
+    useState<AgentUsagePeriodDays>(() => {
+      try {
+        const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+        if (raw === '0' || raw === '7' || raw === '30') {
+          return Number(raw) as AgentUsagePeriodDays
+        }
+      } catch {
+        // ignore
+      }
+      return 0
+    })
+  const setAgentPeriodDaysPersist = (days: AgentUsagePeriodDays) => {
+    setAgentPeriodDays(days)
+    try {
+      sessionStorage.setItem('gestao.monitorPeriodDays', String(days))
+    } catch {
+      // ignore
+    }
+  }
   /** Métricas pré-agregadas (Início+Dados) — evita rebuild de 57k answers. */
   const [metricsByInst, setMetricsByInst] = useState<
     Map<string, InstitutionDashboardMetricsView>
-  >(() => new Map())
-  const [metricsScopeKey, setMetricsScopeKey] = useState('')
+  >(() => {
+    // Seed síncrono: volta Dados/Sol sem BootSymbol nem refetch bloqueante.
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of gestao.selectedIds) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    return seed
+  })
+  const [metricsScopeKey, setMetricsScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    if (ids.every((id) => getCachedMetrics(id))) return ids.join('|')
+    return ''
+  })
+  /** Escopo do monitor (agentUsage) publicado — evita stale de outra instituição. */
+  const [agentScopeKey, setAgentScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    let period: AgentUsagePeriodDays = 0
+    try {
+      const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+      if (raw === '0' || raw === '7' || raw === '30') {
+        period = Number(raw) as AgentUsagePeriodDays
+      }
+    } catch {
+      // ignore
+    }
+    if (!ids.every((id) => agentUsageFromMetrics(getCachedMetrics(id), period))) {
+      return ''
+    }
+    return `${ids.join('|')}|${period}`
+  })
   const metricsGenerationRef = useRef(0)
   const [loadStepsDone, setLoadStepsDone] = useState(0)
   const loadGenerationRef = useRef(0)
@@ -648,10 +703,47 @@ export function DashboardPage() {
   const [dataError, setDataError] = useState<string | null>(null)
   const [logsError, setLogsError] = useState<string | null>(null)
   const [logsRetryKey, setLogsRetryKey] = useState(0)
-  const [agentUsage, setAgentUsage] =
-    useState<AgentUsageView>(EMPTY_AGENT_USAGE)
-  const [agentPeriodDays, setAgentPeriodDays] =
-    useState<AgentUsagePeriodDays>(30)
+  const [agentUsage, setAgentUsage] = useState<AgentUsageView>(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    let period: AgentUsagePeriodDays = 0
+    try {
+      const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+      if (raw === '0' || raw === '7' || raw === '30') {
+        period = Number(raw) as AgentUsagePeriodDays
+      }
+    } catch {
+      // ignore
+    }
+    const usages = ids.map((id) =>
+      agentUsageFromMetrics(getCachedMetrics(id), period),
+    )
+    if (ids.length === 0 || usages.some((u) => !u)) {
+      return { ...EMPTY_AGENT_USAGE, periodDays: period }
+    }
+    let total = 0
+    let uniqueStudents = 0
+    const agents = []
+    for (const u of usages) {
+      total += u!.totalMessages
+      uniqueStudents +=
+        typeof u!.uniqueStudents === 'number' && u!.uniqueStudents > 0
+          ? u!.uniqueStudents
+          : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
+            u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
+      agents.push(...u!.agents)
+    }
+    return {
+      periodDays: period,
+      totalMessages: total,
+      uniqueStudents,
+      agents: mergeAgentRowsByLabel(agents).map((row) => ({
+        ...row,
+        pctOfTotal:
+          total > 0 ? Math.round((row.messages / total) * 1000) / 10 : 0,
+      })),
+      series: [],
+    }
+  })
   const [selectedAgentTrailId, setSelectedAgentTrailId] = useState<
     string | null
   >(null)
@@ -728,6 +820,11 @@ export function DashboardPage() {
     let cancelled = false
 
     async function run() {
+      // Já tem lista do contexto: não bloqueia UI; refresca em background.
+      if (gestao.institutions.length > 0) {
+        setInstitutions(gestao.institutions)
+        setLoadingInst(false)
+      }
       if (!db) {
         setLoadingInst(false)
         return
@@ -740,7 +837,14 @@ export function DashboardPage() {
         setLoadingInst(false)
       } catch (err) {
         if (cancelled) return
-        setInstError(err instanceof Error ? err.message : 'Erro ao carregar instituições.')
+        // Mantém seed do contexto se o refresh falhar.
+        if (gestao.institutions.length === 0) {
+          setInstError(
+            err instanceof Error
+              ? err.message
+              : 'Erro ao carregar instituições.',
+          )
+        }
         setLoadingInst(false)
       }
     }
@@ -749,6 +853,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1291,9 +1396,15 @@ export function DashboardPage() {
       return false
     }
     let total = 0
+    let uniqueStudents = 0
     const agents = []
     for (const u of usages) {
       total += u!.totalMessages
+      uniqueStudents +=
+        typeof u!.uniqueStudents === 'number' && u!.uniqueStudents > 0
+          ? u!.uniqueStudents
+          : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
+            u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
       agents.push(...u!.agents)
     }
     const mergedAgents = mergeAgentRowsByLabel(agents).map((row) => ({
@@ -1304,6 +1415,7 @@ export function DashboardPage() {
     setAgentUsage({
       periodDays: period,
       totalMessages: total,
+      uniqueStudents,
       agents: mergedAgents,
       series: [],
     })
@@ -1555,6 +1667,7 @@ export function DashboardPage() {
       setAgentUsage({
         periodDays: agentPeriodDays,
         totalMessages: agentMerged.usage.totalMessages,
+        uniqueStudents: agentMerged.usage.uniqueStudents ?? 0,
         agents: mergedAgents,
         series: [],
       })
@@ -1630,6 +1743,7 @@ export function DashboardPage() {
             setAgentUsage({
               periodDays: agentPeriodDays,
               totalMessages: agentRef.usage.totalMessages,
+              uniqueStudents: agentRef.usage.uniqueStudents ?? 0,
               agents: mergedAgents,
               series: [],
             })
@@ -1723,6 +1837,7 @@ export function DashboardPage() {
           setAgentUsage({
             periodDays: agentPeriodDays,
             totalMessages: agentRef.usage.totalMessages,
+            uniqueStudents: agentRef.usage.uniqueStudents ?? 0,
             agents: mergedAgents,
             series: [],
           })
@@ -3362,7 +3477,15 @@ export function DashboardPage() {
       lastActivityLabel: formatAgentLastActivity(agent.lastActivity),
       studentIds: agent.studentIds,
     }))
-    const uniqueStudents = new Set(agents.flatMap((a) => a.studentIds)).size
+    // Prefer IDs; se compact (sem student_ids), usa uniqueStudents do agregado/agentes.
+    const fromIds = new Set(agents.flatMap((a) => a.studentIds))
+    const uniqueStudents =
+      fromIds.size > 0
+        ? fromIds.size
+        : typeof agentUsage.uniqueStudents === 'number' &&
+            agentUsage.uniqueStudents > 0
+          ? agentUsage.uniqueStudents
+          : agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
     const activeTutorCount = agents.filter((a) => a.messages > 0).length
     const activeDayCount = new Set(agentUsage.series.map((p) => p.date)).size
     const coveragePct =
@@ -3476,7 +3599,7 @@ export function DashboardPage() {
         setStudentChartFilter(null)
         setActiveTab('students')
         setQuestionsDataEnabled(false)
-        setAgentPeriodDays(30)
+        // Mantém agentPeriodDays (Todo/7d/30d) entre instituições.
         setSelectedAgentTrailId(null)
         setPillSearch('')
         setPillTrailFilter('')
@@ -3659,7 +3782,7 @@ export function DashboardPage() {
       agentUsage={agentUsageView}
       agentPeriodDays={agentPeriodDays}
       onAgentPeriodDaysChange={(days) => {
-        setAgentPeriodDays(days)
+        setAgentPeriodDaysPersist(days)
         setSelectedAgentTrailId(null)
       }}
       agentUsageUnavailable={!agentUsagePresent}

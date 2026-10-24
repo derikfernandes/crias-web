@@ -340,16 +340,15 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           <strong>
             {p.summary.completionLoading
               ? 'Carregando…'
-              : pctText(p.summary.avgLessonCompletion)}
+              : pctText(p.summary.avgCompletion)}
           </strong>
-          {p.summary.completionLoading ||
-          p.summary.avgLessonCompletion === null ? (
+          {p.summary.completionLoading || p.summary.avgCompletion === null ? (
             <span className="gx-bar" style={{ marginTop: 6 }} aria-hidden="true">
               <span className="gx-bar__empty" />
             </span>
           ) : (
             <span className="gx-bar" style={{ marginTop: 6 }}>
-              <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
+              <span style={{ width: `${p.summary.avgCompletion}%` }} />
             </span>
           )}
         </div>

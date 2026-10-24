@@ -53,13 +53,16 @@ export type AgentUsageSeriesPointView = {
 export type AgentUsageView = {
   periodDays: AgentUsagePeriodDays
   totalMessages: number
+  /** Alunos distintos no período (quando student_ids foram omitidos no compact). */
+  uniqueStudents?: number
   agents: AgentUsageRowView[]
   series: AgentUsageSeriesPointView[]
 }
 
 export const EMPTY_AGENT_USAGE: AgentUsageView = {
-  periodDays: 30,
+  periodDays: 0,
   totalMessages: 0,
+  uniqueStudents: 0,
   agents: [],
   series: [],
 }
@@ -194,7 +197,11 @@ export function mergeAgentRowsByLabel(
       trailIds,
       label,
       messages: existing.messages + row.messages,
-      uniqueStudents: studentStats.length,
+      // Sem IDs (compact): preserva uniqueStudents dos agentes.
+      uniqueStudents:
+        studentStats.length > 0
+          ? studentStats.length
+          : existing.uniqueStudents + row.uniqueStudents,
       pctOfTotal: 0,
       lastActivity,
       studentIds: studentStats.map((s) => s.studentId),

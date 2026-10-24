@@ -93,6 +93,7 @@ function resolveApiBaseUrl(): string {
 type AgentApi = {
   period_days?: number
   total_messages?: number
+  unique_students?: number
   agents?: Array<{
     trail_id?: string
     trail_ids?: string[]
@@ -174,10 +175,18 @@ function parseAgent(raw: AgentApi | undefined, period: AgentUsagePeriodDays): Ag
         : [],
     }
   })
+  const uniqueFromAgents = agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
+  const uniqueFromIds = new Set(agents.flatMap((a) => a.studentIds)).size
   return {
     periodDays: period,
     totalMessages:
       typeof raw.total_messages === 'number' ? raw.total_messages : 0,
+    uniqueStudents:
+      typeof raw.unique_students === 'number' && raw.unique_students > 0
+        ? raw.unique_students
+        : uniqueFromIds > 0
+          ? uniqueFromIds
+          : uniqueFromAgents,
     agents,
     series: Array.isArray(raw.series)
       ? raw.series.map((p) => ({

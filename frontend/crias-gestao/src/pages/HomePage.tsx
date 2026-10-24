@@ -847,8 +847,8 @@ export function HomePage() {
           avgAccuracy: sm.avgAccuracy,
           accuracyCorrect: sm.accuracyCorrect,
           accuracyTried: sm.accuracyTried,
-          // Preferir conclusão do servidor quando existir.
-          avgCompletion: sm.avgLessonCompletion ?? local.avgCompletion,
+          // Conclusão canônica = por atividade (não por etapa/aula).
+          avgCompletion: sm.avgCompletion ?? local.avgCompletion,
         })
       } else {
         map.set(inst.id, local)
@@ -865,7 +865,12 @@ export function HomePage() {
     serverMetrics,
   ])
 
-  if (!ready || g.institutionsLoading) return <BootSymbol />
+  // Com métricas em sessão, mostra Início na hora (volta Dados→Início <0,5s).
+  const hasMetricsSeed =
+    serverMetrics.size > 0 ||
+    g.institutions.some((i) => Boolean(getCachedMetrics(i.id)))
+  if (g.institutionsLoading) return <BootSymbol />
+  if (!ready && !hasMetricsSeed) return <BootSymbol />
 
   const mine = g.myInstitutionId
     ? g.institutions.find((i) => i.id === g.myInstitutionId)

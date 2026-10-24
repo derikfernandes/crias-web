@@ -50,10 +50,14 @@ export function correctToLetter(raw: string | null | undefined): string {
   return ''
 }
 
-/** Título da atividade a partir do título gravado ("Etapa 1 — Questão 1" ou "Matemática"). */
+/** Título da atividade a partir do título gravado ("Etapa 1: Questão 1", legado com travessão, ou "Matemática"). */
 export function activityTitleFromRow(raw: string, number: number): string {
-  const parts = raw.split(' — ')
-  const candidate = (parts.length >= 2 ? parts.slice(1).join(' — ') : raw).trim()
+  const stripped = raw
+    .replace(/^(?:etapa|atividade|quest[aã]o)\s*\d+\s*(?:[:：]|—|-)\s*/i, '')
+    .trim()
+  const parts = raw.split(/\s+(?:—|-)\s+/)
+  const fromDash = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : ''
+  const candidate = (stripped && stripped !== raw.trim() ? stripped : fromDash || raw).trim()
   if (!candidate || GENERIC_TITLE.test(candidate)) return `Atividade ${number}`
   return candidate
 }
@@ -61,7 +65,7 @@ export function activityTitleFromRow(raw: string, number: number): string {
 /** Título gravado em cada célula da atividade. */
 export function storedActivityTitle(number: number, title: string): string {
   const t = title.trim()
-  return t && !GENERIC_TITLE.test(t) ? `Atividade ${number} — ${t}` : `Atividade ${number}`
+  return t && !GENERIC_TITLE.test(t) ? `Atividade ${number}: ${t}` : `Atividade ${number}`
 }
 
 function stripKeyPrefix(label: string, key: string): string {

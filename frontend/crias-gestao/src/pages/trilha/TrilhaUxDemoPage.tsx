@@ -69,7 +69,7 @@ export function TrilhaUxDemoPage() {
             },
             {
               trailId: 't2',
-              title: 'Matemática — Demo',
+              title: 'Matemática: Demo',
               institutionName: 'Escola Demo',
               subject: 'Matemática',
               status: 'not_started',
@@ -98,7 +98,7 @@ export function TrilhaUxDemoPage() {
         stageNumber,
         questionNumber: 1,
         stageType: 'fixed' as const,
-        title: `Etapa ${stageNumber} — leitura`,
+        title: `Etapa ${stageNumber}: leitura`,
         body: `Conteúdo da fase ${stageNumber}.`,
         studentAnswer: null,
         isCorrect: null,

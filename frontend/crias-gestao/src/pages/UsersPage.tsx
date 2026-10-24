@@ -2,12 +2,33 @@ import { useMemo, useState } from 'react'
 import { useCollection } from '../hooks/useCollection'
 import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
+import {
+  adminUserDocId,
+  parseMasterAdminEmailsFromEnv,
+} from '../lib/adminPermissions'
 import { ADMIN_USERS_COLLECTION, snapshotToAdminUser } from '../lib/adminUserFirestore'
 import { deleteAdminUser, saveAdminUser, type UserDraft } from '../lib/adminUsersOps'
+import type { AdminUser } from '../types/adminUser'
 import { Banner, BootSymbol, PageHead } from '../design/gx/ui'
 import { UsersTable, rowFromUser, type UserRowModel } from './admin/UsersTable'
 
 const EMPTY: UserDraft = { email: '', profile: 'basico', institutionIds: [], active: true }
+
+/** Masters só no env (sem doc em admin_users) aparecem na aba Crias. */
+function masterStub(email: string): AdminUser {
+  return {
+    id: adminUserDocId(email),
+    email,
+    active: true,
+    is_super_admin: true,
+    is_master: true,
+    all_institutions: true,
+    institution_ids: [],
+    nav_permissions: [],
+    created_at: null,
+    updated_at: null,
+  }
+}
 
 /** Usuários (Super admin, 1.1.12 e orientação 15): abas Crias e Instituições. */
 export function UsersPage() {
@@ -19,10 +40,24 @@ export function UsersPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const isSuper = hasFullAccess || Boolean(adminProfile?.is_super_admin)
 
-  const crias = useMemo(
-    () => users.rows.filter((u) => u.is_super_admin || u.all_institutions || u.institution_ids.length === 0),
-    [users.rows],
-  )
+  const crias = useMemo(() => {
+    const fromDb = users.rows.filter((u) => {
+      const email = (u.email || '').toLowerCase()
+      if (email.endsWith('@crias.ai') || email.endsWith('@crias.org')) return true
+      if (u.is_master || u.is_super_admin || u.all_institutions) return true
+      return u.institution_ids.length === 0
+    })
+    const seen = new Set(
+      fromDb.map((u) => (u.email || '').toLowerCase()).filter(Boolean),
+    )
+    // MASTER_ADMIN_EMAILS / VITE_MASTER_ADMIN_EMAILS: aparecem mesmo sem doc.
+    const fromEnv = parseMasterAdminEmailsFromEnv()
+      .filter((email) => !seen.has(email))
+      .map((email) => masterStub(email))
+    return [...fromDb, ...fromEnv].sort((a, b) =>
+      (a.email || '').localeCompare(b.email || '', 'pt-BR'),
+    )
+  }, [users.rows])
   const inst = useMemo(
     () => users.rows.filter((u) => !u.is_super_admin && !u.all_institutions && u.institution_ids.length > 0),
     [users.rows],

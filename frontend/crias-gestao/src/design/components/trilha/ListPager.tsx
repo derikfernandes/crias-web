@@ -18,7 +18,7 @@ export function ListPager({
   return (
     <nav
       className="trilha-pager"
-      aria-label={`${label} — navegação`}
+      aria-label={`${label}: navegação`}
     >
       <button
         type="button"

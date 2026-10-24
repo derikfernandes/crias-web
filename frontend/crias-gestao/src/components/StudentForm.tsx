@@ -8,6 +8,11 @@ import {
 } from '../lib/public/students'
 import { studentPath } from '../lib/paths'
 import { updateStudentPassword } from '../lib/studentApi'
+import {
+  assertCanonicalBrPhone,
+  assertSchoolGrade,
+  assertStudentName,
+} from '../lib/studentFieldValidation'
 import { Banner, DeletarDialog, Switch } from '../design/gx/ui'
 import type { Student } from '../types/student'
 
@@ -123,20 +128,23 @@ export function StudentForm({ docId, initial }: Props) {
       setFormError('Informe a instituição (vínculo obrigatório).')
       return
     }
-    if (!trimmedName) {
-      setFormError('Informe o nome do aluno.')
+    const nameErr = assertStudentName(trimmedName)
+    if (nameErr) {
+      setFormError(nameErr)
       return
     }
-    if (!trimmedPhone) {
-      setFormError('Informe o telefone do aluno.')
+    const phoneErr = assertCanonicalBrPhone(trimmedPhone)
+    if (phoneErr) {
+      setFormError(phoneErr)
       return
     }
     if (normalizedLevel !== 'fundamental' && normalizedLevel !== 'médio') {
       setFormError('school_level deve ser "fundamental" ou "médio".')
       return
     }
-    if (!school_grade) {
-      setFormError('Informe a série/ano (school_grade).')
+    const gradeErr = assertSchoolGrade(school_grade)
+    if (gradeErr) {
+      setFormError(gradeErr)
       return
     }
     if (![1, 2, 3].includes(normalizedStudentLevel)) {

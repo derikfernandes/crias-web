@@ -10,10 +10,11 @@ import { loadTrilhaSession } from '../lib/trilha/trilhaSession'
 const firebaseOk = !firebaseConfigError && db
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, adminProfile } = useAuth()
+  const { user, loading, adminProfile, permissionsLoading } = useAuth()
+  const { hasGestaoAccess, isMaster } = usePermissions()
   const location = useLocation()
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return <p className="muted">Carregando…</p>
   }
 
@@ -21,10 +22,19 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  if (adminProfile && !adminProfile.active) {
+  // Master do env prevalece sobre doc admin_users inativo.
+  if (adminProfile && !adminProfile.active && !isMaster) {
     return (
       <p className="banner banner--error" role="alert">
         Sua conta está desativada. Fale com um administrador.
+      </p>
+    )
+  }
+
+  if (!hasGestaoAccess) {
+    return (
+      <p className="banner banner--error" role="alert">
+        Sem acesso. Sua conta não tem perfil de administrador na Gestão.
       </p>
     )
   }
@@ -33,12 +43,20 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 export function RequireNavPermission({ children }: { children: ReactNode }) {
-  const { canNav, permissionsLoading } = usePermissions()
+  const { canNav, permissionsLoading, hasGestaoAccess } = usePermissions()
   const location = useLocation()
   const required = navPermissionForPath(location.pathname)
 
   if (permissionsLoading) {
     return <p className="muted">Carregando permissões…</p>
+  }
+
+  if (!hasGestaoAccess) {
+    return (
+      <p className="banner banner--error" role="alert">
+        Sem acesso. Sua conta não tem perfil de administrador na Gestão.
+      </p>
+    )
   }
 
   if (!canNav(required)) {

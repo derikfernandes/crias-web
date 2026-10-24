@@ -9,13 +9,20 @@ import {
   type AiPromptVersion,
 } from '../lib/aiPromptsApi'
 import { Banner, BootSymbol, ConfirmDialog, Icon, na, PageHead } from '../design/gx/ui'
+import { formatSaoPauloDateTimeShort } from '../lib/formatSaoPaulo'
+
+function fmtWhen(raw: string | null | undefined): string {
+  if (!raw) return 'N/A'
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) return formatSaoPauloDateTimeShort(raw)
+  return raw
+}
 
 /** Prompt fixo do sistema: só leitura, invisível para a escola (orientações 1 e 14). */
 const LOCKED = new Set(['criar_trilha_ia'])
 
 /** Prompts (1.1.14): seletor "Agente", texto, nota da versão, Salvar e versões anteriores. */
 export function AiPromptsPage() {
-  const { isMaster } = usePermissions()
+  const { isMaster, permissionsLoading } = usePermissions()
   const [prompts, setPrompts] = useState<AiPromptRecord[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState('')
@@ -33,7 +40,7 @@ export function AiPromptsPage() {
   const dirty = selected ? draft.trim() !== selected.body.trim() : false
 
   const load = useCallback(async () => {
-    if (!isMaster) return
+    if (permissionsLoading || !isMaster) return
     setLoading(true)
     setError(null)
     try {
@@ -45,7 +52,7 @@ export function AiPromptsPage() {
     } finally {
       setLoading(false)
     }
-  }, [isMaster])
+  }, [isMaster, permissionsLoading])
 
   useEffect(() => {
     void load()
@@ -100,6 +107,7 @@ export function AiPromptsPage() {
     }
   }
 
+  if (permissionsLoading) return <BootSymbol />
   if (!isMaster) {
     return (
       <div className="gx-page">
@@ -117,7 +125,7 @@ export function AiPromptsPage() {
     <div className="gx-page">
       <PageHead
         title="Prompts"
-        subtitle="Instruções que orientam a IA. Cada salvamento cria uma nova versão e fica registrado."
+        subtitle="Instruções que orientam a geração de conteúdo. Cada salvamento cria uma nova versão e fica registrado."
       />
       {error ? <Banner onRetry={() => void load()}>{error}</Banner> : null}
       {message ? <Banner tone="ok">{message}</Banner> : null}
@@ -137,7 +145,7 @@ export function AiPromptsPage() {
           {selected ? (
             <p className="gx-muted" style={{ flex: '1 1 260px', lineHeight: 1.5 }}>
               {selected.description}
-              {' · '}Última edição: {na(selected.updated_by_email)} · {na(selected.updated_at)}
+              {' · '}Última edição: {na(selected.updated_by_email)} · {fmtWhen(selected.updated_at)}
             </p>
           ) : null}
         </div>
@@ -233,7 +241,7 @@ export function AiPromptsPage() {
                           {v.note || 'Sem nota'}
                         </strong>
                         <span className="gx-muted" style={{ fontSize: 12 }}>
-                          {na(v.updated_by_email)} · {na(v.updated_at)}
+                          {na(v.updated_by_email)} · {fmtWhen(v.updated_at)}
                         </span>
                       </span>
                       <Icon name={open ? 'chev-up' : 'chev-down'} />

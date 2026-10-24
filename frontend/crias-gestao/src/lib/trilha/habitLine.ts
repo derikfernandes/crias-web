@@ -29,5 +29,5 @@ export function habitLineFromAttempts(
   if (todayCount > 0) {
     return `Hoje: ${todayCount} etapa${todayCount === 1 ? '' : 's'} registada${todayCount === 1 ? '' : 's'}.`
   }
-  return 'Ainda sem etapa hoje — ~3–5 min quando puder.'
+  return 'Ainda sem etapa hoje: cerca de 3 a 5 min quando puder.'
 }

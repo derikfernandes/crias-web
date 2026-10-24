@@ -177,7 +177,8 @@ function OpenTrail({ id }: { id: string }) {
   }
 
   const saveLabel = tab === 'gabarito' ? 'Salvar' : 'Salvar'
-  const showSave = tab !== 'content'
+  // Configuração ativa = somente visualização: sem Salvar no topo.
+  const showSave = tab !== 'content' && !(tab === 'config' && locked)
   const cadChanged =
     cad.name.trim() !== trail.name.trim() ||
     cad.subject.trim() !== trail.subject.trim() ||

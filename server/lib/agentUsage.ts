@@ -26,7 +26,7 @@ const CANONICAL_LABELS: Record<CanonicalAgentTrailId, string> = {
   'Trilha - Humanas': 'Humanas',
   'Trilha - Natureza': 'Natureza',
   'Tutor - Linguagens': 'Linguagens',
-  'Tutor - Maria': 'Maria',
+  'Tutor - Maria': 'Monitor',
 }
 
 /** Ordem de exibição das disciplinas canônicas. */
@@ -36,7 +36,7 @@ export const CANONICAL_AGENT_LABELS = [
   'Humanas',
   'Natureza',
   'Linguagens',
-  'Maria',
+  'Monitor',
 ] as const
 
 const CANONICAL_SET = new Set<string>(CANONICAL_AGENT_TRAIL_IDS)
@@ -48,6 +48,7 @@ const PRIMARY_BY_LABEL: Record<string, string> = {
   Humanas: 'Trilha - Humanas',
   Natureza: 'Trilha - Natureza',
   Linguagens: 'Tutor - Linguagens',
+  Monitor: MARIA_AGENT_TRAIL_ID,
   Maria: MARIA_AGENT_TRAIL_ID,
 }
 
@@ -64,7 +65,10 @@ export function agentLabelForTrailId(trailId: string): string {
     return CANONICAL_LABELS[id as CanonicalAgentTrailId]
   }
   if (id.startsWith('Trilha -')) return id.slice('Trilha -'.length).trim() || id
-  if (id.startsWith('Tutor -')) return id.slice('Tutor -'.length).trim() || id
+  if (id.startsWith('Tutor -')) {
+    const rest = id.slice('Tutor -'.length).trim() || id
+    return rest === 'Maria' ? 'Monitor' : rest
+  }
   return id
 }
 

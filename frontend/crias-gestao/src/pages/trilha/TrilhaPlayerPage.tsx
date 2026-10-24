@@ -58,7 +58,7 @@ function mapChatMessages(
     }))
 }
 
-/** POST ensure-ai — só via trigger `continue` (CTA no player). */
+/** POST ensure-ai .  só via trigger `continue` (CTA no player). */
 async function ensureIfContinue(
   next: TrilhaNextContent,
   studentId: string,
@@ -131,7 +131,7 @@ export function TrilhaPlayerPage() {
     setLoadState('ready')
   }, [])
 
-  /** Resume / open / retry: só GET — nunca ensure-ai (P0 + A2). */
+  /** Resume / open / retry: só GET .  nunca ensure-ai (P0 + A2). */
   const load = useCallback(async () => {
     setLoadState('loading')
     setErrorMessage(undefined)
@@ -211,7 +211,7 @@ export function TrilhaPlayerPage() {
     setConflictMessage(null)
 
     try {
-      // P0: ensure-ai só no Continuar — se a célula atual é ai pending, gera antes de avançar.
+      // P0: ensure-ai só no Continuar .  se a célula atual é ai pending, gera antes de avançar.
       let working = content
       if (shouldEnsureAiOnTrigger(working, 'continue')) {
         working = await ensureIfContinue(
@@ -357,7 +357,7 @@ export function TrilhaPlayerPage() {
           (e.status === 404 || e.status === 501 || e.status === 405)
         ) {
           setErrorMessage(
-            'Não conseguimos corrigir agora. Tente de novo — nada foi perdido.',
+            'Não conseguimos corrigir agora. Tente de novo. Nada foi perdido.',
           )
           return
         }
@@ -382,7 +382,7 @@ export function TrilhaPlayerPage() {
       setErrorMessage(
         e instanceof Error
           ? e.message
-          : 'Não conseguimos corrigir agora. Tente de novo — nada foi perdido.',
+          : 'Não conseguimos corrigir agora. Tente de novo. Nada foi perdido.',
       )
     } finally {
       setSubmitting(false)
@@ -425,7 +425,7 @@ export function TrilhaPlayerPage() {
     stageType === 'ai'
       ? content?.content?.trim() ||
         (content?.ai_status === 'pending'
-          ? 'Ainda não gerado — toque Continuar para preparar a aula com a IA.'
+          ? 'Ainda não gerado: toque Continuar para preparar a aula com a IA.'
           : 'Conteúdo da aula ainda não disponível.')
       : content?.content?.trim() ||
         content?.prompt?.trim() ||

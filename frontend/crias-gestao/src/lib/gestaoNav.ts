@@ -7,6 +7,7 @@ export type GxSection =
   | 'trilhas'
   | 'alunos'
   | 'senhas'
+  | 'usuarios'
   | 'admin'
   | 'prompts'
   | 'doc'
@@ -45,7 +46,7 @@ export const GX_NAV: Array<GxNavLink | GxNavGroup> = [
     id: 'configuracoes',
     label: 'Configurações',
     children: [
-      { type: 'head', label: 'Usuários' },
+      { type: 'link', section: 'usuarios', label: 'Usuários', path: '/usuarios', permission: 'admin' },
       { type: 'link', section: 'senhas', label: 'Senhas', path: '/alunos/senhas', permission: 'student_passwords', master: true },
       { type: 'link', section: 'admin', label: 'Permissões', path: '/admin', permission: 'admin' },
       { type: 'head', label: 'Sistema', superOnly: true },
@@ -62,6 +63,7 @@ export function gxSectionForPath(pathname: string): GxSection {
   if (path.startsWith('/alunos')) return 'alunos'
   if (path.startsWith('/trilhas')) return 'trilhas'
   if (path.startsWith('/dashboard')) return 'dash'
+  if (path.startsWith('/usuarios')) return 'usuarios'
   if (path.startsWith('/admin')) return 'admin'
   if (path.startsWith('/prompts')) return 'prompts'
   if (path.startsWith('/doc')) return 'doc'

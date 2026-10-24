@@ -61,11 +61,11 @@ export function snapshotToStudent(
 }
 
 export function formatStudentTs(value: Student['created_at']): string {
-  if (!value || typeof value.toDate !== 'function') return '—'
+  if (!value || typeof value.toDate !== 'function') return 'N/A'
   try {
     return value.toDate().toLocaleString('pt-BR')
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 

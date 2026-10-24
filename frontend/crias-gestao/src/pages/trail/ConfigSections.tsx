@@ -294,26 +294,30 @@ function Counter({
         {swatch ? <span className={`gx-swatch gx-swatch--${swatch}`} aria-hidden="true" /> : null}
         {label}
       </span>
-      <button
-        type="button"
-        className="gx-btn gx-btn--icon"
-        aria-label={`Menos ${label.toLowerCase()}`}
-        disabled={disabled || value <= min}
-        onClick={() => onChange(value - 1)}
-      >
-        −
-      </button>
+      {disabled ? null : (
+        <button
+          type="button"
+          className="gx-btn gx-btn--icon"
+          aria-label={`Menos ${label.toLowerCase()}`}
+          disabled={value <= min}
+          onClick={() => onChange(value - 1)}
+        >
+          −
+        </button>
+      )}
       <span className="gx-counter__value">{value}</span>
       {suffix ? <span className="gx-muted" style={{ marginLeft: -4 }}>{suffix}</span> : null}
-      <button
-        type="button"
-        className="gx-btn gx-btn--icon"
-        aria-label={`Mais ${label.toLowerCase()}`}
-        disabled={disabled || value >= max}
-        onClick={() => onChange(value + 1)}
-      >
-        +
-      </button>
+      {disabled ? null : (
+        <button
+          type="button"
+          className="gx-btn gx-btn--icon"
+          aria-label={`Mais ${label.toLowerCase()}`}
+          disabled={value >= max}
+          onClick={() => onChange(value + 1)}
+        >
+          +
+        </button>
+      )}
     </div>
   )
 }

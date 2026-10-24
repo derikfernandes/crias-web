@@ -9,11 +9,15 @@
 
 import {
   EMPTY_AGENT_USAGE,
+  agentLabelForTrailId,
   mergeAgentRowsByLabel,
   type AgentUsagePeriodDays,
   type AgentUsageRowView,
   type AgentUsageView,
 } from './agentUsage'
+import { setCachedAnswerMap } from './answerMapCache'
+import { setSummarySession } from './dashboardSummarySessionCache'
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
 
 export type DashboardLogSummary = {
   doneByStudent: Map<string, Set<string>>
@@ -21,6 +25,8 @@ export type DashboardLogSummary = {
   agentUsage: AgentUsageView
   /** False quando a resposta OK omite `agent_usage` (deploy antigo / contrato incompleto). */
   agentUsagePresent: boolean
+  /** Quando o servidor manda os 3 períodos, a troca 7/30/Todo é local. */
+  agentUsageByPeriod?: Partial<Record<AgentUsagePeriodDays, AgentUsageView>>
 }
 
 function resolveApiBaseUrl(): string {
@@ -65,6 +71,17 @@ type DashboardSummaryResponse = {
     agents?: AgentUsageApiRow[]
     series?: AgentUsageApiSeries[]
   }
+  agent_usage_by_period?: Partial<
+    Record<
+      '0' | '7' | '30',
+      {
+        period_days?: number
+        total_messages?: number
+        agents?: AgentUsageApiRow[]
+        series?: AgentUsageApiSeries[]
+      }
+    >
+  >
   error?: string
 }
 
@@ -129,13 +146,16 @@ function parseAgentUsage(
                   )
                 : []
 
+          const rawLabel =
+            typeof row.label === 'string' && row.label.trim()
+              ? row.label.trim()
+              : agentLabelForTrailId(trailId)
+          const label = rawLabel === 'Maria' ? 'Monitor' : rawLabel
+
           return {
             trailId,
             trailIds,
-            label:
-              typeof row.label === 'string' && row.label.trim()
-                ? row.label.trim()
-                : trailId,
+            label,
             messages: typeof row.messages === 'number' ? row.messages : 0,
             uniqueStudents:
               typeof row.unique_students === 'number'
@@ -196,7 +216,7 @@ export async function fetchDashboardLogSummary(
   }
 
   const res = await fetch(url.toString(), {
-    headers: { Accept: 'application/json' },
+    headers: await gestaoAuthHeaders({ Accept: 'application/json' }),
   })
 
   let body: DashboardSummaryResponse | null = null
@@ -247,11 +267,38 @@ export async function fetchDashboardLogSummary(
     if (done.size > 0) doneByStudent.set(studentId, done)
   }
 
-  return {
+  const agentUsage = parseAgentUsage(body.agent_usage)
+  const agentUsageByPeriod: Partial<
+    Record<AgentUsagePeriodDays, AgentUsageView>
+  > = {}
+  const rawBy = body.agent_usage_by_period
+  if (rawBy && typeof rawBy === 'object') {
+    for (const key of ['0', '7', '30'] as const) {
+      const raw = rawBy[key]
+      if (!raw) continue
+      const period = parsePeriodDays(Number(key))
+      agentUsageByPeriod[period] = parseAgentUsage({
+        ...raw,
+        period_days: Number(key),
+      })
+    }
+  }
+  if (!agentUsageByPeriod[periodDays]) {
+    agentUsageByPeriod[periodDays] = agentUsage
+  }
+
+  const summary: DashboardLogSummary = {
     doneByStudent,
     answerMap,
-    agentUsage: parseAgentUsage(body.agent_usage),
+    agentUsage,
     agentUsagePresent:
       body.agent_usage != null && typeof body.agent_usage === 'object',
+    agentUsageByPeriod,
   }
+
+  // Sessão + answerMapCache: Início e Dados compartilham (Sol <3s na volta).
+  setCachedAnswerMap(institutionId, answerMap)
+  setSummarySession(institutionId, summary, periodDays, agentUsageByPeriod)
+
+  return summary
 }

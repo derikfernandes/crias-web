@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useLocation } from 'react-router-dom'
 
 /* Peças de interface da Gestão v1.1 (INTERFACE.md 1.1.x). Só apresentação. */
 
@@ -228,16 +229,31 @@ export function Stat({
   value,
   bar,
   barTone = 'gradient',
+  hint,
 }: {
   label: string
   value: ReactNode
   /** 0 a 100. Sem barra quando undefined. */
   bar?: number | null
   barTone?: 'gradient' | 'green' | 'red'
+  /** Tooltip curto (ex.: diferença entre ativos e ativos 7 dias). */
+  hint?: string
 }) {
   return (
-    <div className="gx-stat">
-      <span>{label}</span>
+    <div className="gx-stat" title={hint} aria-label={hint ? `${label}: ${hint}` : undefined}>
+      <span>
+        {label}
+        {hint ? (
+          <abbr
+            className="gx-stat__hint"
+            title={hint}
+            aria-label={hint}
+            style={{ marginLeft: 6, fontWeight: 700, color: 'var(--v-t3)', textDecoration: 'none', cursor: 'help' }}
+          >
+            ?
+          </abbr>
+        ) : null}
+      </span>
       <strong>{value}</strong>
       {typeof bar === 'number' ? (
         <span
@@ -490,6 +506,11 @@ export function FilterPopover({
   variant = 'pill',
   align = 'right',
   emptyText = 'Nada encontrado.',
+  /** Mostra link "somente" ao lado do nome (só esse item + fecha).
+   *  Checkbox e nome continuam multi-select; o painel não fecha no check. */
+  exclusiveOnLabel = false,
+  /** Não permite ficar com menos que N marcados (ex.: instituições ≥ 1). */
+  minSelected = 0,
 }: {
   label: string
   options: FilterOption[]
@@ -498,9 +519,31 @@ export function FilterPopover({
   variant?: 'pill' | 'field'
   align?: 'left' | 'right'
   emptyText?: string
+  exclusiveOnLabel?: boolean
+  minSelected?: number
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  // UI otimista: o checkmark atualiza no mesmo tick do clique, sem esperar
+  // o pai (Dashboard refetch / URL) re-renderizar o `selected`.
+  const [draft, setDraft] = useState(selected)
+  const location = useLocation()
+  useEffect(() => {
+    setDraft(selected)
+  }, [selected])
+  // Só fecha na troca de rota. Mudança de ?inst= (multi-select) não deve
+  // fechar o painel no meio do clique no checkbox.
+  useEffect(() => {
+    setOpen(false)
+  }, [location.pathname])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
   const sorted = useMemo(
     () => [...options].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     [options],
@@ -511,16 +554,30 @@ export function FilterPopover({
       ? sorted.filter((o) => o.name.toLowerCase().includes(needle))
       : sorted
   }, [sorted, q])
+  // "Todas" quando todas estão marcadas (intencional; equivalente a N de N).
   const count =
-    selected.size === options.length
+    draft.size === options.length && options.length > 0
       ? 'Todas'
-      : `${selected.size} de ${options.length}`
+      : `${draft.size} de ${options.length}`
 
   function toggle(id: string) {
-    const next = new Set(selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+    const next = new Set(draft)
+    if (next.has(id)) {
+      if (next.size <= minSelected) return
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    setDraft(next)
     onChange(next)
+  }
+
+  function selectOnly(id: string) {
+    const next = new Set([id])
+    setDraft(next)
+    onChange(next)
+    setOpen(false)
+    setQ('')
   }
 
   return (
@@ -543,7 +600,11 @@ export function FilterPopover({
       </button>
       {open ? (
         <>
-          <div className="gx-scrim" onClick={() => setOpen(false)} />
+          <div
+            className="gx-scrim"
+            aria-hidden="true"
+            onClick={() => setOpen(false)}
+          />
           <div
             role="dialog"
             aria-label={label}
@@ -568,8 +629,9 @@ export function FilterPopover({
                 type="button"
                 className="gx-linkbtn"
                 onClick={() => {
-                  const next = new Set(selected)
+                  const next = new Set(draft)
                   for (const o of visible) next.add(o.id)
+                  setDraft(next)
                   onChange(next)
                 }}
               >
@@ -579,7 +641,21 @@ export function FilterPopover({
                 type="button"
                 className="gx-linkbtn"
                 style={{ color: 'var(--v-t2)' }}
-                onClick={() => onChange(new Set())}
+                disabled={minSelected > 0 && draft.size <= minSelected}
+                onClick={() => {
+                  if (minSelected <= 0) {
+                    const empty = new Set<string>()
+                    setDraft(empty)
+                    onChange(empty)
+                    return
+                  }
+                  // Mantém os primeiros N (ordem da lista visível).
+                  const keep = new Set(
+                    visible.slice(0, minSelected).map((o) => o.id),
+                  )
+                  setDraft(keep)
+                  onChange(keep)
+                }}
               >
                 Limpar tudo
               </button>
@@ -591,24 +667,53 @@ export function FilterPopover({
               aria-multiselectable="true"
             >
               {visible.map((o) => {
-                const on = selected.has(o.id)
+                const on = draft.has(o.id)
                 return (
-                  <button
+                  <div
                     key={o.id}
-                    type="button"
                     role="option"
                     aria-selected={on}
                     className="gx-filter__opt"
-                    onClick={() => toggle(o.id)}
                   >
-                    <span
-                      className={on ? 'gx-filter__box is-on' : 'gx-filter__box'}
-                      aria-hidden="true"
+                    <button
+                      type="button"
+                      className={
+                        on ? 'gx-filter__check is-on' : 'gx-filter__check'
+                      }
+                      aria-label={
+                        on
+                          ? `Desmarcar ${o.name}`
+                          : `Marcar ${o.name}`
+                      }
+                      aria-pressed={on}
+                      onClick={() => toggle(o.id)}
                     >
-                      {on ? <Icon name="check" size={12} /> : null}
-                    </span>
-                    <span style={{ minWidth: 0 }}>{o.name}</span>
-                  </button>
+                      <span
+                        className={
+                          on ? 'gx-filter__box is-on' : 'gx-filter__box'
+                        }
+                        aria-hidden="true"
+                      >
+                        {on ? <Icon name="check" size={12} /> : null}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="gx-filter__name"
+                      onClick={() => toggle(o.id)}
+                    >
+                      <span data-fade="1">{o.name}</span>
+                    </button>
+                    {exclusiveOnLabel ? (
+                      <button
+                        type="button"
+                        className="gx-filter__only"
+                        onClick={() => selectOnly(o.id)}
+                      >
+                        somente
+                      </button>
+                    ) : null}
+                  </div>
                 )
               })}
               {visible.length === 0 ? (
@@ -669,9 +774,17 @@ export function SortHead({
   numeric?: boolean
 }) {
   const dir = sort?.key === sortKey ? sort.dir : undefined
+  const nextDir = dir === 'asc' ? 'desc' : 'asc'
+  const hint =
+    dir === 'asc'
+      ? `${label}: crescente. Clique para decrescente.`
+      : dir === 'desc'
+        ? `${label}: decrescente. Clique para crescente.`
+        : `${label}: ordenar crescente.`
   return (
     <th
       className={numeric ? 'num' : undefined}
+      data-col={sortKey === 'name' || sortKey === 'level' || sortKey === 'code' ? sortKey : undefined}
       aria-sort={
         dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none'
       }
@@ -679,26 +792,16 @@ export function SortHead({
       <button
         type="button"
         className="gx-sort"
-        data-dir={dir}
-        onClick={() =>
-          onSort({ key: sortKey, dir: dir === 'asc' ? 'desc' : 'asc' })
-        }
+        data-dir={dir ?? ''}
+        data-active={dir ? '1' : '0'}
+        title={hint}
+        aria-label={hint}
+        onClick={() => onSort({ key: sortKey, dir: nextDir })}
       >
         {label}
-        <svg
-          width="10"
-          height="14"
-          viewBox="0 0 10 14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M2 5l3-3 3 3" />
-          <path d="M2 9l3 3 3-3" />
-        </svg>
+        <span className="gx-sort__mark" aria-hidden="true">
+          {dir === 'asc' ? '↑' : dir === 'desc' ? '↓' : '↕'}
+        </span>
       </button>
     </th>
   )
@@ -745,7 +848,7 @@ export function pageNumbers(page: number, pages: number): (number | null)[] {
 /** Rodapé de tabela: "X trilhas de Y", tamanho da página, Anterior, números (1 2 3…) e Próxima (1.1.24). */
 export function Pager({
   pager,
-  noun,
+  noun: _noun,
   nounPlural,
   sizes,
   gateAt = 0,
@@ -757,8 +860,12 @@ export function Pager({
   /** Anterior e Próxima só ficam ativos quando há mais itens que isto. */
   gateAt?: number
 }) {
-  const shown = pager.slice.length
-  const label = `${shown} ${shown === 1 ? noun : nounPlural} de ${pager.total}`
+  const start = pager.total === 0 ? 0 : (pager.page - 1) * pager.size + 1
+  const end = pager.total === 0 ? 0 : Math.min(pager.page * pager.size, pager.total)
+  const label =
+    pager.total === 0
+      ? `0 ${nounPlural} de 0`
+      : `${start} a ${end} de ${pager.total}`
   const enabled = pager.total > gateAt
   return (
     <div className="gx-pager">

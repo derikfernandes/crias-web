@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -7,6 +8,7 @@ import {
 } from 'react'
 import type * as XLSX from 'xlsx'
 import { collection, getDocs, query, where } from 'firebase/firestore'
+import { useSearchParams } from 'react-router-dom'
 import { DashboardPageView } from '../design/views/DashboardPageView'
 import {
   DASHBOARD_STUDENT_COLUMNS,
@@ -20,6 +22,7 @@ import { db } from '../lib/firebase'
 import {
   EMPTY_AGENT_USAGE,
   formatAgentLastActivity,
+  mergeAgentRowsByLabel,
   messagesPerTutorPerDay,
   type AgentUsagePeriodDays,
   type AgentUsageView,
@@ -28,6 +31,52 @@ import {
   INSTITUTIONS_COLLECTION,
   snapshotToInstitution,
 } from '../lib/institutionFirestore'
+import {
+  snapshotToExerciseAttempt,
+  EXERCISE_ATTEMPTS_COLLECTION,
+} from '../lib/exerciseAttemptFirestore'
+import {
+  activityCountByTrail,
+  activityKeysByTrail,
+  isActivityKeyDoneOnLink,
+  isStageDoneOnLink,
+  type ActivityKey,
+} from '../lib/gestaoMetrics'
+import {
+  accuracyAggregate,
+  answersFromAnswerMap,
+  answersFromAttempts,
+  gabaritoFromQuestions,
+  isNonGradableAnswer,
+  mergeAnswerSources,
+} from '../lib/acertoMedio'
+import {
+  getCachedInstitution,
+  mergeCachedInstitutions,
+  setCachedInstitution,
+  type DashboardInstitutionSnapshot,
+} from '../lib/dashboardInstitutionCache'
+import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
+import { getCachedAnswerMap, setCachedAnswerMap } from '../lib/answerMapCache'
+import { dashboardAccuracyGate } from '../lib/dashboardAccuracyGate'
+import {
+  agentUsageFromMetrics,
+  fetchInstitutionMetrics,
+  getCachedMetrics,
+  mergeMetricsViews,
+  type InstitutionDashboardMetricsView,
+} from '../lib/dashboardMetricsApi'
+import {
+  getSummarySession,
+  mergeSessionAgentUsage,
+  mergeSessionAnswerMaps,
+  setSummarySession,
+} from '../lib/dashboardSummarySessionCache'
+import {
+  accuracyFromAttempts,
+  engagementFromLinks,
+  progressFromLinks,
+} from '../lib/dashboardTrailProgress'
 import { snapshotToStudent, STUDENTS_COLLECTION } from '../lib/studentFirestore'
 import {
   snapshotToStudentTrail,
@@ -55,6 +104,12 @@ import { loadXlsx } from '../lib/loadXlsx'
 import { studentPath, trailPath } from '../lib/paths'
 import { usePermissions } from '../hooks/usePermissions'
 import { useGestao } from '../hooks/useGestao'
+import {
+  formatInstParam,
+  parseInstParam,
+  shouldRestoreTopFilterWhenEmpty,
+  shouldSyncTopFilterFromUrlIds,
+} from '../lib/dadosInstitutionSync'
 import { downloadText, toCsv } from '../lib/tableFiles'
 import { correctToLetter, letterOf } from '../lib/trailActivities'
 import { resolveExerciseOptions } from '../lib/trilha/exerciseOptions'
@@ -84,6 +139,7 @@ type StudentRow = {
   correct: number
   wrong: number
   accuracyPct: number | null
+  engagementStatus: StudentEngagementStatus
 }
 
 type StudentEngagementStatus = 'notStarted' | 'inProgress' | 'completed'
@@ -91,11 +147,15 @@ type StudentEngagementStatus = 'notStarted' | 'inProgress' | 'completed'
 function getStudentEngagementStatus(
   row: StudentRow,
 ): StudentEngagementStatus {
-  const completion = row.completionPct
-  if (row.released === 0 || completion === null || completion <= 0) {
-    return 'notStarted'
+  if (row.completionPct !== null && row.completionPct >= 100) return 'completed'
+  if (row.engagementStatus === 'completed') return 'completed'
+  if (
+    row.engagementStatus === 'inProgress' ||
+    (row.completionPct !== null && row.completionPct > 0)
+  ) {
+    return 'inProgress'
   }
-  return completion >= 100 ? 'completed' : 'inProgress'
+  return 'notStarted'
 }
 
 function getCompletionBucketKey(completion: number | null): string | null {
@@ -209,7 +269,7 @@ function answersMatch(studentAnswer: string, correctOption: string): boolean {
 /** Exibe gabarito numérico como letra: 1→A, 2→B, 3→C. */
 function formatGabaritoLetter(value: string): string {
   const normalized = normalizeAnswer(value).toLowerCase()
-  if (!normalized) return '—'
+  if (!normalized) return 'N/A'
   const fromNumber: Record<string, string> = {
     '1': 'A',
     '2': 'B',
@@ -241,6 +301,8 @@ function scoreStudentFromAnswerMap(
 
   for (const [key, answer] of answerMap) {
     if (!key.startsWith(prefix) || !answer.trim()) continue
+    // Continuar / "0" / comandos de UI: fora do acerto.
+    if (isNonGradableAnswer(answer)) continue
 
     const rest = key.slice(prefix.length)
     const sep1 = rest.indexOf('|')
@@ -251,6 +313,8 @@ function scoreStudentFromAnswerMap(
     const stage = Number(rest.slice(sep1 + 1, sep2))
     const question = Number(rest.slice(sep2 + 1))
     if (!Number.isFinite(stage) || !Number.isFinite(question)) continue
+    // Clamp: ignora chaves fora de faixa (ex.: question 101 / stage 13).
+    if (stage < 1 || question < 1) continue
     if (!enrolledTrailIds.has(trailId)) continue
     if (deselectedStages.has(`${trailId}|${stage}`)) continue
     if (deselectedQuestions.has(question)) continue
@@ -259,9 +323,11 @@ function scoreStudentFromAnswerMap(
     if (stageRec?.stage_type !== 'exercise') continue
 
     const questionRec = questionByKey.get(`${trailId}|${stage}|${question}`)
+    // Sem registro no catálogo = fora de faixa → ignora.
+    if (!questionRec) continue
     // Atividade anulada: fora do denominador (nem acerto nem erro).
-    if (questionRec?.annulled === true) continue
-    const gabarito = (questionRec?.correct_option ?? '').trim()
+    if (questionRec.annulled === true) continue
+    const gabarito = (questionRec.correct_option ?? '').trim()
     if (!gabarito) continue
 
     if (answersMatch(answer, gabarito)) correct += 1
@@ -520,21 +586,39 @@ function appendLessonsProgressSheet(
 export function DashboardPage() {
   const { filterInstitutions } = usePermissions()
   const gestao = useGestao()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const instFromUrl = searchParams.get('inst')?.trim() || null
   const [trailFilter, setTrailFilter] = useState<Set<string> | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('students')
   // Oportunidades (menor e maior acerto) aparecem sempre; os dados dos exercícios entram desde o início.
   const [questionsDataEnabled, setQuestionsDataEnabled] = useState(true)
   const [isQuestionsPending, startQuestionsTransition] = useTransition()
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [loadingInst, setLoadingInst] = useState(true)
-  const [instError, setInstError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => gestao.scopedInstitutions[0]?.id ?? null,
+  // Seed do GestaoContext: volta Início↔Dados sem BootSymbol por getDocs.
+  const [institutions, setInstitutions] = useState<Institution[]>(() =>
+    gestao.institutions.length > 0 ? gestao.institutions : [],
   )
+  const [loadingInst, setLoadingInst] = useState(
+    () => gestao.institutions.length === 0,
+  )
+  const [instError, setInstError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('inst')?.trim()
+    if (fromUrl) return fromUrl
+    try {
+      const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
+      if (stored?.trim()) return stored.trim()
+    } catch {
+      // ignore
+    }
+    return gestao.scopedInstitutions[0]?.id ?? null
+  })
 
   const [students, setStudents] = useState<Student[]>([])
   const [trails, setTrails] = useState<Trail[]>([])
   const [studentTrails, setStudentTrails] = useState<StudentTrail[]>([])
+  const [attempts, setAttempts] = useState<
+    import('../types/exerciseAttempt').ExerciseAttempt[]
+  >([])
   const [logAggregates, setLogAggregates] = useState<LogAggregates>(
     EMPTY_LOG_AGGREGATES,
   )
@@ -542,25 +626,143 @@ export function DashboardPage() {
   const [questions, setQuestions] = useState<TrailStageQuestion[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [loadingMeta, setLoadingMeta] = useState(false)
-  const [, setLoadingLogs] = useState(false)
+  /** Já houve pelo menos um load completo: troca de filtro não usa BootSymbol. */
+  const [hasDashboardContent, setHasDashboardContent] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean)
+    if (ids.length === 0) return false
+    return ids.every((id) => Boolean(getCachedInstitution(id)))
+  })
+  /** Atualizando em segundo plano (cache hit ou keep-previous). */
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  /** selectedIdsKey cujos students/attempts estão na tela (evita % instável). */
+  const [dataScopeKey, setDataScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    if (ids.every((id) => Boolean(getCachedInstitution(id)))) {
+      return ids.join('|')
+    }
+    return ''
+  })
+  const [loadingLogs, setLoadingLogs] = useState(false)
+  /** Instituições com summary pronto no escopo atual. */
+  const [logsReadyIds, setLogsReadyIds] = useState<Set<string>>(() => new Set())
+  /** Fetch terminou com falha sem cache para alguma selecionada. */
+  const [logsFailed, setLogsFailed] = useState(false)
+  /** Persiste o período do monitor entre troca de instituição e Início↔Dados. */
+  const [agentPeriodDays, setAgentPeriodDays] =
+    useState<AgentUsagePeriodDays>(() => {
+      try {
+        const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+        if (raw === '0' || raw === '7' || raw === '30') {
+          return Number(raw) as AgentUsagePeriodDays
+        }
+      } catch {
+        // ignore
+      }
+      return 0
+    })
+  const setAgentPeriodDaysPersist = (days: AgentUsagePeriodDays) => {
+    setAgentPeriodDays(days)
+    try {
+      sessionStorage.setItem('gestao.monitorPeriodDays', String(days))
+    } catch {
+      // ignore
+    }
+  }
+  /** Métricas pré-agregadas (Início+Dados) — evita rebuild de 57k answers. */
+  const [metricsByInst, setMetricsByInst] = useState<
+    Map<string, InstitutionDashboardMetricsView>
+  >(() => {
+    // Seed síncrono: volta Dados/Sol sem BootSymbol nem refetch bloqueante.
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of gestao.selectedIds) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    return seed
+  })
+  const [metricsScopeKey, setMetricsScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    if (ids.every((id) => getCachedMetrics(id))) return ids.join('|')
+    return ''
+  })
+  /** Escopo do monitor (agentUsage) publicado — evita stale de outra instituição. */
+  const [agentScopeKey, setAgentScopeKey] = useState(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    if (ids.length === 0) return ''
+    let period: AgentUsagePeriodDays = 0
+    try {
+      const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+      if (raw === '0' || raw === '7' || raw === '30') {
+        period = Number(raw) as AgentUsagePeriodDays
+      }
+    } catch {
+      // ignore
+    }
+    if (!ids.every((id) => agentUsageFromMetrics(getCachedMetrics(id), period))) {
+      return ''
+    }
+    return `${ids.join('|')}|${period}`
+  })
+  const metricsGenerationRef = useRef(0)
   const [loadStepsDone, setLoadStepsDone] = useState(0)
+  const loadGenerationRef = useRef(0)
+  const logsGenerationRef = useRef(0)
   const [loadStepsTotal, setLoadStepsTotal] = useState(TOTAL_LOAD_STEPS)
   const [loadPercent, setLoadPercent] = useState(0)
   const [loadLabel, setLoadLabel] = useState('')
   const [dataError, setDataError] = useState<string | null>(null)
   const [logsError, setLogsError] = useState<string | null>(null)
   const [logsRetryKey, setLogsRetryKey] = useState(0)
-  const [agentUsage, setAgentUsage] =
-    useState<AgentUsageView>(EMPTY_AGENT_USAGE)
-  const [agentPeriodDays, setAgentPeriodDays] =
-    useState<AgentUsagePeriodDays>(30)
+  const [agentUsage, setAgentUsage] = useState<AgentUsageView>(() => {
+    const ids = [...gestao.selectedIds].filter(Boolean).sort()
+    let period: AgentUsagePeriodDays = 0
+    try {
+      const raw = sessionStorage.getItem('gestao.monitorPeriodDays')
+      if (raw === '0' || raw === '7' || raw === '30') {
+        period = Number(raw) as AgentUsagePeriodDays
+      }
+    } catch {
+      // ignore
+    }
+    const usages = ids.map((id) =>
+      agentUsageFromMetrics(getCachedMetrics(id), period),
+    )
+    if (ids.length === 0 || usages.some((u) => !u)) {
+      return { ...EMPTY_AGENT_USAGE, periodDays: period }
+    }
+    let total = 0
+    let uniqueStudents = 0
+    const agents = []
+    for (const u of usages) {
+      total += u!.totalMessages
+      uniqueStudents +=
+        typeof u!.uniqueStudents === 'number' && u!.uniqueStudents > 0
+          ? u!.uniqueStudents
+          : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
+            u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
+      agents.push(...u!.agents)
+    }
+    return {
+      periodDays: period,
+      totalMessages: total,
+      uniqueStudents,
+      agents: mergeAgentRowsByLabel(agents).map((row) => ({
+        ...row,
+        pctOfTotal:
+          total > 0 ? Math.round((row.messages / total) * 1000) / 10 : 0,
+      })),
+      series: [],
+    }
+  })
   const [selectedAgentTrailId, setSelectedAgentTrailId] = useState<
     string | null
   >(null)
   const [agentUsageLoading, setAgentUsageLoading] = useState(false)
   const [agentUsagePresent, setAgentUsagePresent] = useState(true)
-  const [initialLogsLoaded, setInitialLogsLoaded] = useState(false)
   const initialLogsLoadedRef = useRef(false)
+  const agentSummaryInstRef = useRef<string | null>(null)
   const dashboardLoadStartedAtRef = useRef(0)
   const loadProgressRef = useRef({ done: 0, total: TOTAL_LOAD_STEPS })
   const loadTargetPercentRef = useRef(0)
@@ -630,6 +832,11 @@ export function DashboardPage() {
     let cancelled = false
 
     async function run() {
+      // Já tem lista do contexto: não bloqueia UI; refresca em background.
+      if (gestao.institutions.length > 0) {
+        setInstitutions(gestao.institutions)
+        setLoadingInst(false)
+      }
       if (!db) {
         setLoadingInst(false)
         return
@@ -642,7 +849,14 @@ export function DashboardPage() {
         setLoadingInst(false)
       } catch (err) {
         if (cancelled) return
-        setInstError(err instanceof Error ? err.message : 'Erro ao carregar instituições.')
+        // Mantém seed do contexto se o refresh falhar.
+        if (gestao.institutions.length === 0) {
+          setInstError(
+            err instanceof Error
+              ? err.message
+              : 'Erro ao carregar instituições.',
+          )
+        }
         setLoadingInst(false)
       }
     }
@@ -651,6 +865,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -658,23 +873,232 @@ export function DashboardPage() {
     window.localStorage.setItem(LAST_INSTITUTION_ID_STORAGE_KEY, selectedId)
   }, [selectedId])
 
-  // A instituição vem do filtro global do topo (Super admin) ou é a própria (perfil Instituição).
+  // Chave estável: Set novo a cada render quebrava deps e gerava loop de setState.
+  const selectedIdsKey = useMemo(
+    () => [...gestao.selectedIds].sort().join('|'),
+    [gestao.selectedIds],
+  )
+  const activeInstitutionIds = useMemo(
+    () => [...gestao.selectedIds].filter(Boolean).sort(),
+    [gestao.selectedIds],
+  )
+
+  // URL ?inst=i1 ou ?inst=i1,i2 → topo (multi). Não colapsar multi para 1.
   useEffect(() => {
-    const first = gestao.scopedInstitutions[0]?.id ?? null
-    setSelectedId((current) =>
-      current && gestao.scopedIds.has(current) ? current : first,
-    )
-    setTrailFilter(null)
-  }, [gestao.scopedInstitutions, gestao.scopedIds])
+    const allowed = new Set(gestao.institutions.map((i) => i.id))
+    const urlIds = parseInstParam(instFromUrl).filter((id) => allowed.has(id))
+    if (urlIds.length > 0) {
+      if (shouldSyncTopFilterFromUrlIds(urlIds, gestao.selectedIds)) {
+        gestao.setSelectedIds(new Set(urlIds))
+      }
+      if (urlIds.length === 1 && selectedId !== urlIds[0]) {
+        setSelectedId(urlIds[0]!)
+      }
+      return
+    }
+    // Sem URL válida: garante pelo menos 1 no topo.
+    if (shouldRestoreTopFilterWhenEmpty(gestao.selectedIds.size)) {
+      let fallback = selectedId
+      if (!fallback || !allowed.has(fallback)) {
+        try {
+          const stored = window.localStorage.getItem(
+            LAST_INSTITUTION_ID_STORAGE_KEY,
+          )
+          if (stored && allowed.has(stored)) fallback = stored
+        } catch {
+          // ignore
+        }
+      }
+      if (!fallback) fallback = gestao.institutions[0]?.id ?? null
+      if (fallback) {
+        gestao.setSelectedIds(new Set([fallback]))
+        setSelectedId(fallback)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- instFromUrl + institutions
+  }, [instFromUrl, gestao.institutions])
+
+  // Topo → URL (um ou vários). Fonte de verdade do multi-select.
+  useEffect(() => {
+    if (gestao.selectedIds.size === 0) return
+    const formatted = formatInstParam(gestao.selectedIds)
+    const cur = searchParams.get('inst') || ''
+    if (cur === formatted) return
+    const next = new URLSearchParams(searchParams)
+    next.set('inst', formatted)
+    setSearchParams(next, { replace: true })
+  }, [selectedIdsKey, searchParams, setSearchParams, gestao.selectedIds])
+
+  // Select da página: quando o topo tem exatamente 1, alinha o valor do <select>.
+  useEffect(() => {
+    if (gestao.selectedIds.size !== 1) return
+    const only = [...gestao.selectedIds][0]
+    if (only && only !== selectedId) setSelectedId(only)
+  }, [selectedIdsKey, gestao.selectedIds, selectedId])
+
+  function selectInstitution(id: string) {
+    setSelectedId(id)
+    gestao.setSelectedIds(new Set([id]))
+    // URL otimista (mesmo tick) — evita flash do ?inst= anterior.
+    const formatted = formatInstParam([id])
+    if (searchParams.get('inst') !== formatted) {
+      const next = new URLSearchParams(searchParams)
+      next.set('inst', formatted)
+      setSearchParams(next, { replace: true })
+    }
+    // Síncrono: nunca mostra monitor/métricas da instituição anterior.
+    const hit = getCachedMetrics(id)
+    if (hit) {
+      const map = new Map([[id, hit]])
+      setMetricsByInst(map)
+      setMetricsScopeKey(id)
+      const usage = agentUsageFromMetrics(hit, agentPeriodDays)
+      if (usage) {
+        setAgentUsage(usage)
+        setAgentScopeKey(`${id}|${agentPeriodDays}`)
+        setAgentUsageLoading(false)
+        setAgentUsagePresent(true)
+      } else {
+        setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+        setAgentScopeKey('')
+        setAgentUsageLoading(true)
+      }
+    } else {
+      setMetricsByInst(new Map())
+      setMetricsScopeKey('')
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
+  }
+
+  // Troca do conjunto ativo: limpa filtro de trilhas.
+  const prevActiveIdsRef = useRef<string>('')
+  useEffect(() => {
+    if (prevActiveIdsRef.current && prevActiveIdsRef.current !== selectedIdsKey) {
+      setTrailFilter(null)
+    }
+    prevActiveIdsRef.current = selectedIdsKey
+  }, [selectedIdsKey])
+
+  // Antes do paint: monitor/métricas só da instituição nova (topo/URL também).
+  useLayoutEffect(() => {
+    const ids = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+    if (ids.length === 0) return
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of ids) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    if (seed.size === ids.length) {
+      setMetricsByInst(seed)
+      setMetricsScopeKey(scopeKey)
+      applyAgentFromMetrics(scopeKey, ids, seed, agentPeriodDays)
+      return
+    }
+    // Sem cache da nova: Carregando… (nunca valor da anterior).
+    if (metricsScopeKey && metricsScopeKey !== scopeKey) {
+      setMetricsScopeKey('')
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyAgent defined below; intentional sync gate
+  }, [selectedIdsKey, activeInstitutionIds, agentPeriodDays])
+
+  // Após 1º conteúdo: prefetch das outras instituições (Sol primeiro).
+  useEffect(() => {
+    if (!hasDashboardContent) return
+    const allIds = institutions.map((i) => i.id).filter(Boolean)
+    if (allIds.length <= 1) return
+    const t = window.setTimeout(() => {
+      prefetchSiblingInstitutions(activeInstitutionIds, allIds)
+    }, 400)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasDashboardContent, selectedIdsKey, institutions])
 
   useEffect(() => {
     let cancelled = false
+    const generation = ++loadGenerationRef.current
+    const instIds = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+    const loadStarted = performance.now()
+
+    function applyCoreSnapshot(
+      snap: DashboardInstitutionSnapshot,
+      key: string,
+    ) {
+      setStudents(snap.students)
+      setTrails(snap.trails)
+      setStudentTrails(snap.studentTrails)
+      setAttempts(snap.attempts)
+      if (snap.stages.length > 0 || snap.questions.length > 0) {
+        setStages(snap.stages)
+        setQuestions(snap.questions)
+      }
+      if (snap.answerMap.size > 0 || snap.doneByStudent.size > 0) {
+        setLogAggregates({
+          doneByStudent: snap.doneByStudent,
+          answerMap: snap.answerMap,
+        })
+        // Não publica agentUsage aqui (pode ser de outro período/escopo).
+        // O effect de logs hidrata monitor com sessão + periodDays.
+        initialLogsLoadedRef.current = true
+      }
+      setDataScopeKey(key)
+      setHasDashboardContent(true)
+    }
+
+    function cacheSplit(input: {
+      students: Student[]
+      trails: Trail[]
+      studentTrails: StudentTrail[]
+      attempts: import('../types/exerciseAttempt').ExerciseAttempt[]
+      stages: TrailStage[]
+      questions: TrailStageQuestion[]
+    }) {
+      for (const id of instIds) {
+        const prev = getCachedInstitution(id)
+        const instStudents = input.students.filter(
+          (s) => s.institution_id === id,
+        )
+        const instStudentIds = new Set(instStudents.map((s) => s.id))
+        const instTrails = input.trails.filter((t) => t.institution_id === id)
+        const instTrailIds = new Set(instTrails.map((t) => t.id))
+        setCachedInstitution(id, {
+          students: instStudents,
+          trails: instTrails,
+          studentTrails: input.studentTrails.filter(
+            (l) => l.institution_id === id,
+          ),
+          attempts: input.attempts.filter((a) =>
+            instStudentIds.has(a.student_id),
+          ),
+          stages:
+            input.stages.length > 0
+              ? input.stages.filter((s) => instTrailIds.has(s.trail_id))
+              : (prev?.stages ?? []),
+          questions:
+            input.questions.length > 0
+              ? input.questions.filter((q) => instTrailIds.has(q.trail_id))
+              : (prev?.questions ?? []),
+          doneByStudent: prev?.doneByStudent ?? new Map(),
+          answerMap: prev?.answerMap ?? new Map(),
+          agentUsage: prev?.agentUsage ?? EMPTY_AGENT_USAGE,
+          agentUsagePresent: prev?.agentUsagePresent ?? true,
+          loadedAt: Date.now(),
+        })
+      }
+    }
 
     async function run() {
-      if (!db || !selectedId) {
+      if (!db || instIds.length === 0) {
         setStudents([])
         setTrails([])
         setStudentTrails([])
+        setAttempts([])
         setLogAggregates(EMPTY_LOG_AGGREGATES)
         setAgentUsage(EMPTY_AGENT_USAGE)
         setAgentUsagePresent(true)
@@ -682,8 +1106,10 @@ export function DashboardPage() {
         setLogsError(null)
         setLoadingData(false)
         setLoadingMeta(false)
+        setIsRefreshing(false)
+        setHasDashboardContent(false)
+        setDataScopeKey('')
         setLoadingLogs(false)
-        setInitialLogsLoaded(false)
         initialLogsLoadedRef.current = false
         setAgentUsageLoading(false)
         setSelectedAgentTrailId(null)
@@ -696,23 +1122,48 @@ export function DashboardPage() {
         return
       }
 
+      const cached = mergeCachedInstitutions(instIds)
+      const warmComplete = Boolean(
+        cached &&
+          cached.stages.length > 0 &&
+          cached.questions.length > 0,
+      )
       loadProgressRef.current = { done: 0, total: TOTAL_LOAD_STEPS }
       loadTargetPercentRef.current = 0
       dashboardLoadStartedAtRef.current = performance.now()
-      setLoadingData(true)
-      // Evita frame com dashboard zerado entre o fim do loadingData e o início
-      // dos efeitos de metadados/logs.
-      setLoadingMeta(true)
-      setLoadingLogs(true)
-      setInitialLogsLoaded(false)
-      initialLogsLoadedRef.current = false
-      setAgentUsageLoading(false)
       setSelectedAgentTrailId(null)
-      setLogsError(null)
       setLoadStepsDone(0)
       setLoadStepsTotal(TOTAL_LOAD_STEPS)
       setLoadPercent(0)
-      setLoadLabel('Carregando alunos e trilhas…')
+      setLoadLabel(
+        warmComplete
+          ? 'Atualizando…'
+          : cached
+            ? 'Carregando…'
+            : 'Carregando alunos e trilhas…',
+      )
+
+      if (cached) {
+        // Hit: UI na hora. Cache completo = sem refetch (evita fila 2s→9s).
+        applyCoreSnapshot(cached, scopeKey)
+        setLoadingData(false)
+        setLoadingMeta(!warmComplete)
+        setIsRefreshing(false)
+        if (warmComplete) {
+          loadProgressRef.current.done = TOTAL_LOAD_STEPS
+          syncLoadProgress('Pronto', { complete: true })
+          console.info(
+            `[dashboard] cache hit ${Math.round(performance.now() - loadStarted)}ms scope=${scopeKey}`,
+          )
+          return
+        }
+      } else {
+        // Miss: mantém conteúdo anterior (outro escopo) ou BootSymbol no 1º load.
+        setIsRefreshing(hasDashboardContent)
+        setLoadingData(true)
+        setLoadingMeta(true)
+      }
+
       const dbOk = db
       const loadedSources = new Set<string>()
 
@@ -726,44 +1177,129 @@ export function DashboardPage() {
         }
       }
 
-      // One-shot: dashboard não precisa de realtime nestas coleções.
       try {
-        const [studentsSnap, trailsSnap, studentTrailsSnap] = await Promise.all([
-          getDocs(
-            query(
-              collection(dbOk, STUDENTS_COLLECTION),
-              where('institution_id', '==', selectedId),
+        // Busca só o que falta no cache.
+        const missingIds = instIds.filter((id) => !getCachedInstitution(id))
+        const fetchIds = missingIds.length > 0 ? missingIds : instIds
+
+        const fetchChunks = chunkArray(fetchIds, FIRESTORE_IN_LIMIT)
+        async function docsForFetch(collectionName: string) {
+          const snaps = await Promise.all(
+            fetchChunks.map((chunk) =>
+              getDocs(
+                query(
+                  collection(dbOk, collectionName),
+                  where(
+                    'institution_id',
+                    chunk.length === 1 ? '==' : 'in',
+                    chunk.length === 1 ? chunk[0]! : chunk,
+                  ),
+                ),
+              ),
             ),
-          ),
-          getDocs(
-            query(
-              collection(dbOk, TRAILS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
-          getDocs(
-            query(
-              collection(dbOk, STUDENT_TRAILS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
+          )
+          return snaps.flatMap((s) => s.docs)
+        }
+
+        const usePartial =
+          missingIds.length > 0 && missingIds.length < instIds.length
+        const [studentDocs, trailDocs, linkDocs] = await Promise.all([
+          docsForFetch(STUDENTS_COLLECTION),
+          docsForFetch(TRAILS_COLLECTION),
+          docsForFetch(STUDENT_TRAILS_COLLECTION),
         ])
-        if (cancelled) return
-        setStudents(studentsSnap.docs.map(snapshotToStudent))
-        done('students')
-        setTrails(trailsSnap.docs.map(snapshotToTrail))
-        done('trails')
-        setStudentTrails(studentTrailsSnap.docs.map(snapshotToStudentTrail))
-        done('studentTrails')
+        if (cancelled || generation !== loadGenerationRef.current) return
+        let nextStudents = studentDocs.map(snapshotToStudent)
+        let nextTrails = trailDocs.map(snapshotToTrail)
+        let nextStudentTrails = linkDocs.map(snapshotToStudentTrail)
+
+        if (usePartial) {
+          for (const id of instIds) {
+            if (missingIds.includes(id)) continue
+            const prev = getCachedInstitution(id)
+            if (!prev) continue
+            nextStudents = nextStudents.concat(prev.students)
+            nextTrails = nextTrails.concat(prev.trails)
+            nextStudentTrails = nextStudentTrails.concat(prev.studentTrails)
+          }
+        }
+
+        const studentIds = nextStudents.map((s) => s.id).filter(Boolean)
+        let nextAttempts: import('../types/exerciseAttempt').ExerciseAttempt[] =
+          []
+        if (studentIds.length > 0) {
+          const needAttemptFetch = usePartial
+            ? nextStudents
+                .filter((s) => missingIds.includes(s.institution_id))
+                .map((s) => s.id)
+            : studentIds
+          const chunks = chunkArray(
+            needAttemptFetch.length > 0 ? needAttemptFetch : studentIds,
+            FIRESTORE_IN_LIMIT,
+          )
+          const attemptSnaps = await Promise.all(
+            chunks.map((chunk) =>
+              getDocs(
+                query(
+                  collection(dbOk, EXERCISE_ATTEMPTS_COLLECTION),
+                  where('student_id', 'in', chunk),
+                ),
+              ),
+            ),
+          )
+          nextAttempts = attemptSnaps.flatMap((snap) =>
+            snap.docs.map(snapshotToExerciseAttempt),
+          )
+          if (usePartial) {
+            for (const id of instIds) {
+              if (missingIds.includes(id)) continue
+              const prev = getCachedInstitution(id)
+              if (prev) nextAttempts = nextAttempts.concat(prev.attempts)
+            }
+          }
+        }
+        if (cancelled || generation !== loadGenerationRef.current) return
+
+        cacheSplit({
+          students: nextStudents,
+          trails: nextTrails,
+          studentTrails: nextStudentTrails,
+          attempts: nextAttempts,
+          stages: [],
+          questions: [],
+        })
+
+        const merged = mergeCachedInstitutions(instIds)
+        if (merged) {
+          applyCoreSnapshot(merged, scopeKey)
+        } else {
+          setStudents(nextStudents)
+          setTrails(nextTrails)
+          setStudentTrails(nextStudentTrails)
+          setAttempts(nextAttempts)
+          setDataScopeKey(scopeKey)
+          setHasDashboardContent(true)
+        }
         setDataError(null)
+        setIsRefreshing(false)
+        done('students')
+        done('trails')
+        done('studentTrails')
+        console.info(
+          `[dashboard] core fetch ${Math.round(performance.now() - loadStarted)}ms scope=${scopeKey}`,
+        )
       } catch (err) {
-        if (cancelled) return
+        if (cancelled || generation !== loadGenerationRef.current) return
         const message =
           err instanceof Error ? err.message : 'Erro ao carregar dados.'
         setDataError(message)
-        setStudents([])
-        setTrails([])
-        setStudentTrails([])
+        if (!hasDashboardContent) {
+          setStudents([])
+          setTrails([])
+          setStudentTrails([])
+          setAttempts([])
+        }
+        setIsRefreshing(false)
         done('students')
         done('trails')
         done('studentTrails')
@@ -774,17 +1310,9 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedId])
-
-  const studentIdsKey = useMemo(
-    () =>
-      students
-        .map((s) => s.id)
-        .filter(Boolean)
-        .sort()
-        .join('\0'),
-    [students],
-  )
+    // hasDashboardContent intencional fora das deps (só gate de UI).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIdsKey, activeInstitutionIds])
 
   const trailIdsKey = useMemo(
     () =>
@@ -803,7 +1331,7 @@ export function DashboardPage() {
     let cancelled = false
 
     async function run() {
-      if (!db || !selectedId) {
+      if (!db || activeInstitutionIds.length === 0) {
         setStages([])
         setQuestions([])
         setLoadingMeta(false)
@@ -824,6 +1352,7 @@ export function DashboardPage() {
         syncLoadProgress('Carregando conteúdo das trilhas…')
         if (source === 'questions') {
           setLoadingMeta(false)
+          setIsRefreshing(false)
         }
       }
 
@@ -835,6 +1364,16 @@ export function DashboardPage() {
         return
       }
 
+      // Meta já aplicada do cache do escopo: não refetch (evita fila 2s→9s).
+      const metaFromCache =
+        dataScopeKey === selectedIdsKey &&
+        stages.length > 0 &&
+        questions.length > 0
+      if (metaFromCache) {
+        setLoadingMeta(false)
+        setIsRefreshing(false)
+        return
+      }
       setLoadingMeta(true)
       const chunks = chunkArray(trailIds, FIRESTORE_IN_LIMIT)
 
@@ -850,7 +1389,10 @@ export function DashboardPage() {
           ),
         )
         if (cancelled) return
-        setStages(stageSnaps.flatMap((snap) => snap.docs.map(snapshotToTrailStage)))
+        const nextStages = stageSnaps.flatMap((snap) =>
+          snap.docs.map(snapshotToTrailStage),
+        )
+        setStages(nextStages)
         metaDone('stages')
 
         const questionSnaps = await Promise.all(
@@ -864,17 +1406,30 @@ export function DashboardPage() {
           ),
         )
         if (cancelled) return
-        setQuestions(
-          questionSnaps.flatMap((snap) =>
-            snap.docs.map(snapshotToTrailStageQuestion),
-          ),
+        const nextQuestions = questionSnaps.flatMap((snap) =>
+          snap.docs.map(snapshotToTrailStageQuestion),
         )
+        setQuestions(nextQuestions)
+        // Atualiza cache por instituição com stages/questions.
+        for (const id of activeInstitutionIds) {
+          const prev = getCachedInstitution(id)
+          if (!prev) continue
+          const trailIdSet = new Set(prev.trails.map((t) => t.id))
+          setCachedInstitution(id, {
+            ...prev,
+            stages: nextStages.filter((s) => trailIdSet.has(s.trail_id)),
+            questions: nextQuestions.filter((q) => trailIdSet.has(q.trail_id)),
+            loadedAt: Date.now(),
+          })
+        }
         metaDone('questions')
       } catch (err) {
         if (cancelled) return
         setDataError(err instanceof Error ? err.message : 'Erro ao carregar conteúdo.')
-        setStages([])
-        setQuestions([])
+        if (!hasDashboardContent) {
+          setStages([])
+          setQuestions([])
+        }
         metaDone('stages')
         metaDone('questions')
       }
@@ -885,96 +1440,527 @@ export function DashboardPage() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, trailIdsKey, loadingData])
+  }, [selectedIdsKey, trailIdsKey, loadingData])
 
-  // Métricas dos alunos + uso de agentes: somente /api/dashboard_summary.
-  // Sem fallback que baixa conversation_logs no browser.
+  function applyAgentFromMetrics(
+    scopeKey: string,
+    instIds: string[],
+    map: Map<string, InstitutionDashboardMetricsView>,
+    period: AgentUsagePeriodDays,
+  ): boolean {
+    const usages = instIds.map((id) =>
+      agentUsageFromMetrics(map.get(id), period),
+    )
+    if (usages.some((u) => !u)) {
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: period })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+      return false
+    }
+    let total = 0
+    let uniqueStudents = 0
+    const agents = []
+    for (const u of usages) {
+      total += u!.totalMessages
+      uniqueStudents +=
+        typeof u!.uniqueStudents === 'number' && u!.uniqueStudents > 0
+          ? u!.uniqueStudents
+          : new Set(u!.agents.flatMap((a) => a.studentIds)).size ||
+            u!.agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
+      agents.push(...u!.agents)
+    }
+    const mergedAgents = mergeAgentRowsByLabel(agents).map((row) => ({
+      ...row,
+      pctOfTotal:
+        total > 0 ? Math.round((row.messages / total) * 1000) / 10 : 0,
+    }))
+    setAgentUsage({
+      periodDays: period,
+      totalMessages: total,
+      uniqueStudents,
+      agents: mergedAgents,
+      series: [],
+    })
+    setAgentUsagePresent(true)
+    setAgentScopeKey(`${scopeKey}|${period}`)
+    setAgentUsageLoading(false)
+    if (instIds.length > 1) {
+      console.info(
+        `[dashboard] monitor metrics scope=${scopeKey} total=${total} parts=${instIds
+          .map(
+            (id) =>
+              `${id}:${agentUsageFromMetrics(map.get(id), period)?.totalMessages ?? '?'}`,
+          )
+          .join('+')}`,
+      )
+    }
+    return true
+  }
+
+  // Troca só de período do monitor: reaplica agent_usage_by_period local (0ms).
+  const prevPeriodRef = useRef(agentPeriodDays)
+  useEffect(() => {
+    if (prevPeriodRef.current === agentPeriodDays) return
+    prevPeriodRef.current = agentPeriodDays
+    if (
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    ) {
+      applyAgentFromMetrics(
+        selectedIdsKey,
+        activeInstitutionIds,
+        metricsByInst,
+        agentPeriodDays,
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentPeriodDays])
+
+  // Métricas pré-agregadas (KB): desbloqueia Acerto/Exercícios/Monitor/Conclusão
+  // sem baixar answerMap da Sol. Mesma chave de sessão do Início.
   useEffect(() => {
     let cancelled = false
+    const generation = ++metricsGenerationRef.current
+    const instIds = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+    const started = performance.now()
 
-    if (!db || !selectedId || loadingData) {
+    if (instIds.length === 0) {
+      setMetricsByInst(new Map())
+      setMetricsScopeKey('')
       return () => {
         cancelled = true
       }
     }
 
-    const institutionId = selectedId
-    const studentIds = studentIdsKey ? studentIdsKey.split('\0') : []
-    if (studentIds.length === 0) {
-      setLogAggregates(EMPTY_LOG_AGGREGATES)
-      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
-      setAgentUsagePresent(true)
-      setLogsError(null)
+    // Hidrata cache síncrono (volta Sol <0,5s).
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of instIds) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    if (seed.size === instIds.length) {
+      setMetricsByInst(seed)
+      setMetricsScopeKey(scopeKey)
+      setLogsReadyIds(new Set(instIds))
       setLoadingLogs(false)
-      setAgentUsageLoading(false)
-      setInitialLogsLoaded(true)
-      initialLogsLoadedRef.current = true
-      loadProgressRef.current.done = loadProgressRef.current.total
-      syncLoadProgress('', { complete: true })
+      applyAgentFromMetrics(scopeKey, instIds, seed, agentPeriodDays)
+      console.info(
+        `[dashboard] metrics cache-hit ${Math.round(performance.now() - started)}ms scope=${scopeKey}`,
+      )
+      // SWR: rede mesmo com sessão (senão nunca atualiza Crias 22→10).
+      void (async () => {
+        const next = new Map(seed)
+        for (const id of instIds) {
+          if (cancelled || generation !== metricsGenerationRef.current) return
+          try {
+            const m = await fetchInstitutionMetrics(id, { revalidate: true })
+            next.set(id, m)
+          } catch {
+            // mantém seed
+          }
+        }
+        if (cancelled || generation !== metricsGenerationRef.current) return
+        setMetricsByInst(new Map(next))
+        applyAgentFromMetrics(scopeKey, instIds, next, agentPeriodDays)
+      })()
       return () => {
         cancelled = true
       }
     }
 
-    const refreshingAgentsOnly = initialLogsLoadedRef.current
+    // Sem cache completo: Carregando… (não N/A / não número velho).
+    setMetricsScopeKey('')
+    setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+    setAgentScopeKey('')
+    setAgentUsageLoading(true)
     setLoadingLogs(true)
-    if (refreshingAgentsOnly) setAgentUsageLoading(true)
-    setLogsError(null)
-    loadProgressRef.current.done = Math.min(
-      loadProgressRef.current.done,
-      DATA_SOURCES + META_SOURCES,
-    )
-    if (!refreshingAgentsOnly) {
-      syncLoadProgress('Calculando métricas dos alunos…')
+    setLogsReadyIds(new Set(seed.keys()))
+
+    void (async () => {
+      const missing = instIds.filter((id) => !seed.has(id))
+      missing.sort((a, b) => {
+        if (a === 'i2') return -1
+        if (b === 'i2') return 1
+        return a.localeCompare(b)
+      })
+      const next = new Map(seed)
+      const errors: string[] = []
+      for (const id of missing) {
+        if (cancelled || generation !== metricsGenerationRef.current) return
+        try {
+          const m = await fetchInstitutionMetrics(id)
+          next.set(id, m)
+          if (!cancelled && generation === metricsGenerationRef.current) {
+            setMetricsByInst(new Map(next))
+            setLogsReadyIds(new Set(next.keys()))
+          }
+        } catch (err) {
+          errors.push(err instanceof Error ? err.message : String(err))
+        }
+      }
+      if (cancelled || generation !== metricsGenerationRef.current) return
+
+      const allReady = instIds.every((id) => next.has(id))
+      setMetricsByInst(new Map(next))
+      setMetricsScopeKey(allReady ? scopeKey : '')
+      setLogsReadyIds(new Set(next.keys()))
+      setLoadingLogs(!allReady)
+      setLogsFailed(!allReady && errors.length > 0 && next.size === 0)
+      setLogsError(
+        !allReady && errors.length > 0
+          ? errors[0] ?? 'Erro ao carregar métricas.'
+          : null,
+      )
+
+      if (allReady) {
+        applyAgentFromMetrics(scopeKey, instIds, next, agentPeriodDays)
+        initialLogsLoadedRef.current = true
+      } else {
+        // Não publica agentScopeKey sem dados — evita KPI da instituição anterior.
+        setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+        setAgentScopeKey('')
+        setAgentUsageLoading(true)
+      }
+      console.info(
+        `[dashboard] metrics ${Math.round(performance.now() - started)}ms scope=${scopeKey} ready=${[...next.keys()].join(',')}`,
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- agent period handled above
+  }, [selectedIdsKey, activeInstitutionIds, logsRetryKey])
+
+  // Uso do monitor + answerMap: /api/dashboard_summary (legado / fallback).
+  // Com métricas prontas, NÃO baixa answerMap da Sol (evita 3–6s de merge).
+  useEffect(() => {
+    let cancelled = false
+    const generation = ++logsGenerationRef.current
+    const instIds = activeInstitutionIds
+
+    if (instIds.length === 0) {
+      agentSummaryInstRef.current = null
+      initialLogsLoadedRef.current = false
+      setAgentUsage(EMPTY_AGENT_USAGE)
+      setAgentUsagePresent(true)
+      setAgentUsageLoading(false)
+      setLoadingLogs(false)
+      setLogsReadyIds(new Set())
+      setLogsFailed(false)
+      setAgentScopeKey('')
+      return () => {
+        cancelled = true
+      }
     }
 
-    const finishProgress = () => {
-      loadProgressRef.current.done = Math.min(
-        loadProgressRef.current.done + 1,
-        loadProgressRef.current.total,
-      )
-      const complete =
-        loadProgressRef.current.done >= loadProgressRef.current.total
-      syncLoadProgress(complete ? '' : 'Calculando métricas dos alunos…', {
-        complete,
-      })
+    const scopeKey = selectedIdsKey
+    const institutionChanged = agentSummaryInstRef.current !== scopeKey
+    if (institutionChanged) {
+      agentSummaryInstRef.current = scopeKey
+      initialLogsLoadedRef.current = false
     }
+
+    // Atalho: métricas cobrem KPIs + monitor + exercícios — sem answerMap.
+    const metricsComplete =
+      metricsScopeKey === scopeKey &&
+      instIds.every((id) => getCachedMetrics(id) || metricsByInst.has(id))
+    if (metricsComplete) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    // Hidrata answerMap da sessão / answerMapCache / institution cache (Início→Dados).
+    const fromSession = mergeSessionAnswerMaps(instIds)
+    for (const id of instIds) {
+      if (fromSession.readyIds.includes(id)) continue
+      const am = getCachedAnswerMap(id)
+      const inst = getCachedInstitution(id)
+      if (am !== undefined) {
+        fromSession.readyIds.push(id)
+        fromSession.missingIds = fromSession.missingIds.filter((x) => x !== id)
+        for (const [k, v] of am) fromSession.answerMap.set(k, v)
+        if (inst) {
+          for (const [sid, keys] of inst.doneByStudent) {
+            const set = fromSession.doneByStudent.get(sid) ?? new Set<string>()
+            for (const k of keys) set.add(k)
+            fromSession.doneByStudent.set(sid, set)
+          }
+        }
+      } else if (inst && (inst.answerMap.size > 0 || inst.doneByStudent.size > 0)) {
+        fromSession.readyIds.push(id)
+        fromSession.missingIds = fromSession.missingIds.filter((x) => x !== id)
+        for (const [k, v] of inst.answerMap) fromSession.answerMap.set(k, v)
+        for (const [sid, keys] of inst.doneByStudent) {
+          const set = fromSession.doneByStudent.get(sid) ?? new Set<string>()
+          for (const k of keys) set.add(k)
+          fromSession.doneByStudent.set(sid, set)
+        }
+      }
+    }
+
+    const allAnswersReady = fromSession.missingIds.length === 0
+    if (fromSession.readyIds.length > 0) {
+      setLogAggregates({
+        doneByStudent: fromSession.doneByStudent,
+        answerMap: fromSession.answerMap,
+      })
+      setLogsReadyIds(new Set(fromSession.readyIds))
+      if (allAnswersReady) initialLogsLoadedRef.current = true
+    } else if (institutionChanged) {
+      // Sem cache do novo escopo: limpa stale (nunca mostrar Teste em Sol).
+      setLogAggregates(EMPTY_LOG_AGGREGATES)
+      setLogsReadyIds(new Set())
+    }
+
+    const agentMerged = mergeSessionAgentUsage(instIds, agentPeriodDays)
+    if (agentMerged.complete) {
+      const mergedAgents = mergeAgentRowsByLabel(agentMerged.usage.agents).map(
+        (row) => ({
+          ...row,
+          pctOfTotal:
+            agentMerged.usage.totalMessages > 0
+              ? Math.round(
+                  (row.messages / agentMerged.usage.totalMessages) * 1000,
+                ) / 10
+              : 0,
+        }),
+      )
+      setAgentUsage({
+        periodDays: agentPeriodDays,
+        totalMessages: agentMerged.usage.totalMessages,
+        uniqueStudents: agentMerged.usage.uniqueStudents ?? 0,
+        agents: mergedAgents,
+        series: [],
+      })
+      setAgentUsagePresent(agentMerged.present)
+      setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+      setAgentUsageLoading(false)
+      if (instIds.length > 1) {
+        console.info(
+          `[dashboard] monitor merge scope=${scopeKey} total=${agentMerged.usage.totalMessages} parts=${instIds
+            .map((id) => {
+              const u = mergeSessionAgentUsage([id], agentPeriodDays)
+              return `${id}:${u.complete ? u.usage.totalMessages : '?'}`
+            })
+            .join('+')}`,
+        )
+      }
+    } else {
+      // Troca de instituição/período sem cache: Carregando… (não números velhos).
+      // agentScopeKey fica '' até o fetch — prop deriva loading pelo mismatch.
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+    }
+
+    setLogsFailed(false)
+    setLogsError(null)
+    // Só o que falta na sessão. NÃO refetch só por troca de instituição
+    // (Início→Dados / Sol↔Teste devem reutilizar a mesma chave de sessão).
+    const needFetch =
+      fromSession.missingIds.length > 0 || !agentMerged.complete
+    setLoadingLogs(fromSession.missingIds.length > 0)
+    const logsStarted = performance.now()
 
     async function run() {
-      try {
-        const summary = await fetchDashboardLogSummary(
-          institutionId,
-          agentPeriodDays,
-        )
-        if (cancelled) return
-        setLogAggregates({
-          doneByStudent: summary.doneByStudent,
-          answerMap: summary.answerMap,
-        })
-        setAgentUsage(summary.agentUsage)
-        setAgentUsagePresent(summary.agentUsagePresent)
+      if (!needFetch && allAnswersReady && agentMerged.complete) {
+        // Revalidação silenciosa só da Sol (maior) para manter cache Firestore quente.
+        const warmId = instIds.includes('i2') ? 'i2' : instIds[0]!
+        try {
+          const summary = await fetchDashboardLogSummary(warmId, agentPeriodDays)
+          if (cancelled || generation !== logsGenerationRef.current) return
+          const prev = getCachedInstitution(warmId)
+          if (prev) {
+            setCachedInstitution(warmId, {
+              ...prev,
+              doneByStudent: summary.doneByStudent,
+              answerMap: summary.answerMap,
+              agentUsage: summary.agentUsage,
+              agentUsagePresent: summary.agentUsagePresent,
+              loadedAt: Date.now(),
+            })
+          }
+          const refreshed = mergeSessionAnswerMaps(instIds)
+          const agentRef = mergeSessionAgentUsage(instIds, agentPeriodDays)
+          if (refreshed.missingIds.length === 0) {
+            setLogAggregates({
+              doneByStudent: refreshed.doneByStudent,
+              answerMap: refreshed.answerMap,
+            })
+            setLogsReadyIds(new Set(refreshed.readyIds))
+          }
+          if (agentRef.complete) {
+            const mergedAgents = mergeAgentRowsByLabel(agentRef.usage.agents).map(
+              (row) => ({
+                ...row,
+                pctOfTotal:
+                  agentRef.usage.totalMessages > 0
+                    ? Math.round(
+                        (row.messages / agentRef.usage.totalMessages) * 1000,
+                      ) / 10
+                    : 0,
+              }),
+            )
+            setAgentUsage({
+              periodDays: agentPeriodDays,
+              totalMessages: agentRef.usage.totalMessages,
+              uniqueStudents: agentRef.usage.uniqueStudents ?? 0,
+              agents: mergedAgents,
+              series: [],
+            })
+            setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+          }
+        } catch {
+          // Best-effort warm; UI já tem dados.
+        }
         setLoadingLogs(false)
         setAgentUsageLoading(false)
-        setInitialLogsLoaded(true)
-        initialLogsLoadedRef.current = true
-        if (!refreshingAgentsOnly) finishProgress()
-      } catch (err) {
-        if (cancelled) return
+        return
+      }
+
+      try {
+        const fetchIds =
+          fromSession.missingIds.length > 0 ? fromSession.missingIds : instIds
+        const settled = await Promise.allSettled(
+          fetchIds.map((id) => fetchDashboardLogSummary(id, agentPeriodDays)),
+        )
+        if (cancelled || generation !== logsGenerationRef.current) return
+
+        const ready = new Set(fromSession.readyIds)
+        const errors: string[] = []
+
+        for (let i = 0; i < fetchIds.length; i++) {
+          const id = fetchIds[i]!
+          const result = settled[i]!
+          if (result.status === 'rejected') {
+            const sess = getSummarySession(id)
+            if (sess) {
+              ready.add(id)
+              continue
+            }
+            errors.push(
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+            )
+            continue
+          }
+          const summary = result.value
+          ready.add(id)
+          setCachedAnswerMap(id, summary.answerMap)
+          setSummarySession(
+            id,
+            summary,
+            agentPeriodDays,
+            summary.agentUsageByPeriod,
+          )
+          const prev = getCachedInstitution(id)
+          if (prev) {
+            setCachedInstitution(id, {
+              ...prev,
+              doneByStudent: summary.doneByStudent,
+              answerMap: summary.answerMap,
+              agentUsage: summary.agentUsage,
+              agentUsagePresent: summary.agentUsagePresent,
+              loadedAt: Date.now(),
+            })
+          }
+        }
+
+        if (generation !== logsGenerationRef.current) return
+
+        const merged = mergeSessionAnswerMaps(instIds)
+        const allReady = instIds.every((id) => ready.has(id) || merged.readyIds.includes(id))
+        const failedHard =
+          !allReady && errors.length > 0 && merged.readyIds.length === 0
+
+        if (merged.readyIds.length > 0) {
+          setLogAggregates({
+            doneByStudent: merged.doneByStudent,
+            answerMap: merged.answerMap,
+          })
+        }
+        setLogsReadyIds(new Set([...ready, ...merged.readyIds]))
+
+        const agentRef = mergeSessionAgentUsage(instIds, agentPeriodDays)
+        if (agentRef.complete) {
+          const mergedAgents = mergeAgentRowsByLabel(agentRef.usage.agents).map(
+            (row) => ({
+              ...row,
+              pctOfTotal:
+                agentRef.usage.totalMessages > 0
+                  ? Math.round(
+                      (row.messages / agentRef.usage.totalMessages) * 1000,
+                    ) / 10
+                  : 0,
+            }),
+          )
+          setAgentUsage({
+            periodDays: agentPeriodDays,
+            totalMessages: agentRef.usage.totalMessages,
+            uniqueStudents: agentRef.usage.uniqueStudents ?? 0,
+            agents: mergedAgents,
+            series: [],
+          })
+          setAgentUsagePresent(agentRef.present)
+          if (instIds.length > 1) {
+            console.info(
+              `[dashboard] monitor fetch-merge scope=${scopeKey} total=${agentRef.usage.totalMessages} parts=${instIds
+                .map((id) => {
+                  const u = mergeSessionAgentUsage([id], agentPeriodDays)
+                  return `${id}:${u.complete ? u.usage.totalMessages : '?'}`
+                })
+                .join('+')}`,
+            )
+          }
+        } else {
+          // Escopo publicado vazio: evita Carregando… eterno (agentScopeKey '').
+          setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+          setAgentUsagePresent(false)
+        }
+        setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+        setAgentUsageLoading(false)
+
+        setLogsFailed(failedHard)
         setLogsError(
+          failedHard
+            ? errors[0] ?? 'Erro ao carregar métricas dos alunos.'
+            : errors.length > 0 && !allReady
+              ? `Não foi possível carregar todas as instituições. ${errors[0] ?? ''}`
+              : null,
+        )
+        setLoadingLogs(false)
+        initialLogsLoadedRef.current = allReady
+        console.info(
+          `[dashboard] logs ${Math.round(performance.now() - logsStarted)}ms scope=${scopeKey} ready=${[...ready].join(',')} map=${merged.answerMap.size}`,
+        )
+      } catch (err) {
+        if (cancelled || generation !== logsGenerationRef.current) return
+        const msg =
           err instanceof Error
             ? err.message
-            : 'Erro ao carregar métricas dos alunos.',
-        )
-        if (!refreshingAgentsOnly) {
+            : 'Erro ao carregar métricas dos alunos.'
+        setLogsError(msg)
+        const merged = mergeSessionAnswerMaps(instIds)
+        if (merged.readyIds.length === 0) {
+          setLogsFailed(true)
+          setLogsReadyIds(new Set())
+          // Não publica N/A: deixa loading false + erro + tentar de novo.
           setLogAggregates(EMPTY_LOG_AGGREGATES)
           setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
-          // Libera o gate para o banner de erro + retry ficarem acessíveis.
-          setInitialLogsLoaded(true)
-          initialLogsLoadedRef.current = true
-          loadProgressRef.current.done = loadProgressRef.current.total
-          syncLoadProgress('', { complete: true })
+          setAgentUsagePresent(false)
+          setAgentScopeKey('')
+        } else {
+          setLogsReadyIds(new Set(merged.readyIds))
+          setLogAggregates({
+            doneByStudent: merged.doneByStudent,
+            answerMap: merged.answerMap,
+          })
+          setLogsFailed(false)
         }
-        // Refetch de período: mantém último snapshot (keep-previous).
         setLoadingLogs(false)
         setAgentUsageLoading(false)
       }
@@ -985,15 +1971,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    selectedId,
-    studentIdsKey,
-    trailIdsKey,
-    loadingData,
-    logsRetryKey,
-    agentPeriodDays,
-  ])
+  }, [selectedIdsKey, activeInstitutionIds, logsRetryKey, agentPeriodDays])
 
   const sortedInstitutions = useMemo(() => {
     return filterInstitutions(institutions).sort((a, b) => {
@@ -1239,10 +2217,20 @@ export function DashboardPage() {
     return map
   }, [questionsByTrail])
 
+  const activityCatalogs = useMemo(
+    () => activityKeysByTrail(questions),
+    [questions],
+  )
+
+  const activityTotals = useMemo(
+    () => activityCountByTrail(questions),
+    [questions],
+  )
+
   const studentRows = useMemo<StudentRow[]>(() => {
     const relevantIds = new Set(relevantTrails.map((t) => t.id))
 
-    // Trilhas inscritas (com progresso) de cada aluno, restritas às trilhas ativas.
+    // Trilhas inscritas de cada aluno, restritas às trilhas ativas/filtradas.
     const trailsByStudent = new Map<string, StudentTrail[]>()
     for (const st of studentTrails) {
       if (!relevantIds.has(st.trail_id)) continue
@@ -1251,64 +2239,125 @@ export function DashboardPage() {
       else trailsByStudent.set(st.student_id, [st])
     }
 
-    const attemptsByStudent = new Map<string, { correct: number; wrong: number }>()
-    for (const student of students) {
-      const enrolled = trailsByStudent.get(student.id) ?? []
-      const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
-      attemptsByStudent.set(
-        student.id,
-        scoreStudentFromAnswerMap(
-          student.id,
-          enrolledTrailIds,
-          studentAnswerMap,
-          stageByKey,
-          questionByKey,
+    // Atividades por trilha (legado question_number + catálogo stage,question).
+    const activitiesByTrail = new Map<string, number[]>()
+    const filteredKeysByTrail = new Map<string, ActivityKey[]>()
+    for (const trail of relevantTrails) {
+      activitiesByTrail.set(
+        trail.id,
+        trailLessonNumbers(
+          trail.id,
+          questionsByTrail,
           deselectedStages,
           deselectedQuestions,
         ),
       )
+      const catalog = activityCatalogs.get(trail.id) ?? []
+      const filtered = catalog.filter((k) => {
+        const stageKey = `${trail.id}|${k.stage}`
+        if (deselectedStages.has(stageKey)) return false
+        if (deselectedQuestions.has(k.question)) return false
+        return true
+      })
+      filteredKeysByTrail.set(trail.id, filtered)
+    }
+
+    const metricsReady =
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    const metricsByStudent = new Map<
+      string,
+      {
+        done: number
+        released: number
+        lessonsDone: number
+        lessonsReleased: number
+        correct: number
+        wrong: number
+        accuracyPct: number | null
+      }
+    >()
+    if (metricsReady) {
+      for (const id of activeInstitutionIds) {
+        const m = metricsByInst.get(id)
+        if (!m) continue
+        for (const s of m.students) {
+          metricsByStudent.set(s.id, {
+            done: s.done,
+            released: s.released,
+            lessonsDone: s.lessonsDone,
+            lessonsReleased: s.lessonsReleased,
+            correct: s.correct,
+            wrong: s.wrong,
+            accuracyPct: s.accuracyPct,
+          })
+        }
+      }
     }
 
     const rows: StudentRow[] = students.map((student) => {
-      let released = 0
-      let done = 0
       const enrolled = trailsByStudent.get(student.id) ?? []
-      const studentDone = enrichedDoneByStudent.get(student.id) ?? new Set()
-      for (const st of enrolled) {
-        const positions = questionsByTrail.get(st.trail_id) ?? []
-        const selected = positions.filter(
-          (p) =>
-            !deselectedStages.has(`${st.trail_id}|${p.stage}`) &&
-            !deselectedQuestions.has(p.question),
-        )
-        released += selected.length
-
-        for (const p of selected) {
-          const key = `${st.trail_id}|${p.stage}|${p.question}`
-          if (studentDone.has(key)) done += 1
-        }
-      }
-
-      const lessonMetrics = computeLessonMetricsForTrails(
-        enrolled.map((st) => st.trail_id),
-        questionsByTrail,
-        studentDone,
+      const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
+      const progress = progressFromLinks({
+        links: enrolled,
+        activitiesByTrail,
+        activityTotals,
+        activityCatalogs,
+        activityKeysByTrail: filteredKeysByTrail,
+      })
+      // Acerto: logs densos (dashboard_summary) têm prioridade; attempts
+      // só quando o aluno ainda não tem respostas nos logs.
+      const fromAttempts = accuracyFromAttempts(attempts, student.id)
+      const fromLogs = scoreStudentFromAnswerMap(
+        student.id,
+        enrolledTrailIds,
+        studentAnswerMap,
+        stageByKey,
+        questionByKey,
         deselectedStages,
         deselectedQuestions,
       )
-
-      const agg = attemptsByStudent.get(student.id) ?? { correct: 0, wrong: 0 }
+      const useLogs = fromLogs.correct + fromLogs.wrong > 0
+      const sm = metricsByStudent.get(student.id)
+      const correct = useLogs
+        ? fromLogs.correct
+        : fromAttempts.correct + fromAttempts.wrong > 0
+          ? fromAttempts.correct
+          : (sm?.correct ?? 0)
+      const wrong = useLogs
+        ? fromLogs.wrong
+        : fromAttempts.correct + fromAttempts.wrong > 0
+          ? fromAttempts.wrong
+          : (sm?.wrong ?? 0)
+      const tried = correct + wrong
+      const accuracyPct =
+        tried > 0
+          ? pct(correct, tried)
+          : sm && sm.correct + sm.wrong === 0
+            ? null
+            : (sm?.accuracyPct ?? null)
       return {
         student,
-        released,
-        done,
-        completionPct: pct(done, released),
-        lessonsReleased: lessonMetrics.lessonsReleased,
-        lessonsDone: lessonMetrics.lessonsDone,
-        lessonsCompletionPct: lessonMetrics.lessonsCompletionPct,
-        correct: agg.correct,
-        wrong: agg.wrong,
-        accuracyPct: pct(agg.correct, agg.correct + agg.wrong),
+        released: sm?.released ?? progress.released,
+        done: sm?.done ?? progress.done,
+        completionPct:
+          sm && sm.released > 0
+            ? Math.round((sm.done / sm.released) * 1000) / 10
+            : progress.completionPct,
+        lessonsReleased: sm?.lessonsReleased ?? progress.lessonsReleased,
+        lessonsDone: sm?.lessonsDone ?? progress.lessonsDone,
+        lessonsCompletionPct:
+          sm && sm.lessonsReleased > 0
+            ? Math.round((sm.lessonsDone / sm.lessonsReleased) * 1000) / 10
+            : progress.lessonsCompletionPct,
+        correct,
+        wrong,
+        accuracyPct,
+        engagementStatus: engagementFromLinks(
+          enrolled,
+          activityTotals,
+          activityCatalogs,
+        ),
       }
     })
 
@@ -1318,12 +2367,18 @@ export function DashboardPage() {
     relevantTrails,
     studentTrails,
     questionsByTrail,
+    activityTotals,
+    activityCatalogs,
+    attempts,
     stageByKey,
     questionByKey,
     deselectedStages,
     deselectedQuestions,
-    enrichedDoneByStudent,
     studentAnswerMap,
+    metricsScopeKey,
+    selectedIdsKey,
+    activeInstitutionIds,
+    metricsByInst,
   ])
 
   const filteredStudentRows = useMemo(() => {
@@ -1492,8 +2547,7 @@ export function DashboardPage() {
     return { start, end }
   }, [sortedFilteredStudentRows.length, studentPage])
 
-  // Cards de resumo — refletem os filtros da tabela de alunos
-  // (busca e faixa de % conclusão).
+  // Cards de resumo — mesma definição de acerto do Início (acertoMedio).
   const summary = useMemo(() => {
     const activeRows = filteredStudentRows.filter((r) => r.student.active)
 
@@ -1501,15 +2555,11 @@ export function DashboardPage() {
     let releasedTotal = 0
     let lessonsDoneTotal = 0
     let lessonsReleasedTotal = 0
-    let correct = 0
-    let total = 0
     for (const row of activeRows) {
       doneTotal += row.done
       releasedTotal += row.released
       lessonsDoneTotal += row.lessonsDone
       lessonsReleasedTotal += row.lessonsReleased
-      correct += row.correct
-      total += row.correct + row.wrong
     }
 
     const avgCompletion =
@@ -1522,25 +2572,99 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    const avgAccuracy =
-      total > 0 ? Math.round((correct / total) * 1000) / 10 : null
+    // Preferir métricas pré-agregadas (sem meta local / sem 57k answers).
+    const metricsReady =
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    const metricsParts = metricsReady
+      ? activeInstitutionIds
+          .map((id) => metricsByInst.get(id))
+          .filter((m): m is InstitutionDashboardMetricsView => Boolean(m))
+      : []
+    const mergedMetrics =
+      metricsParts.length > 0 ? mergeMetricsViews(metricsParts) : null
 
-    return {
-      activeStudents: activeRows.length,
-      activeTrails: activeTrails.length,
-      avgCompletion,
-      avgLessonCompletion,
-      avgAccuracy,
+    const metaReady =
+      metricsReady ||
+      (!loadingMeta && questions.length > 0 && stages.length > 0)
+    const gate = dashboardAccuracyGate({
+      selectedIdsKey,
+      selectedIds: activeInstitutionIds,
+      dataScopeKey: metricsReady ? selectedIdsKey : dataScopeKey,
+      loadingData: metricsReady ? false : loadingData,
+      metaReady,
+      logsReadyIds: metricsReady
+        ? new Set(activeInstitutionIds)
+        : logsReadyIds,
+      loadingLogs: metricsReady ? false : loadingLogs,
+      logsFailed,
+    })
+    const activeIds = new Set(activeRows.map((r) => r.student.id))
+    const allTrailIds = new Set(trails.map((t) => t.id))
+    let avgAccuracy: number | null = null
+    if (mergedMetrics) {
+      avgAccuracy = mergedMetrics.avgAccuracy
+    } else if (gate.canPublishAccuracy && studentAnswerMap.size > 0) {
+      const { gabarito, annulled } = gabaritoFromQuestions(questions)
+      const answers = mergeAnswerSources(
+        answersFromAnswerMap(studentAnswerMap),
+        answersFromAttempts(attempts),
+      )
+      avgAccuracy = accuracyAggregate({
+        activeStudentIds: activeIds,
+        answers,
+        gabarito,
+        annulled,
+        trailIds: allTrailIds.size > 0 ? allTrailIds : undefined,
+      }).avgAccuracy
     }
-  }, [filteredStudentRows, activeTrails])
+
+    // Sem métricas do escopo atual: Carregando… (nunca % da instituição anterior).
+    const completionLoading = !metricsReady || gate.avgAccuracyLoading
+    return {
+      activeStudents: metricsReady
+        ? (mergedMetrics?.activeStudents ?? activeRows.length)
+        : activeRows.length,
+      activeTrails: metricsReady
+        ? (mergedMetrics?.activeTrails ?? activeTrails.length)
+        : activeTrails.length,
+      avgCompletion: metricsReady
+        ? (mergedMetrics?.avgCompletion ?? avgCompletion)
+        : null,
+      avgLessonCompletion: metricsReady
+        ? (mergedMetrics?.avgLessonCompletion ?? avgLessonCompletion)
+        : null,
+      avgAccuracy: metricsReady ? avgAccuracy : null,
+      avgAccuracyLoading: !metricsReady || gate.avgAccuracyLoading,
+      completionLoading,
+    }
+  }, [
+    filteredStudentRows,
+    activeTrails,
+    dataScopeKey,
+    logsReadyIds,
+    logsFailed,
+    selectedIdsKey,
+    activeInstitutionIds,
+    loadingData,
+    loadingMeta,
+    loadingLogs,
+    trails,
+    stages,
+    attempts,
+    questions,
+    studentAnswerMap,
+    metricsByInst,
+    metricsScopeKey,
+  ])
 
   const studentsCharts = useMemo(() => {
     const completionBuckets = [
-      { key: '0-20', label: '0–20%', count: 0 },
-      { key: '21-40', label: '21–40%', count: 0 },
-      { key: '41-60', label: '41–60%', count: 0 },
-      { key: '61-80', label: '61–80%', count: 0 },
-      { key: '81-100', label: '81–100%', count: 0 },
+      { key: '0-20', label: '0-20%', count: 0 },
+      { key: '21-40', label: '21-40%', count: 0 },
+      { key: '41-60', label: '41-60%', count: 0 },
+      { key: '61-80', label: '61-80%', count: 0 },
+      { key: '81-100', label: '81-100%', count: 0 },
     ]
     const statusCounts = {
       notStarted: 0,
@@ -1562,53 +2686,126 @@ export function DashboardPage() {
     }
 
     const multiTrail = relevantTrails.length > 1
+    const multiInst = activeInstitutionIds.length > 1
+    const instNameById = new Map(
+      institutions.map((i) => [i.id, (i.name || i.id).trim()]),
+    )
+    function shortTag(name: string, id: string): string {
+      const raw = (name || id).trim()
+      const letters = raw.replace(/[^A-Za-zÀ-ÿ0-9]/g, '')
+      if (letters.length >= 3) return letters.slice(0, 3)
+      return (id.replace(/^i/i, '').replace(/^t/i, 'T') || 'X').slice(0, 3)
+    }
+    /** Prefixo curto da trilha para eixo multi-trilha (ex.: Aurora → Aur). */
+    function trailShortTag(name: string, id: string): string {
+      return shortTag(name, id)
+    }
+    function instShortTag(institutionId: string): string {
+      return shortTag(
+        instNameById.get(institutionId) ?? institutionId,
+        institutionId,
+      )
+    }
     const lessonBars: {
       key: string
       label: string
+      fullLabel?: string
       lessonNumber: number
       count: number
       enrolledCount: number
     }[] = []
 
+    // Índice rápido: vínculo aluno-trilha (fonte Início).
+    const linkByStudentTrail = new Map<string, StudentTrail>()
+    for (const st of studentTrails) {
+      linkByStudentTrail.set(`${st.student_id}|${st.trail_id}`, st)
+    }
+
     for (const trail of relevantTrails) {
-      const lessonNumbers = trailLessonNumbers(
-        trail.id,
-        questionsByTrail,
-        deselectedStages,
-        deselectedQuestions,
-      )
-      const byQuestion = groupTopicsByLesson(
-        filterTrailTopicPositions(
-          trail.id,
-          questionsByTrail.get(trail.id) ?? [],
-          deselectedStages,
-          deselectedQuestions,
-        ),
+      const catalog = (activityCatalogs.get(trail.id) ?? []).filter((k) => {
+        const stageKey = `${trail.id}|${k.stage}`
+        if (deselectedStages.has(stageKey)) return false
+        if (deselectedQuestions.has(k.question)) return false
+        return true
+      })
+      const trailLabel = (trail.name || trail.id).trim()
+      const tag = trailShortTag(trailLabel, trail.id)
+      const stages = [...new Set(catalog.map((k) => k.stage))].sort(
+        (a, b) => a - b,
       )
 
-      for (const lessonNumber of lessonNumbers) {
-        const topics = byQuestion.get(lessonNumber) ?? []
-        if (topics.length === 0) continue
+      // Com muitas atividades (ex.: 12×100), agrega por etapa (E1..En).
+      // Com poucas, mostra E{n} A{m} (stage, question).
+      const aggregateByStage = catalog.length > 40 || stages.length > 1
 
+      if (aggregateByStage) {
+        for (const stage of stages) {
+          let enrolledCount = 0
+          let count = 0
+          for (const row of filteredStudentRows) {
+            const enrolled = trailsByStudentIds.get(row.student.id)
+            if (!enrolled?.has(trail.id)) continue
+            enrolledCount += 1
+            const link = linkByStudentTrail.get(
+              `${row.student.id}|${trail.id}`,
+            )
+            if (link && isStageDoneOnLink(link, stage, catalog)) {
+              count += 1
+            }
+          }
+          // Multi-instituição: Inst·E1 (evita "Pro E10Pro E11" colado).
+          // Multi-trilha: Tag·E1. Uma trilha: E1…En.
+          const instTag = instShortTag(trail.institution_id)
+          const label = multiInst
+            ? `${instTag}\nE${stage}`
+            : multiTrail
+              ? `${tag}\nE${stage}`
+              : `E${stage}`
+          const fullLabel = multiInst
+            ? `${instNameById.get(trail.institution_id) ?? trail.institution_id} · Etapa ${stage} · ${trailLabel}`
+            : multiTrail
+              ? `Etapa ${stage} · ${trailLabel}`
+              : `Etapa ${stage}`
+          lessonBars.push({
+            key: `${trail.id}|E${stage}`,
+            label,
+            fullLabel,
+            lessonNumber: stage,
+            count,
+            enrolledCount,
+          })
+        }
+        continue
+      }
+
+      for (const activity of catalog) {
         let enrolledCount = 0
         let count = 0
         for (const row of filteredStudentRows) {
           const enrolled = trailsByStudentIds.get(row.student.id)
           if (!enrolled?.has(trail.id)) continue
           enrolledCount += 1
-          const studentDone =
-            enrichedDoneByStudent.get(row.student.id) ?? new Set()
-          if (isLessonCompleteForTrail(trail.id, topics, studentDone)) {
+          const link = linkByStudentTrail.get(`${row.student.id}|${trail.id}`)
+          if (link && isActivityKeyDoneOnLink(link, activity, catalog)) {
             count += 1
           }
         }
-
+        const short = `E${activity.stage}A${activity.question}`
+        const instTag = instShortTag(trail.institution_id)
+        const label = multiInst
+          ? `${instTag}\n${short}`
+          : multiTrail
+            ? `${tag}\n${short}`
+            : short
         lessonBars.push({
-          key: `${trail.id}|${lessonNumber}`,
-          label: multiTrail
-            ? `A${lessonNumber} · ${trail.name || trail.id}`
-            : `A${lessonNumber}`,
-          lessonNumber,
+          key: `${trail.id}|${activity.stage}|${activity.question}`,
+          label,
+          fullLabel: multiInst
+            ? `${instNameById.get(trail.institution_id) ?? trail.institution_id} · Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
+            : multiTrail
+              ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
+              : `Etapa ${activity.stage} · Atividade ${activity.question}`,
+          lessonNumber: activity.question,
           count,
           enrolledCount,
         })
@@ -1640,17 +2837,19 @@ export function DashboardPage() {
   }, [
     filteredStudentRows,
     relevantTrails,
-    questionsByTrail,
+    activeInstitutionIds,
+    institutions,
     deselectedStages,
     deselectedQuestions,
     trailsByStudentIds,
-    enrichedDoneByStudent,
+    studentTrails,
+    activityCatalogs,
   ])
 
-  // Ranking de pílulas — itera só respostas existentes no mapa
+  // Ranking de pílulas — itera só respostas existentes no mapa.
+  // Sempre calcula (aba + Menor/Maior + contador); não depende do tab Exercícios.
   const gradablePillQuestions = useMemo(() => {
     const map = new Map<string, string>()
-    if (!questionsDataEnabled) return map
 
     for (const trail of activeTrails) {
       const positions = questionsByTrail.get(trail.id) ?? []
@@ -1667,16 +2866,41 @@ export function DashboardPage() {
       }
     }
     return map
-  }, [
-    activeTrails,
-    questionsByTrail,
-    stageByKey,
-    questionByKey,
-    questionsDataEnabled,
-  ])
+  }, [activeTrails, questionsByTrail, stageByKey, questionByKey])
 
   const pillRows = useMemo<PillRow[]>(() => {
-    if (!questionsDataEnabled) return []
+    // Caminho rápido: pills pré-agregados (340 na Sol) — sem varrer answerMap.
+    if (
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    ) {
+      const rows: PillRow[] = []
+      for (const id of activeInstitutionIds) {
+        const m = metricsByInst.get(id)
+        if (!m) continue
+        for (const p of m.exercisePills) {
+          rows.push({
+            exerciseLabel: `Exercício`,
+            statement: '',
+            alternatives: [],
+            key: `${id}|${p.key}`,
+            trailId: p.trailId,
+            trailName: p.trailName,
+            subject: 'N/A',
+            stageNumber: p.stageNumber,
+            questionNumber: p.questionNumber,
+            title: p.title,
+            content: '',
+            gabarito: p.gabarito,
+            total: p.total,
+            correct: p.correct,
+            wrong: p.wrong,
+            accuracyPct: p.accuracyPct,
+          })
+        }
+      }
+      return rows
+    }
 
     const byKey = new Map<string, { correct: number; wrong: number; picks: Map<string, number> }>()
 
@@ -1737,10 +2961,10 @@ export function DashboardPage() {
         key,
         trailId,
         trailName: trail?.name || trailId,
-        subject: trail?.subject?.trim() || '—',
+        subject: trail?.subject?.trim() || 'N/A',
         stageNumber,
         questionNumber,
-        title: question?.title || '—',
+        title: question?.title || 'N/A',
         content: question?.content ?? '',
         gabarito: formatGabaritoLetter(
           gradablePillQuestions.get(key) ??
@@ -1759,8 +2983,11 @@ export function DashboardPage() {
     gradablePillQuestions,
     trailById,
     questionByKey,
-    questionsDataEnabled,
     stages,
+    metricsScopeKey,
+    selectedIdsKey,
+    activeInstitutionIds,
+    metricsByInst,
   ])
 
   const filteredPillRows = useMemo(() => {
@@ -1857,11 +3084,11 @@ export function DashboardPage() {
     )
     const studentIds = new Set<string>()
     const buckets = [
-      { label: '0–20%', count: 0 },
-      { label: '21–40%', count: 0 },
-      { label: '41–60%', count: 0 },
-      { label: '61–80%', count: 0 },
-      { label: '81–100%', count: 0 },
+      { label: '0-20%', count: 0 },
+      { label: '21-40%', count: 0 },
+      { label: '41-60%', count: 0 },
+      { label: '61-80%', count: 0 },
+      { label: '81-100%', count: 0 },
     ]
     const byTrail = new Map<
       string,
@@ -2248,12 +3475,26 @@ export function DashboardPage() {
     selectedQuestionCount < availableQuestions.length ||
     selectedStageCount < availableStages.length
 
+  // Métricas pré-agregadas liberam KPIs sem esperar core/meta Firestore.
+  // BootSymbol só quando ainda não há métricas NEM conteúdo local.
+  const metricsPageReady =
+    metricsScopeKey === selectedIdsKey &&
+    activeInstitutionIds.length > 0 &&
+    activeInstitutionIds.every((id) => metricsByInst.has(id))
   const isDashboardLoading =
-    Boolean(selectedId) &&
-    (loadingData || loadingMeta || !initialLogsLoaded)
+    Boolean(selectedId || activeInstitutionIds.length > 0) &&
+    !hasDashboardContent &&
+    !metricsPageReady &&
+    (loadingData || loadingMeta)
+  const isDashboardRefreshing =
+    (hasDashboardContent || metricsPageReady) &&
+    dataScopeKey === selectedIdsKey &&
+    !loadingMeta &&
+    !loadingData &&
+    isRefreshing
 
   useEffect(() => {
-    if (isDashboardLoading) return
+    if (isDashboardLoading || isDashboardRefreshing) return
     loadTargetPercentRef.current = 0
     if (selectedId && dashboardLoadStartedAtRef.current > 0) {
       const ms = Math.round(performance.now() - dashboardLoadStartedAtRef.current)
@@ -2263,10 +3504,10 @@ export function DashboardPage() {
         `[dashboard] pronto em ${ms}ms (institution_id=${selectedId})`,
       )
     }
-  }, [isDashboardLoading, selectedId])
+  }, [isDashboardLoading, isDashboardRefreshing, selectedId])
 
   useEffect(() => {
-    if (!isDashboardLoading) return
+    if (!isDashboardLoading && !isDashboardRefreshing) return
 
     const id = window.setInterval(() => {
       const target = loadTargetPercentRef.current
@@ -2278,7 +3519,7 @@ export function DashboardPage() {
     }, 40)
 
     return () => window.clearInterval(id)
-  }, [isDashboardLoading, loadStepsDone, loadStepsTotal])
+  }, [isDashboardLoading, isDashboardRefreshing, loadStepsDone, loadStepsTotal])
 
   const institutionOptions = sortedInstitutions.map((inst) => ({
     id: inst.id,
@@ -2300,7 +3541,7 @@ export function DashboardPage() {
   const stagePickerItems = availableStages.map((s) => ({
     id: s.key,
     label: `${s.trailName} · Tópico ${s.stageNumber}${
-      s.title ? ` — ${s.title}` : ''
+      s.title ? `: ${s.title}` : ''
     } (${s.stageType})`,
   }))
   const stagePickerSelectedIds = availableStages
@@ -2367,7 +3608,15 @@ export function DashboardPage() {
       lastActivityLabel: formatAgentLastActivity(agent.lastActivity),
       studentIds: agent.studentIds,
     }))
-    const uniqueStudents = new Set(agents.flatMap((a) => a.studentIds)).size
+    // Prefer IDs; se compact (sem student_ids), usa uniqueStudents do agregado/agentes.
+    const fromIds = new Set(agents.flatMap((a) => a.studentIds))
+    const uniqueStudents =
+      fromIds.size > 0
+        ? fromIds.size
+        : typeof agentUsage.uniqueStudents === 'number' &&
+            agentUsage.uniqueStudents > 0
+          ? agentUsage.uniqueStudents
+          : agents.reduce((n, a) => n + (a.uniqueStudents || 0), 0)
     const activeTutorCount = agents.filter((a) => a.messages > 0).length
     const activeDayCount = new Set(agentUsage.series.map((p) => p.date)).size
     const coveragePct =
@@ -2383,6 +3632,7 @@ export function DashboardPage() {
         activeTutorCount,
         periodDays: agentPeriodDays,
         activeDayCount,
+        seriesDates: agentUsage.series.map((point) => point.date),
       }),
       agents,
       series: agentUsage.series.map((point) => {
@@ -2452,7 +3702,11 @@ export function DashboardPage() {
         setStudentPick(ids.size === studentRows.length ? null : new Set(ids))
         setStudentPage(1)
       }}
-      institutionName={institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'}
+      institutionName={
+        activeInstitutionIds.length > 1
+          ? `${activeInstitutionIds.length} instituições`
+          : institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'
+      }
       trailFilterOptions={allActiveTrails.map((t) => ({ id: t.id, label: t.name || t.id }))}
       trailFilterSelectedIds={activeTrails.map((t) => t.id)}
       onTrailFilterChange={(ids) => {
@@ -2463,13 +3717,20 @@ export function DashboardPage() {
       onExportExerciseHistory={exportExerciseHistory}
       loadingInst={loadingInst}
       institutionOptions={institutionOptions}
-      selectedId={selectedId}
+      selectedId={
+        gestao.selectedIds.size === 1
+          ? ([...gestao.selectedIds][0] ?? selectedId)
+          : gestao.selectedIds.size > 1
+            ? ''
+            : selectedId
+      }
       onSelectInstitution={(id) => {
-        setSelectedId(id)
+        if (!id) return
+        selectInstitution(id)
         setStudentChartFilter(null)
         setActiveTab('students')
         setQuestionsDataEnabled(false)
-        setAgentPeriodDays(30)
+        // Mantém agentPeriodDays (Todo/7d/30d) entre instituições.
         setSelectedAgentTrailId(null)
         setPillSearch('')
         setPillTrailFilter('')
@@ -2495,17 +3756,41 @@ export function DashboardPage() {
       dataError={dataError}
       exportError={exportError}
       isDashboardLoading={isDashboardLoading}
+      isDashboardRefreshing={isDashboardRefreshing}
       loadLabel={loadLabel}
       loadPercent={loadPercent}
       logsError={logsError}
       onRetryLogs={() => {
-        // Reabre o gate no retry após falha de first-load (banner acessível).
+        // Reabre o gate no retry após falha (erro + tentar de novo, nunca 0 silencioso).
         initialLogsLoadedRef.current = false
-        setInitialLogsLoaded(false)
+        setLogsFailed(false)
         setLogsError(null)
+        setLoadingLogs(true)
+        setAgentUsageLoading(true)
         setLogsRetryKey((k) => k + 1)
       }}
+      agentUsageLoading={
+        agentUsageLoading ||
+        agentScopeKey !== `${selectedIdsKey}|${agentPeriodDays}`
+      }
       summary={summary}
+      exercisesLoading={
+        !(
+          metricsScopeKey === selectedIdsKey &&
+          activeInstitutionIds.every((id) => metricsByInst.has(id))
+        ) &&
+        dashboardAccuracyGate({
+          selectedIdsKey,
+          selectedIds: activeInstitutionIds,
+          dataScopeKey,
+          loadingData,
+          metaReady:
+            !loadingMeta && questions.length > 0 && stages.length > 0,
+          logsReadyIds,
+          loadingLogs,
+          logsFailed,
+        }).exercisesLoading
+      }
       missingGabaritoCount={missingGabaritoCount}
       annulledGabaritoCount={annulledGabaritoCount}
       annulledAnswersExcluded={annulledAnswersExcluded}
@@ -2628,10 +3913,9 @@ export function DashboardPage() {
       agentUsage={agentUsageView}
       agentPeriodDays={agentPeriodDays}
       onAgentPeriodDaysChange={(days) => {
-        setAgentPeriodDays(days)
+        setAgentPeriodDaysPersist(days)
         setSelectedAgentTrailId(null)
       }}
-      agentUsageLoading={agentUsageLoading}
       agentUsageUnavailable={!agentUsagePresent}
       selectedAgentTrailId={selectedAgentTrailId}
       onSelectAgentTrailId={setSelectedAgentTrailId}

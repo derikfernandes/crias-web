@@ -161,7 +161,8 @@ function Row({
       <td>
         <input
           {...field}
-          style={{ ...field.style, minWidth: 250 }}
+          style={{ ...field.style, minWidth: 250, color: 'var(--v-ink)', fontWeight: 600, opacity: 1 }}
+          className={`${field.className} gx-user-email`}
           type="email"
           aria-label="E-mail"
           placeholder="E-mail"

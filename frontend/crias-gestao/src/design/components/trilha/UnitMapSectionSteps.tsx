@@ -94,7 +94,7 @@ export function UnitMapSectionSteps({
       </ol>
       {steps.length > questionPageSize ? (
         <p className="trilha-unit__more muted">
-          {steps.length} aulas nesta fase — {questionPageSize} por página.
+          {steps.length} aulas nesta fase, {questionPageSize} por página.
         </p>
       ) : null}
     </>

@@ -96,9 +96,10 @@ export async function generateActivitiesWithAi(
       base64: await fileToBase64(f),
     })),
   )
+  const { gestaoAuthHeaders } = await import('./gestaoAuthHeaders')
   const res = await fetch('/api/ai_trail_generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await gestaoAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       mode: input.mode,
       variables: promptVariables(input.config),

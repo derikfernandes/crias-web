@@ -5,6 +5,7 @@ import {
   canAccessNav,
   filterInstitutionsByAccess,
   hasFullAccess,
+  hasGestaoAccess,
   isMasterAccess,
   isUnrestrictedAccess,
 } from '../lib/adminPermissions'
@@ -19,14 +20,15 @@ export function usePermissions() {
       adminProfile,
       permissionsLoading,
       isUnrestricted: isUnrestrictedAccess(adminProfile),
-      hasFullAccess: hasFullAccess(adminProfile),
+      hasFullAccess: hasFullAccess(adminProfile, userEmail),
+      hasGestaoAccess: hasGestaoAccess(adminProfile, userEmail),
       isMaster: isMasterAccess(adminProfile, userEmail),
       canNav: (permission: NavPermission) =>
         canAccessNav(adminProfile, permission, { userEmail }),
       canInstitution: (institutionId: string) =>
-        canAccessInstitution(adminProfile, institutionId),
+        canAccessInstitution(adminProfile, institutionId, { userEmail }),
       filterInstitutions: <T extends { id: string }>(items: T[]) =>
-        filterInstitutionsByAccess(adminProfile, items),
+        filterInstitutionsByAccess(adminProfile, items, { userEmail }),
     }),
     [adminProfile, permissionsLoading, userEmail],
   )

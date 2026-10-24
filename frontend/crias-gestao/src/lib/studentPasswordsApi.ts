@@ -1,4 +1,5 @@
 import { auth } from './firebase'
+import { gestaoAuthHeaders } from './gestaoAuthHeaders'
 
 function resolveApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL?.trim()
@@ -10,11 +11,7 @@ async function masterAuthHeaders(): Promise<HeadersInit> {
   if (!auth?.currentUser) {
     throw new Error('Faça login como Master para continuar.')
   }
-  const token = await auth.currentUser.getIdToken()
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  }
+  return gestaoAuthHeaders({ 'Content-Type': 'application/json' })
 }
 
 export type StudentPasswordRow = {

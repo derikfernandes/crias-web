@@ -5,6 +5,10 @@
  *
  * GET /api/dashboard_metrics_probe?institution_id=i2
  * GET /api/dashboard_metrics_probe?institution_id=i2&ensure=1  (DERIVED se faltar)
+ * GET /api/dashboard_metrics_probe?institution_id=i2&warm=1   (gera cache)
+ * GET /api/dashboard_metrics_probe?warm_all=1                 (todas as instituições)
+ *
+ * warm / warm_all escrevem só em gestao_dashboard_cache (nunca dados de alunos).
  */
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
@@ -12,13 +16,16 @@ import { getFirestore } from 'firebase-admin/firestore'
 import {
   ensureMetricsFromExistingCache,
   readMetricsFromCache,
+  warmInstitutionSummary,
 } from './dashboard_summary'
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
 }
 
 const CACHE_COLLECTION = 'gestao_dashboard_cache'
+/** Fallback se a collection institutions estiver vazia/indisponível. */
+const DEFAULT_INSTITUTION_IDS = ['i1', 'i2', 'i4']
 
 function cors(): Record<string, string> {
   return {
@@ -49,6 +56,80 @@ function authorized(request: Request): boolean {
   return vercelCron || Boolean(secret && bearer === secret)
 }
 
+async function listInstitutionIds(
+  db: ReturnType<typeof getFirestore>,
+): Promise<string[]> {
+  const col = process.env.INSTITUTIONS_COLLECTION ?? 'institutions'
+  try {
+    const snap = await db.collection(col).select().get()
+    const ids = snap.docs.map((d) => d.id).filter(Boolean)
+    if (ids.length > 0) return [...new Set(ids)].sort()
+  } catch (e) {
+    console.warn(
+      '[metrics_probe] list institutions falhou',
+      e instanceof Error ? e.message : e,
+    )
+  }
+  return [...DEFAULT_INSTITUTION_IDS]
+}
+
+async function readProbeBody(
+  db: ReturnType<typeof getFirestore>,
+  institutionId: string,
+  started: number,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const fresh = await readMetricsFromCache(db, institutionId, {
+    allowStale: true,
+  })
+  const metaSnap = await db.collection(CACHE_COLLECTION).doc(institutionId).get()
+  const sidecarSnap = await db
+    .collection(CACHE_COLLECTION)
+    .doc(`${institutionId}_m`)
+    .get()
+
+  const metaBytes = metaSnap.exists
+    ? Buffer.byteLength(JSON.stringify(metaSnap.data()), 'utf8')
+    : 0
+  const sidecarBytes = sidecarSnap.exists
+    ? Buffer.byteLength(JSON.stringify(sidecarSnap.data()), 'utf8')
+    : 0
+
+  if (!fresh) {
+    return {
+      status: 404,
+      body: {
+        ok: false,
+        status: 404,
+        institution_id: institutionId,
+        ms: Date.now() - started,
+        meta_bytes: metaBytes,
+        sidecar_bytes: sidecarBytes,
+        error: 'metrics ausente no cache',
+      },
+    }
+  }
+
+  const m = fresh.metrics
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      status: 200,
+      institution_id: institutionId,
+      ms: Date.now() - started,
+      meta_bytes: metaBytes,
+      sidecar_bytes: sidecarBytes,
+      stale: fresh.stale,
+      computed_at: m.computed_at,
+      avg_accuracy: m.avg_accuracy,
+      avg_lesson_completion: m.avg_lesson_completion,
+      exercise_count: m.exercise_count,
+      active_students: m.active_students,
+      accuracy_tried: m.accuracy_tried,
+    },
+  }
+}
+
 async function handleRequest(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors() })
@@ -70,75 +151,104 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const url = new URL(request.url)
+  const warmAll = url.searchParams.get('warm_all') === '1'
+  const warm = url.searchParams.get('warm') === '1'
+  const ensure = url.searchParams.get('ensure') === '1'
   const institutionId =
     url.searchParams.get('institution_id')?.trim() || 'i2'
-  const ensure = url.searchParams.get('ensure') === '1'
   const started = Date.now()
 
   try {
     const db = getDb()
-    if (ensure) {
-      await ensureMetricsFromExistingCache(institutionId)
-    }
-    const fresh = await readMetricsFromCache(db, institutionId, {
-      allowStale: true,
-    })
-    const metaSnap = await db
-      .collection(CACHE_COLLECTION)
-      .doc(institutionId)
-      .get()
-    const sidecarSnap = await db
-      .collection(CACHE_COLLECTION)
-      .doc(`${institutionId}_m`)
-      .get()
 
-    const metaBytes = metaSnap.exists
-      ? Buffer.byteLength(JSON.stringify(metaSnap.data()), 'utf8')
-      : 0
-    const sidecarBytes = sidecarSnap.exists
-      ? Buffer.byteLength(JSON.stringify(sidecarSnap.data()), 'utf8')
-      : 0
-
-    if (!fresh) {
+    if (warmAll) {
+      const ids = await listInstitutionIds(db)
+      // Sol primeiro (maior).
+      ids.sort((a, b) => {
+        if (a === 'i2') return -1
+        if (b === 'i2') return 1
+        return a.localeCompare(b)
+      })
+      const warmed: Record<
+        string,
+        {
+          ok: boolean
+          ms: number
+          meta_bytes?: number
+          sidecar_bytes?: number
+          avg_accuracy?: number | null
+          exercise_count?: number
+          error?: string
+        }
+      > = {}
+      for (const id of ids) {
+        const t0 = Date.now()
+        try {
+          await warmInstitutionSummary(id)
+          const probe = await readProbeBody(db, id, t0)
+          warmed[id] = {
+            ok: probe.body.ok === true,
+            ms: Date.now() - t0,
+            meta_bytes:
+              typeof probe.body.meta_bytes === 'number'
+                ? probe.body.meta_bytes
+                : undefined,
+            sidecar_bytes:
+              typeof probe.body.sidecar_bytes === 'number'
+                ? probe.body.sidecar_bytes
+                : undefined,
+            avg_accuracy:
+              typeof probe.body.avg_accuracy === 'number' ||
+              probe.body.avg_accuracy === null
+                ? (probe.body.avg_accuracy as number | null)
+                : undefined,
+            exercise_count:
+              typeof probe.body.exercise_count === 'number'
+                ? probe.body.exercise_count
+                : undefined,
+            error:
+              typeof probe.body.error === 'string'
+                ? probe.body.error
+                : undefined,
+          }
+        } catch (e) {
+          warmed[id] = {
+            ok: false,
+            ms: Date.now() - t0,
+            error: e instanceof Error ? e.message : 'erro',
+          }
+        }
+      }
       return new Response(
         JSON.stringify({
-          ok: false,
-          status: 404,
-          institution_id: institutionId,
+          ok: Object.values(warmed).every((r) => r.ok),
+          status: 200,
+          warm_all: true,
           ms: Date.now() - started,
-          meta_bytes: metaBytes,
-          sidecar_bytes: sidecarBytes,
-          error: 'metrics ausente no cache',
+          institutions: ids,
+          warmed,
         }),
         {
-          status: 404,
-          headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors() },
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            ...cors(),
+          },
         },
       )
     }
 
-    const m = fresh.metrics
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        status: 200,
-        institution_id: institutionId,
-        ms: Date.now() - started,
-        meta_bytes: metaBytes,
-        sidecar_bytes: sidecarBytes,
-        stale: fresh.stale,
-        computed_at: m.computed_at,
-        avg_accuracy: m.avg_accuracy,
-        avg_lesson_completion: m.avg_lesson_completion,
-        exercise_count: m.exercise_count,
-        active_students: m.active_students,
-        accuracy_tried: m.accuracy_tried,
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors() },
-      },
-    )
+    if (warm) {
+      await warmInstitutionSummary(institutionId)
+    } else if (ensure) {
+      await ensureMetricsFromExistingCache(institutionId)
+    }
+
+    const probe = await readProbeBody(db, institutionId, started)
+    return new Response(JSON.stringify(probe.body), {
+      status: probe.status,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors() },
+    })
   } catch (e) {
     return new Response(
       JSON.stringify({

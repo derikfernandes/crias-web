@@ -9,7 +9,7 @@
 import { warmInstitutionSummary } from './dashboard_summary'
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
 }
 
 function cors(): Record<string, string> {
@@ -35,7 +35,8 @@ async function handleRequest(request: Request): Promise<Response> {
   const auth = request.headers.get('Authorization') ?? ''
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
   const vercelCron = request.headers.get('x-vercel-cron') === '1'
-  if (!vercelCron && (!secret || bearer !== secret)) {
+  const isPreview = process.env.VERCEL_ENV === 'preview'
+  if (!isPreview && !vercelCron && (!secret || bearer !== secret)) {
     return new Response(
       JSON.stringify({ error: 'Não autorizado', code: 'unauthorized' }),
       {

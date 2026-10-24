@@ -51,7 +51,7 @@ import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
  */
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
 }
 
 type Json = Record<string, unknown>
@@ -814,17 +814,36 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 }
 
-/** Regenera e persiste o summary (cron / warm). */
+/**
+ * Regenera e persiste o summary (cron / warm / 1º request).
+ * Lock por instituição: pedidos concorrentes aguardam o mesmo calc.
+ */
 export async function warmInstitutionSummary(
   institutionId: string,
 ): Promise<void> {
-  const db = getDb()
-  const payload = await computeSummaryPayload(db, institutionId)
-  summaryCache.set(institutionId, {
-    expires: Date.now() + SUMMARY_CACHE_TTL_MS,
-    payload,
-  })
-  await writeFirestoreCache(db, payload)
+  const existing = recomputeInflight.get(institutionId)
+  if (existing) {
+    await existing
+    return
+  }
+  const run = (async () => {
+    try {
+      const db = getDb()
+      const payload = await computeSummaryPayload(db, institutionId)
+      summaryCache.set(institutionId, {
+        expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+        payload,
+      })
+      await writeFirestoreCache(db, payload)
+      console.info(
+        `[dashboard_summary] warm ok ${institutionId} students=${payload.student_count} exercises=${payload.metrics?.exercise_count ?? 0}`,
+      )
+    } finally {
+      recomputeInflight.delete(institutionId)
+    }
+  })()
+  recomputeInflight.set(institutionId, run)
+  await run
 }
 
 /**
@@ -1000,23 +1019,10 @@ export async function ensureMetricsFromExistingCache(
   return metrics
 }
 
-function scheduleSummaryRecompute(db: Firestore, institutionId: string): void {
-  if (recomputeInflight.has(institutionId)) return
-  const run = (async () => {
-    try {
-      const payload = await computeSummaryPayload(db, institutionId)
-      summaryCache.set(institutionId, {
-        expires: Date.now() + SUMMARY_CACHE_TTL_MS,
-        payload,
-      })
-      await writeFirestoreCache(db, payload)
-    } catch (err) {
-      console.warn('[dashboard_summary] recompute falhou', institutionId, err)
-    } finally {
-      recomputeInflight.delete(institutionId)
-    }
-  })()
-  recomputeInflight.set(institutionId, run)
+function scheduleSummaryRecompute(_db: Firestore, institutionId: string): void {
+  void warmInstitutionSummary(institutionId).catch((err) => {
+    console.warn('[dashboard_summary] recompute falhou', institutionId, err)
+  })
 }
 
 async function computeSummaryPayload(

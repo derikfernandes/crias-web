@@ -11,16 +11,16 @@
   ],
   "functions": {
     "api/dashboard_summary.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/dashboard_summary_warm.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/dashboard_metrics.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/dashboard_metrics_probe.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/student_trails.ts": {
       "maxDuration": 60

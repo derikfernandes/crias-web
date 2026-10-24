@@ -254,11 +254,16 @@ function parseMetrics(body: MetricsResponse): InstitutionDashboardMetricsView {
 
 const inflight = new Map<string, Promise<InstitutionDashboardMetricsView>>()
 
-/** Timeout do client: evita "Carregando…" eterno se a function travar. */
-export const METRICS_CLIENT_TIMEOUT_MS = 10_000
+/**
+ * Timeout do client. Miss frio (gera Sol) pode levar dezenas de segundos;
+ * após cache/HIT o retorno é sub-segundo. Evita "Carregando…" eterno se a function cair.
+ */
+export const METRICS_CLIENT_TIMEOUT_MS = 55_000
+/** Revalidação SWR (já tem sessão): falha rápido. */
+export const METRICS_SWR_TIMEOUT_MS = 12_000
 
 /** Fetch métricas; usa sessão; SWR se já houver cache.
- *  `force` (refresh=1) só para botão Atualizar explícito — nunca no load normal. */
+ *  `force` (refresh=1) só para botão Atualizar explícito; load normal nunca força. */
 export async function fetchInstitutionMetrics(
   institutionId: string,
   opts?: { force?: boolean; timeoutMs?: number },
@@ -266,6 +271,7 @@ export async function fetchInstitutionMetrics(
   const id = institutionId.trim()
   if (!id) throw new Error('institution_id vazio')
 
+  const hadSession = Boolean(session.get(id))
   if (!opts?.force) {
     const hit = session.get(id)
     if (hit) return hit
@@ -273,7 +279,11 @@ export async function fetchInstitutionMetrics(
     if (pending) return pending
   }
 
-  const timeoutMs = opts?.timeoutMs ?? METRICS_CLIENT_TIMEOUT_MS
+  const timeoutMs =
+    opts?.timeoutMs ??
+    (hadSession && !opts?.force
+      ? METRICS_SWR_TIMEOUT_MS
+      : METRICS_CLIENT_TIMEOUT_MS)
 
   const run = (async () => {
     const url = new URL('/api/dashboard_metrics', resolveApiBaseUrl())

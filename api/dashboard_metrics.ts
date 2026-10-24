@@ -20,7 +20,7 @@ import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
 import type { InstitutionDashboardMetrics } from '../server/lib/dashboardInstitutionMetrics'
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
 }
 
 type Json = Record<string, unknown>
@@ -172,23 +172,11 @@ async function handleRequest(request: Request): Promise<Response> {
         e instanceof Error ? e.message : e,
       )
     }
-
-    // Sem refresh=1: NÃO recalcula Sol (57k). Cron / botão Atualizar usam refresh.
-    void warmInstitutionSummary(institutionId).catch((err) => {
-      console.warn(
-        '[dashboard_metrics] warm background falhou',
-        institutionId,
-        err instanceof Error ? err.message : err,
-      )
-    })
-    return respond(503, {
-      error:
-        'Métricas ainda não disponíveis para esta instituição. Tente de novo em alguns minutos.',
-      code: 'metrics_warming',
-    })
   }
 
+  // Miss (ou refresh=1): gera com lock. Nunca 503 por cache vazio.
   try {
+    const t0 = Date.now()
     await warmInstitutionSummary(institutionId)
     const fresh = await readMetricsFromCache(db, institutionId, {
       allowStale: true,
@@ -204,14 +192,15 @@ async function handleRequest(request: Request): Promise<Response> {
     })
     return respond(200, fresh.metrics as unknown as Json, {
       'Cache-Control': 'private, max-age=60',
-      'X-Metrics-Cache': 'REFRESH',
+      'X-Metrics-Cache': forceRefresh ? 'REFRESH' : 'MISS',
+      'X-Metrics-Warm-Ms': String(Date.now() - t0),
       ...(fresh.metaBytes
         ? { 'X-Metrics-Meta-Bytes': String(fresh.metaBytes) }
         : {}),
     })
   } catch (e) {
     console.error(
-      '[dashboard_metrics] refresh falhou',
+      '[dashboard_metrics] warm falhou',
       institutionId,
       e instanceof Error ? e.message : e,
     )

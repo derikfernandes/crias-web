@@ -34,6 +34,11 @@ test('api/dashboard_summary agrega agent_usage e pula agentes na progressão', (
   assert.match(src, /aggregateAgentUsage/)
   // Agentes não devem ser indexados via trailIndexById no caminho de progressão
   assert.match(src, /if \(isAgentTrailId\(trailId\)\)/)
+  assert.match(src, /gestao_dashboard_cache/)
+  assert.match(src, /aggregateAgentUsageByPeriod/)
+  assert.match(src, /agent_usage_by_period/)
+  assert.match(src, /X-Summary-Cache/)
+  assert.match(src, /maxDuration:\s*60/)
 })
 
 test('dashboard da gestão não faz fallback de conversation_logs no cliente', () => {

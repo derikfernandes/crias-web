@@ -1,12 +1,14 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import {
   aggregateAgentUsage,
   isAgentTrailId,
   parsePeriodDays,
   periodCutoffMillis,
+  type AgentUsageAggregate,
   type AgentUsageLogInput,
+  type AgentUsageRow,
 } from '../server/lib/agentUsage'
 import {
   canAccessInstitution,
@@ -17,7 +19,10 @@ import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
 /**
  * Agregação server-side dos conversation_logs para o dashboard da gestão admin.
  *
- * Endpoint somente leitura (GET). Exige Bearer Firebase ID token da Gestão.
+ * Endpoint somente leitura (GET) sobre collections de alunos. Escrita permitida
+ * apenas na collection derivada `gestao_dashboard_cache`.
+ *
+ * Exige Bearer Firebase ID token da Gestão.
  * Escola: só a própria instituição. Master/super: todas.
  *
  * Resposta (formato compacto para ficar bem abaixo do limite de 4,5 MB de
@@ -31,22 +36,55 @@ import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
  *     answers: Record<"trailIdx|stage|question", string>,
  *     extra_done: Array<"trailIdx|stage|question">
  *   }>,
- *   agent_usage: { ... }  // ver specs/10_AGENT_USAGE_DASHBOARD.md
+ *   agent_usage: { ... },  // período pedido (period_days)
+ *   agent_usage_by_period?: { "0"|"7"|"30": ... }
  * }
  *
  * O conjunto "feito" de cada aluno = chaves de `answers` + `extra_done`.
  * trail_ids de agente NÃO entram em trail_ids / students (progressão tN).
+ *
+ * Undated (at <= 0): contam só em period 0; períodos 7 e 30 ignoram.
  */
+
+export const config = {
+  maxDuration: 60,
+}
 
 type Json = Record<string, unknown>
 
 const FIRESTORE_IN_LIMIT = 30
 
-/** Cache em memória da instância (warm): reduz ~20s+ em recargas próximas. */
-const SUMMARY_CACHE_TTL_MS = 90_000
+/** L1 em memória da instância (warm). */
+const SUMMARY_CACHE_TTL_MS = 5 * 60_000
+/** Cache persistente em Firestore. */
+const FIRESTORE_CACHE_TTL_MS = 10 * 60_000
+const CACHE_COLLECTION = 'gestao_dashboard_cache'
+/** Bem abaixo do limite de 1 MiB do Firestore (~900KB pedido). */
+const MAX_CHUNK_JSON_BYTES = 800_000
+
+const PERIOD_KEYS = [0, 7, 30] as const
+type PeriodKey = (typeof PERIOD_KEYS)[number]
+
+type StudentEntry = {
+  answers: Record<string, string>
+  extra_done: string[]
+}
+
+type StudentsMap = Record<string, StudentEntry>
+
+type AgentUsageByPeriod = Record<'0' | '7' | '30', AgentUsageAggregate>
+
+type SummaryPayload = {
+  institution_id: string
+  student_count: number
+  trail_ids: string[]
+  students: StudentsMap
+  agent_usage_by_period: AgentUsageByPeriod
+}
+
 const summaryCache = new Map<
   string,
-  { expires: number; body: Json }
+  { expires: number; payload: SummaryPayload }
 >()
 
 function corsHeaders(request: Request): Record<string, string> {
@@ -119,6 +157,17 @@ function logTimestampMillis(
   return 0
 }
 
+/**
+ * Filtro de período para uso de agentes.
+ * period 0 (cutoff <= 0): inclui tudo, inclusive undated (at <= 0).
+ * period 7/30: só at >= cutoff; undated (at <= 0) NÃO entram.
+ */
+export function agentLogInPeriod(at: number, cutoffMs: number): boolean {
+  if (cutoffMs <= 0) return true
+  if (at <= 0) return false
+  return at >= cutoffMs
+}
+
 /** Mesma regra do dashboard: prefere respostas de exercício, depois a mais recente. */
 function pickBestStudentAnswer(candidates: AnswerCandidate[]): string {
   if (candidates.length === 0) return ''
@@ -129,6 +178,294 @@ function pickBestStudentAnswer(candidates: AnswerCandidate[]): string {
     return b.logId.localeCompare(a.logId)
   })
   return pool[0].text
+}
+
+/** Uma passada: agrega agent_usage para 0, 7 e 30 a partir dos mesmos logs. */
+export function aggregateAgentUsageByPeriod(
+  agentLogs: AgentUsageLogInput[],
+  nowMs: number = Date.now(),
+): AgentUsageByPeriod {
+  const cutoffs: Record<PeriodKey, number> = {
+    0: 0,
+    7: periodCutoffMillis(7, nowMs),
+    30: periodCutoffMillis(30, nowMs),
+  }
+  const buckets: Record<PeriodKey, AgentUsageLogInput[]> = {
+    0: [],
+    7: [],
+    30: [],
+  }
+
+  for (const log of agentLogs) {
+    for (const period of PERIOD_KEYS) {
+      if (agentLogInPeriod(log.at, cutoffs[period])) {
+        buckets[period].push(log)
+      }
+    }
+  }
+
+  return {
+    '0': aggregateAgentUsage(buckets[0], 0),
+    '7': aggregateAgentUsage(buckets[7], 7),
+    '30': aggregateAgentUsage(buckets[30], 30),
+  }
+}
+
+function periodKey(periodDays: number): '0' | '7' | '30' {
+  if (periodDays === 7) return '7'
+  if (periodDays === 30) return '30'
+  return '0'
+}
+
+function buildBody(
+  payload: SummaryPayload,
+  periodDays: number,
+): Json {
+  const key = periodKey(periodDays)
+  return {
+    institution_id: payload.institution_id,
+    student_count: payload.student_count,
+    trail_ids: payload.trail_ids,
+    students: payload.students,
+    agent_usage: payload.agent_usage_by_period[key],
+    agent_usage_by_period: payload.agent_usage_by_period,
+  }
+}
+
+/** Versão mínima (sem student_stats / student_ids) para caber no doc meta. */
+function compactAgentUsageMinimal(usage: AgentUsageAggregate): Json {
+  return {
+    period_days: usage.period_days,
+    total_messages: usage.total_messages,
+    agents: usage.agents.map((a: AgentUsageRow) => ({
+      trail_id: a.trail_id,
+      label: a.label,
+      messages: a.messages,
+      unique_students: a.unique_students,
+      pct_of_total: a.pct_of_total,
+      last_activity: a.last_activity,
+    })),
+    series: usage.series,
+  }
+}
+
+/**
+ * Prefere o agregado completo no meta; se estourar ~700KB, cai no mínimo
+ * (total_messages + agents com messages/unique_students/pct/label/trail_id).
+ */
+function compactAgentUsageByPeriod(byPeriod: AgentUsageByPeriod): Json {
+  const full: Json = {
+    '0': byPeriod['0'],
+    '7': byPeriod['7'],
+    '30': byPeriod['30'],
+  }
+  if (JSON.stringify(full).length <= 700_000) return full
+  return {
+    '0': compactAgentUsageMinimal(byPeriod['0']),
+    '7': compactAgentUsageMinimal(byPeriod['7']),
+    '30': compactAgentUsageMinimal(byPeriod['30']),
+  }
+}
+
+/**
+ * Reconstrói AgentUsageAggregate a partir do compacto do meta.
+ * student_stats / student_ids ficam vazios (drill-down só no MISS / L1 quente).
+ */
+function inflateCompactAgentUsage(raw: unknown, periodDays: number): AgentUsageAggregate {
+  const empty: AgentUsageAggregate = {
+    period_days: periodDays,
+    total_messages: 0,
+    agents: [],
+    series: [],
+  }
+  if (!raw || typeof raw !== 'object') return empty
+  const obj = raw as Record<string, unknown>
+  const agentsRaw = Array.isArray(obj.agents) ? obj.agents : []
+  const agents: AgentUsageRow[] = agentsRaw.map((row) => {
+    const r = (row && typeof row === 'object' ? row : {}) as Record<string, unknown>
+    const messages = typeof r.messages === 'number' ? r.messages : 0
+    const unique =
+      typeof r.unique_students === 'number' ? r.unique_students : 0
+    return {
+      trail_id: typeof r.trail_id === 'string' ? r.trail_id : '',
+      trail_ids:
+        Array.isArray(r.trail_ids) && r.trail_ids.every((x) => typeof x === 'string')
+          ? (r.trail_ids as string[])
+          : typeof r.trail_id === 'string' && r.trail_id
+            ? [r.trail_id]
+            : [],
+      label: typeof r.label === 'string' ? r.label : '',
+      messages,
+      unique_students: unique,
+      pct_of_total: typeof r.pct_of_total === 'number' ? r.pct_of_total : 0,
+      last_activity:
+        typeof r.last_activity === 'string' || r.last_activity === null
+          ? (r.last_activity as string | null)
+          : null,
+      student_ids: Array.isArray(r.student_ids)
+        ? r.student_ids.filter((x): x is string => typeof x === 'string')
+        : [],
+      student_stats: Array.isArray(r.student_stats)
+        ? (r.student_stats as AgentUsageRow['student_stats'])
+        : [],
+    }
+  })
+  const series = Array.isArray(obj.series)
+    ? (obj.series as AgentUsageAggregate['series'])
+    : []
+  return {
+    period_days:
+      typeof obj.period_days === 'number' ? obj.period_days : periodDays,
+    total_messages:
+      typeof obj.total_messages === 'number' ? obj.total_messages : 0,
+    agents,
+    series,
+  }
+}
+
+function inflateAgentUsageByPeriod(raw: unknown): AgentUsageByPeriod {
+  const obj =
+    raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    '0': inflateCompactAgentUsage(obj['0'], 0),
+    '7': inflateCompactAgentUsage(obj['7'], 7),
+    '30': inflateCompactAgentUsage(obj['30'], 30),
+  }
+}
+
+/** Parte o mapa `students` em pedaços com JSON serializado < MAX_CHUNK_JSON_BYTES. */
+export function chunkStudentsMap(students: StudentsMap): StudentsMap[] {
+  const entries = Object.entries(students)
+  if (entries.length === 0) return [{}]
+
+  const chunks: StudentsMap[] = []
+  let current: StudentsMap = {}
+  let currentBytes = 2 // `{}`
+
+  for (const [studentId, entry] of entries) {
+    const piece = JSON.stringify({ [studentId]: entry })
+    // piece é `{...}`; ao fundir, somamos o miolo + vírgula.
+    const addBytes = piece.length - 2 + (Object.keys(current).length > 0 ? 1 : 0)
+    if (
+      Object.keys(current).length > 0 &&
+      currentBytes + addBytes > MAX_CHUNK_JSON_BYTES
+    ) {
+      chunks.push(current)
+      current = {}
+      currentBytes = 2
+    }
+    current[studentId] = entry
+    const refreshed = JSON.stringify(current)
+    currentBytes = refreshed.length
+    // Se um único aluno estourar o teto, ainda assim vai sozinho (melhor que falhar).
+    if (
+      Object.keys(current).length === 1 &&
+      currentBytes > MAX_CHUNK_JSON_BYTES
+    ) {
+      chunks.push(current)
+      current = {}
+      currentBytes = 2
+    }
+  }
+  if (Object.keys(current).length > 0) chunks.push(current)
+  return chunks.length > 0 ? chunks : [{}]
+}
+
+async function readFirestoreCache(
+  db: Firestore,
+  institutionId: string,
+): Promise<SummaryPayload | null> {
+  const col = db.collection(CACHE_COLLECTION)
+  const metaRef = col.doc(institutionId)
+  const metaSnap = await metaRef.get()
+  if (!metaSnap.exists) return null
+
+  const meta = metaSnap.data() as Record<string, unknown>
+  const computedAt =
+    typeof meta.computed_at === 'number' ? meta.computed_at : 0
+  if (!computedAt || Date.now() - computedAt > FIRESTORE_CACHE_TTL_MS) {
+    return null
+  }
+
+  const chunkCount =
+    typeof meta.chunk_count === 'number' && meta.chunk_count >= 0
+      ? meta.chunk_count
+      : 0
+  const trailIds = Array.isArray(meta.trail_ids)
+    ? meta.trail_ids.filter((x): x is string => typeof x === 'string')
+    : []
+  const studentCount =
+    typeof meta.student_count === 'number' ? meta.student_count : 0
+
+  const students: StudentsMap = {}
+  if (chunkCount > 0) {
+    const chunkRefs = Array.from({ length: chunkCount }, (_, i) =>
+      col.doc(`${institutionId}_s${i}`),
+    )
+    const chunkSnaps = await db.getAll(...chunkRefs)
+    for (const snap of chunkSnaps) {
+      if (!snap.exists) continue
+      const data = snap.data() as Record<string, unknown>
+      const map = data.students
+      if (!map || typeof map !== 'object') continue
+      for (const [sid, entry] of Object.entries(map as StudentsMap)) {
+        students[sid] = entry
+      }
+    }
+  }
+
+  return {
+    institution_id: institutionId,
+    student_count: studentCount,
+    trail_ids: trailIds,
+    students,
+    agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+  }
+}
+
+async function writeFirestoreCache(
+  db: Firestore,
+  payload: SummaryPayload,
+): Promise<void> {
+  const col = db.collection(CACHE_COLLECTION)
+  const chunks = chunkStudentsMap(payload.students)
+  const metaRef = col.doc(payload.institution_id)
+
+  // Lê chunk_count anterior para limpar sobras se o novo tiver menos chunks.
+  let previousChunkCount = 0
+  try {
+    const prev = await metaRef.get()
+    if (prev.exists) {
+      const n = (prev.data() as Record<string, unknown>).chunk_count
+      if (typeof n === 'number' && n > 0) previousChunkCount = n
+    }
+  } catch {
+    // best-effort
+  }
+
+  const batch = db.batch()
+  batch.set(metaRef, {
+    institution_id: payload.institution_id,
+    trail_ids: payload.trail_ids,
+    student_count: payload.student_count,
+    computed_at: Date.now(),
+    chunk_count: chunks.length,
+    agent_usage_by_period: compactAgentUsageByPeriod(payload.agent_usage_by_period),
+  })
+
+  chunks.forEach((students, i) => {
+    batch.set(col.doc(`${payload.institution_id}_s${i}`), {
+      institution_id: payload.institution_id,
+      chunk_index: i,
+      students,
+    })
+  })
+
+  for (let i = chunks.length; i < previousChunkCount; i++) {
+    batch.delete(col.doc(`${payload.institution_id}_s${i}`))
+  }
+
+  await batch.commit()
 }
 
 async function handleRequest(request: Request): Promise<Response> {
@@ -165,7 +502,6 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   const periodDays = parsePeriodDays(url.searchParams.get('period_days'))
-  const cutoffMs = periodCutoffMillis(periodDays)
 
   let db: ReturnType<typeof getFirestore>
   try {
@@ -190,13 +526,30 @@ async function handleRequest(request: Request): Promise<Response> {
     })
   }
 
-  const cacheKey = `${institutionId}|${periodDays}`
-  const hit = summaryCache.get(cacheKey)
-  if (hit && hit.expires > Date.now()) {
-    return respond(200, hit.body, {
+  // L1: um payload por instituição (todos os períodos já calculados).
+  const l1 = summaryCache.get(institutionId)
+  if (l1 && l1.expires > Date.now()) {
+    return respond(200, buildBody(l1.payload, periodDays), {
       'Cache-Control': 'private, max-age=60',
       'X-Summary-Cache': 'HIT',
     })
+  }
+
+  // L2: Firestore derivado.
+  try {
+    const fromFs = await readFirestoreCache(db, institutionId)
+    if (fromFs) {
+      summaryCache.set(institutionId, {
+        expires: Date.now() + SUMMARY_CACHE_TTL_MS,
+        payload: fromFs,
+      })
+      return respond(200, buildBody(fromFs, periodDays), {
+        'Cache-Control': 'private, max-age=60',
+        'X-Summary-Cache': 'FIRESTORE',
+      })
+    }
+  } catch {
+    // Cache miss: segue para computar.
   }
 
   const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
@@ -258,8 +611,7 @@ async function handleRequest(request: Request): Promise<Response> {
           const at = logTimestampMillis(data.created_at, data.created_at_brasilia)
 
           if (isAgentTrailId(trailId)) {
-            // Filtro de período aplica só ao uso de agentes, não à progressão tN.
-            if (cutoffMs > 0 && at > 0 && at < cutoffMs) continue
+            // Coleta todos; filtro de período na agregação multi-período.
             agentLogs.push({ student_id: studentId, trail_id: trailId, at })
             continue
           }
@@ -299,10 +651,7 @@ async function handleRequest(request: Request): Promise<Response> {
       }),
     )
 
-    const students: Record<
-      string,
-      { answers: Record<string, string>; extra_done: string[] }
-    > = {}
+    const students: StudentsMap = {}
     for (const [studentId, byKey] of perStudent) {
       const answers: Record<string, string> = {}
       const extraDone: string[] = []
@@ -314,20 +663,29 @@ async function handleRequest(request: Request): Promise<Response> {
       students[studentId] = { answers, extra_done: extraDone }
     }
 
-    const agent_usage = aggregateAgentUsage(agentLogs, periodDays)
+    const agent_usage_by_period = aggregateAgentUsageByPeriod(agentLogs)
 
-    const body: Json = {
+    const payload: SummaryPayload = {
       institution_id: institutionId,
       student_count: studentIds.length,
       trail_ids: trailIdList,
       students,
-      agent_usage,
+      agent_usage_by_period,
     }
-    summaryCache.set(cacheKey, {
+
+    summaryCache.set(institutionId, {
       expires: Date.now() + SUMMARY_CACHE_TTL_MS,
-      body,
+      payload,
     })
-    return respond(200, body, {
+
+    // Persistência best-effort: falha de escrita não derruba a resposta.
+    try {
+      await writeFirestoreCache(db, payload)
+    } catch {
+      // ignore
+    }
+
+    return respond(200, buildBody(payload, periodDays), {
       'Cache-Control': 'private, max-age=60',
       'X-Summary-Cache': 'MISS',
     })

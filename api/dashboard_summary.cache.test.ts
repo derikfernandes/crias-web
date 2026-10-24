@@ -7,9 +7,9 @@ import {
 } from './dashboard_summary'
 
 describe('agentLogInPeriod', () => {
-  it('period 0 (cutoff 0) inclui undated e datados', () => {
-    expect(agentLogInPeriod(0, 0)).toBe(true)
-    expect(agentLogInPeriod(-1, 0)).toBe(true)
+  it('undated (at<=0) nunca entram (nem em Todo)', () => {
+    expect(agentLogInPeriod(0, 0)).toBe(false)
+    expect(agentLogInPeriod(-1, 0)).toBe(false)
     expect(agentLogInPeriod(1_700_000_000_000, 0)).toBe(true)
   })
 
@@ -28,7 +28,7 @@ describe('agentLogInPeriod', () => {
 })
 
 describe('aggregateAgentUsageByPeriod', () => {
-  it('undated conta só em period 0', () => {
+  it('undated não infla Todo (Crias 22→10)', () => {
     const now = 30 * 24 * 60 * 60 * 1000 + 5_000
     const logs = [
       {
@@ -49,7 +49,7 @@ describe('aggregateAgentUsageByPeriod', () => {
     ]
 
     const by = aggregateAgentUsageByPeriod(logs, now)
-    expect(by['0'].total_messages).toBe(3)
+    expect(by['0'].total_messages).toBe(2)
     expect(by['7'].total_messages).toBe(1)
     expect(by['30'].total_messages).toBe(2)
   })

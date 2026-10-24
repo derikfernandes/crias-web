@@ -337,14 +337,19 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         </div>
         <div className="gx-stat">
           <span>Conclusão média</span>
-          <strong>{pctText(p.summary.avgLessonCompletion)}</strong>
-          {p.summary.avgLessonCompletion !== null ? (
-            <span className="gx-bar" style={{ marginTop: 6 }}>
-              <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
-            </span>
-          ) : (
+          <strong>
+            {p.summary.completionLoading
+              ? 'Carregando…'
+              : pctText(p.summary.avgLessonCompletion)}
+          </strong>
+          {p.summary.completionLoading ||
+          p.summary.avgLessonCompletion === null ? (
             <span className="gx-bar" style={{ marginTop: 6 }} aria-hidden="true">
               <span className="gx-bar__empty" />
+            </span>
+          ) : (
+            <span className="gx-bar" style={{ marginTop: 6 }}>
+              <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
             </span>
           )}
         </div>
@@ -469,7 +474,13 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         </div>
       ) : null}
 
-      <section className="gx-card" aria-label="Uso do monitor" style={{ padding: 0, gap: 0 }}>
+      <section
+        className="gx-card"
+        aria-label="Uso do monitor"
+        style={{ padding: 0, gap: 0 }}
+        // Remount na troca de escopo: zero frame com número da seleção anterior.
+        key={`monitor-${p.selectedId || 'multi'}-${p.agentPeriodDays}`}
+      >
         <div className="gx-card__head" style={{ padding: '24px 24px 0', alignItems: 'flex-end' }}>
           <div>
             <h2>Uso do monitor</h2>

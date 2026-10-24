@@ -2,14 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
-import { fetchDashboardLogSummary } from '../lib/dashboardSummaryApi'
 import {
-  getCachedAnswerMap,
-  isAnswerMapFresh,
-  setCachedAnswerMap,
-} from '../lib/answerMapCache'
+  fetchInstitutionMetrics,
+  getCachedMetrics,
+  type InstitutionDashboardMetricsView,
+} from '../lib/dashboardMetricsApi'
 import { inicioAcertoReady } from '../lib/dashboardAccuracyGate'
-import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
 import { mergeAcertoAggregates } from '../lib/acertoMedio'
 import {
   fmtDate,
@@ -107,10 +105,11 @@ function ArrowButton({
 /** Início do Super admin: faixa de totais e uma linha por instituição (1.1.24). */
 function SuperHome({
   metrics,
-  answerMaps,
+  metricsReady,
 }: {
   metrics: Map<string, InstitutionMetrics>
-  answerMaps: Map<string, Map<string, string>>
+  /** Instituições cujo /api/dashboard_metrics já chegou. */
+  metricsReady: ReadonlySet<string>
 }) {
   const g = useGestao()
   const navigate = useNavigate()
@@ -121,8 +120,11 @@ function SuperHome({
     const list = g.scopedInstitutions.map((i) => metrics.get(i.id))
     const sum = (pick: (m: InstitutionMetrics) => number) =>
       list.reduce((n, m) => n + (m ? pick(m) : 0), 0)
-    // Só agrega quando TODAS as do filtro têm answerMap (evita 0% parcial).
-    const acertoReady = inicioAcertoReady(scopedIds, answerMaps)
+    // Só agrega quando TODAS as do filtro têm métricas (evita 0% parcial).
+    const readyMap = new Map(
+      [...metricsReady].map((id) => [id, new Map<string, string>()] as const),
+    )
+    const acertoReady = inicioAcertoReady(scopedIds, readyMap)
     const combinedAcerto = acertoReady
       ? mergeAcertoAggregates(
           list
@@ -149,7 +151,7 @@ function SuperHome({
       combinedLoading: g.scopedInstitutions.length > 1 && !acertoReady,
       showCombinedAccuracy: g.scopedInstitutions.length > 1,
     }
-  }, [g.scopedInstitutions, metrics, answerMaps])
+  }, [g.scopedInstitutions, metrics, metricsReady])
 
   function openScoped(inst: Institution, path: string) {
     g.setSelectedIds(new Set([inst.id]))
@@ -209,7 +211,7 @@ function SuperHome({
             {g.scopedInstitutions.map((inst) => {
               const m = metrics.get(inst.id)
               const instName = inst.name || inst.id
-              const acertoLoading = !answerMaps.has(inst.id)
+              const acertoLoading = !metricsReady.has(inst.id)
               return (
                 <article className="gx-card" key={inst.id}>
                   <header className="gx-card__head">
@@ -595,18 +597,17 @@ export function HomePage() {
   const links = useCollection('student_trails', snapshotToStudentTrail)
   const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const attempts = useCollection('exercise_attempts', snapshotToExerciseAttempt)
-  /** answerMap por instituição (dashboard_summary) — fonte densa do acerto.
-   *  SWR: hidrata do cache na hora; revalida em background sem BootSymbol. */
-  const [answerMaps, setAnswerMaps] = useState<Map<string, Map<string, string>>>(
-    () => {
-      const seed = new Map<string, Map<string, string>>()
-      for (const inst of g.institutions) {
-        const hit = getCachedAnswerMap(inst.id)
-        if (hit) seed.set(inst.id, hit)
-      }
-      return seed
-    },
-  )
+  /** Métricas pré-agregadas (/api/dashboard_metrics) — sem answerMap da Sol. */
+  const [serverMetrics, setServerMetrics] = useState<
+    Map<string, InstitutionDashboardMetricsView>
+  >(() => {
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const inst of g.institutions) {
+      const hit = getCachedMetrics(inst.id)
+      if (hit) seed.set(inst.id, hit)
+    }
+    return seed
+  })
 
   const instIdsKey = useMemo(
     () => g.institutions.map((i) => i.id).sort().join('|'),
@@ -617,61 +618,53 @@ export function HomePage() {
     let cancelled = false
     const ids = g.institutions.map((i) => i.id).filter(Boolean)
     if (ids.length === 0) {
-      setAnswerMaps(new Map())
+      setServerMetrics(new Map())
       return
     }
 
-    // Hidrata imediatamente o que já está em cache (volta Início <0,5s).
-    setAnswerMaps((prev) => {
+    setServerMetrics((prev) => {
       const next = new Map(prev)
       for (const id of ids) {
-        const hit = getCachedAnswerMap(id)
+        const hit = getCachedMetrics(id)
         if (hit) next.set(id, hit)
       }
       return next
     })
 
-    const staleOrMissing = ids.filter((id) => !isAnswerMapFresh(id))
-    // Sol (i2) primeiro — maior e desbloqueia acerto do filtro.
-    staleOrMissing.sort((a, b) => {
+    const missing = ids.filter((id) => !getCachedMetrics(id))
+    missing.sort((a, b) => {
       if (a === 'i2') return -1
       if (b === 'i2') return 1
       return a.localeCompare(b)
     })
-    if (staleOrMissing.length === 0) return
+    // Revalida todas em background (SWR); faltantes primeiro.
+    const order = [...missing, ...ids.filter((id) => getCachedMetrics(id))]
+    const unique = [...new Set(order)]
 
     void (async () => {
       const started = performance.now()
-      // Sequencial na Sol, paralelo no resto (evita saturar a function fria).
-      const [first, ...rest] = staleOrMissing
-      const loadOne = async (id: string) => {
+      const [first, ...rest] = unique
+      const loadOne = async (id: string, force: boolean) => {
         try {
-          const summary = await fetchDashboardLogSummary(id, 0)
+          const m = await fetchInstitutionMetrics(id, { force })
           if (cancelled) return
-          setCachedAnswerMap(id, summary.answerMap)
-          setAnswerMaps((prev) => {
+          setServerMetrics((prev) => {
             const next = new Map(prev)
-            next.set(id, summary.answerMap)
+            next.set(id, m)
             return next
           })
         } catch {
-          if (cancelled) return
-          setAnswerMaps((prev) => {
-            if (prev.has(id)) return prev
-            const next = new Map(prev)
-            next.set(id, new Map())
-            return next
-          })
+          // Mantém cache anterior se houver.
         }
       }
-      if (first) await loadOne(first)
-      await Promise.all(rest.map(loadOne))
+      if (first) await loadOne(first, !getCachedMetrics(first))
+      await Promise.all(
+        rest.map((id) => loadOne(id, !getCachedMetrics(id))),
+      )
       if (!cancelled) {
         console.info(
-          `[inicio] answerMap revalidado em ${Math.round(performance.now() - started)}ms (${staleOrMissing.length} inst)`,
+          `[inicio] metrics em ${Math.round(performance.now() - started)}ms (${unique.length} inst)`,
         )
-        // Dados reutiliza o mesmo L1: aquece Sol (e irmãs) em background.
-        prefetchSiblingInstitutions([], ids)
       }
     })()
     return () => {
@@ -680,19 +673,7 @@ export function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
   }, [instIdsKey])
 
-  // Se o summary já estava fresco, ainda assim garante L1 do Dados (Sol).
-  useEffect(() => {
-    const ids = g.institutions.map((i) => i.id).filter(Boolean)
-    if (ids.length === 0) return
-    if (!ids.every((id) => getCachedAnswerMap(id))) return
-    const t = window.setTimeout(() => {
-      prefetchSiblingInstitutions([], ids)
-    }, 200)
-    return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
-  }, [instIdsKey])
-
-  // Não espera answerMap: mostra alunos/conclusão na hora; acerto atualiza depois.
+  // Alunos/conclusão local; acerto vem do doc de métricas (sem 57k answers).
   const ready =
     students.ready &&
     trails.ready &&
@@ -701,25 +682,41 @@ export function HomePage() {
     attempts.ready
   const error = students.error ?? trails.error ?? links.error ?? questions.error ?? attempts.error
 
+  const metricsReady = useMemo(
+    () => new Set(serverMetrics.keys()),
+    [serverMetrics],
+  )
+
   const metrics = useMemo(() => {
     const totals = activityCountByTrail(questions.rows)
     const catalogs = activityKeysByTrail(questions.rows)
     const map = new Map<string, InstitutionMetrics>()
     for (const inst of g.institutions) {
-      map.set(
-        inst.id,
-        institutionMetrics({
-          institutionId: inst.id,
-          students: students.rows,
-          trails: trails.rows,
-          studentTrails: links.rows,
-          activityTotals: totals,
-          activityCatalogs: catalogs,
-          attempts: attempts.rows,
-          answerMap: answerMaps.get(inst.id),
-          questions: questions.rows,
-        }),
-      )
+      const local = institutionMetrics({
+        institutionId: inst.id,
+        students: students.rows,
+        trails: trails.rows,
+        studentTrails: links.rows,
+        activityTotals: totals,
+        activityCatalogs: catalogs,
+        attempts: attempts.rows,
+        // undefined = ainda carregando acerto (não publica attempts-only).
+        answerMap: serverMetrics.has(inst.id) ? new Map() : undefined,
+        questions: questions.rows,
+      })
+      const sm = serverMetrics.get(inst.id)
+      if (sm) {
+        map.set(inst.id, {
+          ...local,
+          avgAccuracy: sm.avgAccuracy,
+          accuracyCorrect: sm.accuracyCorrect,
+          accuracyTried: sm.accuracyTried,
+          // Preferir conclusão do servidor quando existir.
+          avgCompletion: sm.avgLessonCompletion ?? local.avgCompletion,
+        })
+      } else {
+        map.set(inst.id, local)
+      }
     }
     return map
   }, [
@@ -729,7 +726,7 @@ export function HomePage() {
     links.rows,
     questions.rows,
     attempts.rows,
-    answerMaps,
+    serverMetrics,
   ])
 
   if (!ready || g.institutionsLoading) return <BootSymbol />
@@ -754,12 +751,12 @@ export function HomePage() {
         </Banner>
       ) : null}
       {g.isSuper || !mine ? (
-        <SuperHome metrics={metrics} answerMaps={answerMaps} />
+        <SuperHome metrics={metrics} metricsReady={metricsReady} />
       ) : (
         <SchoolHome
           institution={mine}
           metrics={metrics.get(mine.id)}
-          acertoLoading={!answerMaps.has(mine.id)}
+          acertoLoading={!metricsReady.has(mine.id)}
           trails={trails.rows.filter((t) => t.institution_id === mine.id)}
           students={students.rows.filter((s) => s.institution_id === mine.id)}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}

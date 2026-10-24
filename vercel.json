@@ -16,6 +16,9 @@
     "api/dashboard_summary_warm.ts": {
       "maxDuration": 60
     },
+    "api/dashboard_metrics.ts": {
+      "maxDuration": 60
+    },
     "api/student_trails.ts": {
       "maxDuration": 60
     },

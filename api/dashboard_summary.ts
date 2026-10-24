@@ -11,6 +11,10 @@ import {
   type AgentUsageRow,
 } from '../server/lib/agentUsage'
 import {
+  computeInstitutionDashboardMetrics,
+  type InstitutionDashboardMetrics,
+} from '../server/lib/dashboardInstitutionMetrics'
+import {
   canAccessInstitution,
   requireGestaoAdminFromRequest,
 } from '../server/lib/gestaoAdminAuth'
@@ -87,6 +91,8 @@ type SummaryPayload = {
   trail_ids: string[]
   students: StudentsMap
   agent_usage_by_period: AgentUsageByPeriod
+  /** Pré-agregado Início+Dados; client preferencial. */
+  metrics?: InstitutionDashboardMetrics
 }
 
 const summaryCache = new Map<
@@ -166,12 +172,12 @@ function logTimestampMillis(
 
 /**
  * Filtro de período para uso de agentes.
- * period 0 (cutoff <= 0): inclui tudo, inclusive undated (at <= 0).
- * period 7/30: só at >= cutoff; undated (at <= 0) NÃO entram.
+ * Undated (at <= 0) NUNCA entram (Crias Todo inflava 22 vs 10 reais).
+ * period 0: todos os datados; 7/30: at >= cutoff.
  */
 export function agentLogInPeriod(at: number, cutoffMs: number): boolean {
-  if (cutoffMs <= 0) return true
   if (at <= 0) return false
+  if (cutoffMs <= 0) return true
   return at >= cutoffMs
 }
 
@@ -424,6 +430,12 @@ async function readFirestoreCache(
     }
   }
 
+  const metricsRaw = meta.metrics
+  const metrics =
+    metricsRaw && typeof metricsRaw === 'object'
+      ? (metricsRaw as InstitutionDashboardMetrics)
+      : undefined
+
   return {
     payload: {
       institution_id: institutionId,
@@ -431,9 +443,41 @@ async function readFirestoreCache(
       trail_ids: trailIds,
       students,
       agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+      metrics,
     },
     stale,
   }
+}
+
+/** Lê só o doc meta (métricas + agent) — sem chunks de answers. */
+export async function readMetricsFromCache(
+  db: Firestore,
+  institutionId: string,
+  opts?: { allowStale?: boolean },
+): Promise<{ metrics: InstitutionDashboardMetrics; stale: boolean } | null> {
+  const metaRef = db.collection(CACHE_COLLECTION).doc(institutionId)
+  const metaSnap = await metaRef.get()
+  if (!metaSnap.exists) return null
+  const meta = metaSnap.data() as Record<string, unknown>
+  const computedAt =
+    typeof meta.computed_at === 'number' ? meta.computed_at : 0
+  if (!computedAt) return null
+  const age = Date.now() - computedAt
+  if (age > FIRESTORE_CACHE_STALE_MS) return null
+  const stale = age > FIRESTORE_CACHE_TTL_MS
+  if (stale && !opts?.allowStale) return null
+  const metricsRaw = meta.metrics
+  if (!metricsRaw || typeof metricsRaw !== 'object') return null
+  const metrics = metricsRaw as InstitutionDashboardMetrics
+  // Garante agent_usage no doc de métricas (compat meta antigo).
+  if (!metrics.agent_usage_by_period) {
+    metrics.agent_usage_by_period = inflateAgentUsageByPeriod(
+      meta.agent_usage_by_period,
+    )
+  }
+  if (!metrics.computed_at) metrics.computed_at = computedAt
+  if (!metrics.institution_id) metrics.institution_id = institutionId
+  return { metrics, stale }
 }
 
 async function writeFirestoreCache(
@@ -464,6 +508,7 @@ async function writeFirestoreCache(
     computed_at: Date.now(),
     chunk_count: chunks.length,
     agent_usage_by_period: compactAgentUsageByPeriod(payload.agent_usage_by_period),
+    ...(payload.metrics ? { metrics: payload.metrics } : {}),
   })
 
   chunks.forEach((students, i) => {
@@ -636,17 +681,29 @@ async function computeSummaryPayload(
   const logsCollection =
     process.env.CONVERSATION_LOGS_COLLECTION ?? 'conversation_logs'
 
-  // select() sem campos: baixa apenas os IDs dos documentos.
-  const [studentsSnap, trailsSnap] = await Promise.all([
+  const studentTrailsCollection =
+    process.env.STUDENT_TRAILS_COLLECTION ?? 'student_trails'
+  const stagesCollection =
+    process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+
+  // Alunos/trilhas com campos necessários à métrica (nome, active).
+  const [studentsSnap, trailsSnap, linksSnap] = await Promise.all([
     db
       .collection(studentsCollection)
       .where('institution_id', '==', institutionId)
-      .select()
+      .select('name', 'active')
       .get(),
     db
       .collection(trailsCollection)
       .where('institution_id', '==', institutionId)
-      .select()
+      .select('name', 'active')
+      .get(),
+    db
+      .collection(studentTrailsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('student_id', 'trail_id', 'status')
       .get(),
   ])
 
@@ -741,12 +798,131 @@ async function computeSummaryPayload(
     students[studentId] = { answers, extra_done: extraDone }
   }
 
+  const agent_usage_by_period = aggregateAgentUsageByPeriod(agentLogs)
+
+  // Catálogo (stages/questions) para gabarito + contagem de exercícios.
+  let stages: Array<{
+    trail_id: string
+    stage_number: number
+    stage_type?: string
+    title?: string
+  }> = []
+  let questions: Array<{
+    trail_id: string
+    stage_number: number
+    question_number: number
+    title?: string
+    correct_option?: string
+    annulled?: boolean
+    active?: boolean
+  }> = []
+  if (trailIdList.length > 0) {
+    const trailChunks = chunkArray(trailIdList, FIRESTORE_IN_LIMIT)
+    const [stageSnaps, questionSnaps] = await Promise.all([
+      Promise.all(
+        trailChunks.map((chunk) =>
+          db
+            .collection(stagesCollection)
+            .where('trail_id', 'in', chunk)
+            .select('trail_id', 'stage_number', 'stage_type', 'title')
+            .get(),
+        ),
+      ),
+      Promise.all(
+        trailChunks.map((chunk) =>
+          db
+            .collection(questionsCollection)
+            .where('trail_id', 'in', chunk)
+            .select(
+              'trail_id',
+              'stage_number',
+              'question_number',
+              'title',
+              'correct_option',
+              'annulled',
+              'active',
+            )
+            .get(),
+        ),
+      ),
+    ])
+    stages = stageSnaps.flatMap((snap) =>
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>
+        return {
+          trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+          stage_number:
+            typeof data.stage_number === 'number' ? data.stage_number : 0,
+          stage_type:
+            typeof data.stage_type === 'string' ? data.stage_type : undefined,
+          title: typeof data.title === 'string' ? data.title : undefined,
+        }
+      }),
+    )
+    questions = questionSnaps.flatMap((snap) =>
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>
+        return {
+          trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+          stage_number:
+            typeof data.stage_number === 'number' ? data.stage_number : 0,
+          question_number:
+            typeof data.question_number === 'number'
+              ? data.question_number
+              : 0,
+          title: typeof data.title === 'string' ? data.title : undefined,
+          correct_option:
+            typeof data.correct_option === 'string'
+              ? data.correct_option
+              : undefined,
+          annulled: data.annulled === true,
+          active: data.active === false ? false : true,
+        }
+      }),
+    )
+  }
+
+  const metrics = computeInstitutionDashboardMetrics({
+    institutionId,
+    trailIds: trailIdList,
+    studentsMap: students,
+    students: studentsSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        id: d.id,
+        name: typeof data.name === 'string' ? data.name : d.id,
+        active: data.active === false ? false : true,
+      }
+    }),
+    trails: trailsSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        id: d.id,
+        name: typeof data.name === 'string' ? data.name : d.id,
+        active: data.active === false ? false : true,
+      }
+    }),
+    studentTrails: linksSnap.docs.map((d) => {
+      const data = d.data() as Record<string, unknown>
+      return {
+        student_id:
+          typeof data.student_id === 'string' ? data.student_id : '',
+        trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+        status: typeof data.status === 'string' ? data.status : undefined,
+      }
+    }),
+    questions,
+    stages,
+    agentUsageByPeriod: agent_usage_by_period,
+  })
+
   return {
     institution_id: institutionId,
     student_count: studentIds.length,
     trail_ids: trailIdList,
     students,
-    agent_usage_by_period: aggregateAgentUsageByPeriod(agentLogs),
+    agent_usage_by_period,
+    metrics,
   }
 }
 

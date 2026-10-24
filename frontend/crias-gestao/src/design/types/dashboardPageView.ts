@@ -69,8 +69,10 @@ export type DashboardSummaryView = {
   avgCompletion: number | null
   avgLessonCompletion: number | null
   avgAccuracy: number | null
-  /** true enquanto logs/answerMap do escopo ainda não chegaram (mostra Carregando). */
+  /** true enquanto métricas do escopo ainda não chegaram (mostra Carregando). */
   avgAccuracyLoading?: boolean
+  /** Mesmo gate do acerto: nunca N/A em Conclusão enquanto carrega. */
+  completionLoading?: boolean
 }
 
 export type DashboardStudentsChartBucket = {

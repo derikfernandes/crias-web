@@ -59,6 +59,13 @@ import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard
 import { getCachedAnswerMap, setCachedAnswerMap } from '../lib/answerMapCache'
 import { dashboardAccuracyGate } from '../lib/dashboardAccuracyGate'
 import {
+  agentUsageFromMetrics,
+  fetchInstitutionMetrics,
+  getCachedMetrics,
+  mergeMetricsViews,
+  type InstitutionDashboardMetricsView,
+} from '../lib/dashboardMetricsApi'
+import {
   getSummarySession,
   mergeSessionAgentUsage,
   mergeSessionAnswerMaps,
@@ -626,6 +633,12 @@ export function DashboardPage() {
   const [logsFailed, setLogsFailed] = useState(false)
   /** Escopo do monitor (agentUsage) publicado — evita stale de outra instituição. */
   const [agentScopeKey, setAgentScopeKey] = useState('')
+  /** Métricas pré-agregadas (Início+Dados) — evita rebuild de 57k answers. */
+  const [metricsByInst, setMetricsByInst] = useState<
+    Map<string, InstitutionDashboardMetricsView>
+  >(() => new Map())
+  const [metricsScopeKey, setMetricsScopeKey] = useState('')
+  const metricsGenerationRef = useRef(0)
   const [loadStepsDone, setLoadStepsDone] = useState(0)
   const loadGenerationRef = useRef(0)
   const logsGenerationRef = useRef(0)
@@ -1262,7 +1275,190 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdsKey, trailIdsKey, loadingData])
 
-  // Uso do monitor + answerMap: /api/dashboard_summary (1+ instituições).
+  function applyAgentFromMetrics(
+    scopeKey: string,
+    instIds: string[],
+    map: Map<string, InstitutionDashboardMetricsView>,
+    period: AgentUsagePeriodDays,
+  ): boolean {
+    const usages = instIds.map((id) =>
+      agentUsageFromMetrics(map.get(id), period),
+    )
+    if (usages.some((u) => !u)) {
+      setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: period })
+      setAgentScopeKey('')
+      setAgentUsageLoading(true)
+      return false
+    }
+    let total = 0
+    const agents = []
+    for (const u of usages) {
+      total += u!.totalMessages
+      agents.push(...u!.agents)
+    }
+    const mergedAgents = mergeAgentRowsByLabel(agents).map((row) => ({
+      ...row,
+      pctOfTotal:
+        total > 0 ? Math.round((row.messages / total) * 1000) / 10 : 0,
+    }))
+    setAgentUsage({
+      periodDays: period,
+      totalMessages: total,
+      agents: mergedAgents,
+      series: [],
+    })
+    setAgentUsagePresent(true)
+    setAgentScopeKey(`${scopeKey}|${period}`)
+    setAgentUsageLoading(false)
+    if (instIds.length > 1) {
+      console.info(
+        `[dashboard] monitor metrics scope=${scopeKey} total=${total} parts=${instIds
+          .map(
+            (id) =>
+              `${id}:${agentUsageFromMetrics(map.get(id), period)?.totalMessages ?? '?'}`,
+          )
+          .join('+')}`,
+      )
+    }
+    return true
+  }
+
+  // Troca só de período do monitor: reaplica agent_usage_by_period local (0ms).
+  const prevPeriodRef = useRef(agentPeriodDays)
+  useEffect(() => {
+    if (prevPeriodRef.current === agentPeriodDays) return
+    prevPeriodRef.current = agentPeriodDays
+    if (
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    ) {
+      applyAgentFromMetrics(
+        selectedIdsKey,
+        activeInstitutionIds,
+        metricsByInst,
+        agentPeriodDays,
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentPeriodDays])
+
+  // Métricas pré-agregadas (KB): desbloqueia Acerto/Exercícios/Monitor/Conclusão
+  // sem baixar answerMap da Sol. Mesma chave de sessão do Início.
+  useEffect(() => {
+    let cancelled = false
+    const generation = ++metricsGenerationRef.current
+    const instIds = activeInstitutionIds
+    const scopeKey = selectedIdsKey
+    const started = performance.now()
+
+    if (instIds.length === 0) {
+      setMetricsByInst(new Map())
+      setMetricsScopeKey('')
+      return () => {
+        cancelled = true
+      }
+    }
+
+    // Hidrata cache síncrono (volta Sol <0,5s).
+    const seed = new Map<string, InstitutionDashboardMetricsView>()
+    for (const id of instIds) {
+      const hit = getCachedMetrics(id)
+      if (hit) seed.set(id, hit)
+    }
+    if (seed.size === instIds.length) {
+      setMetricsByInst(seed)
+      setMetricsScopeKey(scopeKey)
+      setLogsReadyIds(new Set(instIds))
+      setLoadingLogs(false)
+      applyAgentFromMetrics(scopeKey, instIds, seed, agentPeriodDays)
+      console.info(
+        `[dashboard] metrics cache-hit ${Math.round(performance.now() - started)}ms scope=${scopeKey}`,
+      )
+      // SWR: revalida em background sem limpar UI.
+      void (async () => {
+        const next = new Map(seed)
+        for (const id of instIds) {
+          if (cancelled || generation !== metricsGenerationRef.current) return
+          try {
+            const m = await fetchInstitutionMetrics(id)
+            next.set(id, m)
+          } catch {
+            // mantém
+          }
+        }
+        if (cancelled || generation !== metricsGenerationRef.current) return
+        setMetricsByInst(new Map(next))
+        applyAgentFromMetrics(scopeKey, instIds, next, agentPeriodDays)
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
+    // Sem cache completo: Carregando… (não N/A / não número velho).
+    setMetricsScopeKey('')
+    setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
+    setAgentScopeKey('')
+    setAgentUsageLoading(true)
+    setLoadingLogs(true)
+    setLogsReadyIds(new Set(seed.keys()))
+
+    void (async () => {
+      const missing = instIds.filter((id) => !seed.has(id))
+      missing.sort((a, b) => {
+        if (a === 'i2') return -1
+        if (b === 'i2') return 1
+        return a.localeCompare(b)
+      })
+      const next = new Map(seed)
+      const errors: string[] = []
+      for (const id of missing) {
+        if (cancelled || generation !== metricsGenerationRef.current) return
+        try {
+          const m = await fetchInstitutionMetrics(id)
+          next.set(id, m)
+          if (!cancelled && generation === metricsGenerationRef.current) {
+            setMetricsByInst(new Map(next))
+            setLogsReadyIds(new Set(next.keys()))
+          }
+        } catch (err) {
+          errors.push(err instanceof Error ? err.message : String(err))
+        }
+      }
+      if (cancelled || generation !== metricsGenerationRef.current) return
+
+      const allReady = instIds.every((id) => next.has(id))
+      setMetricsByInst(new Map(next))
+      setMetricsScopeKey(allReady ? scopeKey : '')
+      setLogsReadyIds(new Set(next.keys()))
+      setLoadingLogs(!allReady)
+      setLogsFailed(!allReady && errors.length > 0 && next.size === 0)
+      setLogsError(
+        !allReady && errors.length > 0
+          ? errors[0] ?? 'Erro ao carregar métricas.'
+          : null,
+      )
+
+      if (allReady) {
+        applyAgentFromMetrics(scopeKey, instIds, next, agentPeriodDays)
+        initialLogsLoadedRef.current = true
+      } else {
+        setAgentUsageLoading(false)
+        setAgentScopeKey(`${scopeKey}|${agentPeriodDays}`)
+      }
+      console.info(
+        `[dashboard] metrics ${Math.round(performance.now() - started)}ms scope=${scopeKey} ready=${[...next.keys()].join(',')}`,
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- agent period handled above
+  }, [selectedIdsKey, activeInstitutionIds, logsRetryKey])
+
+  // Uso do monitor + answerMap: /api/dashboard_summary (legado / fallback).
+  // Com métricas prontas, NÃO baixa answerMap da Sol (evita 3–6s de merge).
   useEffect(() => {
     let cancelled = false
     const generation = ++logsGenerationRef.current
@@ -1288,6 +1484,16 @@ export function DashboardPage() {
     if (institutionChanged) {
       agentSummaryInstRef.current = scopeKey
       initialLogsLoadedRef.current = false
+    }
+
+    // Atalho: métricas cobrem KPIs + monitor + exercícios — sem answerMap.
+    const metricsComplete =
+      metricsScopeKey === scopeKey &&
+      instIds.every((id) => getCachedMetrics(id) || metricsByInst.has(id))
+    if (metricsComplete) {
+      return () => {
+        cancelled = true
+      }
     }
 
     // Hidrata answerMap da sessão / answerMapCache / institution cache (Início→Dados).
@@ -2128,23 +2334,39 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    // Acerto: só publica com meta (gabarito) + TODAS as instituições do filtro.
+    // Preferir métricas pré-agregadas (sem meta local / sem 57k answers).
+    const metricsReady =
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    const metricsParts = metricsReady
+      ? activeInstitutionIds
+          .map((id) => metricsByInst.get(id))
+          .filter((m): m is InstitutionDashboardMetricsView => Boolean(m))
+      : []
+    const mergedMetrics =
+      metricsParts.length > 0 ? mergeMetricsViews(metricsParts) : null
+
     const metaReady =
-      !loadingMeta && questions.length > 0 && stages.length > 0
+      metricsReady ||
+      (!loadingMeta && questions.length > 0 && stages.length > 0)
     const gate = dashboardAccuracyGate({
       selectedIdsKey,
       selectedIds: activeInstitutionIds,
-      dataScopeKey,
-      loadingData,
+      dataScopeKey: metricsReady ? selectedIdsKey : dataScopeKey,
+      loadingData: metricsReady ? false : loadingData,
       metaReady,
-      logsReadyIds,
-      loadingLogs,
+      logsReadyIds: metricsReady
+        ? new Set(activeInstitutionIds)
+        : logsReadyIds,
+      loadingLogs: metricsReady ? false : loadingLogs,
       logsFailed,
     })
     const activeIds = new Set(activeRows.map((r) => r.student.id))
     const allTrailIds = new Set(trails.map((t) => t.id))
     let avgAccuracy: number | null = null
-    if (gate.canPublishAccuracy && studentAnswerMap.size > 0) {
+    if (mergedMetrics) {
+      avgAccuracy = mergedMetrics.avgAccuracy
+    } else if (gate.canPublishAccuracy && studentAnswerMap.size > 0) {
       const { gabarito, annulled } = gabaritoFromQuestions(questions)
       const answers = mergeAnswerSources(
         answersFromAnswerMap(studentAnswerMap),
@@ -2158,17 +2380,17 @@ export function DashboardPage() {
         trailIds: allTrailIds.size > 0 ? allTrailIds : undefined,
       }).avgAccuracy
     }
-    // Enquanto carrega: avgAccuracy null + avgAccuracyLoading (UI: Carregando…).
-    // Logs vazios + canPublish → N/A real (sem exercícios).
-    // Falha → banner + tentar de novo (não N/A).
 
+    const completionLoading = gate.avgAccuracyLoading
     return {
-      activeStudents: activeRows.length,
-      activeTrails: activeTrails.length,
-      avgCompletion,
-      avgLessonCompletion,
+      activeStudents: mergedMetrics?.activeStudents ?? activeRows.length,
+      activeTrails: mergedMetrics?.activeTrails ?? activeTrails.length,
+      avgCompletion: mergedMetrics?.avgCompletion ?? avgCompletion,
+      avgLessonCompletion:
+        mergedMetrics?.avgLessonCompletion ?? avgLessonCompletion,
       avgAccuracy,
       avgAccuracyLoading: gate.avgAccuracyLoading,
+      completionLoading,
     }
   }, [
     filteredStudentRows,
@@ -2186,6 +2408,8 @@ export function DashboardPage() {
     attempts,
     questions,
     studentAnswerMap,
+    metricsByInst,
+    metricsScopeKey,
   ])
 
   const studentsCharts = useMemo(() => {
@@ -2399,6 +2623,39 @@ export function DashboardPage() {
   }, [activeTrails, questionsByTrail, stageByKey, questionByKey])
 
   const pillRows = useMemo<PillRow[]>(() => {
+    // Caminho rápido: pills pré-agregados (340 na Sol) — sem varrer answerMap.
+    if (
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    ) {
+      const rows: PillRow[] = []
+      for (const id of activeInstitutionIds) {
+        const m = metricsByInst.get(id)
+        if (!m) continue
+        for (const p of m.exercisePills) {
+          rows.push({
+            exerciseLabel: `Exercício`,
+            statement: '',
+            alternatives: [],
+            key: `${id}|${p.key}`,
+            trailId: p.trailId,
+            trailName: p.trailName,
+            subject: 'N/A',
+            stageNumber: p.stageNumber,
+            questionNumber: p.questionNumber,
+            title: p.title,
+            content: '',
+            gabarito: p.gabarito,
+            total: p.total,
+            correct: p.correct,
+            wrong: p.wrong,
+            accuracyPct: p.accuracyPct,
+          })
+        }
+      }
+      return rows
+    }
+
     const byKey = new Map<string, { correct: number; wrong: number; picks: Map<string, number> }>()
 
     for (const [answerKey, answer] of studentAnswerMap) {
@@ -2475,7 +2732,17 @@ export function DashboardPage() {
       })
     }
     return rows
-  }, [studentAnswerMap, gradablePillQuestions, trailById, questionByKey, stages])
+  }, [
+    studentAnswerMap,
+    gradablePillQuestions,
+    trailById,
+    questionByKey,
+    stages,
+    metricsScopeKey,
+    selectedIdsKey,
+    activeInstitutionIds,
+    metricsByInst,
+  ])
 
   const filteredPillRows = useMemo(() => {
     const query = pillSearch.trim().toLowerCase()
@@ -3252,6 +3519,10 @@ export function DashboardPage() {
       }
       summary={summary}
       exercisesLoading={
+        !(
+          metricsScopeKey === selectedIdsKey &&
+          activeInstitutionIds.every((id) => metricsByInst.has(id))
+        ) &&
         dashboardAccuracyGate({
           selectedIdsKey,
           selectedIds: activeInstitutionIds,

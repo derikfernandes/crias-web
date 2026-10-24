@@ -50,6 +50,7 @@ function baseProps(
       avgLessonCompletion: 10,
       avgAccuracy: null,
       avgAccuracyLoading: true,
+      completionLoading: true,
     },
     exercisesLoading: true,
     missingGabaritoCount: 0,

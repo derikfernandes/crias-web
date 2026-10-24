@@ -508,6 +508,8 @@ export function FilterPopover({
   emptyText = 'Nada encontrado.',
   /** Toque no nome: só esse item + fecha. Checkbox continua multi-select. */
   exclusiveOnLabel = false,
+  /** Não permite ficar com menos que N marcados (ex.: instituições ≥ 1). */
+  minSelected = 0,
 }: {
   label: string
   options: FilterOption[]
@@ -517,13 +519,16 @@ export function FilterPopover({
   align?: 'left' | 'right'
   emptyText?: string
   exclusiveOnLabel?: boolean
+  minSelected?: number
 }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const location = useLocation()
+  // Só fecha na troca de rota. Mudança de ?inst= (multi-select) não deve
+  // fechar o painel no meio do clique no checkbox.
   useEffect(() => {
     setOpen(false)
-  }, [location.pathname, location.search])
+  }, [location.pathname])
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -549,8 +554,12 @@ export function FilterPopover({
 
   function toggle(id: string) {
     const next = new Set(selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+    if (next.has(id)) {
+      if (next.size <= minSelected) return
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
     onChange(next)
   }
 
@@ -620,7 +629,18 @@ export function FilterPopover({
                 type="button"
                 className="gx-linkbtn"
                 style={{ color: 'var(--v-t2)' }}
-                onClick={() => onChange(new Set())}
+                disabled={minSelected > 0 && selected.size <= minSelected}
+                onClick={() => {
+                  if (minSelected <= 0) {
+                    onChange(new Set())
+                    return
+                  }
+                  // Mantém os primeiros N (ordem da lista visível).
+                  const keep = new Set(
+                    visible.slice(0, minSelected).map((o) => o.id),
+                  )
+                  onChange(keep)
+                }}
               >
                 Limpar tudo
               </button>

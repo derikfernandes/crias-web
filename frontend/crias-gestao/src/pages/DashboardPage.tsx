@@ -21,6 +21,7 @@ import { db } from '../lib/firebase'
 import {
   EMPTY_AGENT_USAGE,
   formatAgentLastActivity,
+  mergeAgentRowsByLabel,
   messagesPerTutorPerDay,
   type AgentUsagePeriodDays,
   type AgentUsageView,
@@ -73,8 +74,10 @@ import { studentPath, trailPath } from '../lib/paths'
 import { usePermissions } from '../hooks/usePermissions'
 import { useGestao } from '../hooks/useGestao'
 import {
-  shouldPinTopFilterToSelectedId,
-  shouldSyncTopFilterFromUrl,
+  formatInstParam,
+  parseInstParam,
+  shouldRestoreTopFilterWhenEmpty,
+  shouldSyncTopFilterFromUrlIds,
 } from '../lib/dadosInstitutionSync'
 import { downloadText, toCsv } from '../lib/tableFiles'
 import { correctToLetter, letterOf } from '../lib/trailActivities'
@@ -702,92 +705,95 @@ export function DashboardPage() {
   }, [selectedId])
 
   // Chave estável: Set novo a cada render quebrava deps e gerava loop de setState.
-  const scopedIdsKey = useMemo(
-    () => [...gestao.scopedIds].sort().join('|'),
-    [gestao.scopedIds],
-  )
   const selectedIdsKey = useMemo(
     () => [...gestao.selectedIds].sort().join('|'),
     [gestao.selectedIds],
   )
+  const activeInstitutionIds = useMemo(
+    () => [...gestao.selectedIds].filter(Boolean).sort(),
+    [gestao.selectedIds],
+  )
 
-  // Instituição: URL ?inst= > seleção atual válida no escopo > storage > primeira do escopo.
+  // URL ?inst=i1 ou ?inst=i1,i2 → topo (multi). Não colapsar multi para 1.
   useEffect(() => {
-    const scopedIds = gestao.scopedIds
-    const first = gestao.scopedInstitutions[0]?.id ?? null
-    const urlId = instFromUrl && scopedIds.has(instFromUrl) ? instFromUrl : null
-
-    setSelectedId((current) => {
-      if (urlId) return urlId
-      if (current && scopedIds.has(current)) return current
-      try {
-        const stored = window.localStorage.getItem(LAST_INSTITUTION_ID_STORAGE_KEY)
-        if (stored && scopedIds.has(stored)) return stored
-      } catch {
-        // ignore
+    const allowed = new Set(gestao.institutions.map((i) => i.id))
+    const urlIds = parseInstParam(instFromUrl).filter((id) => allowed.has(id))
+    if (urlIds.length > 0) {
+      if (shouldSyncTopFilterFromUrlIds(urlIds, gestao.selectedIds)) {
+        gestao.setSelectedIds(new Set(urlIds))
       }
-      return first
-    })
-    // Topo "Filtrar instituições": F5 com ?inst= → "1 de N" (só se ainda não estiver assim).
-    if (shouldSyncTopFilterFromUrl(urlId, gestao.selectedIds)) {
-      gestao.setSelectedIds(new Set([urlId!]))
+      if (urlIds.length === 1 && selectedId !== urlIds[0]) {
+        setSelectedId(urlIds[0]!)
+      }
+      return
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopedIdsKey evita loop por identidade de Set
-  }, [scopedIdsKey, instFromUrl])
+    // Sem URL válida: garante pelo menos 1 no topo.
+    if (shouldRestoreTopFilterWhenEmpty(gestao.selectedIds.size)) {
+      let fallback = selectedId
+      if (!fallback || !allowed.has(fallback)) {
+        try {
+          const stored = window.localStorage.getItem(
+            LAST_INSTITUTION_ID_STORAGE_KEY,
+          )
+          if (stored && allowed.has(stored)) fallback = stored
+        } catch {
+          // ignore
+        }
+      }
+      if (!fallback) fallback = gestao.institutions[0]?.id ?? null
+      if (fallback) {
+        gestao.setSelectedIds(new Set([fallback]))
+        setSelectedId(fallback)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- instFromUrl + institutions
+  }, [instFromUrl, gestao.institutions])
 
-  // Persiste a instituição na URL para F5 / deep link.
+  // Topo → URL (um ou vários). Fonte de verdade do multi-select.
   useEffect(() => {
-    if (!selectedId?.trim()) return
-    const cur = searchParams.get('inst')
-    if (cur === selectedId) return
+    if (gestao.selectedIds.size === 0) return
+    const formatted = formatInstParam(gestao.selectedIds)
+    const cur = searchParams.get('inst') || ''
+    if (cur === formatted) return
     const next = new URLSearchParams(searchParams)
-    next.set('inst', selectedId)
+    next.set('inst', formatted)
     setSearchParams(next, { replace: true })
-  }, [selectedId, searchParams, setSearchParams])
+  }, [selectedIdsKey, searchParams, setSearchParams, gestao.selectedIds])
 
-  // Dados: topo com exatamente 1 id → selectedId (e URL via efeito acima).
+  // Select da página: quando o topo tem exatamente 1, alinha o valor do <select>.
   useEffect(() => {
-    if (!gestao.isSuper) return
     if (gestao.selectedIds.size !== 1) return
     const only = [...gestao.selectedIds][0]
     if (only && only !== selectedId) setSelectedId(only)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedIdsKey estável
-  }, [gestao.isSuper, selectedIdsKey, selectedId])
-
-  // Dados precisa de 1 no topo: só pin quando multi/vazio.
-  // Se já há exatamente 1 id (mesmo ≠ selectedId), o efeito acima alinha selectedId —
-  // pin aqui com o selectedId antigo sobrescrevia a troca (Crias←Sol).
-  useEffect(() => {
-    if (!gestao.isSuper || !selectedId?.trim()) return
-    if (!shouldPinTopFilterToSelectedId(gestao.selectedIds.size)) return
-    gestao.setSelectedIds(new Set([selectedId]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedIdsKey estável
-  }, [gestao.isSuper, selectedId, selectedIdsKey])
+  }, [selectedIdsKey, gestao.selectedIds, selectedId])
 
   function selectInstitution(id: string) {
     setSelectedId(id)
     gestao.setSelectedIds(new Set([id]))
-    if (searchParams.get('inst') !== id) {
+    // URL otimista (mesmo tick) — evita flash do ?inst= anterior.
+    const formatted = formatInstParam([id])
+    if (searchParams.get('inst') !== formatted) {
       const next = new URLSearchParams(searchParams)
-      next.set('inst', id)
+      next.set('inst', formatted)
       setSearchParams(next, { replace: true })
     }
   }
 
-  // Troca de instituição: limpa filtro de trilhas (catálogo muda).
-  const prevSelectedIdRef = useRef<string | null>(null)
+  // Troca do conjunto ativo: limpa filtro de trilhas.
+  const prevActiveIdsRef = useRef<string>('')
   useEffect(() => {
-    if (prevSelectedIdRef.current && prevSelectedIdRef.current !== selectedId) {
+    if (prevActiveIdsRef.current && prevActiveIdsRef.current !== selectedIdsKey) {
       setTrailFilter(null)
     }
-    prevSelectedIdRef.current = selectedId
-  }, [selectedId])
+    prevActiveIdsRef.current = selectedIdsKey
+  }, [selectedIdsKey])
 
   useEffect(() => {
     let cancelled = false
+    const instIds = activeInstitutionIds
 
     async function run() {
-      if (!db || !selectedId) {
+      if (!db || instIds.length === 0) {
         setStudents([])
         setTrails([])
         setStudentTrails([])
@@ -816,8 +822,7 @@ export function DashboardPage() {
       loadTargetPercentRef.current = 0
       dashboardLoadStartedAtRef.current = performance.now()
       setLoadingData(true)
-      // Evita frame com dashboard zerado entre o fim do loadingData e o início
-      // dos efeitos de metadados.
+      // Keep-previous: não zera alunos/trilhas aqui (evita flash + sensação >2s).
       setLoadingMeta(true)
       setSelectedAgentTrailId(null)
       setLoadStepsDone(0)
@@ -837,37 +842,35 @@ export function DashboardPage() {
         }
       }
 
-      // One-shot: dashboard não precisa de realtime nestas coleções.
-      // Tentativas: por student_id (mesma junção do card Início). institution_id
-      // no attempt às vezes falta e a query por instituição vinha vazia.
-      // Mantém loadingData até attempts chegarem (evita tabela Acertos 0/N/A).
+      async function docsForInstitutions(collectionName: string) {
+        const chunks = chunkArray(instIds, FIRESTORE_IN_LIMIT)
+        const snaps = await Promise.all(
+          chunks.map((chunk) =>
+            getDocs(
+              query(
+                collection(dbOk, collectionName),
+                where(
+                  'institution_id',
+                  chunk.length === 1 ? '==' : 'in',
+                  chunk.length === 1 ? chunk[0]! : chunk,
+                ),
+              ),
+            ),
+          ),
+        )
+        return snaps.flatMap((s) => s.docs)
+      }
+
       try {
-        const [studentsSnap, trailsSnap, studentTrailsSnap] = await Promise.all([
-          getDocs(
-            query(
-              collection(dbOk, STUDENTS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
-          getDocs(
-            query(
-              collection(dbOk, TRAILS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
-          getDocs(
-            query(
-              collection(dbOk, STUDENT_TRAILS_COLLECTION),
-              where('institution_id', '==', selectedId),
-            ),
-          ),
+        const [studentDocs, trailDocs, linkDocs] = await Promise.all([
+          docsForInstitutions(STUDENTS_COLLECTION),
+          docsForInstitutions(TRAILS_COLLECTION),
+          docsForInstitutions(STUDENT_TRAILS_COLLECTION),
         ])
         if (cancelled) return
-        const nextStudents = studentsSnap.docs.map(snapshotToStudent)
-        const nextTrails = trailsSnap.docs.map(snapshotToTrail)
-        const nextStudentTrails = studentTrailsSnap.docs.map(
-          snapshotToStudentTrail,
-        )
+        const nextStudents = studentDocs.map(snapshotToStudent)
+        const nextTrails = trailDocs.map(snapshotToTrail)
+        const nextStudentTrails = linkDocs.map(snapshotToStudentTrail)
 
         const studentIds = nextStudents.map((s) => s.id).filter(Boolean)
         let nextAttempts: import('../types/exerciseAttempt').ExerciseAttempt[] =
@@ -916,7 +919,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedId])
+  }, [selectedIdsKey, activeInstitutionIds])
 
   const trailIdsKey = useMemo(
     () =>
@@ -935,7 +938,7 @@ export function DashboardPage() {
     let cancelled = false
 
     async function run() {
-      if (!db || !selectedId) {
+      if (!db || activeInstitutionIds.length === 0) {
         setStages([])
         setQuestions([])
         setLoadingMeta(false)
@@ -1017,15 +1020,14 @@ export function DashboardPage() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, trailIdsKey, loadingData])
+  }, [selectedIdsKey, trailIdsKey, loadingData])
 
-  // Uso do monitor + answerMap: /api/dashboard_summary.
-  // Carrega assim que há institution_id (não espera alunos/meta). Async após
-  // o primeiro paint é OK; não zerar uso enquanto a instituição ainda carrega.
+  // Uso do monitor + answerMap: /api/dashboard_summary (1+ instituições).
   useEffect(() => {
     let cancelled = false
+    const instIds = activeInstitutionIds
 
-    if (!selectedId) {
+    if (instIds.length === 0) {
       agentSummaryInstRef.current = null
       initialLogsLoadedRef.current = false
       setAgentUsage(EMPTY_AGENT_USAGE)
@@ -1037,10 +1039,10 @@ export function DashboardPage() {
       }
     }
 
-    const institutionId = selectedId
-    const institutionChanged = agentSummaryInstRef.current !== institutionId
+    const scopeKey = selectedIdsKey
+    const institutionChanged = agentSummaryInstRef.current !== scopeKey
     if (institutionChanged) {
-      agentSummaryInstRef.current = institutionId
+      agentSummaryInstRef.current = scopeKey
       initialLogsLoadedRef.current = false
     }
     const refreshingAgentsOnly =
@@ -1051,17 +1053,41 @@ export function DashboardPage() {
 
     async function run() {
       try {
-        const summary = await fetchDashboardLogSummary(
-          institutionId,
-          agentPeriodDays,
+        const summaries = await Promise.all(
+          instIds.map((id) => fetchDashboardLogSummary(id, agentPeriodDays)),
         )
         if (cancelled) return
-        setLogAggregates({
-          doneByStudent: summary.doneByStudent,
-          answerMap: summary.answerMap,
+        const doneByStudent = new Map<string, Set<string>>()
+        const answerMap = new Map<string, string>()
+        let agentUsagePresent = false
+        const agentRows: import('../lib/agentUsage').AgentUsageRowView[] = []
+        let totalMessages = 0
+        for (const summary of summaries) {
+          agentUsagePresent = agentUsagePresent || summary.agentUsagePresent
+          totalMessages += summary.agentUsage.totalMessages
+          for (const [sid, keys] of summary.doneByStudent) {
+            const set = doneByStudent.get(sid) ?? new Set<string>()
+            for (const k of keys) set.add(k)
+            doneByStudent.set(sid, set)
+          }
+          for (const [k, v] of summary.answerMap) answerMap.set(k, v)
+          agentRows.push(...summary.agentUsage.agents)
+        }
+        const mergedAgents = mergeAgentRowsByLabel(agentRows).map((row) => ({
+          ...row,
+          pctOfTotal:
+            totalMessages > 0
+              ? Math.round((row.messages / totalMessages) * 1000) / 10
+              : 0,
+        }))
+        setLogAggregates({ doneByStudent, answerMap })
+        setAgentUsage({
+          periodDays: agentPeriodDays,
+          totalMessages,
+          agents: mergedAgents,
+          series: [],
         })
-        setAgentUsage(summary.agentUsage)
-        setAgentUsagePresent(summary.agentUsagePresent)
+        setAgentUsagePresent(agentUsagePresent)
         setLoadingLogs(false)
         setAgentUsageLoading(false)
         initialLogsLoadedRef.current = true
@@ -1078,7 +1104,6 @@ export function DashboardPage() {
           setAgentUsagePresent(false)
           initialLogsLoadedRef.current = true
         }
-        // Refetch de período: mantém último snapshot (keep-previous).
         setLoadingLogs(false)
         setAgentUsageLoading(false)
       }
@@ -1089,7 +1114,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedId, logsRetryKey, agentPeriodDays])
+  }, [selectedIdsKey, activeInstitutionIds, logsRetryKey, agentPeriodDays])
 
   const sortedInstitutions = useMemo(() => {
     return filterInstitutions(institutions).sort((a, b) => {
@@ -2610,7 +2635,11 @@ export function DashboardPage() {
         setStudentPick(ids.size === studentRows.length ? null : new Set(ids))
         setStudentPage(1)
       }}
-      institutionName={institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'}
+      institutionName={
+        activeInstitutionIds.length > 1
+          ? `${activeInstitutionIds.length} instituições`
+          : institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'
+      }
       trailFilterOptions={allActiveTrails.map((t) => ({ id: t.id, label: t.name || t.id }))}
       trailFilterSelectedIds={activeTrails.map((t) => t.id)}
       onTrailFilterChange={(ids) => {
@@ -2621,7 +2650,13 @@ export function DashboardPage() {
       onExportExerciseHistory={exportExerciseHistory}
       loadingInst={loadingInst}
       institutionOptions={institutionOptions}
-      selectedId={selectedId}
+      selectedId={
+        gestao.selectedIds.size === 1
+          ? ([...gestao.selectedIds][0] ?? selectedId)
+          : gestao.selectedIds.size > 1
+            ? ''
+            : selectedId
+      }
       onSelectInstitution={(id) => {
         if (!id) return
         selectInstitution(id)

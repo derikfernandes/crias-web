@@ -39,7 +39,7 @@ describe('FilterPopover exclusiveOnLabel', () => {
 
   it('checkbox mantém multi-select e o menu aberto', () => {
     const onChange = vi.fn()
-    renderFilter({ selected: new Set(['i1']), onChange })
+    renderFilter({ selected: new Set(['i1']), onChange, minSelected: 1 })
     fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Marcar Instituto Sol' }))
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -47,6 +47,14 @@ describe('FilterPopover exclusiveOnLabel', () => {
     expect(next.has('i1')).toBe(true)
     expect(next.has('i2')).toBe(true)
     expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('checkbox não desmarca o último quando minSelected=1', () => {
+    const onChange = vi.fn()
+    renderFilter({ selected: new Set(['i1']), onChange, minSelected: 1 })
+    fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Desmarcar Crias' }))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('toque fora (scrim) fecha o menu', () => {

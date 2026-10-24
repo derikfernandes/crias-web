@@ -329,8 +329,13 @@ function Shell({ children }: { children: ReactNode }) {
                   label="Filtrar instituições"
                   options={institutions.map((i) => ({ id: i.id, name: i.name || i.id }))}
                   selected={selectedIds}
-                  onChange={setSelectedIds}
+                  onChange={(next) => {
+                    // Mínimo 1: ignora limpar/desmarcar o último.
+                    if (next.size === 0) return
+                    setSelectedIds(next)
+                  }}
                   exclusiveOnLabel
+                  minSelected={1}
                   emptyText="Nenhuma instituição encontrada."
                 />
               ) : null}

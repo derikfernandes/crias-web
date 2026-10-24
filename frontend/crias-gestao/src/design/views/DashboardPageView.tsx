@@ -266,6 +266,11 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                   value={p.selectedId ?? ''}
                   onChange={(e) => p.onSelectInstitution(e.target.value || null)}
                 >
+                  {!p.selectedId ? (
+                    <option value="" disabled>
+                      {p.institutionName || 'Várias instituições'}
+                    </option>
+                  ) : null}
                   {p.institutionOptions.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label}

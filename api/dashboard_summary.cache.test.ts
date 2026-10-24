@@ -4,7 +4,10 @@ import {
   agentLogInPeriod,
   aggregateAgentUsageByPeriod,
   chunkStudentsMap,
+  decodeCachePayload,
+  encodeCachePayload,
   packMetricsForMeta,
+  parseChunkStudents,
 } from './dashboard_summary'
 import type { InstitutionDashboardMetrics } from '../server/lib/dashboardInstitutionMetrics'
 
@@ -76,6 +79,40 @@ describe('chunkStudentsMap', () => {
     const chunks = chunkStudentsMap(students)
     const merged = Object.assign({}, ...chunks)
     expect(Object.keys(merged).sort()).toEqual(Object.keys(students).sort())
+  })
+})
+
+describe('encodeCachePayload / decodeCachePayload', () => {
+  it('guarda JSON puro abaixo do limiar', () => {
+    const enc = encodeCachePayload({ a: 1, b: ['x'] })
+    expect(enc.encoding).toBeUndefined()
+    expect(decodeCachePayload(enc as Record<string, unknown>)).toEqual({
+      a: 1,
+      b: ['x'],
+    })
+  })
+
+  it('gzip quando payload grande', () => {
+    const big = { blob: 'x'.repeat(900_000) }
+    const enc = encodeCachePayload(big)
+    expect(enc.encoding).toBe('gzip-b64')
+    expect(enc.payload.length).toBeLessThan(900_000)
+    expect(decodeCachePayload(enc as Record<string, unknown>)).toEqual(big)
+  })
+})
+
+describe('parseChunkStudents', () => {
+  it('prefer payload v2 (anti index explosion)', () => {
+    const map = {
+      s1: { answers: { '0|1|1': 'A' }, extra_done: [] as string[] },
+    }
+    const enc = encodeCachePayload(map)
+    expect(parseChunkStudents(enc as Record<string, unknown>)).toEqual(map)
+    expect(
+      parseChunkStudents({ students_json: JSON.stringify(map) }),
+    ).toEqual(map)
+    expect(parseChunkStudents({ students: map })).toEqual(map)
+    expect(parseChunkStudents({})).toEqual({})
   })
 })
 

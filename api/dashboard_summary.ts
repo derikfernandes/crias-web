@@ -1,3 +1,5 @@
+import { gunzipSync, gzipSync } from 'node:zlib'
+
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
@@ -79,6 +81,63 @@ const MAX_CHUNK_JSON_BYTES = 800_000
 const MAX_META_BUDGET_BYTES = 900_000
 /** Sidecar de exercise_pills + students (fora do meta). */
 const METRICS_SIDECAR_SUFFIX = '_m'
+/** Schema v2: agregados em `payload` (string); só escalares indexáveis. */
+export const CACHE_DOC_VERSION = 2
+const COMPRESS_THRESHOLD_BYTES = 800_000
+const MAX_FIRESTORE_DOC_BYTES = 950_000
+
+type EncodedPayload = {
+  payload: string
+  encoding?: 'gzip-b64'
+}
+
+/** Serializa agregados como 1 string (gzip se >~800KB). Evita index explosion. */
+export function encodeCachePayload(value: unknown): EncodedPayload {
+  const json = JSON.stringify(value)
+  const jsonBytes = Buffer.byteLength(json, 'utf8')
+  if (jsonBytes <= COMPRESS_THRESHOLD_BYTES) {
+    if (jsonBytes > MAX_FIRESTORE_DOC_BYTES) {
+      throw new Error(
+        `payload JSON ${jsonBytes}B excede limite Firestore (~1 MiB)`,
+      )
+    }
+    return { payload: json }
+  }
+  const gz = gzipSync(Buffer.from(json, 'utf8'), { level: 6 })
+  const b64 = gz.toString('base64')
+  const b64Bytes = Buffer.byteLength(b64, 'utf8')
+  if (b64Bytes > MAX_FIRESTORE_DOC_BYTES) {
+    throw new Error(
+      `payload gzip ${b64Bytes}B excede limite Firestore (~1 MiB)`,
+    )
+  }
+  return { payload: b64, encoding: 'gzip-b64' }
+}
+
+/** Decodifica `payload` (+ encoding opcional). Compat: students_json legado. */
+export function decodeCachePayload(data: Record<string, unknown>): unknown {
+  if (typeof data.payload === 'string' && data.payload.length > 0) {
+    try {
+      if (data.encoding === 'gzip-b64') {
+        const json = gunzipSync(Buffer.from(data.payload, 'base64')).toString(
+          'utf8',
+        )
+        return JSON.parse(json)
+      }
+      return JSON.parse(data.payload)
+    } catch {
+      // fallback legado abaixo
+    }
+  }
+  if (typeof data.students_json === 'string' && data.students_json.length > 0) {
+    try {
+      return JSON.parse(data.students_json)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
 
 const PERIOD_KEYS = [0, 7, 30] as const
 type PeriodKey = (typeof PERIOD_KEYS)[number]
@@ -270,16 +329,10 @@ function compactAgentUsageMinimal(usage: AgentUsageAggregate): Json {
 }
 
 /**
- * Prefere o agregado completo no meta; se estourar ~700KB, cai no mínimo
- * (total_messages + agents com messages/unique_students/pct/label/trail_id).
+ * Sempre mínimo no meta (sem student_stats / student_ids).
+ * Evita "too many index entries" na Sol e mantém o doc pequeno.
  */
 function compactAgentUsageByPeriod(byPeriod: AgentUsageByPeriod): Json {
-  const full: Json = {
-    '0': byPeriod['0'],
-    '7': byPeriod['7'],
-    '30': byPeriod['30'],
-  }
-  if (JSON.stringify(full).length <= 700_000) return full
   return {
     '0': compactAgentUsageMinimal(byPeriod['0']),
     '7': compactAgentUsageMinimal(byPeriod['7']),
@@ -367,12 +420,41 @@ async function inflateMetricsSidecar(
   const { metrics_sidecar: _flag, ...rest } = metrics
   if (!snap.exists) return rest
   const data = snap.data() as Record<string, unknown>
-  const pills = Array.isArray(data.exercise_pills)
-    ? (data.exercise_pills as InstitutionDashboardMetrics['exercise_pills'])
-    : rest.exercise_pills
-  const students = Array.isArray(data.students)
-    ? (data.students as InstitutionDashboardMetrics['students'])
-    : rest.students
+  let pills = rest.exercise_pills
+  let students = rest.students
+  const decoded = decodeCachePayload(data) as {
+    exercise_pills?: InstitutionDashboardMetrics['exercise_pills']
+    students?: InstitutionDashboardMetrics['students']
+  } | null
+  if (decoded && typeof decoded === 'object') {
+    if (Array.isArray(decoded.exercise_pills)) pills = decoded.exercise_pills
+    if (Array.isArray(decoded.students)) students = decoded.students
+  } else {
+    if (typeof data.exercise_pills_json === 'string') {
+      try {
+        const parsed = JSON.parse(data.exercise_pills_json) as unknown
+        if (Array.isArray(parsed)) {
+          pills = parsed as InstitutionDashboardMetrics['exercise_pills']
+        }
+      } catch {
+        // ignore
+      }
+    } else if (Array.isArray(data.exercise_pills)) {
+      pills = data.exercise_pills as InstitutionDashboardMetrics['exercise_pills']
+    }
+    if (typeof data.students_json === 'string') {
+      try {
+        const parsed = JSON.parse(data.students_json) as unknown
+        if (Array.isArray(parsed)) {
+          students = parsed as InstitutionDashboardMetrics['students']
+        }
+      } catch {
+        // ignore
+      }
+    } else if (Array.isArray(data.students)) {
+      students = data.students as InstitutionDashboardMetrics['students']
+    }
+  }
   return {
     ...rest,
     exercise_pills: pills,
@@ -450,6 +532,21 @@ function inflateAgentUsageByPeriod(raw: unknown): AgentUsageByPeriod {
   }
 }
 
+/**
+ * Lê o mapa de answers de um chunk (v2 `payload` ou legado students_json/map).
+ */
+export function parseChunkStudents(data: Record<string, unknown>): StudentsMap {
+  const decoded = decodeCachePayload(data)
+  if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+    return decoded as StudentsMap
+  }
+  const map = data.students
+  if (map && typeof map === 'object' && !Array.isArray(map)) {
+    return map as StudentsMap
+  }
+  return {}
+}
+
 /** Parte o mapa `students` em pedaços com JSON serializado < MAX_CHUNK_JSON_BYTES. */
 export function chunkStudentsMap(students: StudentsMap): StudentsMap[] {
   const entries = Object.entries(students)
@@ -511,11 +608,28 @@ async function readFirestoreCache(
     typeof meta.chunk_count === 'number' && meta.chunk_count >= 0
       ? meta.chunk_count
       : 0
-  const trailIds = Array.isArray(meta.trail_ids)
-    ? meta.trail_ids.filter((x): x is string => typeof x === 'string')
-    : []
   const studentCount =
     typeof meta.student_count === 'number' ? meta.student_count : 0
+
+  const blob = decodeCachePayload(meta) as MetaPayloadBlob | null
+  let trailIds: string[] = []
+  let agentRaw: unknown = meta.agent_usage_by_period
+  let metrics: InstitutionDashboardMetrics | undefined
+  if (blob && typeof blob === 'object') {
+    if (Array.isArray(blob.trail_ids)) trailIds = blob.trail_ids
+    if (blob.agent_usage_by_period) agentRaw = blob.agent_usage_by_period
+    if (blob.metrics && typeof blob.metrics === 'object') {
+      metrics = blob.metrics
+    }
+  } else {
+    // Legado v1 (campos aninhados indexados).
+    trailIds = Array.isArray(meta.trail_ids)
+      ? meta.trail_ids.filter((x): x is string => typeof x === 'string')
+      : []
+    if (meta.metrics && typeof meta.metrics === 'object') {
+      metrics = meta.metrics as InstitutionDashboardMetrics
+    }
+  }
 
   const students: StudentsMap = {}
   if (chunkCount > 0) {
@@ -526,19 +640,12 @@ async function readFirestoreCache(
     for (const snap of chunkSnaps) {
       if (!snap.exists) continue
       const data = snap.data() as Record<string, unknown>
-      const map = data.students
-      if (!map || typeof map !== 'object') continue
-      for (const [sid, entry] of Object.entries(map as StudentsMap)) {
+      const map = parseChunkStudents(data)
+      for (const [sid, entry] of Object.entries(map)) {
         students[sid] = entry
       }
     }
   }
-
-  const metricsRaw = meta.metrics
-  const metrics =
-    metricsRaw && typeof metricsRaw === 'object'
-      ? (metricsRaw as InstitutionDashboardMetrics)
-      : undefined
 
   return {
     payload: {
@@ -546,7 +653,7 @@ async function readFirestoreCache(
       student_count: studentCount,
       trail_ids: trailIds,
       students,
-      agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+      agent_usage_by_period: inflateAgentUsageByPeriod(agentRaw),
       metrics,
     },
     stale,
@@ -564,19 +671,29 @@ export async function readMetricsFromCache(
   if (!metaSnap.exists) return null
   const meta = metaSnap.data() as Record<string, unknown>
   const computedAt =
-    typeof meta.computed_at === 'number' ? meta.computed_at : 0
+    typeof meta.computed_at === 'number'
+      ? meta.computed_at
+      : typeof meta.updatedAt === 'number'
+        ? meta.updatedAt
+        : 0
   if (!computedAt) return null
   const age = Date.now() - computedAt
   if (age > FIRESTORE_CACHE_STALE_MS) return null
   const stale = age > FIRESTORE_CACHE_TTL_MS
   if (stale && !opts?.allowStale) return null
-  const metricsRaw = meta.metrics
+
+  const blob = decodeCachePayload(meta) as MetaPayloadBlob | null
+  let metricsRaw: unknown =
+    blob && typeof blob === 'object' ? blob.metrics : meta.metrics
+  let agentRaw: unknown =
+    blob && typeof blob === 'object'
+      ? blob.agent_usage_by_period
+      : meta.agent_usage_by_period
   if (!metricsRaw || typeof metricsRaw !== 'object') return null
   let metrics = metricsRaw as StoredMetrics
-  // Agent no metrics é stub; o canônico é o top-level do meta.
   metrics = {
     ...metrics,
-    agent_usage_by_period: inflateAgentUsageByPeriod(meta.agent_usage_by_period),
+    agent_usage_by_period: inflateAgentUsageByPeriod(agentRaw),
   }
   if (!metrics.computed_at) metrics.computed_at = computedAt
   if (!metrics.institution_id) metrics.institution_id = institutionId
@@ -585,8 +702,50 @@ export async function readMetricsFromCache(
     institutionId,
     metrics,
   )) as StoredMetrics
-  const metaBytes = JSON.stringify(meta).length
+  const metaBytes =
+    typeof meta.payload === 'string'
+      ? Buffer.byteLength(meta.payload, 'utf8')
+      : JSON.stringify(meta).length
   return { metrics, stale, metaBytes }
+}
+
+type MetaPayloadBlob = {
+  trail_ids: string[]
+  agent_usage_by_period: Json
+  metrics?: StoredMetrics
+}
+
+/** Apaga meta + chunks + sidecar (formato antigo indexado incluso). */
+export async function deleteInstitutionCacheDocs(
+  db: Firestore,
+  institutionId: string,
+): Promise<{ deleted: number }> {
+  const col = db.collection(CACHE_COLLECTION)
+  const metaRef = col.doc(institutionId)
+  let previousChunkCount = 0
+  try {
+    const prev = await metaRef.get()
+    if (prev.exists) {
+      const n = (prev.data() as Record<string, unknown>).chunk_count
+      if (typeof n === 'number' && n > 0) previousChunkCount = n
+    }
+  } catch {
+    // ignore
+  }
+  // Cobre leftovers além do chunk_count (ex.: i2_s0 órfão).
+  const maxScan = Math.max(previousChunkCount, 32)
+  const batch = db.batch()
+  let deleted = 0
+  batch.delete(metaRef)
+  deleted += 1
+  batch.delete(col.doc(`${institutionId}${METRICS_SIDECAR_SUFFIX}`))
+  deleted += 1
+  for (let i = 0; i < maxScan; i++) {
+    batch.delete(col.doc(`${institutionId}_s${i}`))
+    deleted += 1
+  }
+  await batch.commit()
+  return { deleted }
 }
 
 async function writeFirestoreCache(
@@ -599,8 +758,8 @@ async function writeFirestoreCache(
   const sidecarRef = col.doc(
     `${payload.institution_id}${METRICS_SIDECAR_SUFFIX}`,
   )
+  const now = Date.now()
 
-  // Lê chunk_count anterior para limpar sobras se o novo tiver menos chunks.
   let previousChunkCount = 0
   try {
     const prev = await metaRef.get()
@@ -618,23 +777,38 @@ async function writeFirestoreCache(
     ? packMetricsForMeta(payload.metrics, agentUsageBytes)
     : null
 
+  const metaBlob: MetaPayloadBlob = {
+    trail_ids: payload.trail_ids,
+    agent_usage_by_period: agentCompact,
+    ...(packed ? { metrics: packed.metaMetrics } : {}),
+  }
+  const metaEncoded = encodeCachePayload(metaBlob)
+
+  // Firestore batch max 500; Sol cabe em poucos chunks.
   const batch = db.batch()
   batch.set(metaRef, {
+    inst: payload.institution_id,
+    scope: 'meta',
+    version: CACHE_DOC_VERSION,
+    updatedAt: now,
+    // Escalares legados (stale checks / probe).
     institution_id: payload.institution_id,
-    trail_ids: payload.trail_ids,
     student_count: payload.student_count,
-    computed_at: Date.now(),
+    computed_at: now,
     chunk_count: chunks.length,
-    agent_usage_by_period: agentCompact,
     metrics_sidecar: Boolean(packed?.sidecar),
-    ...(packed ? { metrics: packed.metaMetrics } : {}),
+    ...metaEncoded,
   })
 
   chunks.forEach((students, i) => {
+    const encoded = encodeCachePayload(students)
     batch.set(col.doc(`${payload.institution_id}_s${i}`), {
-      institution_id: payload.institution_id,
+      inst: payload.institution_id,
+      scope: 'answers',
+      version: CACHE_DOC_VERSION,
+      updatedAt: now,
       chunk_index: i,
-      students,
+      ...encoded,
     })
   })
 
@@ -643,10 +817,16 @@ async function writeFirestoreCache(
   }
 
   if (packed?.sidecar) {
-    batch.set(sidecarRef, {
-      institution_id: payload.institution_id,
+    const sideEncoded = encodeCachePayload({
       exercise_pills: packed.sidecar.exercise_pills,
       students: packed.sidecar.students,
+    })
+    batch.set(sidecarRef, {
+      inst: payload.institution_id,
+      scope: 'metrics',
+      version: CACHE_DOC_VERSION,
+      updatedAt: now,
+      ...sideEncoded,
     })
   } else {
     batch.delete(sidecarRef)
@@ -664,38 +844,80 @@ async function writeMetricsOnly(
   const col = db.collection(CACHE_COLLECTION)
   const metaRef = col.doc(institutionId)
   const sidecarRef = col.doc(`${institutionId}${METRICS_SIDECAR_SUFFIX}`)
+  const now = Date.now()
 
-  let agentUsageBytes = 0
+  let agentUsage: Json = compactAgentUsageByPeriod({
+    '0': emptyAgentStub(0),
+    '7': emptyAgentStub(7),
+    '30': emptyAgentStub(30),
+  })
+  let trailIds: string[] = []
+  let studentCount = 0
+  let chunkCount = 0
   try {
     const prev = await metaRef.get()
     if (prev.exists) {
-      const raw = (prev.data() as Record<string, unknown>).agent_usage_by_period
-      if (raw) agentUsageBytes = JSON.stringify(raw).length
+      const data = prev.data() as Record<string, unknown>
+      chunkCount =
+        typeof data.chunk_count === 'number' ? data.chunk_count : 0
+      studentCount =
+        typeof data.student_count === 'number' ? data.student_count : 0
+      const decoded = decodeCachePayload(data) as MetaPayloadBlob | null
+      if (decoded && typeof decoded === 'object') {
+        if (decoded.agent_usage_by_period) {
+          agentUsage = decoded.agent_usage_by_period
+        }
+        if (Array.isArray(decoded.trail_ids)) trailIds = decoded.trail_ids
+      } else if (data.agent_usage_by_period) {
+        agentUsage = data.agent_usage_by_period as Json
+      }
+      if (Array.isArray(data.trail_ids)) {
+        trailIds = data.trail_ids.filter((x): x is string => typeof x === 'string')
+      }
     }
   } catch {
     // ignore
   }
 
+  const agentUsageBytes = JSON.stringify(agentUsage).length
   const packed = packMetricsForMeta(metrics, agentUsageBytes)
-  const metaPatch = {
+  const metaBlob: MetaPayloadBlob = {
+    trail_ids: trailIds,
+    agent_usage_by_period: agentUsage,
     metrics: packed.metaMetrics,
-    computed_at: Date.now(),
-    metrics_sidecar: Boolean(packed.sidecar),
   }
+  const metaEncoded = encodeCachePayload(metaBlob)
   const batch = db.batch()
-  batch.set(metaRef, metaPatch, { merge: true })
+  batch.set(metaRef, {
+    inst: institutionId,
+    scope: 'meta',
+    version: CACHE_DOC_VERSION,
+    updatedAt: now,
+    institution_id: institutionId,
+    student_count: studentCount,
+    computed_at: now,
+    chunk_count: chunkCount,
+    metrics_sidecar: Boolean(packed.sidecar),
+    ...metaEncoded,
+  })
   if (packed.sidecar) {
-    batch.set(sidecarRef, {
-      institution_id: institutionId,
+    const sideEncoded = encodeCachePayload({
       exercise_pills: packed.sidecar.exercise_pills,
       students: packed.sidecar.students,
+    })
+    batch.set(sidecarRef, {
+      inst: institutionId,
+      scope: 'metrics',
+      version: CACHE_DOC_VERSION,
+      updatedAt: now,
+      ...sideEncoded,
     })
   } else {
     batch.delete(sidecarRef)
   }
   await batch.commit()
   return {
-    metaBytes: JSON.stringify(metaPatch).length + agentUsageBytes,
+    metaBytes: Buffer.byteLength(metaEncoded.payload, 'utf8'),
     sidecar: Boolean(packed.sidecar),
   }
 }
@@ -829,6 +1051,8 @@ export async function warmInstitutionSummary(
   const run = (async () => {
     try {
       const db = getDb()
+      // Remove leftovers v1 (i2_s0 indexado) antes de gravar v2 payload.
+      await deleteInstitutionCacheDocs(db, institutionId)
       const payload = await computeSummaryPayload(db, institutionId)
       summaryCache.set(institutionId, {
         expires: Date.now() + SUMMARY_CACHE_TTL_MS,

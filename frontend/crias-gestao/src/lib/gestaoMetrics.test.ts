@@ -252,9 +252,43 @@ describe('institutionMetrics acerto (regressão Sol 86% vs 68%)', () => {
       studentTrails: [],
       activityTotals: new Map([['t-active', 1]]),
       attempts,
+      // Map vazio = summary ok sem logs → fallback attempts (não undefined/loading).
+      answerMap: new Map(),
     })
     // 1 certo + 2 errados = 33,3%. Só ativa daria 100% (bug antigo ~86% Sol).
     expect(m.avgAccuracy).toBe(33.3)
+  })
+
+  it('sem answerMap (loading) não publica attempts-only', () => {
+    const m = institutionMetrics({
+      institutionId: 'i2',
+      students: [
+        {
+          id: 's1',
+          institution_id: 'i2',
+          active: true,
+        } as import('../types/student').Student,
+      ],
+      trails: [
+        {
+          id: 't1',
+          institution_id: 'i2',
+          active: true,
+        } as import('../types/trail').Trail,
+      ],
+      studentTrails: [],
+      activityTotals: new Map([['t1', 1]]),
+      attempts: [
+        {
+          student_id: 's1',
+          trail_id: 't1',
+          is_correct: true,
+          stage_number: 1,
+          question_number: 1,
+        },
+      ] as import('../types/exerciseAttempt').ExerciseAttempt[],
+    })
+    expect(m.avgAccuracy).toBeNull()
   })
 })
 

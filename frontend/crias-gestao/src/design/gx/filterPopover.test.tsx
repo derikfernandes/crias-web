@@ -26,15 +26,29 @@ function renderFilter(
 }
 
 describe('FilterPopover exclusiveOnLabel', () => {
-  it('toque no nome seleciona só essa instituição e fecha', () => {
+  it('link somente seleciona só essa instituição e fecha', () => {
     const onChange = vi.fn()
     renderFilter({ selected: new Set(['i1']), onChange })
     fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Instituto Sol' }))
+    const onlyLinks = screen.getAllByRole('button', { name: 'somente' })
+    // Ordem da lista: Crias, Instituto Sol, Teste
+    fireEvent.click(onlyLinks[1]!)
     expect(onChange).toHaveBeenCalledTimes(1)
     const next = onChange.mock.calls[0][0] as Set<string>
     expect([...next]).toEqual(['i2'])
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('toque no nome faz toggle multi-select e mantém o menu aberto', () => {
+    const onChange = vi.fn()
+    renderFilter({ selected: new Set(['i1']), onChange, minSelected: 1 })
+    fireEvent.click(screen.getByRole('button', { name: /Filtrar instituições/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Instituto Sol' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const next = onChange.mock.calls[0][0] as Set<string>
+    expect(next.has('i1')).toBe(true)
+    expect(next.has('i2')).toBe(true)
+    expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
   it('checkbox mantém multi-select e o menu aberto', () => {

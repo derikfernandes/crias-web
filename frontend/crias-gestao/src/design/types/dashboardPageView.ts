@@ -69,6 +69,8 @@ export type DashboardSummaryView = {
   avgCompletion: number | null
   avgLessonCompletion: number | null
   avgAccuracy: number | null
+  /** true enquanto logs/answerMap do escopo ainda não chegaram (mostra Carregando). */
+  avgAccuracyLoading?: boolean
 }
 
 export type DashboardStudentsChartBucket = {
@@ -235,6 +237,8 @@ export type DashboardPageViewProps = {
   annulledAnswersExcluded: number
   filteredStudentCount: number
   totalStudentCount: number
+  /** true enquanto exercícios do escopo ainda carregam (evita Exercícios (0) flash). */
+  exercisesLoading?: boolean
   questionPickerLabel: string
   showQuestionPicker: boolean
   onToggleQuestionPicker: () => void

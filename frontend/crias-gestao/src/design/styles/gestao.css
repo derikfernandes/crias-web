@@ -404,6 +404,22 @@ html {
 .gx-filter__opt:hover { background: var(--v-soft); }
 .gx-filter__check { flex: none; width: 44px; min-width: 44px; min-height: 44px; margin: 0; padding: 0; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .gx-filter__name { flex: 1 1 auto; min-width: 0; min-height: 44px; margin: 0; padding: 0 10px 0 2px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; text-align: left; }
+.gx-filter__only {
+  flex: none;
+  align-self: center;
+  margin: 0 8px 0 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--v-green);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gx-filter__only:hover { background: var(--v-gsoft); }
 .gx-filter__box { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--v-t3); display: flex; align-items: center; justify-content: center; flex: none; }
 .gx-filter__box.is-on { background: var(--v-green); border-color: var(--v-green); }
 .gx-filter__tools { display: flex; justify-content: space-between; gap: 8px; }
@@ -583,28 +599,32 @@ html {
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 4px;
-  height: 148px;
+  gap: 8px;
+  height: 168px;
   width: 100%;
   /* Com muitas etapas, cresce e o pai faz scroll horizontal. */
-  min-width: max(100%, calc(var(--gx-lesson-cols, 1) * 32px));
-  padding: 0;
+  min-width: max(100%, calc(var(--gx-lesson-cols, 1) * 52px));
+  padding: 0 4px;
   box-sizing: border-box;
 }
 .gx-lesson-chart__col {
-  flex: 1 0 32px;
-  min-width: 32px;
-  max-width: 64px;
+  position: relative;
+  flex: 0 0 52px;
+  min-width: 52px;
+  max-width: 72px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
   height: 100%;
+  cursor: default;
 }
 @media (min-width: 900px) {
   .gx-lesson-chart__col {
-    max-width: 80px;
+    flex-basis: 56px;
+    min-width: 56px;
+    max-width: 88px;
   }
 }
 .gx-lesson-chart__n {
@@ -614,8 +634,9 @@ html {
   line-height: 1;
 }
 .gx-lesson-chart__bar {
-  width: 56%;
-  max-width: 28px;
+  width: 64%;
+  max-width: 36px;
+  min-width: 10px;
   min-height: 4px;
   border-radius: 6px;
   background: linear-gradient(to top, #ffd500, #00be85);
@@ -623,13 +644,43 @@ html {
 .gx-lesson-chart__label {
   display: block;
   width: 100%;
+  height: 2.4em;
   font-size: 10px;
   font-weight: 600;
   line-height: 1.15;
   color: var(--v-t3);
   text-align: center;
-  white-space: nowrap;
-  overflow: visible;
+  white-space: pre-line;
+  overflow: hidden;
+  word-break: break-word;
+}
+/* Tooltip visível no hover (title nativo é lento / some no scroll). */
+.gx-lesson-chart__tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 2px);
+  transform: translate(-50%, -6px);
+  z-index: 5;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--v-ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.gx-lesson-chart__col:hover .gx-lesson-chart__tip,
+.gx-lesson-chart__col:focus-within .gx-lesson-chart__tip {
+  opacity: 1;
+  visibility: visible;
 }
 .gx-sr-only {
   position: absolute;

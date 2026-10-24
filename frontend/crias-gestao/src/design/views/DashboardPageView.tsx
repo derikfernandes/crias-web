@@ -22,6 +22,14 @@ function pctText(v: number | null | undefined): string {
   return `${String(v).replace('.', ',')} %`
 }
 
+function accuracySummaryText(
+  value: number | null | undefined,
+  loading?: boolean,
+): string {
+  if (loading) return 'Carregando…'
+  return pctText(value)
+}
+
 function accuracyPill(p: number): string {
   if (p >= 70) return 'gx-pill gx-pill--ok'
   if (p >= 50) return 'gx-pill gx-pill--warn'
@@ -342,8 +350,17 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         </div>
         <div className="gx-stat">
           <span>Acerto médio</span>
-          <strong>{pctText(p.summary.avgAccuracy)}</strong>
-          {p.summary.avgAccuracy !== null ? (
+          <strong>
+            {accuracySummaryText(
+              p.summary.avgAccuracy,
+              p.summary.avgAccuracyLoading,
+            )}
+          </strong>
+          {p.summary.avgAccuracyLoading ? (
+            <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+              <span className="gx-bar__empty" />
+            </span>
+          ) : p.summary.avgAccuracy !== null ? (
             <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }}>
               <span style={{ width: `${p.summary.avgAccuracy}%` }} />
             </span>
@@ -400,20 +417,21 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                       : `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
                   const barH =
                     b.count > 0 && lessonMax > 0
-                      ? Math.max(4, (b.count / lessonMax) * 80)
+                      ? Math.max(8, (b.count / lessonMax) * 80)
                       : 0
-                  // Usa o label já curto do page (E1 ou Tag·E1); sem strip agressivo.
+                  // Label pode ter quebra (Inst\nE1); white-space: normal no CSS.
                   const shortLabel = b.label.trim() || 'E?'
                   return (
                     <div
                       key={b.key}
                       className="gx-lesson-chart__col"
-                      title={tip}
+                      tabIndex={0}
                       aria-label={tip}
                     >
-                      <strong className="gx-lesson-chart__n" title={tip}>
-                        {b.count}
-                      </strong>
+                      <span className="gx-lesson-chart__tip" role="tooltip">
+                        {tip}
+                      </span>
+                      <strong className="gx-lesson-chart__n">{b.count}</strong>
                       <span
                         className="gx-lesson-chart__bar"
                         style={{
@@ -422,10 +440,8 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                           background: barH > 0 ? undefined : 'transparent',
                           opacity: barH > 0 ? 1 : 0.35,
                         }}
-                        aria-label={tip}
-                        title={tip}
                       />
-                      <span className="gx-lesson-chart__label" title={tip}>
+                      <span className="gx-lesson-chart__label">
                         {shortLabel}
                       </span>
                     </div>
@@ -545,7 +561,10 @@ export function DashboardPageView(p: DashboardPageViewProps) {
               Alunos <span className="gx-muted">({p.totalStudentCount})</span>
             </button>
             <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'questions'} onClick={() => p.onActiveTabChange('questions')}>
-              Exercícios <span className="gx-muted">({p.totalPillCount})</span>
+              Exercícios{' '}
+              <span className="gx-muted">
+                ({p.exercisesLoading ? '…' : p.totalPillCount})
+              </span>
             </button>
           </nav>
           {p.activeTab === 'students' ? (

@@ -139,13 +139,18 @@ describe('accuracyAggregate (casos audit Sol)', () => {
     expect(merged.avgAccuracy).not.toBe(57.3)
   })
 
-  it('Sol+Teste com logs densos Sol (~68%) quase não muda com 1 aluno Teste', () => {
-    // 39215/57603 ≈ 68,1%; Teste 0/9 → ainda ~68,1%
+  it('Sol canônico exclui anuladas: 39108/56863 = 68,8%', () => {
+    // Audit antigo 39215/57611 = 68,1% incluía 748 respostas em anuladas.
+    const sol = mergeAcertoAggregates([{ correct: 39108, tried: 56863 }])
+    expect(sol.avgAccuracy).toBe(68.8)
+  })
+
+  it('Sol+Teste com logs densos Sol (68,8%) quase não muda com 1 aluno Teste', () => {
     const merged = mergeAcertoAggregates([
-      { correct: 39215, tried: 57603 },
+      { correct: 39108, tried: 56863 },
       { correct: 0, tried: 9 },
     ])
-    expect(merged.avgAccuracy).toBe(68.1)
+    expect(merged.avgAccuracy).toBe(68.8)
   })
 
   it('mergeAnswerSources: logs sobrescrevem attempts na mesma célula', () => {

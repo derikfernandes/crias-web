@@ -24,6 +24,9 @@ export type InstitutionMetrics = {
   /** 0 a 100, ou null quando não há base de cálculo ("N/A"). */
   avgCompletion: number | null
   avgAccuracy: number | null
+  /** Numerador/denominador do acerto (para média ponderada multi-instituição). */
+  accuracyCorrect: number
+  accuracyTried: number
 }
 
 /** Atividade = par (etapa, questão) na trilha. */
@@ -298,8 +301,9 @@ export function institutionMetrics(input: {
   attempts: ExerciseAttempt[]
   /**
    * Respostas densas (dashboard_summary / conversation_logs).
-   * Quando presente com `questions`, o acerto usa a definição unificada
-   * (exclui Continuar/0; logs + attempts) — não só exercise_attempts.
+   * - `undefined`: ainda carregando → acerto null (não usar attempts-only).
+   * - `Map` (mesmo vazio) + `questions`: definição unificada (exclui Continuar/0
+   *   e anuladas; logs + attempts). Map vazio sem logs cai no fallback attempts.
    */
   answerMap?: Map<string, string>
   questions?: Array<
@@ -384,35 +388,58 @@ export function institutionMetrics(input: {
     }
   }
 
-  // Acerto unificado: logs densos + attempts, exclui Continuar/0.
-  // Só attempts na Sol ≈ 86% (136 docs); com logs ≈ 68,1% (fonte correta).
+  // Acerto unificado: logs densos + attempts, exclui Continuar/0 e anuladas.
+  // Só attempts na Sol ≈ 86% (136 docs); com logs ≈ 68,8% (fonte correta).
   const allInstTrailIds = new Set(
     input.trails
       .filter((t) => t.institution_id === input.institutionId)
       .map((t) => t.id),
   )
   let avgAccuracy: number | null
-  const hasDenseLogs = Boolean(input.answerMap && input.answerMap.size > 0)
-  if (hasDenseLogs && input.questions && input.questions.length > 0) {
+  let accuracyCorrect = 0
+  let accuracyTried = 0
+  if (input.answerMap === undefined) {
+    // Logs ainda não chegaram: não publica 86% attempts-only.
+    avgAccuracy = null
+  } else if (input.answerMap.size > 0 && input.questions && input.questions.length > 0) {
     const { gabarito, annulled } = gabaritoFromQuestions(input.questions)
     const answers = mergeAnswerSources(
-      answersFromAnswerMap(input.answerMap!),
+      answersFromAnswerMap(input.answerMap),
       answersFromAttempts(input.attempts),
     )
-    avgAccuracy = accuracyAggregate({
+    const agg = accuracyAggregate({
       activeStudentIds: activeIds,
       answers,
       gabarito,
       annulled,
       trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
-    }).avgAccuracy
+    })
+    avgAccuracy = agg.avgAccuracy
+    accuracyCorrect = agg.correct
+    accuracyTried = agg.tried
+  } else if (input.answerMap.size === 0 && input.questions && input.questions.length > 0) {
+    // Summary ok mas sem células: attempts só para buracos (inst. pequenas).
+    const { gabarito, annulled } = gabaritoFromQuestions(input.questions)
+    const agg = accuracyAggregate({
+      activeStudentIds: activeIds,
+      answers: answersFromAttempts(input.attempts),
+      gabarito,
+      annulled,
+      trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
+    })
+    avgAccuracy = agg.avgAccuracy
+    accuracyCorrect = agg.correct
+    accuracyTried = agg.tried
   } else {
-    // Fallback legado (sem logs): attempts por student_id (Sol ≈ 86% incompleto).
-    avgAccuracy = accuracyFromActiveStudents({
+    // Sem catálogo de questões: fallback legado.
+    const agg = accuracyFromActiveStudents({
       activeStudentIds: activeIds,
       attempts: input.attempts,
       trailIds: allInstTrailIds.size > 0 ? allInstTrailIds : undefined,
-    }).avgAccuracy
+    })
+    avgAccuracy = agg.avgAccuracy
+    accuracyCorrect = agg.correct
+    accuracyTried = agg.tried
   }
 
   return {
@@ -429,6 +456,8 @@ export function institutionMetrics(input: {
     notStarted,
     avgCompletion: pct(done, total),
     avgAccuracy,
+    accuracyCorrect,
+    accuracyTried,
   }
 }
 

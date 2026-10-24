@@ -56,6 +56,8 @@ import {
   type DashboardInstitutionSnapshot,
 } from '../lib/dashboardInstitutionCache'
 import { prefetchSiblingInstitutions } from '../lib/prefetchInstitutionDashboard'
+import { setCachedAnswerMap } from '../lib/answerMapCache'
+import { dashboardAccuracyGate } from '../lib/dashboardAccuracyGate'
 import {
   accuracyFromAttempts,
   engagementFromLinks,
@@ -611,8 +613,12 @@ export function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   /** selectedIdsKey cujos students/attempts estão na tela (evita % instável). */
   const [dataScopeKey, setDataScopeKey] = useState('')
-  const [, setLoadingLogs] = useState(false)
+  const [loadingLogs, setLoadingLogs] = useState(false)
+  /** Escopo cujo answerMap/agentUsage já foi aplicado (evita N/A durante race). */
+  const [logsScopeKey, setLogsScopeKey] = useState('')
   const [loadStepsDone, setLoadStepsDone] = useState(0)
+  const loadGenerationRef = useRef(0)
+  const logsGenerationRef = useRef(0)
   const [loadStepsTotal, setLoadStepsTotal] = useState(TOTAL_LOAD_STEPS)
   const [loadPercent, setLoadPercent] = useState(0)
   const [loadLabel, setLoadLabel] = useState('')
@@ -825,8 +831,10 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
+    const generation = ++loadGenerationRef.current
     const instIds = activeInstitutionIds
     const scopeKey = selectedIdsKey
+    const loadStarted = performance.now()
 
     function applyCoreSnapshot(
       snap: DashboardInstitutionSnapshot,
@@ -847,6 +855,7 @@ export function DashboardPage() {
         })
         setAgentUsage(snap.agentUsage)
         setAgentUsagePresent(snap.agentUsagePresent)
+        setLogsScopeKey(key)
         initialLogsLoadedRef.current = true
       }
       setDataScopeKey(key)
@@ -925,6 +934,11 @@ export function DashboardPage() {
       }
 
       const cached = mergeCachedInstitutions(instIds)
+      const warmComplete = Boolean(
+        cached &&
+          cached.stages.length > 0 &&
+          cached.questions.length > 0,
+      )
       loadProgressRef.current = { done: 0, total: TOTAL_LOAD_STEPS }
       loadTargetPercentRef.current = 0
       dashboardLoadStartedAtRef.current = performance.now()
@@ -933,17 +947,27 @@ export function DashboardPage() {
       setLoadStepsTotal(TOTAL_LOAD_STEPS)
       setLoadPercent(0)
       setLoadLabel(
-        cached
+        warmComplete
           ? 'Atualizando…'
-          : 'Carregando alunos e trilhas…',
+          : cached
+            ? 'Atualizando…'
+            : 'Carregando alunos e trilhas…',
       )
 
       if (cached) {
-        // Hit completo: UI na hora; refetch só revalida o cache.
+        // Hit: UI na hora. Cache completo = sem refetch (evita fila 2s→9s).
         applyCoreSnapshot(cached, scopeKey)
         setLoadingData(false)
-        setLoadingMeta(cached.stages.length === 0 && cached.questions.length === 0)
-        setIsRefreshing(true)
+        setLoadingMeta(!warmComplete)
+        setIsRefreshing(false)
+        if (warmComplete) {
+          loadProgressRef.current.done = TOTAL_LOAD_STEPS
+          syncLoadProgress('Pronto', { complete: true })
+          console.info(
+            `[dashboard] cache hit ${Math.round(performance.now() - loadStarted)}ms scope=${scopeKey}`,
+          )
+          return
+        }
       } else {
         // Miss: mantém conteúdo anterior (outro escopo) ou BootSymbol no 1º load.
         setIsRefreshing(hasDashboardContent)
@@ -964,27 +988,8 @@ export function DashboardPage() {
         }
       }
 
-      async function docsForInstitutions(collectionName: string) {
-        const chunks = chunkArray(instIds, FIRESTORE_IN_LIMIT)
-        const snaps = await Promise.all(
-          chunks.map((chunk) =>
-            getDocs(
-              query(
-                collection(dbOk, collectionName),
-                where(
-                  'institution_id',
-                  chunk.length === 1 ? '==' : 'in',
-                  chunk.length === 1 ? chunk[0]! : chunk,
-                ),
-              ),
-            ),
-          ),
-        )
-        return snaps.flatMap((s) => s.docs)
-      }
-
       try {
-        // Busca só o que falta no cache; revalida o resto em paralelo.
+        // Busca só o que falta no cache.
         const missingIds = instIds.filter((id) => !getCachedInstitution(id))
         const fetchIds = missingIds.length > 0 ? missingIds : instIds
 
@@ -1010,17 +1015,11 @@ export function DashboardPage() {
         const usePartial =
           missingIds.length > 0 && missingIds.length < instIds.length
         const [studentDocs, trailDocs, linkDocs] = await Promise.all([
-          usePartial || !cached
-            ? docsForFetch(STUDENTS_COLLECTION)
-            : docsForInstitutions(STUDENTS_COLLECTION),
-          usePartial || !cached
-            ? docsForFetch(TRAILS_COLLECTION)
-            : docsForInstitutions(TRAILS_COLLECTION),
-          usePartial || !cached
-            ? docsForFetch(STUDENT_TRAILS_COLLECTION)
-            : docsForInstitutions(STUDENT_TRAILS_COLLECTION),
+          docsForFetch(STUDENTS_COLLECTION),
+          docsForFetch(TRAILS_COLLECTION),
+          docsForFetch(STUDENT_TRAILS_COLLECTION),
         ])
-        if (cancelled) return
+        if (cancelled || generation !== loadGenerationRef.current) return
         let nextStudents = studentDocs.map(snapshotToStudent)
         let nextTrails = trailDocs.map(snapshotToTrail)
         let nextStudentTrails = linkDocs.map(snapshotToStudentTrail)
@@ -1070,7 +1069,7 @@ export function DashboardPage() {
             }
           }
         }
-        if (cancelled) return
+        if (cancelled || generation !== loadGenerationRef.current) return
 
         cacheSplit({
           students: nextStudents,
@@ -1097,8 +1096,11 @@ export function DashboardPage() {
         done('students')
         done('trails')
         done('studentTrails')
+        console.info(
+          `[dashboard] core fetch ${Math.round(performance.now() - loadStarted)}ms scope=${scopeKey}`,
+        )
       } catch (err) {
-        if (cancelled) return
+        if (cancelled || generation !== loadGenerationRef.current) return
         const message =
           err instanceof Error ? err.message : 'Erro ao carregar dados.'
         setDataError(message)
@@ -1173,12 +1175,17 @@ export function DashboardPage() {
         return
       }
 
-      // Com meta já no cache do escopo atual, só revalida em silêncio.
+      // Meta já aplicada do cache do escopo: não refetch (evita fila 2s→9s).
       const metaFromCache =
         dataScopeKey === selectedIdsKey &&
         stages.length > 0 &&
         questions.length > 0
-      if (!metaFromCache) setLoadingMeta(true)
+      if (metaFromCache) {
+        setLoadingMeta(false)
+        setIsRefreshing(false)
+        return
+      }
+      setLoadingMeta(true)
       const chunks = chunkArray(trailIds, FIRESTORE_IN_LIMIT)
 
       try {
@@ -1249,6 +1256,7 @@ export function DashboardPage() {
   // Uso do monitor + answerMap: /api/dashboard_summary (1+ instituições).
   useEffect(() => {
     let cancelled = false
+    const generation = ++logsGenerationRef.current
     const instIds = activeInstitutionIds
 
     if (instIds.length === 0) {
@@ -1258,6 +1266,7 @@ export function DashboardPage() {
       setAgentUsagePresent(true)
       setAgentUsageLoading(false)
       setLoadingLogs(false)
+      setLogsScopeKey('')
       return () => {
         cancelled = true
       }
@@ -1269,24 +1278,71 @@ export function DashboardPage() {
       agentSummaryInstRef.current = scopeKey
       initialLogsLoadedRef.current = false
     }
+
+    // Cache hit de logs: aplica na hora (sem flash N/A) e revalida.
+    const cachedLogs = mergeCachedInstitutions(instIds)
+    const hasCachedLogs = Boolean(
+      cachedLogs &&
+        (cachedLogs.answerMap.size > 0 || cachedLogs.doneByStudent.size > 0),
+    )
+    if (hasCachedLogs && cachedLogs) {
+      setLogAggregates({
+        doneByStudent: cachedLogs.doneByStudent,
+        answerMap: cachedLogs.answerMap,
+      })
+      setAgentUsage(cachedLogs.agentUsage)
+      setAgentUsagePresent(cachedLogs.agentUsagePresent)
+      setLogsScopeKey(scopeKey)
+      initialLogsLoadedRef.current = true
+    }
+
     const refreshingAgentsOnly =
       initialLogsLoadedRef.current && !institutionChanged
-    setLoadingLogs(true)
-    setAgentUsageLoading(true)
+    setLoadingLogs(!hasCachedLogs)
+    // Com cache: não esmaece KPIs durante revalidação em background.
+    setAgentUsageLoading(!hasCachedLogs)
     setLogsError(null)
+    const logsStarted = performance.now()
 
     async function run() {
       try {
-        const summaries = await Promise.all(
+        const settled = await Promise.allSettled(
           instIds.map((id) => fetchDashboardLogSummary(id, agentPeriodDays)),
         )
-        if (cancelled) return
+        if (cancelled || generation !== logsGenerationRef.current) return
+
         const doneByStudent = new Map<string, Set<string>>()
         const answerMap = new Map<string, string>()
         let agentUsagePresent = false
         const agentRows: import('../lib/agentUsage').AgentUsageRowView[] = []
         let totalMessages = 0
-        for (const summary of summaries) {
+        const errors: string[] = []
+
+        for (let i = 0; i < instIds.length; i++) {
+          const id = instIds[i]!
+          const result = settled[i]!
+          if (result.status === 'rejected') {
+            errors.push(
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+            )
+            // Mantém cache parcial da instituição se houver.
+            const prev = getCachedInstitution(id)
+            if (prev) {
+              agentUsagePresent = agentUsagePresent || prev.agentUsagePresent
+              totalMessages += prev.agentUsage.totalMessages
+              agentRows.push(...prev.agentUsage.agents)
+              for (const [sid, keys] of prev.doneByStudent) {
+                const set = doneByStudent.get(sid) ?? new Set<string>()
+                for (const k of keys) set.add(k)
+                doneByStudent.set(sid, set)
+              }
+              for (const [k, v] of prev.answerMap) answerMap.set(k, v)
+            }
+            continue
+          }
+          const summary = result.value
           agentUsagePresent = agentUsagePresent || summary.agentUsagePresent
           totalMessages += summary.agentUsage.totalMessages
           for (const [sid, keys] of summary.doneByStudent) {
@@ -1296,7 +1352,20 @@ export function DashboardPage() {
           }
           for (const [k, v] of summary.answerMap) answerMap.set(k, v)
           agentRows.push(...summary.agentUsage.agents)
+          setCachedAnswerMap(id, summary.answerMap)
+          const prev = getCachedInstitution(id)
+          if (prev) {
+            setCachedInstitution(id, {
+              ...prev,
+              doneByStudent: summary.doneByStudent,
+              answerMap: summary.answerMap,
+              agentUsage: summary.agentUsage,
+              agentUsagePresent: summary.agentUsagePresent,
+              loadedAt: Date.now(),
+            })
+          }
         }
+
         const mergedAgents = mergeAgentRowsByLabel(agentRows).map((row) => ({
           ...row,
           pctOfTotal:
@@ -1304,6 +1373,9 @@ export function DashboardPage() {
               ? Math.round((row.messages / totalMessages) * 1000) / 10
               : 0,
         }))
+
+        // Só publica se ainda é o escopo pedido (anti-race).
+        if (generation !== logsGenerationRef.current) return
         setLogAggregates({ doneByStudent, answerMap })
         setAgentUsage({
           periodDays: agentPeriodDays,
@@ -1311,36 +1383,32 @@ export function DashboardPage() {
           agents: mergedAgents,
           series: [],
         })
-        setAgentUsagePresent(agentUsagePresent)
-        // Persiste answerMap no cache por instituição (troca Sol aquecida).
-        for (let i = 0; i < instIds.length; i++) {
-          const id = instIds[i]!
-          const summary = summaries[i]!
-          const prev = getCachedInstitution(id)
-          if (!prev) continue
-          setCachedInstitution(id, {
-            ...prev,
-            doneByStudent: summary.doneByStudent,
-            answerMap: summary.answerMap,
-            agentUsage: summary.agentUsage,
-            agentUsagePresent: summary.agentUsagePresent,
-            loadedAt: Date.now(),
-          })
-        }
+        setAgentUsagePresent(agentUsagePresent || answerMap.size > 0)
+        setLogsScopeKey(scopeKey)
+        setLogsError(
+          errors.length === instIds.length
+            ? errors[0] ?? 'Erro ao carregar métricas dos alunos.'
+            : null,
+        )
         setLoadingLogs(false)
         setAgentUsageLoading(false)
         initialLogsLoadedRef.current = true
+        console.info(
+          `[dashboard] logs ${Math.round(performance.now() - logsStarted)}ms scope=${scopeKey} map=${answerMap.size}`,
+        )
       } catch (err) {
-        if (cancelled) return
+        if (cancelled || generation !== logsGenerationRef.current) return
         setLogsError(
           err instanceof Error
             ? err.message
             : 'Erro ao carregar métricas dos alunos.',
         )
-        if (!refreshingAgentsOnly) {
+        // Não zera aggregates se já há cache/UI para o escopo (evita N/A flash).
+        if (!refreshingAgentsOnly && !hasCachedLogs) {
           setLogAggregates(EMPTY_LOG_AGGREGATES)
           setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
           setAgentUsagePresent(false)
+          setLogsScopeKey(scopeKey)
           initialLogsLoadedRef.current = true
         }
         setLoadingLogs(false)
@@ -1895,13 +1963,19 @@ export function DashboardPage() {
         ? Math.round((lessonsDoneTotal / lessonsReleasedTotal) * 1000) / 10
         : null
 
-    // Acerto: logs densos + attempts, exclui Continuar/0, ponderado.
-    // Só publica quando o escopo bate (evita flash multi).
-    const scopeReady = dataScopeKey === selectedIdsKey && !loadingData
+    // Acerto: logs densos + attempts, exclui Continuar/0 e anuladas, ponderado.
+    const gate = dashboardAccuracyGate({
+      selectedIdsKey,
+      dataScopeKey,
+      logsScopeKey,
+      loadingData,
+      loadingLogs,
+      answerMapSize: studentAnswerMap.size,
+    })
     const activeIds = new Set(activeRows.map((r) => r.student.id))
     const allTrailIds = new Set(trails.map((t) => t.id))
     let avgAccuracy: number | null = null
-    if (scopeReady && studentAnswerMap.size > 0) {
+    if (gate.canPublishAccuracy && studentAnswerMap.size > 0) {
       const { gabarito, annulled } = gabaritoFromQuestions(questions)
       const answers = mergeAnswerSources(
         answersFromAnswerMap(studentAnswerMap),
@@ -1914,19 +1988,9 @@ export function DashboardPage() {
         annulled,
         trailIds: allTrailIds.size > 0 ? allTrailIds : undefined,
       }).avgAccuracy
-    } else if (scopeReady) {
-      // Logs ainda não chegaram: não publica attempts-only (Sol 86% falso).
-      avgAccuracy = null
-    } else {
-      let correct = 0
-      let total = 0
-      for (const row of activeRows) {
-        correct += row.correct
-        total += row.correct + row.wrong
-      }
-      avgAccuracy =
-        total > 0 ? Math.round((correct / total) * 1000) / 10 : null
     }
+    // Enquanto carrega: avgAccuracy null + avgAccuracyLoading (UI: Carregando…).
+    // Logs vazios + canPublish → N/A real (sem exercícios).
 
     return {
       activeStudents: activeRows.length,
@@ -1934,13 +1998,16 @@ export function DashboardPage() {
       avgCompletion,
       avgLessonCompletion,
       avgAccuracy,
+      avgAccuracyLoading: gate.avgAccuracyLoading,
     }
   }, [
     filteredStudentRows,
     activeTrails,
     dataScopeKey,
+    logsScopeKey,
     selectedIdsKey,
     loadingData,
+    loadingLogs,
     trails,
     attempts,
     questions,
@@ -1975,12 +2042,25 @@ export function DashboardPage() {
     }
 
     const multiTrail = relevantTrails.length > 1
-    /** Prefixo curto da trilha para eixo multi-trilha (ex.: Aurora → Aur). */
-    function trailShortTag(name: string, id: string): string {
+    const multiInst = activeInstitutionIds.length > 1
+    const instNameById = new Map(
+      institutions.map((i) => [i.id, (i.name || i.id).trim()]),
+    )
+    function shortTag(name: string, id: string): string {
       const raw = (name || id).trim()
       const letters = raw.replace(/[^A-Za-zÀ-ÿ0-9]/g, '')
       if (letters.length >= 3) return letters.slice(0, 3)
-      return (id.replace(/^t/i, 'T') || 'T').slice(0, 3)
+      return (id.replace(/^i/i, '').replace(/^t/i, 'T') || 'X').slice(0, 3)
+    }
+    /** Prefixo curto da trilha para eixo multi-trilha (ex.: Aurora → Aur). */
+    function trailShortTag(name: string, id: string): string {
+      return shortTag(name, id)
+    }
+    function instShortTag(institutionId: string): string {
+      return shortTag(
+        instNameById.get(institutionId) ?? institutionId,
+        institutionId,
+      )
     }
     const lessonBars: {
       key: string
@@ -2029,13 +2109,23 @@ export function DashboardPage() {
               count += 1
             }
           }
-          // 1 trilha: E1…En. Várias: Tag·E1 (respeita filtro de trilhas).
+          // Multi-instituição: Inst·E1 (evita "Pro E10Pro E11" colado).
+          // Multi-trilha: Tag·E1. Uma trilha: E1…En.
+          const instTag = instShortTag(trail.institution_id)
+          const label = multiInst
+            ? `${instTag}\nE${stage}`
+            : multiTrail
+              ? `${tag}\nE${stage}`
+              : `E${stage}`
+          const fullLabel = multiInst
+            ? `${instNameById.get(trail.institution_id) ?? trail.institution_id} · Etapa ${stage} · ${trailLabel}`
+            : multiTrail
+              ? `Etapa ${stage} · ${trailLabel}`
+              : `Etapa ${stage}`
           lessonBars.push({
             key: `${trail.id}|E${stage}`,
-            label: multiTrail ? `${tag}·E${stage}` : `E${stage}`,
-            fullLabel: multiTrail
-              ? `Etapa ${stage} · ${trailLabel}`
-              : `Etapa ${stage}`,
+            label,
+            fullLabel,
             lessonNumber: stage,
             count,
             enrolledCount,
@@ -2056,13 +2146,21 @@ export function DashboardPage() {
             count += 1
           }
         }
-        const short = `E${activity.stage} A${activity.question}`
+        const short = `E${activity.stage}A${activity.question}`
+        const instTag = instShortTag(trail.institution_id)
+        const label = multiInst
+          ? `${instTag}\n${short}`
+          : multiTrail
+            ? `${tag}\n${short}`
+            : short
         lessonBars.push({
           key: `${trail.id}|${activity.stage}|${activity.question}`,
-          label: multiTrail ? `${tag}·${short}` : short,
-          fullLabel: multiTrail
-            ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
-            : `Etapa ${activity.stage} · Atividade ${activity.question}`,
+          label,
+          fullLabel: multiInst
+            ? `${instNameById.get(trail.institution_id) ?? trail.institution_id} · Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
+            : multiTrail
+              ? `Etapa ${activity.stage} · Atividade ${activity.question} · ${trailLabel}`
+              : `Etapa ${activity.stage} · Atividade ${activity.question}`,
           lessonNumber: activity.question,
           count,
           enrolledCount,
@@ -2095,6 +2193,8 @@ export function DashboardPage() {
   }, [
     filteredStudentRows,
     relevantTrails,
+    activeInstitutionIds,
+    institutions,
     deselectedStages,
     deselectedQuestions,
     trailsByStudentIds,
@@ -2981,6 +3081,17 @@ export function DashboardPage() {
         setLogsRetryKey((k) => k + 1)
       }}
       summary={summary}
+      exercisesLoading={
+        loadingMeta ||
+        dashboardAccuracyGate({
+          selectedIdsKey,
+          dataScopeKey,
+          logsScopeKey,
+          loadingData,
+          loadingLogs,
+          answerMapSize: studentAnswerMap.size,
+        }).exercisesLoading
+      }
       missingGabaritoCount={missingGabaritoCount}
       annulledGabaritoCount={annulledGabaritoCount}
       annulledAnswersExcluded={annulledAnswersExcluded}

@@ -506,7 +506,8 @@ export function FilterPopover({
   variant = 'pill',
   align = 'right',
   emptyText = 'Nada encontrado.',
-  /** Toque no nome: só esse item + fecha. Checkbox continua multi-select. */
+  /** Mostra link "somente" ao lado do nome (só esse item + fecha).
+   *  Checkbox e nome continuam multi-select; o painel não fecha no check. */
   exclusiveOnLabel = false,
   /** Não permite ficar com menos que N marcados (ex.: instituições ≥ 1). */
   minSelected = 0,
@@ -699,13 +700,19 @@ export function FilterPopover({
                     <button
                       type="button"
                       className="gx-filter__name"
-                      onClick={() => {
-                        if (exclusiveOnLabel) selectOnly(o.id)
-                        else toggle(o.id)
-                      }}
+                      onClick={() => toggle(o.id)}
                     >
                       <span data-fade="1">{o.name}</span>
                     </button>
+                    {exclusiveOnLabel ? (
+                      <button
+                        type="button"
+                        className="gx-filter__only"
+                        onClick={() => selectOnly(o.id)}
+                      >
+                        somente
+                      </button>
+                    ) : null}
                   </div>
                 )
               })}

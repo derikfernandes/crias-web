@@ -1,14 +1,18 @@
 /**
  * Acerto médio unificado (Início, Dados, multi-instituição).
  *
- * Definição (RO audit Sol 2026-10-24):
- * - Só respostas de exercício com gabarito (não anuladas).
+ * Definição canônica (RO Sol 2026-10-24, valor único):
+ * - Só respostas com gabarito; **atividades anuladas fora** do numerador e
+ *   do denominador (Gabarito / INTERFACE).
  * - Exclui cliques de UI: "Continuar", "0", vazio e demais comandos.
  * - Fonte densa: conversation_logs / answerMap (dashboard_summary).
  *   `exercise_attempts` na Sol tem só ~136 docs (subconjunto recente) e
- *   sozinho produz 86% enganoso; logs gradados ≈ 68,1%.
- * - Agregado = correct/tried (ponderado por quantidade). Multi-instituição
- *   soma numerador e denominador — nunca média das %.
+ *   sozinho produz 86% enganoso.
+ * - Sol (excl. anuladas): **39.108 / 56.863 = 68,8%**.
+ *   Um audit anterior (39.215 / 57.611 = 68,1%) incluía 748 respostas em
+ *   3 células anuladas de t47 (7|15, 7|16, 7|52) — não usar.
+ * - Agregado = correct/tried (ponderado). Multi-instituição soma
+ *   numerador e denominador — nunca média das %.
  */
 
 import { isUiCommandText } from './studentFieldValidation'

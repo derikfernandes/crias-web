@@ -4,6 +4,12 @@ import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
 import { fetchDashboardLogSummary } from '../lib/dashboardSummaryApi'
 import {
+  getCachedAnswerMap,
+  isAnswerMapFresh,
+  setCachedAnswerMap,
+} from '../lib/answerMapCache'
+import { mergeAcertoAggregates } from '../lib/acertoMedio'
+import {
   fmtDate,
   STATUS_LABEL,
   statusPillClass,
@@ -103,17 +109,30 @@ function SuperHome({
     const list = g.scopedInstitutions.map((i) => metrics.get(i.id))
     const sum = (pick: (m: InstitutionMetrics) => number) =>
       list.reduce((n, m) => n + (m ? pick(m) : 0), 0)
-    return [
-      { label: 'Instituições', value: g.scopedInstitutions.length },
-      { label: 'Alunos ativos', value: sum((m) => m.activeStudents) },
-      {
-        label: 'Ativos (7 dias)',
-        value: sum((m) => m.activeLast7Days),
-        hint: 'Alunos com exercise_attempts nos últimos 7 dias. Não usa last_interaction_at do vínculo (pode ter atualização em lote).',
-      },
-      { label: 'Trilhas ativas', value: sum((m) => m.activeTrails) },
-      { label: 'Em andamento', value: sum((m) => m.inProgress) },
-    ]
+    const combinedAcerto = mergeAcertoAggregates(
+      list
+        .filter((m): m is InstitutionMetrics => Boolean(m))
+        .map((m) => ({
+          correct: m.accuracyCorrect,
+          tried: m.accuracyTried,
+        })),
+    )
+    return {
+      cards: [
+        { label: 'Instituições', value: g.scopedInstitutions.length },
+        { label: 'Alunos ativos', value: sum((m) => m.activeStudents) },
+        {
+          label: 'Ativos (7 dias)',
+          value: sum((m) => m.activeLast7Days),
+          hint: 'Alunos com exercise_attempts nos últimos 7 dias. Não usa last_interaction_at do vínculo (pode ter atualização em lote).',
+        },
+        { label: 'Trilhas ativas', value: sum((m) => m.activeTrails) },
+        { label: 'Em andamento', value: sum((m) => m.inProgress) },
+      ],
+      /** Média ponderada das instituições no filtro (igual card Dados). */
+      combinedAccuracy: combinedAcerto.avgAccuracy,
+      showCombinedAccuracy: g.scopedInstitutions.length > 1,
+    }
   }, [g.scopedInstitutions, metrics])
 
   function openScoped(inst: Institution, path: string) {
@@ -148,7 +167,7 @@ function SuperHome({
       ) : (
         <>
           <div className="gx-stats" aria-label="Resumo">
-            {totals.map((t) => (
+            {totals.cards.map((t) => (
               <Stat
                 key={t.label}
                 label={t.label}
@@ -156,6 +175,15 @@ function SuperHome({
                 hint={'hint' in t ? t.hint : undefined}
               />
             ))}
+            {totals.showCombinedAccuracy ? (
+              <Stat
+                label="Acerto médio (filtro)"
+                value={formatPct(totals.combinedAccuracy)}
+                bar={totals.combinedAccuracy}
+                barTone="green"
+                hint="Média ponderada das instituições selecionadas (correct/tried), igual ao card Dados."
+              />
+            ) : null}
           </div>
           <section aria-label="Instituições" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {g.scopedInstitutions.map((inst) => {
@@ -544,11 +572,18 @@ export function HomePage() {
   const links = useCollection('student_trails', snapshotToStudentTrail)
   const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const attempts = useCollection('exercise_attempts', snapshotToExerciseAttempt)
-  /** answerMap por instituição (dashboard_summary) — fonte densa do acerto. */
+  /** answerMap por instituição (dashboard_summary) — fonte densa do acerto.
+   *  SWR: hidrata do cache na hora; revalida em background sem BootSymbol. */
   const [answerMaps, setAnswerMaps] = useState<Map<string, Map<string, string>>>(
-    () => new Map(),
+    () => {
+      const seed = new Map<string, Map<string, string>>()
+      for (const inst of g.institutions) {
+        const hit = getCachedAnswerMap(inst.id)
+        if (hit) seed.set(inst.id, hit)
+      }
+      return seed
+    },
   )
-  const [answerMapsReady, setAnswerMapsReady] = useState(false)
 
   const instIdsKey = useMemo(
     () => g.institutions.map((i) => i.id).sort().join('|'),
@@ -560,25 +595,51 @@ export function HomePage() {
     const ids = g.institutions.map((i) => i.id).filter(Boolean)
     if (ids.length === 0) {
       setAnswerMaps(new Map())
-      setAnswerMapsReady(true)
       return
     }
-    setAnswerMapsReady(false)
+
+    // Hidrata imediatamente o que já está em cache (volta Início <0,5s).
+    setAnswerMaps((prev) => {
+      const next = new Map(prev)
+      for (const id of ids) {
+        const hit = getCachedAnswerMap(id)
+        if (hit) next.set(id, hit)
+      }
+      return next
+    })
+
+    const staleOrMissing = ids.filter((id) => !isAnswerMapFresh(id))
+    if (staleOrMissing.length === 0) return
+
     void (async () => {
-      const next = new Map<string, Map<string, string>>()
+      const started = performance.now()
       await Promise.all(
-        ids.map(async (id) => {
+        staleOrMissing.map(async (id) => {
           try {
             const summary = await fetchDashboardLogSummary(id, 0)
-            if (!cancelled) next.set(id, summary.answerMap)
+            if (cancelled) return
+            setCachedAnswerMap(id, summary.answerMap)
+            setAnswerMaps((prev) => {
+              const next = new Map(prev)
+              next.set(id, summary.answerMap)
+              return next
+            })
           } catch {
-            if (!cancelled) next.set(id, new Map())
+            if (cancelled) return
+            setAnswerMaps((prev) => {
+              if (prev.has(id)) return prev
+              const next = new Map(prev)
+              next.set(id, new Map())
+              return next
+            })
           }
         }),
       )
-      if (cancelled) return
-      setAnswerMaps(next)
-      setAnswerMapsReady(true)
+      if (!cancelled) {
+        console.info(
+          `[inicio] answerMap revalidado em ${Math.round(performance.now() - started)}ms (${staleOrMissing.length} inst)`,
+        )
+      }
     })()
     return () => {
       cancelled = true
@@ -586,13 +647,13 @@ export function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- instIdsKey
   }, [instIdsKey])
 
+  // Não espera answerMap: mostra alunos/conclusão na hora; acerto atualiza depois.
   const ready =
     students.ready &&
     trails.ready &&
     links.ready &&
     questions.ready &&
-    attempts.ready &&
-    answerMapsReady
+    attempts.ready
   const error = students.error ?? trails.error ?? links.error ?? questions.error ?? attempts.error
 
   const metrics = useMemo(() => {

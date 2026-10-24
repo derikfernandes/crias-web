@@ -31,10 +31,12 @@ export function setSummarySession(
   byPeriod?: Partial<Record<AgentUsagePeriodDays, AgentUsageView>>,
 ): void {
   const prev = session.get(institutionId)
+  // Inclui agentUsageByPeriod do summary (servidor manda 0/7/30 numa tacada).
   const agentUsageByPeriod: Partial<
     Record<AgentUsagePeriodDays, AgentUsageView>
   > = {
     ...(prev?.agentUsageByPeriod ?? {}),
+    ...(summary.agentUsageByPeriod ?? {}),
     ...(byPeriod ?? {}),
     [periodDays]: summary.agentUsage,
   }

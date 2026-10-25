@@ -277,7 +277,11 @@ async function fetchMetricsOnce(
 ): Promise<InstitutionDashboardMetricsView> {
   const url = new URL('/api/dashboard_metrics', resolveApiBaseUrl())
   url.searchParams.set('institution_id', id)
-  if (opts.force) url.searchParams.set('refresh', '1')
+  if (opts.force) {
+    url.searchParams.set('refresh', '1')
+    // Evita cache HTTP do GET anterior (Atualizar em <2s com carimbo velho).
+    url.searchParams.set('_', String(Date.now()))
+  }
   const headers = await gestaoAuthHeaders()
   const started = performance.now()
   const controller = new AbortController()
@@ -286,8 +290,13 @@ async function fetchMetricsOnce(
   try {
     res = await fetch(url.toString(), {
       method: 'GET',
-      headers: { Accept: 'application/json', ...headers },
+      headers: {
+        Accept: 'application/json',
+        ...headers,
+        ...(opts.force ? { 'Cache-Control': 'no-cache' } : {}),
+      },
       credentials: 'same-origin',
+      cache: opts.force ? 'no-store' : 'default',
       signal: controller.signal,
     })
   } catch (err) {

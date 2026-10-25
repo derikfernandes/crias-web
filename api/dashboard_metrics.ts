@@ -194,7 +194,10 @@ async function handleRequest(request: Request): Promise<Response> {
       metrics: fresh.metrics,
     })
     return respond(200, fresh.metrics as unknown as Json, {
-      'Cache-Control': 'private, max-age=60',
+      // refresh=1 nunca cacheia no browser (senão Atualizar volta em <2s).
+      'Cache-Control': forceRefresh
+        ? 'no-store, no-cache, must-revalidate'
+        : 'private, max-age=60',
       'X-Metrics-Cache': forceRefresh ? 'REFRESH' : 'MISS',
       'X-Metrics-Warm-Ms': String(Date.now() - t0),
       ...(fresh.metaBytes

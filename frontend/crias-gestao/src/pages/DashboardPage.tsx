@@ -69,6 +69,7 @@ import {
 import {
   formatAtualizadoAs,
   METRICS_FRESH_MS,
+  nextPinnedComputedAt,
   oldestComputedAt,
 } from '../lib/metricsUpdatedAt'
 import {
@@ -687,8 +688,9 @@ export function DashboardPage() {
     return seed
   })
   const [metricsForceRefreshing, setMetricsForceRefreshing] = useState(false)
-  const stampPinRef = useRef<{ key: string; ms: number } | null>(null)
-  const [stampPinVersion, setStampPinVersion] = useState(0)
+  const [stampPin, setStampPin] = useState<{ key: string; ms: number } | null>(
+    null,
+  )
   const [metricsScopeKey, setMetricsScopeKey] = useState(() => {
     const ids = [...gestao.selectedIds].filter(Boolean).sort()
     if (ids.length === 0) return ''
@@ -1007,8 +1009,10 @@ export function DashboardPage() {
       applyAgentFromMetrics(scopeKey, ids, seed, agentPeriodDays)
       return
     }
-    // Sem cache da nova: Carregando… (nunca valor da anterior).
-    if (metricsScopeKey && metricsScopeKey !== scopeKey) {
+    // Sem cache completo: tira escopo antigo e mantém só seeds parciais da nova
+    // (evita flash da instituição anterior sem esperar rede).
+    if (metricsScopeKey !== scopeKey) {
+      setMetricsByInst(seed)
       setMetricsScopeKey('')
       setAgentUsage({ ...EMPTY_AGENT_USAGE, periodDays: agentPeriodDays })
       setAgentScopeKey('')
@@ -1576,10 +1580,9 @@ export function DashboardPage() {
   const forceRefreshMetrics = () => {
     const ids = activeInstitutionIds
     if (ids.length === 0 || metricsForceRefreshing) return
+    const scopeKey = ids.join(',')
     void (async () => {
       setMetricsForceRefreshing(true)
-      stampPinRef.current = null
-      setStampPinVersion((v) => v + 1)
       const next = new Map<string, InstitutionDashboardMetricsView>()
       for (const id of ids) {
         const prev = getCachedMetrics(id)
@@ -1593,6 +1596,8 @@ export function DashboardPage() {
               timeoutMs: 55_000,
             })
             next.set(id, m)
+            // Atualiza UI instituição a instituição (Sol ~40s).
+            setMetricsByInst(new Map(next))
           } catch {
             // mantém
           }
@@ -1601,6 +1606,12 @@ export function DashboardPage() {
         if (ids.every((id) => next.has(id))) {
           setMetricsScopeKey(selectedIdsKey)
           applyAgentFromMetrics(selectedIdsKey, ids, next, agentPeriodDays)
+        }
+        const freshOldest = oldestComputedAt(
+          ids.map((id) => next.get(id)?.computedAt),
+        )
+        if (freshOldest != null && scopeKey) {
+          setStampPin({ key: scopeKey, ms: freshOldest })
         }
       } finally {
         setMetricsForceRefreshing(false)
@@ -1620,18 +1631,23 @@ export function DashboardPage() {
         activeInstitutionIds.map((id) => metricsByInst.get(id)?.computedAt),
       )
     : null
-  if (
-    liveOldest != null &&
-    (stampPinRef.current == null ||
-      stampPinRef.current.key !== stampScopeKey)
-  ) {
-    stampPinRef.current = { key: stampScopeKey, ms: liveOldest }
-  }
-  void stampPinVersion
+  useEffect(() => {
+    if (metricsForceRefreshing) return
+    const next = nextPinnedComputedAt({
+      scopeKey: stampScopeKey,
+      liveOldest,
+      pinned: stampPin,
+    })
+    if (
+      next &&
+      (stampPin?.key !== next.key || stampPin?.ms !== next.ms)
+    ) {
+      setStampPin(next)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pin só no settle/escopo
+  }, [stampScopeKey, liveOldest, metricsForceRefreshing])
   const metricsUpdatedAtLabel = formatAtualizadoAs(
-    stampPinRef.current?.key === stampScopeKey
-      ? stampPinRef.current.ms
-      : null,
+    stampPin?.key === stampScopeKey ? stampPin.ms : liveOldest,
   )
 
   // Métricas pré-agregadas (KB): desbloqueia Acerto/Exercícios/Monitor/Conclusão
@@ -2691,16 +2707,22 @@ export function DashboardPage() {
         : null
 
     // Preferir métricas pré-agregadas (sem meta local / sem 57k answers).
+    // Contagens: basta ter o doc de cada id ativo (não espera scopeKey) —
+    // evita 2–5s de Carregando… no retorno Início→Dados / troca de inst.
+    const hasMetricsForActive = activeInstitutionIds.every((id) =>
+      metricsByInst.has(id),
+    )
     const metricsReady =
-      metricsScopeKey === selectedIdsKey &&
-      activeInstitutionIds.every((id) => metricsByInst.has(id))
-    const metricsParts = metricsReady
+      metricsScopeKey === selectedIdsKey && hasMetricsForActive
+    const metricsParts = hasMetricsForActive
       ? activeInstitutionIds
           .map((id) => metricsByInst.get(id))
           .filter((m): m is InstitutionDashboardMetricsView => Boolean(m))
       : []
     const mergedMetrics =
       metricsParts.length > 0 ? mergeMetricsViews(metricsParts) : null
+    // Só publica % se o escopo da map bate (evita flash da inst anterior).
+    const publishMerged = metricsReady && mergedMetrics
 
     const metaReady =
       metricsReady ||
@@ -2720,7 +2742,7 @@ export function DashboardPage() {
     const activeIds = new Set(activeRows.map((r) => r.student.id))
     const allTrailIds = new Set(trails.map((t) => t.id))
     let avgAccuracy: number | null = null
-    if (mergedMetrics) {
+    if (publishMerged) {
       avgAccuracy = mergedMetrics.avgAccuracy
     } else if (gate.canPublishAccuracy && studentAnswerMap.size > 0) {
       const { gabarito, annulled } = gabaritoFromQuestions(questions)
@@ -2739,20 +2761,24 @@ export function DashboardPage() {
 
     // Sem métricas do escopo atual: Carregando… (nunca % da instituição anterior).
     const completionLoading = !metricsReady || gate.avgAccuracyLoading
-    const countsLoading = !metricsReady
+    const countsLoading = !hasMetricsForActive
     return {
-      activeStudents: metricsReady
+      activeStudents: hasMetricsForActive
         ? (mergedMetrics?.activeStudents ?? activeRows.length)
         : activeRows.length,
-      activeTrails: metricsReady
+      activeTrails: hasMetricsForActive
         ? (mergedMetrics?.activeTrails ?? activeTrails.length)
         : activeTrails.length,
-      avgCompletion: metricsReady
-        ? (mergedMetrics?.avgCompletion ?? avgCompletion)
-        : null,
-      avgLessonCompletion: metricsReady
-        ? (mergedMetrics?.avgLessonCompletion ?? avgLessonCompletion)
-        : null,
+      avgCompletion: publishMerged
+        ? (mergedMetrics.avgCompletion ?? avgCompletion)
+        : metricsReady
+          ? avgCompletion
+          : null,
+      avgLessonCompletion: publishMerged
+        ? (mergedMetrics.avgLessonCompletion ?? avgLessonCompletion)
+        : metricsReady
+          ? avgLessonCompletion
+          : null,
       avgAccuracy: metricsReady ? avgAccuracy : null,
       avgAccuracyLoading: !metricsReady || gate.avgAccuracyLoading,
       completionLoading,

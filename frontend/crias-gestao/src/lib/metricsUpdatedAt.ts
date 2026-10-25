@@ -39,3 +39,33 @@ export function oldestComputedAt(
   }
   return min
 }
+
+/**
+ * Carimbo estável: pina no 1º settle; SWR não altera.
+ * Após Atualizar (force), só re-pina se o novo oldest for **mais recente**.
+ */
+export function nextPinnedComputedAt(input: {
+  scopeKey: string
+  liveOldest: number | null
+  pinned: { key: string; ms: number } | null
+  /** true enquanto Atualizar está em voo — não re-pina o valor velho. */
+  forceInFlight?: boolean
+  /** Após force: força adotar liveOldest (mesmo que igual por empate raro). */
+  adoptAfterForce?: boolean
+}): { key: string; ms: number } | null {
+  const { scopeKey, liveOldest, pinned, forceInFlight, adoptAfterForce } = input
+  if (!scopeKey || liveOldest == null) {
+    return pinned?.key === scopeKey ? pinned : null
+  }
+  if (forceInFlight) {
+    // Mantém o pin anterior do escopo (ou null) — não gruda o carimbo pré-force.
+    return pinned?.key === scopeKey ? pinned : null
+  }
+  if (adoptAfterForce) {
+    return { key: scopeKey, ms: liveOldest }
+  }
+  if (!pinned || pinned.key !== scopeKey) {
+    return { key: scopeKey, ms: liveOldest }
+  }
+  return pinned
+}

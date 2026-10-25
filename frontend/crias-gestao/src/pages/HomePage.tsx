@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
@@ -10,6 +10,7 @@ import {
 import {
   formatAtualizadoAs,
   METRICS_FRESH_MS,
+  nextPinnedComputedAt,
   oldestComputedAt,
 } from '../lib/metricsUpdatedAt'
 import { inicioAcertoReady } from '../lib/dashboardAccuracyGate'
@@ -735,8 +736,9 @@ export function HomePage() {
   const [metricsRetryKey, setMetricsRetryKey] = useState(0)
   const [metricsForceRefreshing, setMetricsForceRefreshing] = useState(false)
   /** Carimbo estável: só muda no settle inicial do escopo ou após Atualizar. */
-  const stampPinRef = useRef<{ key: string; ms: number } | null>(null)
-  const [stampPinVersion, setStampPinVersion] = useState(0)
+  const [stampPin, setStampPin] = useState<{ key: string; ms: number } | null>(
+    null,
+  )
 
   const instIdsKey = useMemo(
     () => g.institutions.map((i) => i.id).sort().join('|'),
@@ -844,14 +846,18 @@ export function HomePage() {
     if (metricsForceRefreshing) return
     void (async () => {
       const ids = g.institutions.map((i) => i.id).filter(Boolean)
+      const scopedIds = g.isSuper
+        ? g.scopedInstitutions.map((i) => i.id)
+        : g.myInstitutionId
+          ? [g.myInstitutionId]
+          : ids
+      const scopeKey = scopedIds.join(',')
       setMetricsForceRefreshing(true)
       setMetricsError(null)
       setMetricsFailed(new Set())
-      // Libera o carimbo para pegar o novo computed_at após o recalc.
-      stampPinRef.current = null
-      setStampPinVersion((v) => v + 1)
       const failed = new Set<string>()
       let firstError: string | null = null
+      const nextMap = new Map<string, InstitutionDashboardMetricsView>()
       try {
         for (const id of ids) {
           try {
@@ -859,6 +865,7 @@ export function HomePage() {
               force: true,
               timeoutMs: 55_000,
             })
+            nextMap.set(id, m)
             setServerMetrics((prev) => {
               const next = new Map(prev)
               next.set(id, m)
@@ -880,6 +887,13 @@ export function HomePage() {
             ? firstError ?? `Falha ao atualizar (${failed.size}).`
             : null,
         )
+        // Re-pina com o computed_at fresco (não reusa o pin pré-force).
+        const freshOldest = oldestComputedAt(
+          scopedIds.map((id) => nextMap.get(id)?.computedAt),
+        )
+        if (freshOldest != null && scopeKey) {
+          setStampPin({ key: scopeKey, ms: freshOldest })
+        }
       } finally {
         setMetricsForceRefreshing(false)
       }
@@ -984,8 +998,6 @@ export function HomePage() {
   const hasMetricsSeed =
     serverMetrics.size > 0 ||
     g.institutions.some((i) => Boolean(getCachedMetrics(i.id)))
-  if (g.institutionsLoading) return <BootSymbol />
-  if (!ready && !hasMetricsSeed) return <BootSymbol />
 
   const mine = g.myInstitutionId
     ? g.institutions.find((i) => i.id === g.myInstitutionId)
@@ -1008,25 +1020,32 @@ export function HomePage() {
         scopedIdsForStamp.map((id) => serverMetrics.get(id)?.computedAt),
       )
     : null
-  // Pina o carimbo no 1º settle do escopo; SWR/background não altera.
-  if (
-    liveOldest != null &&
-    (stampPinRef.current == null ||
-      stampPinRef.current.key !== stampScopeKey)
-  ) {
-    stampPinRef.current = { key: stampScopeKey, ms: liveOldest }
-  }
-  void stampPinVersion
+  useEffect(() => {
+    if (metricsForceRefreshing) return
+    const next = nextPinnedComputedAt({
+      scopeKey: stampScopeKey,
+      liveOldest,
+      pinned: stampPin,
+    })
+    if (
+      next &&
+      (stampPin?.key !== next.key || stampPin?.ms !== next.ms)
+    ) {
+      setStampPin(next)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pin só no settle/escopo
+  }, [stampScopeKey, liveOldest, metricsForceRefreshing])
   const metricsUpdatedAtLabel = formatAtualizadoAs(
-    stampPinRef.current?.key === stampScopeKey
-      ? stampPinRef.current.ms
-      : null,
+    stampPin?.key === stampScopeKey ? stampPin.ms : liveOldest,
   )
 
   const schoolCountsLoading =
     Boolean(mine) &&
     !serverMetrics.has(mine!.id) &&
     !(students.ready && trails.ready)
+
+  if (g.institutionsLoading) return <BootSymbol />
+  if (!ready && !hasMetricsSeed) return <BootSymbol />
 
   return (
     <>

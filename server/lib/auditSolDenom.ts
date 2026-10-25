@@ -53,6 +53,14 @@ export type DenomAuditResult = {
   top_denom_cells: DenomCellBucket[]
   /** Classes de texto nas respostas graded_wrong (candidatas ao +548). */
   wrong_answer_shapes: Array<{ shape: string; count: number }>
+  /** Só alternativas 1–4 / A–D (hipótese filtro canônico mais estrito). */
+  option_only: {
+    correct: number
+    wrong: number
+    tried: number
+    free_text_wrong: number
+    free_text_correct: number
+  }
 }
 
 function normalizeAnswer(value: string): string {
@@ -94,6 +102,11 @@ function expandCompact(
   const trailId = trailIds[trailIdx]
   if (!trailId) return null
   return `${trailId}${compactKey.slice(sep)}`
+}
+
+function isOptionAnswer(raw: string): boolean {
+  const s = normalizeAnswer(raw)
+  return /^[a-d]$/i.test(s) || /^[1-4]$/.test(s)
 }
 
 function answerShape(raw: string): string {
@@ -201,6 +214,10 @@ export function auditSolDenom(input: {
   const noGabCells = new Map<string, DenomCellBucket>()
   const wrongShapes = new Map<string, number>()
   let denomEmptyGab = 0
+  let optionCorrect = 0
+  let optionWrong = 0
+  let freeTextCorrect = 0
+  let freeTextWrong = 0
 
   for (const student of input.students) {
     const entry = input.studentsMap[student.id]
@@ -264,6 +281,14 @@ export function auditSolDenom(input: {
       const cls: DenomAnswerClass = ok ? 'graded_correct' : 'graded_wrong'
       totals[cls] += 1
       touchCell(denomCells, expanded, { ...meta, gabarito: g }, cls, answer)
+      if (isOptionAnswer(answer)) {
+        if (ok) optionCorrect += 1
+        else optionWrong += 1
+      } else if (ok) {
+        freeTextCorrect += 1
+      } else {
+        freeTextWrong += 1
+      }
       if (!ok) {
         const shape = answerShape(answer)
         wrongShapes.set(shape, (wrongShapes.get(shape) ?? 0) + 1)
@@ -298,6 +323,13 @@ export function auditSolDenom(input: {
       .map(([shape, count]) => ({ shape, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 40),
+    option_only: {
+      correct: optionCorrect,
+      wrong: optionWrong,
+      tried: optionCorrect + optionWrong,
+      free_text_wrong: freeTextWrong,
+      free_text_correct: freeTextCorrect,
+    },
   }
 }
 

@@ -214,6 +214,7 @@ async function handleRequest(request: Request): Promise<Response> {
             denom_cells_empty_gabarito:
               audit.current.denom_cells_empty_gabarito,
             totals: audit.current.totals,
+            option_only: audit.current.option_only,
             wrong_answer_shapes: audit.current.wrong_answer_shapes,
             top_denom_cells: slimCells(audit.current.top_denom_cells),
             top_no_gabarito_cells: slimCells(
@@ -225,6 +226,7 @@ async function handleRequest(request: Request): Promise<Response> {
             correct: audit.active_trails_only.correct_current,
             no_gabarito: audit.active_trails_only.no_gabarito,
             totals: audit.active_trails_only.totals,
+            option_only: audit.active_trails_only.option_only,
             wrong_answer_shapes:
               audit.active_trails_only.wrong_answer_shapes,
             top_denom_cells: slimCells(

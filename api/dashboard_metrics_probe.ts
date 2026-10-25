@@ -308,6 +308,19 @@ async function handleRequest(request: Request): Promise<Response> {
               probe.body.avg_accuracy === null
                 ? (probe.body.avg_accuracy as number | null)
                 : undefined,
+            avg_completion:
+              typeof probe.body.avg_completion === 'number' ||
+              probe.body.avg_completion === null
+                ? (probe.body.avg_completion as number | null)
+                : undefined,
+            completion_done:
+              typeof probe.body.completion_done === 'number'
+                ? probe.body.completion_done
+                : undefined,
+            completion_released:
+              typeof probe.body.completion_released === 'number'
+                ? probe.body.completion_released
+                : undefined,
             accuracy_correct:
               typeof probe.body.accuracy_correct === 'number'
                 ? probe.body.accuracy_correct

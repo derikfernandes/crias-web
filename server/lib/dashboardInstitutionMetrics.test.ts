@@ -110,17 +110,16 @@ describe('computeInstitutionDashboardMetrics', () => {
     expect(merged.exercise_count).toBe(3)
   })
 
-  it('exclui dígito↔letra cruzados e texto longo do denominador (t67)', () => {
+  it('exclui texto longo contra gabarito de alternativa; dígito vs letra conta wrong', () => {
     const m = computeInstitutionDashboardMetrics({
       institutionId: 'i2',
       trailIds: ['t67'],
       studentsMap: {
         s1: {
           answers: {
-            '0|1|1': 'B', // casa com gabarito B
-            '0|1|2': '2', // dígito vs letra → fora do denom
+            '0|1|1': 'B', // certo
+            '0|1|2': '2', // dígito vs letra B → wrong (fica no denom)
             '0|1|3': 'texto longo que nao e alternativa', // fora
-            '0|1|4': 'A', // errado mas formato ok
           },
           extra_done: [],
         },
@@ -146,12 +145,6 @@ describe('computeInstitutionDashboardMetrics', () => {
           stage_number: 1,
           question_number: 3,
           correct_option: 'A',
-        },
-        {
-          trail_id: 't67',
-          stage_number: 1,
-          question_number: 4,
-          correct_option: 'B',
         },
       ],
       stages: [],

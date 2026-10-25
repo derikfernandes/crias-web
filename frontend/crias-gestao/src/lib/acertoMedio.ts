@@ -74,10 +74,7 @@ export function answersMatchGabarito(
   return Boolean(a && g && a === g)
 }
 
-/**
- * Fora do denominador: texto longo, ou dígito↔letra cruzados (t67),
- * para não inflar tried sem subir correct.
- */
+/** Texto longo contra gabarito A–D / 1–4: fora do denominador. */
 export function isNonOptionAgainstGabarito(
   studentAnswer: string,
   correctOption: string,
@@ -85,14 +82,10 @@ export function isNonOptionAgainstGabarito(
   const a = normalizeAnswerText(studentAnswer)
   const g = normalizeAnswerText(correctOption)
   if (!a || !g) return true
-  const gLetter = /^[a-d]$/i.test(g)
-  const gDigit = /^[1-4]$/.test(g)
-  if (!gLetter && !gDigit) return false
-  const aLetter = /^[a-d]$/i.test(a)
-  const aDigit = /^[1-4]$/.test(a)
-  if (!aLetter && !aDigit) return true
-  if ((gLetter && aDigit) || (gDigit && aLetter)) return true
-  return false
+  const gIsOption = /^[a-d]$/i.test(g) || /^[1-4]$/.test(g)
+  if (!gIsOption) return false
+  const aIsOption = /^[a-d]$/i.test(a) || /^[1-4]$/.test(a)
+  return !aIsOption
 }
 
 export function activityCellKey(

@@ -92,18 +92,10 @@ function answersMatch(studentAnswer: string, correctOption: string): boolean {
   return Boolean(a && g && a === g)
 }
 
-function isLetterOption(s: string): boolean {
-  return /^[a-d]$/i.test(s)
-}
-function isDigitOption(s: string): boolean {
-  return /^[1-4]$/.test(s)
-}
-
 /**
- * Fora do denominador (critério canônico 39108/56863):
- * - texto longo / chat contra gabarito A–D ou 1–4
- * - dígito contra gabarito letra (t67) ou letra contra gabarito dígito
- *   sem alias — senão tried sobe e correct fica parado (+548).
+ * Texto longo / enunciado colado contra gabarito de alternativa (A–D ou 1–4):
+ * fora do denominador. (dígito↔letra cruzados em t67 ficam como wrong —
+ * excluí-los derrubava tried abaixo de 56863 e subia % p/ 70,4%.)
  */
 function isNonOptionAgainstGabarito(
   studentAnswer: string,
@@ -112,14 +104,10 @@ function isNonOptionAgainstGabarito(
   const a = normalizeAnswer(studentAnswer)
   const g = normalizeAnswer(correctOption)
   if (!a || !g) return true
-  const gLetter = isLetterOption(g)
-  const gDigit = isDigitOption(g)
-  if (!gLetter && !gDigit) return false
-  const aLetter = isLetterOption(a)
-  const aDigit = isDigitOption(a)
-  if (!aLetter && !aDigit) return true // free-text / enunciado colado
-  if ((gLetter && aDigit) || (gDigit && aLetter)) return true
-  return false
+  const gIsOption = /^[a-d]$/i.test(g) || /^[1-4]$/.test(g)
+  if (!gIsOption) return false
+  const aIsOption = /^[a-d]$/i.test(a) || /^[1-4]$/.test(a)
+  return !aIsOption
 }
 
 function pct(n: number, d: number): number | null {

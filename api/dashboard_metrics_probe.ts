@@ -220,6 +220,21 @@ async function handleRequest(request: Request): Promise<Response> {
             top_no_gabarito_cells: slimCells(
               audit.current.by_cell_no_gabarito,
             ),
+            // Células 0% acerto (candidatas a gabarito novo sobre respostas velhas).
+            all_wrong_cells: slimCells(
+              audit.current.by_cell_in_denom.filter(
+                (c) =>
+                  (c.classes.graded_correct ?? 0) === 0 &&
+                  (c.classes.graded_wrong ?? 0) > 0,
+              ),
+            ),
+            all_wrong_tried: audit.current.by_cell_in_denom
+              .filter(
+                (c) =>
+                  (c.classes.graded_correct ?? 0) === 0 &&
+                  (c.classes.graded_wrong ?? 0) > 0,
+              )
+              .reduce((n, c) => n + (c.classes.graded_wrong ?? 0), 0),
           },
           active_trails_only: {
             denom: audit.active_trails_only.denom_current,

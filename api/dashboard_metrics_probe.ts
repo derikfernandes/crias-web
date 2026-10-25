@@ -149,6 +149,20 @@ async function readProbeBody(
       accuracy_correct: m.accuracy_correct,
       accuracy_tried: m.accuracy_tried,
       annulled_answers_excluded: m.annulled_answers_excluded ?? 0,
+      // Amostra t67 (gabarito letra): confere alias 1=A após warm.
+      t67_pills: (m.exercise_pills ?? [])
+        .filter((p) => p.trail_id === 't67')
+        .slice(0, 40)
+        .map((p) => ({
+          key: p.key,
+          stage: p.stage_number,
+          q: p.question_number,
+          gabarito: p.gabarito,
+          total: p.total,
+          correct: p.correct,
+          wrong: p.wrong,
+          accuracy_pct: p.accuracy_pct,
+        })),
       agent_0: agentSnap('0'),
       agent_7: agentSnap('7'),
       agent_30: agentSnap('30'),

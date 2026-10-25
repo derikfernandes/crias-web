@@ -686,6 +686,9 @@ export function DashboardPage() {
     }
     return seed
   })
+  const [metricsForceRefreshing, setMetricsForceRefreshing] = useState(false)
+  const stampPinRef = useRef<{ key: string; ms: number } | null>(null)
+  const [stampPinVersion, setStampPinVersion] = useState(0)
   const [metricsScopeKey, setMetricsScopeKey] = useState(() => {
     const ids = [...gestao.selectedIds].filter(Boolean).sort()
     if (ids.length === 0) return ''
@@ -1572,36 +1575,63 @@ export function DashboardPage() {
 
   const forceRefreshMetrics = () => {
     const ids = activeInstitutionIds
-    if (ids.length === 0) return
+    if (ids.length === 0 || metricsForceRefreshing) return
     void (async () => {
+      setMetricsForceRefreshing(true)
+      stampPinRef.current = null
+      setStampPinVersion((v) => v + 1)
       const next = new Map<string, InstitutionDashboardMetricsView>()
       for (const id of ids) {
         const prev = getCachedMetrics(id)
         if (prev) next.set(id, prev)
       }
-      for (const id of ids) {
-        try {
-          const m = await fetchInstitutionMetrics(id, {
-            force: true,
-            timeoutMs: 55_000,
-          })
-          next.set(id, m)
-        } catch {
-          // mantém
+      try {
+        for (const id of ids) {
+          try {
+            const m = await fetchInstitutionMetrics(id, {
+              force: true,
+              timeoutMs: 55_000,
+            })
+            next.set(id, m)
+          } catch {
+            // mantém
+          }
         }
-      }
-      setMetricsByInst(new Map(next))
-      if (ids.every((id) => next.has(id))) {
-        setMetricsScopeKey(selectedIdsKey)
-        applyAgentFromMetrics(selectedIdsKey, ids, next, agentPeriodDays)
+        setMetricsByInst(new Map(next))
+        if (ids.every((id) => next.has(id))) {
+          setMetricsScopeKey(selectedIdsKey)
+          applyAgentFromMetrics(selectedIdsKey, ids, next, agentPeriodDays)
+        }
+      } finally {
+        setMetricsForceRefreshing(false)
       }
     })()
   }
 
+  const stampScopeKey = activeInstitutionIds.join(',')
+  const stampAllReady =
+    activeInstitutionIds.length > 0 &&
+    activeInstitutionIds.every((id) => {
+      const at = metricsByInst.get(id)?.computedAt
+      return typeof at === 'number' && at > 0
+    })
+  const liveOldest = stampAllReady
+    ? oldestComputedAt(
+        activeInstitutionIds.map((id) => metricsByInst.get(id)?.computedAt),
+      )
+    : null
+  if (
+    liveOldest != null &&
+    (stampPinRef.current == null ||
+      stampPinRef.current.key !== stampScopeKey)
+  ) {
+    stampPinRef.current = { key: stampScopeKey, ms: liveOldest }
+  }
+  void stampPinVersion
   const metricsUpdatedAtLabel = formatAtualizadoAs(
-    oldestComputedAt(
-      activeInstitutionIds.map((id) => metricsByInst.get(id)?.computedAt),
-    ),
+    stampPinRef.current?.key === stampScopeKey
+      ? stampPinRef.current.ms
+      : null,
   )
 
   // Métricas pré-agregadas (KB): desbloqueia Acerto/Exercícios/Monitor/Conclusão
@@ -2709,6 +2739,7 @@ export function DashboardPage() {
 
     // Sem métricas do escopo atual: Carregando… (nunca % da instituição anterior).
     const completionLoading = !metricsReady || gate.avgAccuracyLoading
+    const countsLoading = !metricsReady
     return {
       activeStudents: metricsReady
         ? (mergedMetrics?.activeStudents ?? activeRows.length)
@@ -2725,6 +2756,7 @@ export function DashboardPage() {
       avgAccuracy: metricsReady ? avgAccuracy : null,
       avgAccuracyLoading: !metricsReady || gate.avgAccuracyLoading,
       completionLoading,
+      countsLoading,
     }
   }, [
     filteredStudentRows,
@@ -4008,6 +4040,7 @@ export function DashboardPage() {
       agentUsageUnavailable={!agentUsagePresent}
       metricsUpdatedAtLabel={metricsUpdatedAtLabel}
       onForceRefreshMetrics={forceRefreshMetrics}
+      metricsForceRefreshing={metricsForceRefreshing}
       selectedAgentTrailId={selectedAgentTrailId}
       onSelectAgentTrailId={setSelectedAgentTrailId}
       selectedAgentStudents={selectedAgentStudents}

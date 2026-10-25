@@ -73,6 +73,8 @@ export type DashboardSummaryView = {
   avgAccuracyLoading?: boolean
   /** Mesmo gate do acerto: nunca N/A em Conclusão enquanto carrega. */
   completionLoading?: boolean
+  /** Evita flash 0 em Alunos/Trilhas antes do doc de métricas. */
+  countsLoading?: boolean
 }
 
 export type DashboardStudentsChartBucket = {
@@ -328,4 +330,6 @@ export type DashboardPageViewProps = {
   /** Ex.: "Atualizado às 14:30" (Brasília); null se ainda sem métricas. */
   metricsUpdatedAtLabel?: string | null
   onForceRefreshMetrics?: () => void
+  /** Atualizar forçando recalc no servidor (pode levar dezenas de s). */
+  metricsForceRefreshing?: boolean
 }

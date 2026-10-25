@@ -176,9 +176,11 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 
   // Miss (ou refresh=1): gera com lock. Nunca 503 por cache vazio.
+  // Atualizar (refresh=1) força recalc mesmo com warm concorrente.
   try {
     const t0 = Date.now()
-    await warmInstitutionSummary(institutionId)
+    if (forceRefresh) metricsL1.delete(institutionId)
+    await warmInstitutionSummary(institutionId, { force: forceRefresh })
     const fresh = await readMetricsFromCache(db, institutionId, {
       allowStale: true,
     })

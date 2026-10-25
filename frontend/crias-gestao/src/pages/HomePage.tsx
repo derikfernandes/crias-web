@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
@@ -59,15 +59,24 @@ import {
 function StatsRow({
   m,
   metricsLoading,
+  countsLoading,
 }: {
   m: InstitutionMetrics
   /** Métricas do servidor ainda não chegaram → Carregando… (nunca % parcial). */
   metricsLoading?: boolean
+  /** Alunos/trilhas ainda não prontos → Carregando… (nunca 0 flash). */
+  countsLoading?: boolean
 }) {
   return (
     <div className="gx-stats">
-      <Stat label="Alunos ativos" value={m.activeStudents} />
-      <Stat label="Trilhas ativas" value={m.activeTrails} />
+      <Stat
+        label="Alunos ativos"
+        value={countsLoading ? 'Carregando…' : m.activeStudents}
+      />
+      <Stat
+        label="Trilhas ativas"
+        value={countsLoading ? 'Carregando…' : m.activeTrails}
+      />
       <Stat
         label="Conclusão média"
         hint="% de atividades concluídas (não por etapa)"
@@ -116,6 +125,7 @@ function SuperHome({
   metricsError,
   onRetryMetrics,
   onForceRefreshMetrics,
+  metricsForceRefreshing,
   metricsUpdatedAtLabel,
 }: {
   metrics: Map<string, InstitutionMetrics>
@@ -125,6 +135,7 @@ function SuperHome({
   metricsError: string | null
   onRetryMetrics: () => void
   onForceRefreshMetrics: () => void
+  metricsForceRefreshing?: boolean
   metricsUpdatedAtLabel?: string | null
 }) {
   const g = useGestao()
@@ -195,9 +206,11 @@ function SuperHome({
               type="button"
               className="gx-btn gx-btn--outline"
               onClick={onForceRefreshMetrics}
+              disabled={Boolean(metricsForceRefreshing)}
+              aria-busy={metricsForceRefreshing || undefined}
               title="Recalcular métricas no servidor"
             >
-              Atualizar
+              {metricsForceRefreshing ? 'Atualizando…' : 'Atualizar'}
             </button>
             {canNav('admin') ? (
               <Link to="/usuarios" className="gx-btn">
@@ -315,7 +328,9 @@ function SchoolHome({
   metricsError,
   onRetryMetrics,
   onForceRefreshMetrics,
+  metricsForceRefreshing,
   metricsUpdatedAtLabel,
+  countsLoading,
   trails,
   students,
   studentTrails,
@@ -327,7 +342,9 @@ function SchoolHome({
   metricsError?: string | null
   onRetryMetrics?: () => void
   onForceRefreshMetrics?: () => void
+  metricsForceRefreshing?: boolean
   metricsUpdatedAtLabel?: string | null
+  countsLoading?: boolean
   trails: Trail[]
   students: Student[]
   studentTrails: StudentTrail[]
@@ -468,9 +485,11 @@ function SchoolHome({
                 type="button"
                 className="gx-btn gx-btn--outline"
                 onClick={onForceRefreshMetrics}
+                disabled={Boolean(metricsForceRefreshing)}
+                aria-busy={metricsForceRefreshing || undefined}
                 title="Recalcular métricas no servidor"
               >
-                Atualizar
+                {metricsForceRefreshing ? 'Atualizando…' : 'Atualizar'}
               </button>
             ) : null}
           </>
@@ -528,7 +547,11 @@ function SchoolHome({
           </button>
         </p>
       ) : metrics ? (
-        <StatsRow m={metrics} metricsLoading={metricsLoading} />
+        <StatsRow
+          m={metrics}
+          metricsLoading={metricsLoading}
+          countsLoading={countsLoading}
+        />
       ) : null}
 
       {canNav('trail_new') ? (
@@ -710,6 +733,10 @@ export function HomePage() {
   )
   const [metricsError, setMetricsError] = useState<string | null>(null)
   const [metricsRetryKey, setMetricsRetryKey] = useState(0)
+  const [metricsForceRefreshing, setMetricsForceRefreshing] = useState(false)
+  /** Carimbo estável: só muda no settle inicial do escopo ou após Atualizar. */
+  const stampPinRef = useRef<{ key: string; ms: number } | null>(null)
+  const [stampPinVersion, setStampPinVersion] = useState(0)
 
   const instIdsKey = useMemo(
     () => g.institutions.map((i) => i.id).sort().join('|'),
@@ -814,39 +841,48 @@ export function HomePage() {
 
   /** Recalc explícito (refresh=1). Cron também regenera; load normal nunca força. */
   const forceRefreshMetrics = () => {
+    if (metricsForceRefreshing) return
     void (async () => {
       const ids = g.institutions.map((i) => i.id).filter(Boolean)
+      setMetricsForceRefreshing(true)
       setMetricsError(null)
       setMetricsFailed(new Set())
+      // Libera o carimbo para pegar o novo computed_at após o recalc.
+      stampPinRef.current = null
+      setStampPinVersion((v) => v + 1)
       const failed = new Set<string>()
       let firstError: string | null = null
-      for (const id of ids) {
-        try {
-          const m = await fetchInstitutionMetrics(id, {
-            force: true,
-            timeoutMs: 55_000,
-          })
-          setServerMetrics((prev) => {
-            const next = new Map(prev)
-            next.set(id, m)
-            return next
-          })
-        } catch (err) {
-          failed.add(id)
-          if (!firstError) {
-            firstError =
-              err instanceof Error
-                ? err.message
-                : 'Falha ao atualizar métricas.'
+      try {
+        for (const id of ids) {
+          try {
+            const m = await fetchInstitutionMetrics(id, {
+              force: true,
+              timeoutMs: 55_000,
+            })
+            setServerMetrics((prev) => {
+              const next = new Map(prev)
+              next.set(id, m)
+              return next
+            })
+          } catch (err) {
+            failed.add(id)
+            if (!firstError) {
+              firstError =
+                err instanceof Error
+                  ? err.message
+                  : 'Falha ao atualizar métricas.'
+            }
           }
         }
+        setMetricsFailed(failed)
+        setMetricsError(
+          failed.size > 0
+            ? firstError ?? `Falha ao atualizar (${failed.size}).`
+            : null,
+        )
+      } finally {
+        setMetricsForceRefreshing(false)
       }
-      setMetricsFailed(failed)
-      setMetricsError(
-        failed.size > 0
-          ? firstError ?? `Falha ao atualizar (${failed.size}).`
-          : null,
-      )
     })()
   }
 
@@ -920,6 +956,9 @@ export function HomePage() {
       if (sm) {
         map.set(inst.id, {
           ...local,
+          // Contagens do doc de métricas: evita flash 0 enquanto Firestore hidrata.
+          activeStudents: sm.activeStudents,
+          activeTrails: sm.activeTrails,
           avgAccuracy: sm.avgAccuracy,
           accuracyCorrect: sm.accuracyCorrect,
           accuracyTried: sm.accuracyTried,
@@ -957,11 +996,37 @@ export function HomePage() {
     : mine
       ? [mine.id]
       : []
+  const stampScopeKey = scopedIdsForStamp.join(',')
+  const stampAllReady =
+    scopedIdsForStamp.length > 0 &&
+    scopedIdsForStamp.every((id) => {
+      const at = serverMetrics.get(id)?.computedAt
+      return typeof at === 'number' && at > 0
+    })
+  const liveOldest = stampAllReady
+    ? oldestComputedAt(
+        scopedIdsForStamp.map((id) => serverMetrics.get(id)?.computedAt),
+      )
+    : null
+  // Pina o carimbo no 1º settle do escopo; SWR/background não altera.
+  if (
+    liveOldest != null &&
+    (stampPinRef.current == null ||
+      stampPinRef.current.key !== stampScopeKey)
+  ) {
+    stampPinRef.current = { key: stampScopeKey, ms: liveOldest }
+  }
+  void stampPinVersion
   const metricsUpdatedAtLabel = formatAtualizadoAs(
-    oldestComputedAt(
-      scopedIdsForStamp.map((id) => serverMetrics.get(id)?.computedAt),
-    ),
+    stampPinRef.current?.key === stampScopeKey
+      ? stampPinRef.current.ms
+      : null,
   )
+
+  const schoolCountsLoading =
+    Boolean(mine) &&
+    !serverMetrics.has(mine!.id) &&
+    !(students.ready && trails.ready)
 
   return (
     <>
@@ -986,6 +1051,7 @@ export function HomePage() {
           metricsError={metricsError}
           onRetryMetrics={retryMetrics}
           onForceRefreshMetrics={forceRefreshMetrics}
+          metricsForceRefreshing={metricsForceRefreshing}
           metricsUpdatedAtLabel={metricsUpdatedAtLabel}
         />
       ) : (
@@ -999,7 +1065,9 @@ export function HomePage() {
           metricsError={metricsError}
           onRetryMetrics={retryMetrics}
           onForceRefreshMetrics={forceRefreshMetrics}
+          metricsForceRefreshing={metricsForceRefreshing}
           metricsUpdatedAtLabel={metricsUpdatedAtLabel}
+          countsLoading={schoolCountsLoading}
           trails={trails.rows.filter((t) => t.institution_id === mine.id)}
           students={students.rows.filter((s) => s.institution_id === mine.id)}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}

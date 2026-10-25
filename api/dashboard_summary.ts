@@ -13,6 +13,7 @@ import {
   type AgentUsageRow,
 } from '../server/lib/agentUsage'
 import {
+  assertAnuladasExcludedFromAccuracy,
   computeInstitutionDashboardMetrics,
   type InstitutionDashboardMetrics,
 } from '../server/lib/dashboardInstitutionMetrics'
@@ -1056,11 +1057,13 @@ async function handleRequest(request: Request): Promise<Response> {
  */
 export async function warmInstitutionSummary(
   institutionId: string,
+  opts?: { force?: boolean },
 ): Promise<void> {
   const existing = recomputeInflight.get(institutionId)
   if (existing) {
     await existing
-    return
+    // Atualizar (force): não reutiliza o warm concorrente — recalcula de novo.
+    if (!opts?.force) return
   }
   const run = (async () => {
     try {
@@ -1068,13 +1071,16 @@ export async function warmInstitutionSummary(
       // Remove leftovers v1 (i2_s0 indexado) antes de gravar v2 payload.
       await deleteInstitutionCacheDocs(db, institutionId)
       const payload = await computeSummaryPayload(db, institutionId)
+      if (payload.metrics) {
+        assertAnuladasExcludedFromAccuracy(payload.metrics)
+      }
       summaryCache.set(institutionId, {
         expires: Date.now() + SUMMARY_CACHE_TTL_MS,
         payload,
       })
       await writeFirestoreCache(db, payload)
       console.info(
-        `[dashboard_summary] warm ok ${institutionId} students=${payload.student_count} exercises=${payload.metrics?.exercise_count ?? 0}`,
+        `[dashboard_summary] warm ok ${institutionId} students=${payload.student_count} exercises=${payload.metrics?.exercise_count ?? 0} acerto=${payload.metrics?.avg_accuracy ?? '?'} anuladas_excl=${payload.metrics?.annulled_answers_excluded ?? 0}`,
       )
     } finally {
       recomputeInflight.delete(institutionId)
@@ -1141,6 +1147,7 @@ export async function ensureMetricsFromExistingCache(
     title?: string
     correct_option?: string
     annulled?: boolean
+    annulled_at?: unknown
     active?: boolean
   }> = []
   if (trailIdList.length > 0) {
@@ -1167,6 +1174,7 @@ export async function ensureMetricsFromExistingCache(
               'title',
               'correct_option',
               'annulled',
+              'annulled_at',
               'active',
             )
             .get(),
@@ -1203,6 +1211,7 @@ export async function ensureMetricsFromExistingCache(
               ? data.correct_option
               : undefined,
           annulled: data.annulled === true,
+          annulled_at: data.annulled_at ?? null,
           active: data.active === false ? false : true,
         }
       }),
@@ -1242,6 +1251,7 @@ export async function ensureMetricsFromExistingCache(
     stages,
     agentUsageByPeriod: existing.payload.agent_usage_by_period,
   })
+  assertAnuladasExcludedFromAccuracy(metrics)
 
   const payload: SummaryPayload = { ...existing.payload, metrics }
   summaryCache.set(institutionId, {
@@ -1405,6 +1415,7 @@ async function computeSummaryPayload(
     title?: string
     correct_option?: string
     annulled?: boolean
+    annulled_at?: unknown
     active?: boolean
   }> = []
   if (trailIdList.length > 0) {
@@ -1431,6 +1442,7 @@ async function computeSummaryPayload(
               'title',
               'correct_option',
               'annulled',
+              'annulled_at',
               'active',
             )
             .get(),
@@ -1467,6 +1479,7 @@ async function computeSummaryPayload(
               ? data.correct_option
               : undefined,
           annulled: data.annulled === true,
+          annulled_at: data.annulled_at ?? null,
           active: data.active === false ? false : true,
         }
       }),

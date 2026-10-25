@@ -281,9 +281,11 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                 type="button"
                 className="gx-btn gx-btn--outline"
                 onClick={p.onForceRefreshMetrics}
+                disabled={Boolean(p.metricsForceRefreshing)}
+                aria-busy={p.metricsForceRefreshing || undefined}
                 title="Recalcular métricas no servidor"
               >
-                Atualizar
+                {p.metricsForceRefreshing ? 'Atualizando…' : 'Atualizar'}
               </button>
             ) : null}
           </>
@@ -354,11 +356,15 @@ export function DashboardPageView(p: DashboardPageViewProps) {
       >
         <div className="gx-stat">
           <span>Alunos ativos</span>
-          <strong>{p.summary.activeStudents}</strong>
+          <strong>
+            {p.summary.countsLoading ? 'Carregando…' : p.summary.activeStudents}
+          </strong>
         </div>
         <div className="gx-stat">
           <span>Trilhas ativas</span>
-          <strong>{p.summary.activeTrails}</strong>
+          <strong>
+            {p.summary.countsLoading ? 'Carregando…' : p.summary.activeTrails}
+          </strong>
         </div>
         <div className="gx-stat">
           <span title="% de atividades concluídas">

@@ -141,7 +141,9 @@ async function readProbeBody(
       avg_lesson_completion: m.avg_lesson_completion,
       exercise_count: m.exercise_count,
       active_students: m.active_students,
+      accuracy_correct: m.accuracy_correct,
       accuracy_tried: m.accuracy_tried,
+      annulled_answers_excluded: m.annulled_answers_excluded ?? 0,
       agent_0: agentSnap('0'),
       agent_7: agentSnap('7'),
       agent_30: agentSnap('30'),
@@ -203,7 +205,8 @@ async function handleRequest(request: Request): Promise<Response> {
       for (const id of ids) {
         const t0 = Date.now()
         try {
-          await warmInstitutionSummary(id)
+          // force: garante recalc fresco (não coalesça com warm em voo).
+          await warmInstitutionSummary(id, { force: true })
           const probe = await readProbeBody(db, id, t0)
           warmed[id] = {
             ok: probe.body.ok === true,
@@ -220,6 +223,18 @@ async function handleRequest(request: Request): Promise<Response> {
               typeof probe.body.avg_accuracy === 'number' ||
               probe.body.avg_accuracy === null
                 ? (probe.body.avg_accuracy as number | null)
+                : undefined,
+            accuracy_correct:
+              typeof probe.body.accuracy_correct === 'number'
+                ? probe.body.accuracy_correct
+                : undefined,
+            accuracy_tried:
+              typeof probe.body.accuracy_tried === 'number'
+                ? probe.body.accuracy_tried
+                : undefined,
+            annulled_answers_excluded:
+              typeof probe.body.annulled_answers_excluded === 'number'
+                ? probe.body.annulled_answers_excluded
                 : undefined,
             exercise_count:
               typeof probe.body.exercise_count === 'number'
@@ -258,7 +273,7 @@ async function handleRequest(request: Request): Promise<Response> {
     }
 
     if (warm) {
-      await warmInstitutionSummary(institutionId)
+      await warmInstitutionSummary(institutionId, { force: true })
     } else if (ensure) {
       await ensureMetricsFromExistingCache(institutionId)
     }

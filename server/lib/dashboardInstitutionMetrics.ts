@@ -53,6 +53,8 @@ export type InstitutionDashboardMetrics = {
   avg_accuracy: number | null
   accuracy_correct: number
   accuracy_tried: number
+  /** Respostas em células anuladas que NÃO entraram no denominador. */
+  annulled_answers_excluded: number
   exercise_count: number
   worst_pills: MetricsPill[]
   best_pills: MetricsPill[]
@@ -102,6 +104,8 @@ export type MetricsQuestion = {
   title?: string
   correct_option?: string
   annulled?: boolean
+  /** Se presente, trata como anulada mesmo sem flag boolean. */
+  annulled_at?: unknown
   active?: boolean
 }
 
@@ -164,7 +168,8 @@ export function computeInstitutionDashboardMetrics(input: {
   for (const q of input.questions) {
     if (q.active === false) continue
     const key = `${q.trail_id}|${q.stage_number}|${q.question_number}`
-    if (q.annulled === true) {
+    const isAnnulled = q.annulled === true || q.annulled_at != null
+    if (isAnnulled) {
       annulled.add(key)
       continue
     }
@@ -206,6 +211,7 @@ export function computeInstitutionDashboardMetrics(input: {
   let releasedTotal = 0
   let lessonsDoneTotal = 0
   let lessonsReleasedTotal = 0
+  let annulledAnswersExcluded = 0
 
   const pillAgg = new Map<
     string,
@@ -274,7 +280,10 @@ export function computeInstitutionDashboardMetrics(input: {
         if (isNonGradable(answer)) continue
         const expanded = expandCompact(compact, trailIdList)
         if (!expanded) continue
-        if (annulled.has(expanded)) continue
+        if (annulled.has(expanded)) {
+          annulledAnswersExcluded += 1
+          continue
+        }
         const g = gabarito.get(expanded)
         if (!g) continue
         const [trailId, stageStr, qStr] = expanded.split('|')
@@ -422,6 +431,7 @@ export function computeInstitutionDashboardMetrics(input: {
     avg_accuracy: pct(accuracyCorrect, accuracyTried),
     accuracy_correct: accuracyCorrect,
     accuracy_tried: accuracyTried,
+    annulled_answers_excluded: annulledAnswersExcluded,
     exercise_count: exercisePills.length,
     worst_pills: worst,
     best_pills: best,
@@ -429,6 +439,40 @@ export function computeInstitutionDashboardMetrics(input: {
     stage_bars,
     students,
     agent_usage_by_period: input.agentUsageByPeriod,
+  }
+}
+
+/** Chaves canônicas Sol (t47) que NUNCA podem entrar no denominador. */
+export const SOL_ANNULLED_EXERCISE_KEYS = [
+  't47|7|15',
+  't47|7|16',
+  't47|7|52',
+] as const
+
+/**
+ * Falha se alguma célula anulada conhecida (ou do set `annulled`)
+ * aparecer em exercise_pills / worst / best — ou seja, entrou no acerto.
+ */
+export function assertAnuladasExcludedFromAccuracy(
+  metrics: InstitutionDashboardMetrics,
+  annulledKeys: Iterable<string> = SOL_ANNULLED_EXERCISE_KEYS,
+): void {
+  const banned = new Set(
+    [...annulledKeys].map((k) => k.trim()).filter(Boolean),
+  )
+  if (banned.size === 0) return
+  const offenders: string[] = []
+  for (const pill of [
+    ...metrics.exercise_pills,
+    ...metrics.worst_pills,
+    ...metrics.best_pills,
+  ]) {
+    if (banned.has(pill.key)) offenders.push(pill.key)
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `Acerto incluiu células anuladas no denominador: ${[...new Set(offenders)].join(', ')}`,
+    )
   }
 }
 

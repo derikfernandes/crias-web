@@ -64,49 +64,20 @@ export function isNonGradableAnswer(raw: string): boolean {
   return isUiCommandText(s)
 }
 
-/** 1↔A … 4↔D quando gabarito/resposta são alternativa curta. */
-function optionAliases(raw: string): Set<string> {
-  const s = normalizeAnswerText(raw).toLowerCase()
-  const out = new Set<string>()
-  if (!s) return out
-  out.add(s)
-  const letterToDigit: Record<string, string> = {
-    a: '1',
-    b: '2',
-    c: '3',
-    d: '4',
-  }
-  const digitToLetter: Record<string, string> = {
-    '1': 'a',
-    '2': 'b',
-    '3': 'c',
-    '4': 'd',
-  }
-  if (letterToDigit[s]) out.add(letterToDigit[s])
-  if (digitToLetter[s]) out.add(digitToLetter[s])
-  return out
-}
-
-/** Mesma regra do server (`answersMatch`): igualdade + alias 1↔A. */
+/** Mesma regra do server (`answersMatch`): igualdade normalizada. */
 export function answersMatchGabarito(
   studentAnswer: string,
   correctOption: string,
 ): boolean {
   const a = normalizeAnswerText(studentAnswer).toLowerCase()
   const g = normalizeAnswerText(correctOption).toLowerCase()
-  if (!a || !g) return false
-  if (a === g) return true
-  if (a.length === 1 && g.length === 1) {
-    const aa = optionAliases(a)
-    const gg = optionAliases(g)
-    for (const x of aa) {
-      if (gg.has(x)) return true
-    }
-  }
-  return false
+  return Boolean(a && g && a === g)
 }
 
-/** Texto longo contra gabarito A–D / 1–4: fora do denominador. */
+/**
+ * Fora do denominador: texto longo, ou dígito↔letra cruzados (t67),
+ * para não inflar tried sem subir correct.
+ */
 export function isNonOptionAgainstGabarito(
   studentAnswer: string,
   correctOption: string,
@@ -114,10 +85,14 @@ export function isNonOptionAgainstGabarito(
   const a = normalizeAnswerText(studentAnswer)
   const g = normalizeAnswerText(correctOption)
   if (!a || !g) return true
-  const gIsOption = /^[a-d]$/i.test(g) || /^[1-4]$/.test(g)
-  if (!gIsOption) return false
-  const aIsOption = /^[a-d]$/i.test(a) || /^[1-4]$/.test(a)
-  return !aIsOption
+  const gLetter = /^[a-d]$/i.test(g)
+  const gDigit = /^[1-4]$/.test(g)
+  if (!gLetter && !gDigit) return false
+  const aLetter = /^[a-d]$/i.test(a)
+  const aDigit = /^[1-4]$/.test(a)
+  if (!aLetter && !aDigit) return true
+  if ((gLetter && aDigit) || (gDigit && aLetter)) return true
+  return false
 }
 
 export function activityCellKey(

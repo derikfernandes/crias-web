@@ -110,16 +110,17 @@ describe('computeInstitutionDashboardMetrics', () => {
     expect(merged.exercise_count).toBe(3)
   })
 
-  it('alias 1↔A e exclui texto longo contra gabarito de alternativa', () => {
+  it('exclui dígito↔letra cruzados e texto longo do denominador (t67)', () => {
     const m = computeInstitutionDashboardMetrics({
       institutionId: 'i2',
       trailIds: ['t67'],
       studentsMap: {
         s1: {
           answers: {
-            '0|1|1': '2', // gabarito B → certo via alias
-            '0|1|2': '1', // gabarito B → errado
-            '0|1|3': 'texto longo que nao e alternativa', // fora do denom
+            '0|1|1': 'B', // casa com gabarito B
+            '0|1|2': '2', // dígito vs letra → fora do denom
+            '0|1|3': 'texto longo que nao e alternativa', // fora
+            '0|1|4': 'A', // errado mas formato ok
           },
           extra_done: [],
         },
@@ -145,6 +146,12 @@ describe('computeInstitutionDashboardMetrics', () => {
           stage_number: 1,
           question_number: 3,
           correct_option: 'A',
+        },
+        {
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 4,
+          correct_option: 'B',
         },
       ],
       stages: [],

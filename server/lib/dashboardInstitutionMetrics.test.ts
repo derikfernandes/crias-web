@@ -110,6 +110,55 @@ describe('computeInstitutionDashboardMetrics', () => {
     expect(merged.exercise_count).toBe(3)
   })
 
+  it('alias 1↔A e exclui texto longo contra gabarito de alternativa', () => {
+    const m = computeInstitutionDashboardMetrics({
+      institutionId: 'i2',
+      trailIds: ['t67'],
+      studentsMap: {
+        s1: {
+          answers: {
+            '0|1|1': '2', // gabarito B → certo via alias
+            '0|1|2': '1', // gabarito B → errado
+            '0|1|3': 'texto longo que nao e alternativa', // fora do denom
+          },
+          extra_done: [],
+        },
+      },
+      students: [{ id: 's1', active: true }],
+      trails: [{ id: 't67', active: true }],
+      studentTrails: [{ student_id: 's1', trail_id: 't67' }],
+      questions: [
+        {
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 1,
+          correct_option: 'B',
+        },
+        {
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 2,
+          correct_option: 'B',
+        },
+        {
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 3,
+          correct_option: 'A',
+        },
+      ],
+      stages: [],
+      agentUsageByPeriod: {
+        '0': emptyAgent,
+        '7': emptyAgent,
+        '30': emptyAgent,
+      },
+    })
+    expect(m.accuracy_correct).toBe(1)
+    expect(m.accuracy_tried).toBe(2)
+    expect(m.avg_accuracy).toBe(50)
+  })
+
   it('exclui células anuladas (annulled / annulled_at) do denominador', () => {
     // t47|7|15, 7|16, 7|52: canônicas Sol — respostas NÃO entram no acerto.
     const trailIds = ['t47']

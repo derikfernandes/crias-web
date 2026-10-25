@@ -86,10 +86,60 @@ function isNonGradable(raw: string): boolean {
   return isUiCommandText(s)
 }
 
+/** 1↔A … 4↔D (gabarito letra vs resposta dígito na Sol t67). */
+function optionAliases(raw: string): Set<string> {
+  const s = normalizeAnswer(raw).toLowerCase()
+  const out = new Set<string>()
+  if (!s) return out
+  out.add(s)
+  const letterToDigit: Record<string, string> = {
+    a: '1',
+    b: '2',
+    c: '3',
+    d: '4',
+  }
+  const digitToLetter: Record<string, string> = {
+    '1': 'a',
+    '2': 'b',
+    '3': 'c',
+    '4': 'd',
+  }
+  if (letterToDigit[s]) out.add(letterToDigit[s])
+  if (digitToLetter[s]) out.add(digitToLetter[s])
+  return out
+}
+
 function answersMatch(studentAnswer: string, correctOption: string): boolean {
   const a = normalizeAnswer(studentAnswer).toLowerCase()
   const g = normalizeAnswer(correctOption).toLowerCase()
-  return Boolean(a && g && a === g)
+  if (!a || !g) return false
+  if (a === g) return true
+  // Só alias de alternativa curta (1 caractere). Texto longo ≠ gabarito.
+  if (a.length === 1 && g.length === 1) {
+    const aa = optionAliases(a)
+    const gg = optionAliases(g)
+    for (const x of aa) {
+      if (gg.has(x)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Resposta que não pode casar com gabarito de alternativa (chat / enunciado).
+ * Fora do denominador — alinhado a acertoMedio (só alternativa gradável).
+ */
+function isNonOptionAgainstGabarito(
+  studentAnswer: string,
+  correctOption: string,
+): boolean {
+  const a = normalizeAnswer(studentAnswer)
+  const g = normalizeAnswer(correctOption)
+  if (!a || !g) return true
+  const gIsOption = /^[a-d]$/i.test(g) || /^[1-4]$/.test(g)
+  if (!gIsOption) return false
+  const aIsOption = /^[a-d]$/i.test(a) || /^[1-4]$/.test(a)
+  return !aIsOption
 }
 
 function pct(n: number, d: number): number | null {
@@ -286,6 +336,8 @@ export function computeInstitutionDashboardMetrics(input: {
         }
         const g = gabarito.get(expanded)
         if (!g) continue
+        // Chat / texto de alternativa colado: não entra no denominador.
+        if (isNonOptionAgainstGabarito(answer, g)) continue
         const [trailId, stageStr, qStr] = expanded.split('|')
         const stage = Number(stageStr)
         const qn = Number(qStr)

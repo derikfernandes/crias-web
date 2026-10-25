@@ -16,7 +16,13 @@ import {
   assertAnuladasExcludedFromAccuracy,
   computeInstitutionDashboardMetrics,
   type InstitutionDashboardMetrics,
+  type MetricsQuestion,
 } from '../server/lib/dashboardInstitutionMetrics'
+import {
+  auditSolDenom,
+  summarizeDenomDelta,
+  type DenomAuditResult,
+} from '../server/lib/auditSolDenom'
 import {
   canAccessInstitution,
   requireGestaoAdminFromRequest,
@@ -1271,6 +1277,142 @@ function scheduleSummaryRecompute(_db: Firestore, institutionId: string): void {
   void warmInstitutionSummary(institutionId).catch((err) => {
     console.warn('[dashboard_summary] recompute falhou', institutionId, err)
   })
+}
+
+/**
+ * Auditoria RO do denominador (Sol +548 vs 56863) a partir do cache + catálogo.
+ */
+export async function auditInstitutionDenomFromCache(
+  institutionId: string,
+): Promise<{
+  ok: boolean
+  current: DenomAuditResult
+  active_trails_only: DenomAuditResult
+  delta: ReturnType<typeof summarizeDenomDelta>
+  delta_active_trails_only: ReturnType<typeof summarizeDenomDelta>
+  error?: string
+}> {
+  const db = getDb()
+  const existing = await readFirestoreCache(db, institutionId, {
+    allowStale: true,
+  })
+  if (!existing) {
+    const empty = auditSolDenom({
+      institutionId,
+      trailIds: [],
+      studentsMap: {},
+      students: [],
+      trails: [],
+      questions: [],
+    })
+    return {
+      ok: false,
+      current: empty,
+      active_trails_only: empty,
+      delta: summarizeDenomDelta(empty),
+      delta_active_trails_only: summarizeDenomDelta(empty),
+      error: 'cache ausente',
+    }
+  }
+
+  const studentsCollection = process.env.STUDENTS_COLLECTION ?? 'students'
+  const trailsCollection = process.env.TRAILS_COLLECTION ?? 'trails'
+  const questionsCollection =
+    process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+
+  const trailIdList = existing.payload.trail_ids
+  const [studentsSnap, trailsSnap] = await Promise.all([
+    db
+      .collection(studentsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('name', 'active')
+      .get(),
+    db
+      .collection(trailsCollection)
+      .where('institution_id', '==', institutionId)
+      .select('name', 'active')
+      .get(),
+  ])
+
+  let questions: MetricsQuestion[] = []
+  if (trailIdList.length > 0) {
+    const trailChunks = chunkArray(trailIdList, FIRESTORE_IN_LIMIT)
+    const questionSnaps = await Promise.all(
+      trailChunks.map((chunk) =>
+        db
+          .collection(questionsCollection)
+          .where('trail_id', 'in', chunk)
+          .select(
+            'trail_id',
+            'stage_number',
+            'question_number',
+            'title',
+            'correct_option',
+            'annulled',
+            'annulled_at',
+            'active',
+          )
+          .get(),
+      ),
+    )
+    questions = questionSnaps.flatMap((snap) =>
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>
+        return {
+          trail_id: typeof data.trail_id === 'string' ? data.trail_id : '',
+          stage_number:
+            typeof data.stage_number === 'number' ? data.stage_number : 0,
+          question_number:
+            typeof data.question_number === 'number'
+              ? data.question_number
+              : 0,
+          title: typeof data.title === 'string' ? data.title : undefined,
+          correct_option:
+            typeof data.correct_option === 'string'
+              ? data.correct_option
+              : undefined,
+          annulled: data.annulled === true,
+          annulled_at: data.annulled_at ?? null,
+          active: data.active === false ? false : true,
+        }
+      }),
+    )
+  }
+
+  const students = studentsSnap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>
+    return {
+      id: d.id,
+      name: typeof data.name === 'string' ? data.name : d.id,
+      active: data.active === false ? false : true,
+    }
+  })
+  const trails = trailsSnap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>
+    return {
+      id: d.id,
+      name: typeof data.name === 'string' ? data.name : d.id,
+      active: data.active === false ? false : true,
+    }
+  })
+
+  const base = {
+    institutionId,
+    trailIds: trailIdList,
+    studentsMap: existing.payload.students,
+    students,
+    trails,
+    questions,
+  }
+  const current = auditSolDenom(base)
+  const activeOnly = auditSolDenom({ ...base, activeTrailsOnly: true })
+  return {
+    ok: true,
+    current,
+    active_trails_only: activeOnly,
+    delta: summarizeDenomDelta(current),
+    delta_active_trails_only: summarizeDenomDelta(activeOnly),
+  }
 }
 
 async function computeSummaryPayload(

@@ -14,6 +14,7 @@ import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admi
 import { getFirestore } from 'firebase-admin/firestore'
 
 import {
+  auditInstitutionDenomFromCache,
   ensureMetricsFromExistingCache,
   readMetricsFromCache,
   warmInstitutionSummary,
@@ -175,12 +176,74 @@ async function handleRequest(request: Request): Promise<Response> {
   const warmAll = url.searchParams.get('warm_all') === '1'
   const warm = url.searchParams.get('warm') === '1'
   const ensure = url.searchParams.get('ensure') === '1'
+  const auditDenom = url.searchParams.get('audit_denom') === '1'
   const institutionId =
     url.searchParams.get('institution_id')?.trim() || 'i2'
   const started = Date.now()
 
   try {
     const db = getDb()
+
+    if (auditDenom) {
+      const audit = await auditInstitutionDenomFromCache(institutionId)
+      // Resposta enxuta: top células + shapes (evita payload enorme).
+      const slimCells = (cells: typeof audit.current.top_denom_cells) =>
+        cells.slice(0, 40).map((c) => ({
+          key: c.key,
+          gabarito: c.gabarito,
+          trail_active: c.trail_active,
+          count: c.count,
+          graded_correct: c.classes.graded_correct ?? 0,
+          graded_wrong: c.classes.graded_wrong ?? 0,
+          sample: c.sample_answers.slice(0, 5),
+        }))
+      return new Response(
+        JSON.stringify({
+          ok: audit.ok,
+          status: audit.ok ? 200 : 404,
+          institution_id: institutionId,
+          ms: Date.now() - started,
+          error: audit.error,
+          canonical: { correct: 39108, tried: 56863, avg: 68.8 },
+          delta: audit.delta,
+          delta_active_trails_only: audit.delta_active_trails_only,
+          current: {
+            denom: audit.current.denom_current,
+            correct: audit.current.correct_current,
+            no_gabarito: audit.current.no_gabarito,
+            denom_cells_empty_gabarito:
+              audit.current.denom_cells_empty_gabarito,
+            totals: audit.current.totals,
+            wrong_answer_shapes: audit.current.wrong_answer_shapes,
+            top_denom_cells: slimCells(audit.current.top_denom_cells),
+            top_no_gabarito_cells: slimCells(
+              audit.current.by_cell_no_gabarito,
+            ),
+          },
+          active_trails_only: {
+            denom: audit.active_trails_only.denom_current,
+            correct: audit.active_trails_only.correct_current,
+            no_gabarito: audit.active_trails_only.no_gabarito,
+            totals: audit.active_trails_only.totals,
+            wrong_answer_shapes:
+              audit.active_trails_only.wrong_answer_shapes,
+            top_denom_cells: slimCells(
+              audit.active_trails_only.top_denom_cells,
+            ),
+            top_no_gabarito_cells: slimCells(
+              audit.active_trails_only.by_cell_no_gabarito,
+            ),
+          },
+        }),
+        {
+          status: audit.ok ? 200 : 404,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            ...cors(),
+          },
+        },
+      )
+    }
 
     if (warmAll) {
       const ids = await listInstitutionIds(db)

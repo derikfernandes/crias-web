@@ -50,6 +50,11 @@ export type InstitutionDashboardMetrics = {
   active_trails: number
   avg_completion: number | null
   avg_lesson_completion: number | null
+  /** Totais para merge multi-inst (ficam no meta mesmo com students no sidecar). */
+  completion_done: number
+  completion_released: number
+  lesson_completion_done: number
+  lesson_completion_released: number
   avg_accuracy: number | null
   accuracy_correct: number
   accuracy_tried: number
@@ -448,6 +453,10 @@ export function computeInstitutionDashboardMetrics(input: {
     active_trails: activeTrails.length,
     avg_completion: pct(doneTotal, releasedTotal),
     avg_lesson_completion: pct(lessonsDoneTotal, lessonsReleasedTotal),
+    completion_done: doneTotal,
+    completion_released: releasedTotal,
+    lesson_completion_done: lessonsDoneTotal,
+    lesson_completion_released: lessonsReleasedTotal,
     avg_accuracy: pct(accuracyCorrect, accuracyTried),
     accuracy_correct: accuracyCorrect,
     accuracy_tried: accuracyTried,
@@ -521,6 +530,10 @@ export function mergeInstitutionMetrics(
   | 'exercise_count'
   | 'avg_completion'
   | 'avg_lesson_completion'
+  | 'completion_done'
+  | 'completion_released'
+  | 'lesson_completion_done'
+  | 'lesson_completion_released'
 > {
   let active_students = 0
   let active_trails = 0
@@ -537,12 +550,30 @@ export function mergeInstitutionMetrics(
     accuracy_correct += p.accuracy_correct
     accuracy_tried += p.accuracy_tried
     exercise_count += p.exercise_count
-    // Reconstitui totais a partir das % quando possível via students
-    for (const s of p.students) {
-      done += s.done
-      released += s.released
-      lessonsDone += s.lessons_done
-      lessonsReleased += s.lessons_released
+    // Preferir totais escalares (meta); fallback students (sidecar).
+    if (
+      typeof p.completion_released === 'number' &&
+      p.completion_released > 0
+    ) {
+      done += p.completion_done || 0
+      released += p.completion_released
+    } else {
+      for (const s of p.students) {
+        done += s.done
+        released += s.released
+      }
+    }
+    if (
+      typeof p.lesson_completion_released === 'number' &&
+      p.lesson_completion_released > 0
+    ) {
+      lessonsDone += p.lesson_completion_done || 0
+      lessonsReleased += p.lesson_completion_released
+    } else {
+      for (const s of p.students) {
+        lessonsDone += s.lessons_done
+        lessonsReleased += s.lessons_released
+      }
     }
   }
   return {
@@ -554,5 +585,9 @@ export function mergeInstitutionMetrics(
     avg_accuracy: pct(accuracy_correct, accuracy_tried),
     avg_completion: pct(done, released),
     avg_lesson_completion: pct(lessonsDone, lessonsReleased),
+    completion_done: done,
+    completion_released: released,
+    lesson_completion_done: lessonsDone,
+    lesson_completion_released: lessonsReleased,
   }
 }

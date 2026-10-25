@@ -682,6 +682,23 @@ async function readFirestoreCache(
 }
 
 /** Lê só o doc meta (métricas + agent) — sem chunks de answers. */
+/** Só o carimbo do meta — barato para invalidar L1 entre instâncias. */
+export async function peekMetricsComputedAt(
+  db: Firestore,
+  institutionId: string,
+): Promise<number | null> {
+  const metaSnap = await db.collection(CACHE_COLLECTION).doc(institutionId).get()
+  if (!metaSnap.exists) return null
+  const meta = metaSnap.data() as Record<string, unknown>
+  const computedAt =
+    typeof meta.computed_at === 'number'
+      ? meta.computed_at
+      : typeof meta.updatedAt === 'number'
+        ? meta.updatedAt
+        : 0
+  return computedAt > 0 ? computedAt : null
+}
+
 export async function readMetricsFromCache(
   db: Firestore,
   institutionId: string,
@@ -716,7 +733,8 @@ export async function readMetricsFromCache(
     ...metrics,
     agent_usage_by_period: inflateAgentUsageByPeriod(agentRaw),
   }
-  if (!metrics.computed_at) metrics.computed_at = computedAt
+  // Meta.computed_at é a fonte de verdade (escrito no commit do warm).
+  metrics.computed_at = computedAt
   if (!metrics.institution_id) metrics.institution_id = institutionId
   metrics = (await inflateMetricsSidecar(
     db,
@@ -794,8 +812,12 @@ async function writeFirestoreCache(
 
   const agentCompact = compactAgentUsageByPeriod(payload.agent_usage_by_period)
   const agentUsageBytes = JSON.stringify(agentCompact).length
-  const packed = payload.metrics
-    ? packMetricsForMeta(payload.metrics, agentUsageBytes)
+  // Grava o mesmo carimbo no blob e no meta (F5 lê o blob via decode).
+  const metricsForWrite = payload.metrics
+    ? { ...payload.metrics, computed_at: now }
+    : null
+  const packed = metricsForWrite
+    ? packMetricsForMeta(metricsForWrite, agentUsageBytes)
     : null
 
   const metaBlob: MetaPayloadBlob = {
@@ -901,7 +923,8 @@ async function writeMetricsOnly(
   }
 
   const agentUsageBytes = JSON.stringify(agentUsage).length
-  const packed = packMetricsForMeta(metrics, agentUsageBytes)
+  const metricsForWrite = { ...metrics, computed_at: now }
+  const packed = packMetricsForMeta(metricsForWrite, agentUsageBytes)
   const metaBlob: MetaPayloadBlob = {
     trail_ids: trailIds,
     agent_usage_by_period: agentUsage,

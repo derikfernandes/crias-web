@@ -110,6 +110,8 @@ export type DashboardStudentsLessonBar = {
 
 export type DashboardStudentsChartsView = {
   studentCount: number
+  /** true até métricas/linhas chegarem — UI mostra Carregando… (nunca 0). */
+  loading?: boolean
   completionBuckets: DashboardStudentsChartBucket[]
   statuses: DashboardStudentsStatus[]
   lessonBars: DashboardStudentsLessonBar[]
@@ -241,6 +243,8 @@ export type DashboardPageViewProps = {
   annulledAnswersExcluded: number
   filteredStudentCount: number
   totalStudentCount: number
+  /** true enquanto alunos do escopo ainda carregam (evita Alunos (0) flash). */
+  studentsCountLoading?: boolean
   /** true enquanto exercícios do escopo ainda carregam (evita Exercícios (0) flash). */
   exercisesLoading?: boolean
   questionPickerLabel: string

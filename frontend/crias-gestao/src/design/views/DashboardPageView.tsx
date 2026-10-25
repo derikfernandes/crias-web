@@ -244,6 +244,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
 
   const refreshing = Boolean(p.isDashboardRefreshing)
   const charts = p.studentsCharts
+  const chartsLoading = Boolean(charts.loading)
   const bucketMax = Math.max(0, ...charts.completionBuckets.map((b) => b.count))
   const statusMax = Math.max(0, ...charts.statuses.map((b) => b.count))
   const lessonMax = Math.max(1, ...charts.lessonBars.map((b) => b.count))
@@ -445,76 +446,88 @@ export function DashboardPageView(p: DashboardPageViewProps) {
 
       {p.activeTab === 'students' ? (
         <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px 16px' }}>
-          <section className="gx-card">
+          <section className="gx-card" aria-busy={chartsLoading || undefined}>
             <h2 style={{ fontSize: 16 }}>Conclusão das atividades</h2>
-            {charts.completionBuckets.map((b) => (
-              <BarRow key={b.key} label={b.label} count={b.count} max={bucketMax} />
-            ))}
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              charts.completionBuckets.map((b) => (
+                <BarRow key={b.key} label={b.label} count={b.count} max={bucketMax} />
+              ))
+            )}
           </section>
-          <section className="gx-card">
+          <section className="gx-card" aria-busy={chartsLoading || undefined}>
             <h2 style={{ fontSize: 16 }}>Situação dos alunos</h2>
-            {charts.statuses.map((b) => (
-              <BarRow
-                key={b.key}
-                label={b.key === 'completed' ? 'Concluiu' : b.label}
-                count={b.count}
-                max={statusMax}
-                labelWidth={100}
-              />
-            ))}
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              charts.statuses.map((b) => (
+                <BarRow
+                  key={b.key}
+                  label={b.key === 'completed' ? 'Concluiu' : b.label}
+                  count={b.count}
+                  max={statusMax}
+                  labelWidth={100}
+                />
+              ))
+            )}
           </section>
-          <section className="gx-card gx-card--chart">
+          <section className="gx-card gx-card--chart" aria-busy={chartsLoading || undefined}>
             <h2 style={{ fontSize: 16 }}>Alunos por etapa concluída</h2>
-            <div className="gx-lesson-chart" role="img" aria-label="Alunos por etapa concluída">
-              <div
-                className="gx-lesson-chart__track"
-                style={
-                  {
-                    ['--gx-lesson-cols']: String(
-                      Math.max(1, charts.lessonBars.length),
-                    ),
-                  } as CSSProperties
-                }
-              >
-                {charts.lessonBars.map((b) => {
-                  const tip =
-                    b.enrolledCount === 0
-                      ? `${b.fullLabel ?? b.label}: sem alunos`
-                      : `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
-                  const barH =
-                    b.count > 0 && lessonMax > 0
-                      ? Math.max(8, (b.count / lessonMax) * 80)
-                      : 0
-                  // Label pode ter quebra (Inst\nE1); white-space: normal no CSS.
-                  const shortLabel = b.label.trim() || 'E?'
-                  return (
-                    <div
-                      key={b.key}
-                      className="gx-lesson-chart__col"
-                      tabIndex={0}
-                      aria-label={tip}
-                    >
-                      <span className="gx-lesson-chart__tip" role="tooltip">
-                        {tip}
-                      </span>
-                      <strong className="gx-lesson-chart__n">{b.count}</strong>
-                      <span
-                        className="gx-lesson-chart__bar"
-                        style={{
-                          height: barH > 0 ? `${barH}%` : 4,
-                          minHeight: 4,
-                          background: barH > 0 ? undefined : 'transparent',
-                          opacity: barH > 0 ? 1 : 0.35,
-                        }}
-                      />
-                      <span className="gx-lesson-chart__label">
-                        {shortLabel}
-                      </span>
-                    </div>
-                  )
-                })}
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              <div className="gx-lesson-chart" role="img" aria-label="Alunos por etapa concluída">
+                <div
+                  className="gx-lesson-chart__track"
+                  style={
+                    {
+                      ['--gx-lesson-cols']: String(
+                        Math.max(1, charts.lessonBars.length),
+                      ),
+                    } as CSSProperties
+                  }
+                >
+                  {charts.lessonBars.map((b) => {
+                    const tip =
+                      b.enrolledCount === 0
+                        ? `${b.fullLabel ?? b.label}: sem alunos`
+                        : `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
+                    const barH =
+                      b.count > 0 && lessonMax > 0
+                        ? Math.max(8, (b.count / lessonMax) * 80)
+                        : 0
+                    // Label pode ter quebra (Inst\nE1); white-space: normal no CSS.
+                    const shortLabel = b.label.trim() || 'E?'
+                    return (
+                      <div
+                        key={b.key}
+                        className="gx-lesson-chart__col"
+                        tabIndex={0}
+                        aria-label={tip}
+                      >
+                        <span className="gx-lesson-chart__tip" role="tooltip">
+                          {tip}
+                        </span>
+                        <strong className="gx-lesson-chart__n">{b.count}</strong>
+                        <span
+                          className="gx-lesson-chart__bar"
+                          style={{
+                            height: barH > 0 ? `${barH}%` : 4,
+                            minHeight: 4,
+                            background: barH > 0 ? undefined : 'transparent',
+                            opacity: barH > 0 ? 1 : 0.35,
+                          }}
+                        />
+                        <span className="gx-lesson-chart__label">
+                          {shortLabel}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </section>
         </div>
       ) : null}
@@ -657,7 +670,10 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '24px 24px 20px' }}>
           <nav role="tablist" aria-label="Dados" className="gx-tabs" style={{ marginTop: 0 }}>
             <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'students'} onClick={() => p.onActiveTabChange('students')}>
-              Alunos <span className="gx-muted">({p.totalStudentCount})</span>
+              Alunos{' '}
+              <span className="gx-muted">
+                ({p.studentsCountLoading ? '…' : p.totalStudentCount})
+              </span>
             </button>
             <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'questions'} onClick={() => p.onActiveTabChange('questions')}>
               Exercícios{' '}
@@ -761,7 +777,9 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                   {p.studentRowsEmpty ? (
                     <tr>
                       <td colSpan={8} className="gx-table__empty">
-                        Nenhum aluno com os filtros atuais.
+                        {p.studentsCountLoading
+                          ? 'Carregando…'
+                          : 'Nenhum aluno com os filtros atuais.'}
                       </td>
                     </tr>
                   ) : null}

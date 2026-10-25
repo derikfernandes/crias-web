@@ -45,6 +45,11 @@ export type InstitutionDashboardMetricsView = {
   activeTrails: number
   avgCompletion: number | null
   avgLessonCompletion: number | null
+  /** Totais para merge Todas (não depende do sidecar de students). */
+  completionDone: number
+  completionReleased: number
+  lessonCompletionDone: number
+  lessonCompletionReleased: number
   avgAccuracy: number | null
   accuracyCorrect: number
   accuracyTried: number
@@ -119,6 +124,10 @@ type MetricsResponse = {
   active_trails?: number
   avg_completion?: number | null
   avg_lesson_completion?: number | null
+  completion_done?: number
+  completion_released?: number
+  lesson_completion_done?: number
+  lesson_completion_released?: number
   avg_accuracy?: number | null
   accuracy_correct?: number
   accuracy_tried?: number
@@ -209,6 +218,38 @@ function parseMetrics(body: MetricsResponse): InstitutionDashboardMetricsView {
       if (rawBy[key]) byPeriod[period] = parseAgent(rawBy[key], period)
     }
   }
+  const students = (body.students ?? []).map((s) => ({
+    id: String(s.id ?? ''),
+    name: String(s.name ?? ''),
+    active: s.active !== false,
+    done: Number(s.done ?? 0),
+    released: Number(s.released ?? 0),
+    lessonsDone: Number(s.lessons_done ?? 0),
+    lessonsReleased: Number(s.lessons_released ?? 0),
+    correct: Number(s.correct ?? 0),
+    wrong: Number(s.wrong ?? 0),
+    accuracyPct:
+      s.accuracy_pct === null || s.accuracy_pct === undefined
+        ? null
+        : Number(s.accuracy_pct),
+  }))
+  // Cache antigo sem escalares: reconstitui a partir dos students.
+  let completionDone = Number(body.completion_done ?? 0)
+  let completionReleased = Number(body.completion_released ?? 0)
+  let lessonCompletionDone = Number(body.lesson_completion_done ?? 0)
+  let lessonCompletionReleased = Number(body.lesson_completion_released ?? 0)
+  if (completionReleased <= 0 && students.length > 0) {
+    completionDone = 0
+    completionReleased = 0
+    lessonCompletionDone = 0
+    lessonCompletionReleased = 0
+    for (const s of students) {
+      completionDone += s.done
+      completionReleased += s.released
+      lessonCompletionDone += s.lessonsDone
+      lessonCompletionReleased += s.lessonsReleased
+    }
+  }
   return {
     institutionId: body.institution_id ?? '',
     computedAt: typeof body.computed_at === 'number' ? body.computed_at : 0,
@@ -223,6 +264,10 @@ function parseMetrics(body: MetricsResponse): InstitutionDashboardMetricsView {
       body.avg_lesson_completion === undefined
         ? null
         : Number(body.avg_lesson_completion),
+    completionDone,
+    completionReleased,
+    lessonCompletionDone,
+    lessonCompletionReleased,
     avgAccuracy:
       body.avg_accuracy === null || body.avg_accuracy === undefined
         ? null
@@ -242,21 +287,7 @@ function parseMetrics(body: MetricsResponse): InstitutionDashboardMetricsView {
       count: Number(b.count ?? 0),
       enrolledCount: Number(b.enrolled_count ?? 0),
     })),
-    students: (body.students ?? []).map((s) => ({
-      id: String(s.id ?? ''),
-      name: String(s.name ?? ''),
-      active: s.active !== false,
-      done: Number(s.done ?? 0),
-      released: Number(s.released ?? 0),
-      lessonsDone: Number(s.lessons_done ?? 0),
-      lessonsReleased: Number(s.lessons_released ?? 0),
-      correct: Number(s.correct ?? 0),
-      wrong: Number(s.wrong ?? 0),
-      accuracyPct:
-        s.accuracy_pct === null || s.accuracy_pct === undefined
-          ? null
-          : Number(s.accuracy_pct),
-    })),
+    students,
     agentUsageByPeriod: byPeriod,
   }
 }
@@ -293,10 +324,12 @@ async function fetchMetricsOnce(
       headers: {
         Accept: 'application/json',
         ...headers,
-        ...(opts.force ? { 'Cache-Control': 'no-cache' } : {}),
+        // Sempre: F5 após Atualizar não pode reusar GET antigo (max-age).
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
       },
       credentials: 'same-origin',
-      cache: opts.force ? 'no-store' : 'default',
+      cache: 'no-store',
       signal: controller.signal,
     })
   } catch (err) {
@@ -388,7 +421,7 @@ export async function fetchInstitutionMetrics(
   }
 }
 
-/** Soma ponderada multi-instituição. */
+/** Soma ponderada multi-instituição: Σ done / Σ released (não média das %). */
 export function mergeMetricsViews(
   parts: InstitutionDashboardMetricsView[],
 ): {
@@ -400,6 +433,8 @@ export function mergeMetricsViews(
   activeTrails: number
   avgCompletion: number | null
   avgLessonCompletion: number | null
+  completionDone: number
+  completionReleased: number
 } {
   let accuracyCorrect = 0
   let accuracyTried = 0
@@ -416,11 +451,24 @@ export function mergeMetricsViews(
     exerciseCount += p.exerciseCount
     activeStudents += p.activeStudents
     activeTrails += p.activeTrails
-    for (const s of p.students) {
-      done += s.done
-      released += s.released
-      lessonsDone += s.lessonsDone
-      lessonsReleased += s.lessonsReleased
+    // Escalares do meta (mesmo com students no sidecar / vazio).
+    if (p.completionReleased > 0) {
+      done += p.completionDone
+      released += p.completionReleased
+    } else {
+      for (const s of p.students) {
+        done += s.done
+        released += s.released
+      }
+    }
+    if (p.lessonCompletionReleased > 0) {
+      lessonsDone += p.lessonCompletionDone
+      lessonsReleased += p.lessonCompletionReleased
+    } else {
+      for (const s of p.students) {
+        lessonsDone += s.lessonsDone
+        lessonsReleased += s.lessonsReleased
+      }
     }
   }
   const pct = (n: number, d: number) =>
@@ -434,6 +482,8 @@ export function mergeMetricsViews(
     activeTrails,
     avgCompletion: pct(done, released),
     avgLessonCompletion: pct(lessonsDone, lessonsReleased),
+    completionDone: done,
+    completionReleased: released,
   }
 }
 

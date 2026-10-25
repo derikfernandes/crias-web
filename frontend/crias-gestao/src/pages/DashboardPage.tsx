@@ -2805,6 +2805,15 @@ export function DashboardPage() {
   ])
 
   const studentsCharts = useMemo(() => {
+    const metricsReady =
+      metricsScopeKey === selectedIdsKey &&
+      activeInstitutionIds.every((id) => metricsByInst.has(id))
+    // Após F5: métricas/linhas ainda não chegaram → Carregando… (nunca 0).
+    const chartsLoading =
+      !metricsReady ||
+      (filteredStudentRows.length === 0 &&
+        (loadingData || !hasDashboardContent))
+
     const completionBuckets = [
       { key: '0-20', label: '0-20%', count: 0 },
       { key: '21-40', label: '21-40%', count: 0 },
@@ -2818,16 +2827,36 @@ export function DashboardPage() {
       completed: 0,
     }
 
-    for (const row of filteredStudentRows) {
-      const completion = row.completionPct
-      statusCounts[getStudentEngagementStatus(row)] += 1
+    const bumpCompletion = (completion: number | null) => {
+      if (completion === null) return
+      if (completion <= 20) completionBuckets[0].count += 1
+      else if (completion <= 40) completionBuckets[1].count += 1
+      else if (completion <= 60) completionBuckets[2].count += 1
+      else if (completion <= 80) completionBuckets[3].count += 1
+      else completionBuckets[4].count += 1
+    }
 
-      if (completion !== null) {
-        if (completion <= 20) completionBuckets[0].count += 1
-        else if (completion <= 40) completionBuckets[1].count += 1
-        else if (completion <= 60) completionBuckets[2].count += 1
-        else if (completion <= 80) completionBuckets[3].count += 1
-        else completionBuckets[4].count += 1
+    if (filteredStudentRows.length > 0) {
+      for (const row of filteredStudentRows) {
+        statusCounts[getStudentEngagementStatus(row)] += 1
+        bumpCompletion(row.completionPct)
+      }
+    } else if (metricsReady) {
+      // Sem linhas locais ainda: faixas a partir do doc de métricas.
+      for (const id of activeInstitutionIds) {
+        const m = metricsByInst.get(id)
+        if (!m) continue
+        for (const s of m.students) {
+          if (!s.active) continue
+          const completion =
+            s.released > 0
+              ? Math.round((s.done / s.released) * 1000) / 10
+              : null
+          bumpCompletion(completion)
+          if (s.released <= 0 || s.done <= 0) statusCounts.notStarted += 1
+          else if (s.done >= s.released) statusCounts.completed += 1
+          else statusCounts.inProgress += 1
+        }
       }
     }
 
@@ -2960,6 +2989,7 @@ export function DashboardPage() {
 
     return {
       studentCount: filteredStudentRows.length,
+      loading: chartsLoading,
       completionBuckets,
       statuses: [
         {
@@ -2978,7 +3008,7 @@ export function DashboardPage() {
           count: statusCounts.completed,
         },
       ],
-      lessonBars,
+      lessonBars: chartsLoading ? [] : lessonBars,
     }
   }, [
     filteredStudentRows,
@@ -2990,6 +3020,11 @@ export function DashboardPage() {
     trailsByStudentIds,
     studentTrails,
     activityCatalogs,
+    metricsScopeKey,
+    selectedIdsKey,
+    metricsByInst,
+    loadingData,
+    hasDashboardContent,
   ])
 
   // Ranking de pílulas — itera só respostas existentes no mapa.
@@ -3942,7 +3977,17 @@ export function DashboardPage() {
       annulledGabaritoCount={annulledGabaritoCount}
       annulledAnswersExcluded={annulledAnswersExcluded}
       filteredStudentCount={chartFilteredStudentRows.length}
-      totalStudentCount={studentRows.length}
+      totalStudentCount={
+        summary.countsLoading
+          ? 0
+          : studentRows.length > 0
+            ? studentRows.length
+            : (summary.activeStudents ?? 0)
+      }
+      studentsCountLoading={
+        summary.countsLoading ||
+        (studentRows.length === 0 && (loadingData || !hasDashboardContent))
+      }
       questionPickerLabel={questionPickerLabel}
       showQuestionPicker={showQuestionPicker}
       onToggleQuestionPicker={() => {

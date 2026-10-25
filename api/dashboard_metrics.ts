@@ -9,6 +9,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 
 import {
   ensureMetricsFromExistingCache,
+  peekMetricsComputedAt,
   readMetricsFromCache,
   warmInstitutionSummary,
 } from './dashboard_summary'
@@ -24,6 +25,9 @@ export const config = {
 }
 
 type Json = Record<string, unknown>
+
+/** Nunca cachear no browser/CDN — senão F5 após Atualizar reverte o carimbo. */
+const METRICS_CACHE_CONTROL = 'no-store, no-cache, must-revalidate'
 
 /** L1 ≤ frescor Firestore (10 min); curto o bastante para cron/SWR. */
 const METRICS_L1_TTL_MS = 2 * 60_000
@@ -113,10 +117,19 @@ async function handleRequest(request: Request): Promise<Response> {
   if (!forceRefresh) {
     const l1 = metricsL1.get(institutionId)
     if (l1 && l1.expires > Date.now()) {
-      return respond(200, l1.metrics as unknown as Json, {
-        'Cache-Control': 'private, max-age=60',
-        'X-Metrics-Cache': 'HIT',
-      })
+      // L1 é por instância serverless: valida contra Firestore após Atualizar.
+      try {
+        const tip = await peekMetricsComputedAt(db, institutionId)
+        if (tip != null && tip === l1.metrics.computed_at) {
+          return respond(200, l1.metrics as unknown as Json, {
+            'Cache-Control': METRICS_CACHE_CONTROL,
+            'X-Metrics-Cache': 'HIT',
+          })
+        }
+        metricsL1.delete(institutionId)
+      } catch {
+        metricsL1.delete(institutionId)
+      }
     }
 
     try {
@@ -145,7 +158,7 @@ async function handleRequest(request: Request): Promise<Response> {
             })
         }
         return respond(200, fromFs.metrics as unknown as Json, {
-          'Cache-Control': 'private, max-age=60',
+          'Cache-Control': METRICS_CACHE_CONTROL,
           'X-Metrics-Cache': fromFs.stale ? 'FIRESTORE-STALE' : 'FIRESTORE',
         })
       }
@@ -162,7 +175,7 @@ async function handleRequest(request: Request): Promise<Response> {
           metrics: derived,
         })
         return respond(200, derived as unknown as Json, {
-          'Cache-Control': 'private, max-age=60',
+          'Cache-Control': METRICS_CACHE_CONTROL,
           'X-Metrics-Cache': 'DERIVED',
         })
       }
@@ -194,10 +207,7 @@ async function handleRequest(request: Request): Promise<Response> {
       metrics: fresh.metrics,
     })
     return respond(200, fresh.metrics as unknown as Json, {
-      // refresh=1 nunca cacheia no browser (senão Atualizar volta em <2s).
-      'Cache-Control': forceRefresh
-        ? 'no-store, no-cache, must-revalidate'
-        : 'private, max-age=60',
+      'Cache-Control': METRICS_CACHE_CONTROL,
       'X-Metrics-Cache': forceRefresh ? 'REFRESH' : 'MISS',
       'X-Metrics-Warm-Ms': String(Date.now() - t0),
       ...(fresh.metaBytes

@@ -3,12 +3,69 @@ import {
   accuracyAggregate,
   answersFromAnswerMap,
   answersFromAttempts,
+  answersMatchGabarito,
   gabaritoFromQuestions,
   isNonGradableAnswer,
+  isNonOptionAgainstGabarito,
   mergeAcertoAggregates,
   mergeAnswerSources,
 } from './acertoMedio'
 import type { ExerciseAttempt } from '../types/exerciseAttempt'
+
+describe('answersMatchGabarito (alias 1=A…4=D)', () => {
+  it('com gabarito letra A–D, dígito 1–4 casa (t67)', () => {
+    expect(answersMatchGabarito('1', 'A')).toBe(true)
+    expect(answersMatchGabarito('2', 'B')).toBe(true)
+    expect(answersMatchGabarito('3', 'C')).toBe(true)
+    expect(answersMatchGabarito('4', 'D')).toBe(true)
+    expect(answersMatchGabarito('2', 'A')).toBe(false)
+    expect(answersMatchGabarito('B', 'B')).toBe(true)
+  })
+
+  it('com gabarito numérico, NÃO aplica alias (letra ≠ dígito)', () => {
+    expect(answersMatchGabarito('A', '1')).toBe(false)
+    expect(answersMatchGabarito('B', '2')).toBe(false)
+    expect(answersMatchGabarito('1', '1')).toBe(true)
+    expect(answersMatchGabarito('2', '1')).toBe(false)
+  })
+
+  it('texto longo continua fora do denominador; dígito fica no denom', () => {
+    expect(isNonOptionAgainstGabarito('texto colado do enunciado', 'B')).toBe(
+      true,
+    )
+    expect(isNonOptionAgainstGabarito('2', 'B')).toBe(false)
+    expect(isNonOptionAgainstGabarito('B', 'B')).toBe(false)
+  })
+
+  it('accuracyAggregate: 2↔B conta certo; gabarito 2 com A não', () => {
+    const r = accuracyAggregate({
+      activeStudentIds: new Set(['s1']),
+      answers: [
+        {
+          student_id: 's1',
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 1,
+          answer: '2',
+        },
+        {
+          student_id: 's1',
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 2,
+          answer: 'A',
+        },
+      ],
+      gabarito: new Map([
+        ['t67|1|1', 'B'],
+        ['t67|1|2', '1'],
+      ]),
+    })
+    expect(r.tried).toBe(2)
+    expect(r.correct).toBe(1)
+    expect(r.avgAccuracy).toBe(50)
+  })
+})
 
 describe('isNonGradableAnswer', () => {
   it('exclui Continuar, 0 e vazio', () => {

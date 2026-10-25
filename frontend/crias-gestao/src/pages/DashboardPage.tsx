@@ -46,6 +46,7 @@ import {
   accuracyAggregate,
   answersFromAnswerMap,
   answersFromAttempts,
+  answersMatchGabarito,
   gabaritoFromQuestions,
   isNonGradableAnswer,
   mergeAnswerSources,
@@ -266,10 +267,7 @@ function normalizeAnswer(value: string): string {
 }
 
 function answersMatch(studentAnswer: string, correctOption: string): boolean {
-  return (
-    normalizeAnswer(studentAnswer).toLowerCase() ===
-    normalizeAnswer(correctOption).toLowerCase()
-  )
+  return answersMatchGabarito(studentAnswer, correctOption)
 }
 
 /** Exibe gabarito numérico como letra: 1→A, 2→B, 3→C. */

@@ -91,16 +91,30 @@ function isNonGradable(raw: string): boolean {
   return isUiCommandText(s)
 }
 
+/**
+ * Match Gestão: igualdade; gabarito letra A–D casa com 1–4 (1=A…4=D).
+ * Gabarito numérico: sem alias.
+ */
 function answersMatch(studentAnswer: string, correctOption: string): boolean {
   const a = normalizeAnswer(studentAnswer).toLowerCase()
   const g = normalizeAnswer(correctOption).toLowerCase()
-  return Boolean(a && g && a === g)
+  if (!a || !g) return false
+  if (a === g) return true
+  if (/^[a-d]$/.test(g) && /^[1-4]$/.test(a)) {
+    const digitToLetter: Record<string, string> = {
+      '1': 'a',
+      '2': 'b',
+      '3': 'c',
+      '4': 'd',
+    }
+    return digitToLetter[a] === g
+  }
+  return false
 }
 
 /**
  * Texto longo / enunciado colado contra gabarito de alternativa (A–D ou 1–4):
- * fora do denominador. (dígito↔letra cruzados em t67 ficam como wrong —
- * excluí-los derrubava tried abaixo de 56863 e subia % p/ 70,4%.)
+ * fora do denominador.
  */
 function isNonOptionAgainstGabarito(
   studentAnswer: string,

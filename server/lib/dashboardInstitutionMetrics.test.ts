@@ -110,16 +110,17 @@ describe('computeInstitutionDashboardMetrics', () => {
     expect(merged.exercise_count).toBe(3)
   })
 
-  it('exclui texto longo contra gabarito de alternativa; dígito vs letra conta wrong', () => {
+  it('alias 1=A…4=D com gabarito letra; texto longo fora; gabarito numérico sem alias', () => {
     const m = computeInstitutionDashboardMetrics({
       institutionId: 'i2',
       trailIds: ['t67'],
       studentsMap: {
         s1: {
           answers: {
-            '0|1|1': 'B', // certo
-            '0|1|2': '2', // dígito vs letra B → wrong (fica no denom)
+            '0|1|1': 'B', // certo (letra)
+            '0|1|2': '2', // dígito vs letra B → certo (alias)
             '0|1|3': 'texto longo que nao e alternativa', // fora
+            '0|1|4': 'A', // letra vs gabarito numérico 1 → wrong (sem alias)
           },
           extra_done: [],
         },
@@ -146,6 +147,12 @@ describe('computeInstitutionDashboardMetrics', () => {
           question_number: 3,
           correct_option: 'A',
         },
+        {
+          trail_id: 't67',
+          stage_number: 1,
+          question_number: 4,
+          correct_option: '1',
+        },
       ],
       stages: [],
       agentUsageByPeriod: {
@@ -154,9 +161,9 @@ describe('computeInstitutionDashboardMetrics', () => {
         '30': emptyAgent,
       },
     })
-    expect(m.accuracy_correct).toBe(1)
-    expect(m.accuracy_tried).toBe(2)
-    expect(m.avg_accuracy).toBe(50)
+    expect(m.accuracy_correct).toBe(2)
+    expect(m.accuracy_tried).toBe(3)
+    expect(m.avg_accuracy).toBe(66.7)
   })
 
   it('exclui células anuladas (annulled / annulled_at) do denominador', () => {

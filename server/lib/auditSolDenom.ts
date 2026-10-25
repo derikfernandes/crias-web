@@ -86,10 +86,22 @@ function classifyNonGradable(raw: string): DenomAnswerClass | null {
   return null
 }
 
+/** Mesma regra Gestão: alias 1=A…4=D só com gabarito letra. */
 function answersMatch(studentAnswer: string, correctOption: string): boolean {
   const a = normalizeAnswer(studentAnswer).toLowerCase()
   const g = normalizeAnswer(correctOption).toLowerCase()
-  return Boolean(a && g && a === g)
+  if (!a || !g) return false
+  if (a === g) return true
+  if (/^[a-d]$/.test(g) && /^[1-4]$/.test(a)) {
+    const digitToLetter: Record<string, string> = {
+      '1': 'a',
+      '2': 'b',
+      '3': 'c',
+      '4': 'd',
+    }
+    return digitToLetter[a] === g
+  }
+  return false
 }
 
 function expandCompact(

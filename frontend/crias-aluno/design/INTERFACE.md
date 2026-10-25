@@ -100,6 +100,7 @@ Vale para todo carregamento com o símbolo: abertura do Crias Aluno e do Crias G
 
 ## Orientações para o backend (Cursor), v1.1 (fechamento)
 
+21. **Acerto na Gestão (owner 25/10/2026):** em Início, Dados, warm, menor/maior acerto e % por aluno, quando o gabarito for letra **A–D**, a resposta **1–4** conta como acerto (**1=A, 2=B, 3=C, 4=D**). Se o gabarito for **numérico**, não aplica esse alias (letra ≠ dígito). Continuam fora do denominador: atividades **anuladas**, células **sem gabarito**, cliques de UI (Continuar / 0) e **texto longo** / enunciado colado contra alternativa. Agregado = correct/tried (ponderado); multi-instituição soma numerador e denominador.
 19. **Padrão de senha (toda a aplicação):** senha sempre mascarada (••••••••) com botão de olho para mostrar; depois, botão editar (libera digitação), copiar para a área de transferência e o botão **Gerar** (gera nova senha). Em edição, o botão vira **Salvar**. Estados possíveis: com senha ou "Sem senha" (não existe "legado"). Vale em Senhas, Permissões > Usuários e Usuários (Crias e Instituições).
 20. **Menu Sistema** (Prompts, API e documentação) aparece só para Super admin.
 

@@ -8,11 +8,11 @@
  * - Fonte densa: conversation_logs / answerMap (dashboard_summary).
  *   `exercise_attempts` na Sol tem só ~136 docs (subconjunto recente) e
  *   sozinho produz 86% enganoso.
- * - Sol (excl. anuladas): **39.108 / 56.863 = 68,8%**.
- *   Um audit anterior (39.215 / 57.611 = 68,1%) incluía 748 respostas em
- *   3 células anuladas de t47 (7|15, 7|16, 7|52) — não usar.
- * - Agregado = correct/tried (ponderado). Multi-instituição soma
- *   numerador e denominador — nunca média das %.
+ * - Alias Gestão (owner 2026-10-25): gabarito letra A–D casa com
+ *   resposta 1–4 (1=A…4=D). **Não** aplica quando o gabarito é numérico.
+ * - Texto longo / enunciado colado contra alternativa: fora do denom.
+ * - Anuladas e sem gabarito: fora. Agregado = correct/tried (ponderado).
+ *   Multi-instituição soma numerador e denominador — nunca média das %.
  */
 
 import { isUiCommandText } from './studentFieldValidation'
@@ -64,14 +64,28 @@ export function isNonGradableAnswer(raw: string): boolean {
   return isUiCommandText(s)
 }
 
-/** Mesma regra do server (`answersMatch`): igualdade normalizada. */
+/**
+ * Match Gestão: igualdade normalizada; se gabarito é letra A–D,
+ * resposta 1–4 casa (1=A…4=D). Gabarito numérico: sem alias.
+ */
 export function answersMatchGabarito(
   studentAnswer: string,
   correctOption: string,
 ): boolean {
   const a = normalizeAnswerText(studentAnswer).toLowerCase()
   const g = normalizeAnswerText(correctOption).toLowerCase()
-  return Boolean(a && g && a === g)
+  if (!a || !g) return false
+  if (a === g) return true
+  if (/^[a-d]$/.test(g) && /^[1-4]$/.test(a)) {
+    const digitToLetter: Record<string, string> = {
+      '1': 'a',
+      '2': 'b',
+      '3': 'c',
+      '4': 'd',
+    }
+    return digitToLetter[a] === g
+  }
+  return false
 }
 
 /** Texto longo contra gabarito A–D / 1–4: fora do denominador. */

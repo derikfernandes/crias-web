@@ -46,8 +46,8 @@ export function StudentConversationChat({
       <div className="trilha-chat__empty" role="status">
         <p className="trilha-chat__empty-title">A conversa começa aqui</p>
         <p className="trilha-chat__empty-lede">
-          Quando a trilha entregar o próxima etapa, ele aparece como mensagem —
-          como no WhatsApp.
+          Quando a trilha entregar a próxima etapa, ela aparece como mensagem,
+          como no app do Crias.
         </p>
       </div>
     )

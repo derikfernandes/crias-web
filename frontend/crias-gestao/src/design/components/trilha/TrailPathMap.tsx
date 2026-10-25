@@ -57,7 +57,7 @@ export function TrailPathMap({
                 Etapa {node.stageNumber}
                 <span className="visually-hidden">
                   {' '}
-                  — {STATE_LABEL[node.state]}
+                  ({STATE_LABEL[node.state]})
                 </span>
                 <span className="trilha-path__state" aria-hidden="true">
                   {STATE_LABEL[node.state]}

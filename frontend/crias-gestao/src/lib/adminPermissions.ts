@@ -109,14 +109,12 @@ export function adminUserDocId(email: string): string {
   return normalizeAdminEmail(email).replace(/\./g, '_')
 }
 
-/** Sem registro em `admin_users`: mantém acesso total (compatibilidade). */
-export function isUnrestrictedAccess(profile: AdminUser | null): boolean {
-  return profile === null
-}
-
-export function hasFullAccess(profile: AdminUser | null): boolean {
-  if (isUnrestrictedAccess(profile)) return true
-  return Boolean(profile?.active && profile.is_super_admin)
+/**
+ * Modelo PR #32: sem `admin_users` e sem Master = sem acesso.
+ * (Antes null = acesso total; isso vazava dados para qualquer login Firebase.)
+ */
+export function isUnrestrictedAccess(_profile: AdminUser | null): boolean {
+  return false
 }
 
 /** E-mails Master via Vite env (espelho de MASTER_ADMIN_EMAILS no servidor). */
@@ -130,8 +128,12 @@ export function parseMasterAdminEmailsFromEnv(): string[] {
 }
 
 /**
- * Master: env list OU `admin_users.is_master`.
- * Sem perfil (acesso irrestrito legado) NÃO é Master — exige config explícita.
+ * Master global (todas as instituições + Prompts):
+ * - e-mail em `VITE_MASTER_ADMIN_EMAILS`, ou
+ * - `is_master` **e** (`all_institutions` ou `is_super_admin`).
+ *
+ * Admin de escola usa `is_master` só como perfil local (Senhas na própria
+ * instituição) e NÃO entra aqui.
  */
 export function isMasterAccess(
   profile: AdminUser | null,
@@ -139,8 +141,44 @@ export function isMasterAccess(
 ): boolean {
   const email = userEmail ? normalizeAdminEmail(userEmail) : ''
   if (email && parseMasterAdminEmailsFromEnv().includes(email)) return true
-  if (profile?.active && profile.is_master) return true
+  if (
+    profile?.active &&
+    profile.is_master &&
+    (profile.all_institutions || profile.is_super_admin)
+  ) {
+    return true
+  }
   return false
+}
+
+/** Senhas: Master global OU admin de escola (`is_master` no perfil). */
+export function canAccessStudentPasswords(
+  profile: AdminUser | null,
+  userEmail: string | null | undefined,
+): boolean {
+  if (isMasterAccess(profile, userEmail)) return true
+  if (profile?.active && profile.is_master) return true
+  return Boolean(profile?.nav_permissions.includes('student_passwords'))
+}
+
+/** Acesso a todas as instituições: Master global ou super / all_institutions. */
+export function hasFullAccess(
+  profile: AdminUser | null,
+  userEmail?: string | null,
+): boolean {
+  if (isMasterAccess(profile, userEmail ?? profile?.email ?? null)) return true
+  return Boolean(
+    profile?.active && (profile.is_super_admin || profile.all_institutions),
+  )
+}
+
+/** Tem algum acesso à Gestão (Master ou perfil ativo). */
+export function hasGestaoAccess(
+  profile: AdminUser | null,
+  userEmail: string | null | undefined,
+): boolean {
+  if (isMasterAccess(profile, userEmail)) return true
+  return Boolean(profile?.active)
 }
 
 export function canAccessNav(
@@ -148,10 +186,13 @@ export function canAccessNav(
   permission: NavPermission,
   opts?: { userEmail?: string | null },
 ): boolean {
-  if (permission === 'student_passwords' || permission === 'ai_prompts') {
-    return isMasterAccess(profile, opts?.userEmail ?? profile?.email ?? null)
+  const email = opts?.userEmail ?? profile?.email ?? null
+  if (isMasterAccess(profile, email)) return true
+  if (permission === 'ai_prompts') return false
+  if (permission === 'student_passwords') {
+    return canAccessStudentPasswords(profile, email)
   }
-  if (profile === null) return true
+  if (profile === null) return false
   if (!profile.active) return false
   if (profile.is_super_admin) return true
   return profile.nav_permissions.includes(permission)
@@ -160,8 +201,11 @@ export function canAccessNav(
 export function canAccessInstitution(
   profile: AdminUser | null,
   institutionId: string,
+  opts?: { userEmail?: string | null },
 ): boolean {
-  if (profile === null) return true
+  const email = opts?.userEmail ?? profile?.email ?? null
+  if (isMasterAccess(profile, email)) return true
+  if (profile === null) return false
   if (!profile.active) return false
   if (profile.is_super_admin || profile.all_institutions) return true
   return profile.institution_ids.includes(institutionId)
@@ -170,8 +214,11 @@ export function canAccessInstitution(
 export function filterInstitutionsByAccess<T extends { id: string }>(
   profile: AdminUser | null,
   items: T[],
+  opts?: { userEmail?: string | null },
 ): T[] {
-  if (profile === null) return items
+  const email = opts?.userEmail ?? profile?.email ?? null
+  if (isMasterAccess(profile, email)) return items
+  if (profile === null) return []
   if (!profile.active) return []
   if (profile.is_super_admin || profile.all_institutions) return items
   const allowed = new Set(profile.institution_ids)

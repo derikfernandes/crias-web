@@ -74,8 +74,13 @@ export function snapshotToExerciseAttempt(
   const score =
     typeof scoreRaw === 'number' && Number.isFinite(scoreRaw) ? scoreRaw : null
 
+  // Aceita boolean, 1/0 e "true"/"false" (legado / exports).
+  const isCorrectRaw = body.is_correct
   const is_correct =
-    typeof body.is_correct === 'boolean' ? body.is_correct : false
+    isCorrectRaw === true ||
+    isCorrectRaw === 1 ||
+    isCorrectRaw === 'true' ||
+    isCorrectRaw === '1'
 
   return {
     id: d.id,

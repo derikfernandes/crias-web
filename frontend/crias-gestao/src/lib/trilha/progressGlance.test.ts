@@ -30,7 +30,7 @@ describe('glanceDoneSummary', () => {
   it('começo da trilha', () => {
     expect(
       glanceDoneSummary({ stageNumber: 1, totalStages: 4, completed: false }),
-    ).toBe('Ainda no começo — nenhuma etapa concluída.')
+    ).toBe('Ainda no começo: nenhuma etapa concluída.')
   })
 })
 

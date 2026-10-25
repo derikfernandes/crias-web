@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import type {
   DashboardPageViewProps,
@@ -22,6 +22,20 @@ function pctText(v: number | null | undefined): string {
   return `${String(v).replace('.', ',')} %`
 }
 
+/** % de acerto sem tentativas: estado vazio documentado (sem travessão). */
+function accuracyCellText(v: number | null | undefined): string {
+  if (v === null || v === undefined) return 'sem exercícios'
+  return pctText(v)
+}
+
+function accuracySummaryText(
+  value: number | null | undefined,
+  loading?: boolean,
+): string {
+  if (loading) return 'Carregando…'
+  return pctText(value)
+}
+
 function accuracyPill(p: number): string {
   if (p >= 70) return 'gx-pill gx-pill--ok'
   if (p >= 50) return 'gx-pill gx-pill--warn'
@@ -34,14 +48,51 @@ function accuracyBar(p: number): string {
   return 'gx-bar gx-bar--red'
 }
 
-function BarRow({ label, count, max }: { label: string; count: number; max: number }) {
+function BarRow({
+  label,
+  count,
+  max,
+  labelWidth = 110,
+  enrolledCount,
+}: {
+  label: string
+  count: number
+  max: number
+  labelWidth?: number
+  /** Se 0, tooltip vira "sem alunos". */
+  enrolledCount?: number
+}) {
+  const tip =
+    enrolledCount === 0
+      ? `${label}: sem alunos`
+      : `${label}: ${count}${enrolledCount != null ? ` de ${enrolledCount}` : ''}`
+  const pctWidth = count > 0 && max > 0 ? (count / max) * 100 : 0
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-      <span style={{ width: 96, color: 'var(--v-t3)', flex: 'none' }}>{label}</span>
-      <span className="gx-bar" style={{ flex: 1, height: 10 }}>
-        <span style={{ width: `${max > 0 ? (count / max) * 100 : 0}%` }} />
+    <div
+      className="gx-chart-row"
+      style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}
+      title={tip}
+    >
+      <span
+        style={{
+          width: labelWidth,
+          color: 'var(--v-t3)',
+          flex: 'none',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {label}
       </span>
-      <strong style={{ width: 28, textAlign: 'right' }}>{count}</strong>
+      <span className="gx-bar" style={{ flex: 1, height: 10 }} aria-label={tip} title={tip}>
+        {pctWidth > 0 ? (
+          <span style={{ width: `${pctWidth}%` }} />
+        ) : (
+          <span className="gx-bar__empty" />
+        )}
+      </span>
+      <strong style={{ width: 36, textAlign: 'right', flex: 'none' }}>{count}</strong>
     </div>
   )
 }
@@ -191,16 +242,26 @@ export function DashboardPageView(p: DashboardPageViewProps) {
 
   if (p.loadingInst || p.isDashboardLoading) return <BootSymbol />
 
+  const refreshing = Boolean(p.isDashboardRefreshing)
   const charts = p.studentsCharts
+  const chartsLoading = Boolean(charts.loading)
   const bucketMax = Math.max(0, ...charts.completionBuckets.map((b) => b.count))
   const statusMax = Math.max(0, ...charts.statuses.map((b) => b.count))
   const lessonMax = Math.max(1, ...charts.lessonBars.map((b) => b.count))
   const agent = p.agentUsage
+  const msgsDayHint =
+    p.agentPeriodDays === 0
+      ? 'Média no intervalo entre a primeira e a última mensagem do histórico (dias de calendário).'
+      : `Média dividida por ${p.agentPeriodDays} dias do período selecionado.`
   const agentKpis = [
     { label: 'Perguntas ao monitor', value: String(agent.totalMessages) },
     { label: 'Alunos que usaram', value: String(agent.uniqueStudents) },
     { label: 'Cobertura', value: pctText(agent.coveragePct) },
-    { label: 'Mensagens por dia', value: String(agent.msgsPerTutorPerDay).replace('.', ',') },
+    {
+      label: 'Mensagens por dia',
+      value: String(agent.msgsPerTutorPerDay).replace('.', ','),
+      hint: msgsDayHint,
+    },
   ]
   const errors = [p.instError, p.dataError, p.exportError].filter(Boolean) as string[]
 
@@ -209,17 +270,62 @@ export function DashboardPageView(p: DashboardPageViewProps) {
       <PageHead
         title="Dados"
         subtitle="Informações de uso dos alunos."
+        actions={
+          <>
+            {p.metricsUpdatedAtLabel ? (
+              <span className="gx-muted" style={{ fontSize: 13, fontWeight: 600 }}>
+                {p.metricsUpdatedAtLabel}
+              </span>
+            ) : null}
+            {p.onForceRefreshMetrics ? (
+              <button
+                type="button"
+                className="gx-btn gx-btn--outline"
+                onClick={p.onForceRefreshMetrics}
+                disabled={Boolean(p.metricsForceRefreshing)}
+                aria-busy={p.metricsForceRefreshing || undefined}
+                title="Recalcular métricas no servidor"
+              >
+                {p.metricsForceRefreshing ? 'Atualizando…' : 'Atualizar'}
+              </button>
+            ) : null}
+          </>
+        }
         tools={
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 32, width: '100%' }}>
-            <div
-              className="gx-filter__btn gx-filter__btn--field"
-              style={{ width: 'auto', maxWidth: '100%', cursor: 'default', flex: '0 1 auto', display: 'flex' }}
-              aria-label="Instituição"
-            >
-              <span data-fade="1" style={{ fontWeight: 700 }}>
-                {p.institutionName}
-              </span>
-            </div>
+            {p.institutionOptions.length > 1 ? (
+              <label className="gx-field" style={{ margin: 0, minWidth: 200, flex: '0 1 280px' }}>
+                <span className="gx-sr-only">Instituição</span>
+                <select
+                  className="gx-input"
+                  style={{ height: 36, borderRadius: 999, paddingInline: 16, fontWeight: 700 }}
+                  aria-label="Instituição"
+                  value={p.selectedId ?? ''}
+                  onChange={(e) => p.onSelectInstitution(e.target.value || null)}
+                >
+                  {!p.selectedId ? (
+                    <option value="" disabled>
+                      {p.institutionName || 'Várias instituições'}
+                    </option>
+                  ) : null}
+                  {p.institutionOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div
+                className="gx-filter__btn gx-filter__btn--field"
+                style={{ width: 'auto', maxWidth: '100%', cursor: 'default', flex: '0 1 auto', display: 'flex' }}
+                aria-label="Instituição"
+              >
+                <span data-fade="1" style={{ fontWeight: 700 }}>
+                  {p.institutionName}
+                </span>
+              </div>
+            )}
             <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0 }}>
               <FilterPopover
                 variant="field"
@@ -238,81 +344,210 @@ export function DashboardPageView(p: DashboardPageViewProps) {
         <Banner key={e}>{e}</Banner>
       ))}
       {p.logsError ? <Banner onRetry={p.onRetryLogs}>{p.logsError}</Banner> : null}
+      {refreshing ? (
+        <p className="gx-refresh-hint" role="status" aria-live="polite">
+          Atualizando…
+        </p>
+      ) : null}
 
-      <div className="gx-stats" aria-label="Resumo">
+      <div
+        className={refreshing ? 'gx-stats is-refreshing' : 'gx-stats'}
+        aria-label="Resumo"
+        aria-busy={refreshing || undefined}
+      >
         <div className="gx-stat">
           <span>Alunos ativos</span>
-          <strong>{p.summary.activeStudents}</strong>
+          <strong>
+            {p.summary.countsLoading ? 'Carregando…' : p.summary.activeStudents}
+          </strong>
         </div>
         <div className="gx-stat">
           <span>Trilhas ativas</span>
-          <strong>{p.summary.activeTrails}</strong>
+          <strong>
+            {p.summary.countsLoading ? 'Carregando…' : p.summary.activeTrails}
+          </strong>
         </div>
         <div className="gx-stat">
-          <span>Conclusão média</span>
-          <strong>{pctText(p.summary.avgLessonCompletion)}</strong>
-          {p.summary.avgLessonCompletion !== null ? (
-            <span className="gx-bar" style={{ marginTop: 6 }}>
-              <span style={{ width: `${p.summary.avgLessonCompletion}%` }} />
+          <span title="% de atividades concluídas">
+            Conclusão média
+            <abbr
+              title="% de atividades concluídas (não por etapa)"
+              aria-label="% de atividades concluídas"
+              style={{
+                marginLeft: 6,
+                fontWeight: 700,
+                color: 'var(--v-t3)',
+                textDecoration: 'none',
+                cursor: 'help',
+              }}
+            >
+              ?
+            </abbr>
+          </span>
+          <strong>
+            {p.summary.completionLoading
+              ? 'Carregando…'
+              : pctText(p.summary.avgCompletion)}
+          </strong>
+          {p.summary.completionLoading || p.summary.avgCompletion === null ? (
+            <span className="gx-bar" style={{ marginTop: 6 }} aria-hidden="true">
+              <span className="gx-bar__empty" />
             </span>
-          ) : null}
+          ) : (
+            <span className="gx-bar" style={{ marginTop: 6 }}>
+              <span style={{ width: `${p.summary.avgCompletion}%` }} />
+            </span>
+          )}
         </div>
         <div className="gx-stat">
           <span>Acerto médio</span>
-          <strong>{pctText(p.summary.avgAccuracy)}</strong>
-          {p.summary.avgAccuracy !== null ? (
+          <strong>
+            {p.logsError && !p.summary.avgAccuracyLoading
+              ? 'Erro'
+              : accuracySummaryText(
+                  p.summary.avgAccuracy,
+                  p.summary.avgAccuracyLoading,
+                )}
+          </strong>
+          {p.summary.avgAccuracyLoading ? (
+            <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+              <span className="gx-bar__empty" />
+            </span>
+          ) : p.logsError ? (
+            <>
+              <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+                <span className="gx-bar__empty" />
+              </span>
+              <button
+                type="button"
+                className="gx-linkbtn"
+                style={{ marginTop: 6, fontSize: 12 }}
+                onClick={p.onRetryLogs}
+              >
+                Tentar de novo
+              </button>
+            </>
+          ) : p.summary.avgAccuracy !== null ? (
             <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }}>
               <span style={{ width: `${p.summary.avgAccuracy}%` }} />
             </span>
-          ) : null}
+          ) : (
+            <>
+              <span className="gx-bar gx-bar--green" style={{ marginTop: 6 }} aria-hidden="true">
+                <span className="gx-bar__empty" />
+              </span>
+              <span className="gx-muted" style={{ fontSize: 12 }}>
+                sem exercícios
+              </span>
+            </>
+          )}
         </div>
       </div>
 
       {p.activeTab === 'students' ? (
         <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px 16px' }}>
-          <section className="gx-card">
+          <section className="gx-card" aria-busy={chartsLoading || undefined}>
             <h2 style={{ fontSize: 16 }}>Conclusão das atividades</h2>
-            {charts.completionBuckets.map((b) => (
-              <BarRow key={b.key} label={b.label} count={b.count} max={bucketMax} />
-            ))}
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              charts.completionBuckets.map((b) => (
+                <BarRow key={b.key} label={b.label} count={b.count} max={bucketMax} />
+              ))
+            )}
           </section>
-          <section className="gx-card">
+          <section className="gx-card" aria-busy={chartsLoading || undefined}>
             <h2 style={{ fontSize: 16 }}>Situação dos alunos</h2>
-            {charts.statuses.map((b) => (
-              <BarRow key={b.key} label={b.label} count={b.count} max={statusMax} />
-            ))}
-          </section>
-          <section className="gx-card">
-            <h2 style={{ fontSize: 16 }}>Alunos por atividade concluída</h2>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
-              {charts.lessonBars.map((b) => (
-                <div
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              charts.statuses.map((b) => (
+                <BarRow
                   key={b.key}
-                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', minWidth: 0 }}
+                  label={b.key === 'completed' ? 'Concluiu' : b.label}
+                  count={b.count}
+                  max={statusMax}
+                  labelWidth={100}
+                />
+              ))
+            )}
+          </section>
+          <section className="gx-card gx-card--chart" aria-busy={chartsLoading || undefined}>
+            <h2 style={{ fontSize: 16 }}>Alunos por etapa concluída</h2>
+            {chartsLoading ? (
+              <p className="gx-muted">Carregando…</p>
+            ) : (
+              <div className="gx-lesson-chart" role="img" aria-label="Alunos por etapa concluída">
+                <div
+                  className="gx-lesson-chart__track"
+                  style={
+                    {
+                      ['--gx-lesson-cols']: String(
+                        Math.max(1, charts.lessonBars.length),
+                      ),
+                    } as CSSProperties
+                  }
                 >
-                  <strong style={{ fontSize: 12 }}>{b.count}</strong>
-                  <span
-                    style={{
-                      width: '70%',
-                      height: `${Math.max(4, (b.count / lessonMax) * 80)}%`,
-                      borderRadius: 6,
-                      background: 'linear-gradient(to top, #ffd500, #00be85)',
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: 'var(--v-t3)' }}>{b.label}</span>
+                  {charts.lessonBars.map((b) => {
+                    const tip =
+                      b.enrolledCount === 0
+                        ? `${b.fullLabel ?? b.label}: sem alunos`
+                        : `${b.fullLabel ?? b.label}: ${b.count} de ${b.enrolledCount}`
+                    const barH =
+                      b.count > 0 && lessonMax > 0
+                        ? Math.max(8, (b.count / lessonMax) * 80)
+                        : 0
+                    // Label pode ter quebra (Inst\nE1); white-space: normal no CSS.
+                    const shortLabel = b.label.trim() || 'E?'
+                    return (
+                      <div
+                        key={b.key}
+                        className="gx-lesson-chart__col"
+                        tabIndex={0}
+                        aria-label={tip}
+                      >
+                        <span className="gx-lesson-chart__tip" role="tooltip">
+                          {tip}
+                        </span>
+                        <strong className="gx-lesson-chart__n">{b.count}</strong>
+                        <span
+                          className="gx-lesson-chart__bar"
+                          style={{
+                            height: barH > 0 ? `${barH}%` : 4,
+                            minHeight: 4,
+                            background: barH > 0 ? undefined : 'transparent',
+                            opacity: barH > 0 ? 1 : 0.35,
+                          }}
+                        />
+                        <span className="gx-lesson-chart__label">
+                          {shortLabel}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </section>
         </div>
       ) : null}
 
-      <section className="gx-card" aria-label="Uso do monitor" style={{ padding: 0, gap: 0 }}>
+      <section
+        className="gx-card"
+        aria-label="Uso do monitor"
+        style={{ padding: 0, gap: 0 }}
+        // Remount na troca de escopo: zero frame com número da seleção anterior.
+        key={`monitor-${p.selectedId || 'multi'}-${p.agentPeriodDays}`}
+      >
         <div className="gx-card__head" style={{ padding: '24px 24px 0', alignItems: 'flex-end' }}>
           <div>
             <h2>Uso do monitor</h2>
             <p className="gx-muted">
-              {p.agentUsageUnavailable ? 'Dados de uso indisponíveis neste momento.' : 'Perguntas que os alunos fizeram ao monitor'}
+              {p.logsError
+                ? 'Não foi possível carregar o uso do monitor.'
+                : p.agentUsageUnavailable
+                  ? 'Dados de uso indisponíveis neste momento.'
+                  : 'Perguntas que os alunos fizeram ao monitor'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 4, background: 'var(--v-soft)', borderRadius: 999, padding: 4 }}>
@@ -324,58 +559,127 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                 style={{ height: 32, padding: '0 14px', flex: 'none' }}
                 aria-selected={p.agentPeriodDays === days}
                 onClick={() => p.onAgentPeriodDaysChange(days)}
+                disabled={Boolean(p.logsError) && !p.agentUsageLoading}
               >
                 {label}
               </button>
             ))}
           </div>
         </div>
-        <div className="gx-stats" style={{ padding: 24, opacity: p.agentUsageLoading ? 0.5 : 1 }}>
-          {agentKpis.map((k) => (
-            <div className="gx-stat" key={k.label}>
-              <span>{k.label}</span>
-              <strong>{k.value}</strong>
-            </div>
-          ))}
-        </div>
+        {p.logsError ? (
+          <div style={{ padding: 24 }}>
+            <p className="gx-muted" role="alert">
+              Erro: {p.logsError}
+            </p>
+            <button
+              type="button"
+              className="gx-btn"
+              style={{ marginTop: 12 }}
+              onClick={p.onRetryLogs}
+            >
+              Tentar de novo
+            </button>
+          </div>
+        ) : p.agentUsageLoading ? (
+          <div className="gx-stats" style={{ padding: 24 }} aria-busy="true">
+            {agentKpis.map((k) => (
+              <div className="gx-stat" key={k.label}>
+                <span>{k.label}</span>
+                <strong>Carregando…</strong>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="gx-stats" style={{ padding: 24 }}>
+            {agentKpis.map((k) => (
+              <div className="gx-stat" key={k.label} title={'hint' in k ? k.hint : undefined}>
+                <span>
+                  {k.label}
+                  {'hint' in k && k.hint ? (
+                    <abbr
+                      title={k.hint}
+                      aria-label={k.hint}
+                      style={{
+                        marginLeft: 6,
+                        fontWeight: 700,
+                        color: 'var(--v-t3)',
+                        textDecoration: 'none',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </abbr>
+                  ) : null}
+                </span>
+                <strong>{k.value}</strong>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="gx-card" aria-label="Oportunidades" style={{ padding: 24, gap: 28 }}>
         <div>
           <h2>Oportunidades</h2>
-          <p className="gx-muted">Clique em um exercício para ver o enunciado</p>
+          <p className="gx-muted">
+            {p.logsError
+              ? 'Não foi possível carregar as oportunidades.'
+              : 'Clique em um exercício para ver o enunciado'}
+          </p>
         </div>
-        <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 32 }}>
-          {(
-            [
-              ['Menor acerto', p.worstPills],
-              ['Maior acerto', p.bestPills],
-            ] as const
-          ).map(([title, list]) => (
-            <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-              <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
-              {list.map((row) => (
-                <Opportunity
-                  key={`${title}-${row.key}`}
-                  row={row}
-                  open={openOpp === `${title}-${row.key}`}
-                  onToggle={() => setOpenOpp((c) => (c === `${title}-${row.key}` ? null : `${title}-${row.key}`))}
-                />
-              ))}
-              {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
-            </div>
-          ))}
-        </div>
+        {p.logsError ? (
+          <p className="gx-muted" role="alert">
+            Erro: {p.logsError}
+          </p>
+        ) : (
+          <div className="gx-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 32 }}>
+            {(
+              [
+                ['Menor acerto', p.worstPills],
+                ['Maior acerto', p.bestPills],
+              ] as const
+            ).map(([title, list]) => (
+              <div key={title} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                <h3 style={{ fontSize: 15, color: 'var(--v-t2)' }}>{title}</h3>
+                {p.exercisesLoading ? (
+                  <p className="gx-muted">Carregando…</p>
+                ) : (
+                  <>
+                    {list.map((row) => (
+                      <Opportunity
+                        key={`${title}-${row.key}`}
+                        row={row}
+                        open={openOpp === `${title}-${row.key}`}
+                        onToggle={() =>
+                          setOpenOpp((c) =>
+                            c === `${title}-${row.key}` ? null : `${title}-${row.key}`,
+                          )
+                        }
+                      />
+                    ))}
+                    {list.length === 0 ? <p className="gx-muted">N/A</p> : null}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="gx-card" aria-label="Alunos e exercícios" style={{ padding: 0, gap: 0, overflow: 'visible' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '24px 24px 20px' }}>
           <nav role="tablist" aria-label="Dados" className="gx-tabs" style={{ marginTop: 0 }}>
             <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'students'} onClick={() => p.onActiveTabChange('students')}>
-              Alunos <span className="gx-muted">({p.totalStudentCount})</span>
+              Alunos{' '}
+              <span className="gx-muted">
+                ({p.studentsCountLoading ? '…' : p.totalStudentCount})
+              </span>
             </button>
             <button role="tab" type="button" className="gx-tab" aria-selected={p.activeTab === 'questions'} onClick={() => p.onActiveTabChange('questions')}>
-              Exercícios <span className="gx-muted">({p.totalPillCount})</span>
+              Exercícios{' '}
+              <span className="gx-muted">
+                ({p.exercisesLoading ? '…' : p.totalPillCount})
+              </span>
             </button>
           </nav>
           {p.activeTab === 'students' ? (
@@ -461,7 +765,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                       <td className="num">{r.correct}</td>
                       <td className="num">{r.wrong}</td>
                       <td className="num">
-                        <strong>{pctText(r.accuracyPct)}</strong>
+                        <strong>{accuracyCellText(r.accuracyPct)}</strong>
                         {r.accuracyPct !== null ? (
                           <span className="gx-bar" style={{ marginTop: 4 }}>
                             <span style={{ width: `${r.accuracyPct}%` }} />
@@ -473,7 +777,9 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                   {p.studentRowsEmpty ? (
                     <tr>
                       <td colSpan={8} className="gx-table__empty">
-                        Nenhum aluno com os filtros atuais.
+                        {p.studentsCountLoading
+                          ? 'Carregando…'
+                          : 'Nenhum aluno com os filtros atuais.'}
                       </td>
                     </tr>
                   ) : null}

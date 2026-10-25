@@ -2,6 +2,11 @@ import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admi
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 
 import {
+  assertCanonicalBrPhone,
+  assertSchoolGrade,
+  assertStudentName,
+} from '../server/lib/studentFieldValidation.js'
+import {
   resolveStudentByPhoneSoft,
   toCanonicalPhone,
   assertServiceBearer,
@@ -418,6 +423,8 @@ async function handleRequest(request: Request): Promise<Response> {
         const canonical = phone_number ? toCanonicalPhone(phone_number) : null
         const phoneToStore =
           canonical && canonical.ok ? canonical.canonical : phone_number
+        const phoneErr = assertCanonicalBrPhone(phoneToStore ?? '')
+        if (phoneErr) return respond(400, { error: phoneErr })
         const school_level = sanitizeString(body.school_level)
         const school_grade = sanitizeString(body.school_grade)
 
@@ -425,12 +432,16 @@ async function handleRequest(request: Request): Promise<Response> {
           return respond(400, { error: 'Campo "institution_id" é obrigatório' })
         if (!name)
           return respond(400, { error: 'Campo "name" é obrigatório' })
+        const nameErr = assertStudentName(name)
+        if (nameErr) return respond(400, { error: nameErr })
         if (!phone_number)
           return respond(400, { error: 'Campo "phone_number" é obrigatório' })
         if (!school_level)
           return respond(400, { error: 'Campo "school_level" é obrigatório' })
         if (!school_grade)
           return respond(400, { error: 'Campo "school_grade" é obrigatório' })
+        const gradeErr = assertSchoolGrade(school_grade)
+        if (gradeErr) return respond(400, { error: gradeErr })
 
         const normalizedSchoolLevel = normalizeSchoolLevel(school_level)
         if (!['fundamental', 'médio'].includes(normalizedSchoolLevel)) {
@@ -552,7 +563,11 @@ async function handleRequest(request: Request): Promise<Response> {
         if (institution_id) updates.institution_id = institution_id
 
         const name = sanitizeString(body.name)
-        if (name) updates.name = name
+        if (name) {
+          const nameErr = assertStudentName(name)
+          if (nameErr) return respond(400, { error: nameErr })
+          updates.name = name
+        }
 
         if ('phone_number' in body && body.phone_number !== undefined) {
           const sanitizedPhone = sanitizePhoneNumber(body.phone_number)
@@ -563,9 +578,12 @@ async function handleRequest(request: Request): Promise<Response> {
             })
           }
           const canonical = toCanonicalPhone(sanitizedPhone)
-          updates.phone_number = canonical.ok
+          const phoneToStore = canonical.ok
             ? canonical.canonical
             : sanitizedPhone
+          const phoneErr = assertCanonicalBrPhone(phoneToStore)
+          if (phoneErr) return respond(400, { error: phoneErr })
+          updates.phone_number = phoneToStore
         }
 
         const school_level = sanitizeString(body.school_level)
@@ -581,7 +599,11 @@ async function handleRequest(request: Request): Promise<Response> {
         }
 
         const school_grade = sanitizeString(body.school_grade)
-        if (school_grade) updates.school_grade = school_grade
+        if (school_grade) {
+          const gradeErr = assertSchoolGrade(school_grade)
+          if (gradeErr) return respond(400, { error: gradeErr })
+          updates.school_grade = school_grade
+        }
 
         if ('student_level' in body && body.student_level !== undefined) {
           const studentLevel = validateStudentLevel(body.student_level)

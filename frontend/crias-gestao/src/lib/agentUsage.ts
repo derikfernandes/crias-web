@@ -21,7 +21,7 @@ export const CANONICAL_AGENT_LABELS = [
   'Humanas',
   'Natureza',
   'Linguagens',
-  'Maria',
+  'Monitor',
 ] as const
 
 export type AgentUsagePeriodDays = 0 | 7 | 30
@@ -53,13 +53,16 @@ export type AgentUsageSeriesPointView = {
 export type AgentUsageView = {
   periodDays: AgentUsagePeriodDays
   totalMessages: number
+  /** Alunos distintos no período (quando student_ids foram omitidos no compact). */
+  uniqueStudents?: number
   agents: AgentUsageRowView[]
   series: AgentUsageSeriesPointView[]
 }
 
 export const EMPTY_AGENT_USAGE: AgentUsageView = {
-  periodDays: 30,
+  periodDays: 0,
   totalMessages: 0,
+  uniqueStudents: 0,
   agents: [],
   series: [],
 }
@@ -72,18 +75,21 @@ export function agentLabelForTrailId(trailId: string): string {
     'Trilha - Humanas': 'Humanas',
     'Trilha - Natureza': 'Natureza',
     'Tutor - Linguagens': 'Linguagens',
-    'Tutor - Maria': 'Maria',
+    'Tutor - Maria': 'Monitor',
   }
   if (id in canonical) return canonical[id]!
   if (id.startsWith('Trilha -')) return id.slice('Trilha -'.length).trim() || id
-  if (id.startsWith('Tutor -')) return id.slice('Tutor -'.length).trim() || id
+  if (id.startsWith('Tutor -')) {
+    const rest = id.slice('Tutor -'.length).trim() || id
+    return rest === 'Maria' ? 'Monitor' : rest
+  }
   return id
 }
 
 export function formatAgentLastActivity(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return 'N/A'
   const ms = Date.parse(iso)
-  if (Number.isNaN(ms)) return '—'
+  if (Number.isNaN(ms)) return 'N/A'
   try {
     return new Intl.DateTimeFormat('pt-BR', {
       timeZone: 'America/Sao_Paulo',
@@ -94,7 +100,7 @@ export function formatAgentLastActivity(iso: string | null): string {
       minute: '2-digit',
     }).format(new Date(ms))
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 
@@ -112,7 +118,8 @@ export function mergeAgentRowsByLabel(
     Humanas: 'Trilha - Humanas',
     Natureza: 'Trilha - Natureza',
     Linguagens: 'Tutor - Linguagens',
-    Maria: MARIA_AGENT_TRAIL_ID,
+    Monitor: MARIA_AGENT_TRAIL_ID,
+    Maria: MARIA_AGENT_TRAIL_ID, // legado da API
   }
 
   for (const row of rows) {
@@ -190,7 +197,11 @@ export function mergeAgentRowsByLabel(
       trailIds,
       label,
       messages: existing.messages + row.messages,
-      uniqueStudents: studentStats.length,
+      // Sem IDs (compact): preserva uniqueStudents dos agentes.
+      uniqueStudents:
+        studentStats.length > 0
+          ? studentStats.length
+          : existing.uniqueStudents + row.uniqueStudents,
       pctOfTotal: 0,
       lastActivity,
       studentIds: studentStats.map((s) => s.studentId),
@@ -225,17 +236,54 @@ export function mergeAgentRowsByLabel(
   return ordered
 }
 
+/** Dias de calendário cobertos pela série (primeiro ao último dia com dado). */
+export function calendarDaySpan(dates: string[]): number {
+  const times = dates
+    .map((d) => Date.parse(d))
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b)
+  if (times.length === 0) return 1
+  if (times.length === 1) return 1
+  return Math.max(1, Math.round((times[times.length - 1]! - times[0]!) / 86_400_000) + 1)
+}
+
 export function messagesPerTutorPerDay(input: {
   totalMessages: number
   activeTutorCount: number
   periodDays: number
   activeDayCount: number
+  /** Datas YYYY-MM-DD da série (usado no período "Todo"). */
+  seriesDates?: string[]
+  /** Fallback ISO de last_activity dos agentes quando a série veio vazia. */
+  lastActivityDates?: Array<string | null | undefined>
 }): number {
   const tutors = Math.max(0, input.activeTutorCount)
   if (input.totalMessages <= 0 || tutors <= 0) return 0
-  const days =
-    input.periodDays > 0
-      ? input.periodDays
-      : Math.max(1, input.activeDayCount)
+  // 7/30: denominador fixo do período. Todo: dias de calendário 1º→último
+  // (nunca só "dias com mensagem", que inflava a média).
+  let days: number
+  if (input.periodDays > 0) {
+    days = input.periodDays
+  } else if (input.seriesDates && input.seriesDates.length > 0) {
+    days = calendarDaySpan(input.seriesDates)
+  } else if (input.lastActivityDates && input.lastActivityDates.length > 0) {
+    const keys = input.lastActivityDates
+      .map((iso) => {
+        if (!iso) return ''
+        const t = Date.parse(iso)
+        if (Number.isNaN(t)) return ''
+        // Data civil em Brasília (mesma zona da série).
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Sao_Paulo',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(t))
+      })
+      .filter(Boolean)
+    days = calendarDaySpan(keys)
+  } else {
+    days = Math.max(1, input.activeDayCount)
+  }
   return Math.round((input.totalMessages / tutors / days) * 10) / 10
 }

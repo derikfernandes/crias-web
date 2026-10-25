@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { snapshotToStudent } from '../lib/studentFirestore'
 import { snapshotToStudentTrail } from '../lib/studentTrailFirestore'
 import { snapshotToTrail } from '../lib/trailFirestore'
+import { snapshotToTrailStageQuestion } from '../lib/trailStageQuestionFirestore'
+import { activityKeysByTrail } from '../lib/gestaoMetrics'
 import {
   activePillClass,
   fmtDate,
@@ -37,6 +39,22 @@ function schooling(s: Student): string {
   return [level, s.school_grade].filter(Boolean).join(' · ') || 'N/A'
 }
 
+/** Exibe atividade atual limitada ao máximo da etapa atual (só display). */
+function clampActivityInStage(
+  stage: number | null | undefined,
+  question: number | null | undefined,
+  catalog: Array<{ stage: number; question: number }>,
+): number | null {
+  if (question == null || !Number.isFinite(question)) return null
+  if (stage == null || !Number.isFinite(stage) || catalog.length === 0) {
+    return Math.max(1, question)
+  }
+  const inStage = catalog.filter((a) => a.stage === stage)
+  if (inStage.length === 0) return Math.max(1, question)
+  const maxQ = Math.max(...inStage.map((a) => a.question))
+  return Math.min(Math.max(1, question), maxQ)
+}
+
 /** Página Alunos (1.1.12): blocos de cadastro e remoção em massa, filtros por nome e código, tabela. */
 export function StudentsListPage() {
   const g = useGestao()
@@ -44,9 +62,15 @@ export function StudentsListPage() {
   const students = useCollection('students', snapshotToStudent)
   const links = useCollection('student_trails', snapshotToStudentTrail)
   const trails = useCollection('trails', snapshotToTrail)
+  const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const [byName, setByName] = useState<Set<string> | null>(null)
   const [byCode, setByCode] = useState<Set<string> | null>(null)
-  const [sort, setSort] = useState<SortState | null>({ key: 'name', dir: 'asc' })
+  const [sort, setSort] = useState<SortState | null>({ key: 'code', dir: 'asc' })
+
+  const activityCatalogs = useMemo(
+    () => activityKeysByTrail(questions.rows),
+    [questions.rows],
+  )
 
   const scoped = useMemo(
     () => students.rows.filter((s) => g.scopedIds.has(s.institution_id)),
@@ -60,16 +84,18 @@ export function StudentsListPage() {
         .sort((a, b) => (b.last_interaction_at?.toMillis?.() ?? 0) - (a.last_interaction_at?.toMillis?.() ?? 0))
       const top = mine[0]
       const code = studentCode(s.id)
+      const catalog = top ? (activityCatalogs.get(top.trail_id) ?? []) : []
+      const stage = top?.current_stage_number ?? null
       return {
         student: s,
         code,
         trail: top ? (trailName.get(top.trail_id) ?? 'N/A') : 'N/A',
-        stage: top?.current_stage_number ?? null,
-        question: top?.current_question_number ?? null,
+        stage,
+        question: clampActivityInStage(stage, top?.current_question_number, catalog),
         status: (top?.status ?? null) as StudentTrailStatus | null,
       }
     })
-  }, [scoped, links.rows, trails.rows])
+  }, [scoped, links.rows, trails.rows, activityCatalogs])
 
   const nameOptions = useMemo(() => scoped.map((s) => ({ id: s.id, name: s.name || s.id })), [scoped])
   const codeOptions = useMemo(
@@ -111,7 +137,8 @@ export function StudentsListPage() {
   const pager = usePager(rows, 100)
 
   const single = g.scopedInstitutions.length === 1 ? g.scopedInstitutions[0] : null
-  const ready = students.ready && links.ready && trails.ready && !g.institutionsLoading
+  const ready =
+    students.ready && links.ready && trails.ready && questions.ready && !g.institutionsLoading
   if (!ready) return <BootSymbol />
 
   const head = (label: string, key: string, numeric?: boolean) => (
@@ -135,7 +162,7 @@ export function StudentsListPage() {
         <Banner onRetry={students.retry}>Não foi possível carregar os dados. Tente atualizar a página.</Banner>
       ) : null}
       <BulkBlocks institution={single} students={students.rows} trails={trails.rows} />
-      <section className="gx-card" aria-label="Alunos" style={{ padding: 0, gap: 0, overflow: 'visible' }}>
+      <section className="gx-card gx-card--alunos" aria-label="Alunos" style={{ padding: 0, gap: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '24px 24px 20px' }}>
           <div style={{ flex: '1 1 240px', minWidth: 0 }}>
             <FilterPopover
@@ -165,7 +192,7 @@ export function StudentsListPage() {
           </div>
         </div>
         <ScrollX>
-          <table className="gx-table">
+          <table className="gx-table gx-table--alunos">
             <thead>
               <tr>
                 {head('Nome', 'name')}
@@ -176,38 +203,44 @@ export function StudentsListPage() {
                 {head('Status', 'status')}
                 {head('Telefone', 'phone')}
                 {head('Escolaridade', 'level')}
-                {head('Nível pedagógico', 'ped')}
+                {head('Nível', 'ped')}
                 {head('Ativo', 'active')}
-                {head('Criado em', 'created')}
-                {head('Atualizado em', 'updated')}
-                <th />
+                {head('Criado', 'created')}
+                {head('Atualizado', 'updated')}
+                <th data-col="open">Abrir</th>
               </tr>
             </thead>
             <tbody>
               {pager.slice.map((l) => (
                 <tr key={l.student.id}>
-                  <td>
-                    <Link to={`/alunos/${l.student.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
+                  <td data-col="name">
+                    <Link to={`/alunos/${l.student.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }} data-fade="1">
                       {l.student.name || l.student.id}
                     </Link>
                   </td>
-                  <td className="num">{na(l.code)}</td>
-                  <td>{l.trail}</td>
-                  <td className="num">{na(l.stage)}</td>
-                  <td className="num">{na(l.question)}</td>
-                  <td>
+                  <td className="num" data-col="code">{na(l.code)}</td>
+                  <td data-col="trail">
+                    <span data-fade="1">{l.trail}</span>
+                  </td>
+                  <td className="num" data-col="stage">{na(l.stage)}</td>
+                  <td className="num" data-col="question">{na(l.question)}</td>
+                  <td data-col="status">
                     <span className={statusPillClass(l.status)}>{l.status ? STATUS_LABEL[l.status] : 'N/A'}</span>
                   </td>
-                  <td>{na(l.student.phone_number)}</td>
-                  <td>{schooling(l.student)}</td>
-                  <td>{na(PED[l.student.student_level])}</td>
-                  <td>
+                  <td data-col="phone">{na(l.student.phone_number)}</td>
+                  <td data-col="level">
+                    <span data-fade="1" title={schooling(l.student)}>
+                      {schooling(l.student)}
+                    </span>
+                  </td>
+                  <td data-col="ped">{na(PED[l.student.student_level])}</td>
+                  <td data-col="active">
                     <span className={activePillClass(l.student.active)}>{l.student.active ? 'Sim' : 'Não'}</span>
                   </td>
-                  <td>{fmtDate(l.student.created_at)}</td>
-                  <td>{fmtDate(l.student.updated_at)}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Link to={`/alunos/${l.student.id}`} className="gx-btn">
+                  <td data-col="created">{fmtDate(l.student.created_at)}</td>
+                  <td data-col="updated">{fmtDate(l.student.updated_at)}</td>
+                  <td data-col="open">
+                    <Link to={`/alunos/${l.student.id}`} className="gx-btn gx-btn--sm">
                       Abrir
                     </Link>
                   </td>

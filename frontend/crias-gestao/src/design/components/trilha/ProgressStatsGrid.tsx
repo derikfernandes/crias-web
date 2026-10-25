@@ -29,7 +29,7 @@ export function ProgressStatsGrid({
     progressPct === null
       ? null
       : Math.max(0, Math.min(100, Math.round(progressPct * 100)))
-  const pctLabel = pct === null ? '—' : `${pct}%`
+  const pctLabel = pct === null ? 'N/A' : `${pct}%`
   /** I-MAP-3: etapas = fases (`total_stages`), não aulas. */
   const stagesLabel =
     totalStages != null && totalStages > 0
@@ -39,7 +39,7 @@ export function ProgressStatsGrid({
     totalQuestions != null && totalQuestions > 0
       ? `${questionNumber}/${totalQuestions}`
       : `${questionNumber}`
-  const ritmoLabel = habitLine ? '●' : '—'
+  const ritmoLabel = habitLine ? '●' : 'N/A'
 
   const agoraPrimary =
     nowPrimary ??

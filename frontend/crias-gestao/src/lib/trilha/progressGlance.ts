@@ -25,7 +25,7 @@ export function glanceDoneSummary(input: {
 
   const stagesDone = Math.max(0, stage - 1)
   if (stagesDone === 0) {
-    return 'Ainda no começo — nenhuma etapa concluída.'
+    return 'Ainda no começo: nenhuma etapa concluída.'
   }
   if (total !== null) {
     return `${stagesDone} de ${total} etapas concluídas.`

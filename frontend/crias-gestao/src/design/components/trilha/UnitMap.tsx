@@ -53,7 +53,7 @@ export function UnitMap({
       </h2>
       <p className="trilha-unit__lead muted">
         Cada <strong>etapa</strong> reúne <strong>atividades</strong>. Só a etapa
-        atual lista as atividades — sem spoiler do conteúdo futuro.
+        atual lista as atividades, sem spoiler do conteúdo futuro.
       </p>
       {sections.length > stagePageSize ? (
         <ListPager

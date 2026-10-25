@@ -100,6 +100,7 @@ Vale para todo carregamento com o símbolo: abertura do Crias Aluno e do Crias G
 
 ## Orientações para o backend (Cursor), v1.1 (fechamento)
 
+21. **Acerto na Gestão (owner 25/10/2026):** em Início, Dados, warm, menor/maior acerto e % por aluno, quando o gabarito for letra **A–D**, a resposta **1–4** conta como acerto (**1=A, 2=B, 3=C, 4=D**). Se o gabarito for **numérico**, não aplica esse alias (letra ≠ dígito). Continuam fora do denominador: atividades **anuladas**, células **sem gabarito**, cliques de UI (Continuar / 0) e **texto longo** / enunciado colado contra alternativa. Agregado = correct/tried (ponderado); multi-instituição soma numerador e denominador.
 19. **Padrão de senha (toda a aplicação):** senha sempre mascarada (••••••••) com botão de olho para mostrar; depois, botão editar (libera digitação), copiar para a área de transferência e o botão **Gerar** (gera nova senha). Em edição, o botão vira **Salvar**. Estados possíveis: com senha ou "Sem senha" (não existe "legado"). Vale em Senhas, Permissões > Usuários e Usuários (Crias e Instituições).
 20. **Menu Sistema** (Prompts, API e documentação) aparece só para Super admin.
 
@@ -294,8 +295,8 @@ A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositóri
 
 - Destaques só com dados que já existem, em barras finas (3 a 4px, trilho `--v-soft2`/`--v-line`):
   - Início, card da instituição, "Uso dos alunos": barra acima de cada número, proporcional ao total de alunos da instituição (Em andamento e Ativos em degradê amarelo para verde, Concluíram em verde, Não iniciaram em cinza).
-  - Dados: "Conclusão média" com barra em degradê e "Acerto médio" com barra verde, abaixo do número. Contagens (alunos, trilhas) ficam sem barra.
-  - Dados, tabela Alunos: "% de conclusão" e "% de acerto" no mesmo padrão: número em negrito e barra fina em degradê amarelo para verde. Sem dado: "N/A".
+  - Dados: "Conclusão média" (% de atividades concluídas; tooltip no "?") com barra em degradê e "Acerto médio" com barra verde, abaixo do número. Contagens (alunos, trilhas) ficam sem barra.
+  - Dados, tabela Alunos: "% de conclusão" e "% de acerto" no mesmo padrão: número em negrito e barra fina em degradê amarelo para verde. Sem dado de conclusão: "N/A". Sem exercícios tentados no acerto: "sem exercícios" (não travessão).
   - Dados, "Exercícios com menor/maior acerto": barra por exercício na cor da etiqueta (verde a partir de 70%, amarelo de 50 a 69%, vermelho abaixo de 50%). Nome esmaece no fim.
 - Seletores (todos os `select`): seta própria (chevron 16px, `#5b6b60`) a 14px da borda direita, texto com 42px de respiro à direita, sem a seta nativa do navegador.
 - Base da área de conteúdo: esmaecimento de 56px na cor do fundo, acima do conteúdo, começando na altura do topo do avatar do rodapé do menu. O conteúdo tem 72px de respiro no fim para não ficar sob o esmaecimento.
@@ -497,7 +498,7 @@ Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda ativ
 
 ## Regras invioláveis
 
-0. No painel, a conclusão (Dados, indicadores e gráficos) é medida por **atividade**, nunca por etapa.
+0. No painel, a conclusão (Dados, indicadores e gráficos) é medida por **atividade**, nunca por etapa. Na Gestão (Início e Dados), o rótulo "Conclusão média" significa **% de atividades concluídas** (tooltip igual); o valor canônico é `avg_completion` do cache de métricas, não `avg_lesson_completion` (etapa/aula).
 
 
 1. Fundo branco. Bege (`#fcfbf6`, `#f7f5ec`, `#fefdfa`) só em destaques, campos e balões. O menu lateral usa #fdfcf9 no claro (1.1.22).

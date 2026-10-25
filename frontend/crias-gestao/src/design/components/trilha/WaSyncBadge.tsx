@@ -5,7 +5,7 @@ export function WaSyncBadge() {
         WA
       </span>
       <span>
-        Sincronizado com WhatsApp — o progresso é o mesmo nos dois canais.
+        Sincronizado com o app do Crias: o progresso é o mesmo nos canais.
       </span>
     </p>
   )

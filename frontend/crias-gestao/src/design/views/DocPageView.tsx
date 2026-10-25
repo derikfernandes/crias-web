@@ -37,8 +37,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/institution/',
     title: 'Criar nova instituição',
-    description:
-      'Cria uma nova instituição no sistema. Envie um JSON no corpo da requisição com os dados cadastrais.',
+    description: 'Cria uma nova instituição no sistema. Envie um JSON no corpo da requisição com os dados cadastrais.',
     auth: true,
     bodyFields: [
       {
@@ -86,9 +85,9 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
 }`,
     responses: [
       { code: '200', description: 'Instituição criada com sucesso (resposta padrão).' },
-      { code: '201', description: 'Criado — recurso disponível no corpo ou no cabeçalho Location.' },
+      { code: '201', description: 'Criado: recurso disponível no corpo ou no cabeçalho Location.' },
       { code: '400', description: 'Dados inválidos ou campos obrigatórios ausentes.' },
-      { code: '401', description: 'Não autenticado — token ausente ou inválido.' },
+      { code: '401', description: 'Não autenticado: token ausente ou inválido.' },
     ],
   },
   {
@@ -96,8 +95,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/institution/',
     title: 'Listar todas as instituições',
-    description:
-      'Retorna a lista completa de instituições cadastradas, em geral com todos os campos do modelo.',
+    description: 'Retorna a lista completa de instituições cadastradas, em geral com todos os campos do modelo.',
     auth: true,
     responses: [
       { code: '200', description: 'Lista de instituições (array JSON).' },
@@ -109,8 +107,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/institution/simple',
     title: 'Listar instituições (formato simplificado)',
-    description:
-      'Retorna uma lista reduzida de instituições (por exemplo, apenas id, nome e tipo), útil para selects e telas leves.',
+    description: 'Retorna uma lista reduzida de instituições (por exemplo, apenas id, nome e tipo), útil para selects e telas leves.',
     auth: true,
     responses: [
       { code: '200', description: 'Lista simplificada (estrutura definida pelo backend).' },
@@ -142,8 +139,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/institution/{id}',
     title: 'Atualizar instituição',
-    description:
-      'Substitui ou atualiza os dados da instituição indicada pelo id. O corpo segue o mesmo formato de criação (total ou parcial, conforme contrato do backend).',
+    description: 'Substitui ou atualiza os dados da instituição indicada pelo id. O corpo segue o mesmo formato de criação (total ou parcial, conforme contrato do backend).',
     auth: true,
     pathParams: [
       {
@@ -185,7 +181,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
       },
     ],
     bodyExample: `{
-  "name": "Escola Alpha — Unidade Centro",
+  "name": "Escola Alpha: Unidade Centro",
   "email": "novoemail@escolaalpha.edu.br"
 }`,
     responses: [
@@ -200,8 +196,7 @@ const INSTITUTION_ENDPOINTS: DocEndpoint[] = [
     method: 'DELETE',
     path: '/institution/{id}',
     title: 'Deletar instituição',
-    description:
-      'Remove permanentemente o registro da instituição. Operação irreversível; confirme regras de negócio no backend.',
+    description: 'Remove permanentemente o registro da instituição. Operação irreversível; confirme regras de negócio no backend.',
     auth: true,
     pathParams: [
       {
@@ -224,8 +219,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/student/identify',
     title: 'Identificar aluno (login do player)',
-    description:
-      'Login MVP do app aluno: telefone normalizado + código da instituição (`institution_id`). Retorna o aluno ativo correspondente.',
+    description: 'Login MVP do app aluno: telefone normalizado + código da instituição (`institution_id`). Retorna o aluno ativo correspondente.',
     auth: false,
     bodyFields: [
       {
@@ -259,8 +253,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/student/',
     title: 'Listar alunos (com filtros)',
-    description:
-      'Retorna a lista de alunos. Use query params para filtrar por `institution_id`, `school_level`, `school_grade`, `student_level` e `active`.',
+    description: 'Retorna a lista de alunos. Use query params para filtrar por `institution_id`, `school_level`, `school_grade`, `student_level` e `active`.',
     auth: true,
     queryParams: [
       {
@@ -279,15 +272,13 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         name: 'school_grade',
         type: 'string',
         required: false,
-        description:
-          'Série/ano do aluno (ex.: "7º ano", "2º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
+        description: 'Série/ano do aluno (ex.: "7º ano", "2º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
       },
       {
         name: 'student_level',
         type: '1 | 2 | 3',
         required: false,
-        description:
-          'Nível pedagógico atual. Se não preencher no cadastro, o backend usa default `2` (intermediário).',
+        description: 'Nível pedagógico atual. Se não preencher no cadastro, o backend usa default `2` (intermediário).',
       },
       {
         name: 'active',
@@ -306,8 +297,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/student/simple',
     title: 'Listar alunos (formato simplificado)',
-    description:
-      'Versão reduzida do endpoint de listagem, útil para selects e telas leves.',
+    description: 'Versão reduzida do endpoint de listagem, útil para selects e telas leves.',
     auth: true,
     queryParams: [
       {
@@ -326,8 +316,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         name: 'school_grade',
         type: 'string',
         required: false,
-        description:
-          'Série/ano do aluno (ex.: "7º ano", "2º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
+        description: 'Série/ano do aluno (ex.: "7º ano", "2º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
       },
       {
         name: 'student_level',
@@ -372,15 +361,13 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/student/{phone_number}',
     title: 'Buscar aluno por phone_number',
-    description:
-      'Obtém os dados de um aluno a partir do telefone (phone_number). A busca é feita pelos dígitos; caracteres não numéricos são removidos pelo backend.',
+    description: 'Obtém os dados de um aluno a partir do telefone (phone_number). A busca é feita pelos dígitos; caracteres não numéricos são removidos pelo backend.',
     auth: true,
     pathParams: [
       {
         name: 'phone_number',
         type: 'string',
-        description:
-          'Telefone do aluno. Quando usado no path, a rota captura apenas dígitos.',
+        description: 'Telefone do aluno. Quando usado no path, a rota captura apenas dígitos.',
       },
     ],
     responses: [
@@ -395,8 +382,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/student/',
     title: 'Criar novo aluno',
-    description:
-      'Cria um novo aluno vinculado a uma instituição. Campos importantes: `school_level`/`school_grade` representam a série/ano escolar; `student_level` representa o nível pedagógico atual e é independente deles. Se `student_level` não for enviado, o backend assume default `2` (intermediário).',
+    description: 'Cria um novo aluno vinculado a uma instituição. Campos importantes: `school_level`/`school_grade` representam a série/ano escolar; `student_level` representa o nível pedagógico atual e é independente deles. Se `student_level` não for enviado, o backend assume default `2` (intermediário).',
     auth: true,
     bodyFields: [
       {
@@ -417,40 +403,35 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         name: 'phone_number',
         type: 'string',
         required: true,
-        description:
-          'Telefone de contato. O backend/gestão salva apenas números (remove `+`, espaços, hífen, parênteses etc.).',
+        description: 'Telefone de contato. O backend/gestão salva apenas números (remove `+`, espaços, hífen, parênteses etc.).',
         example: '+55 11 99999-0000',
       },
       {
         name: 'school_level',
         type: '"fundamental" | "médio"',
         required: true,
-        description:
-          'Nível escolar. Use "fundamental" ou "médio" (equivalente a ensino médio).',
+        description: 'Nível escolar. Use "fundamental" ou "médio" (equivalente a ensino médio).',
         example: 'fundamental',
       },
       {
         name: 'school_grade',
         type: 'string',
         required: true,
-        description:
-          'Série/ano escolar (ex.: "7º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
+        description: 'Série/ano escolar (ex.: "7º ano"). Não confundir com `student_level`. Valores comuns: `fundamental` → "1º ano" ... "9º ano"; `médio` → "1º ano" ... "3º ano".',
         example: '7º ano',
       },
       {
         name: 'student_level',
         type: '1 | 2 | 3',
         required: false,
-        description:
-          'Nível pedagógico atual (1, 2, 3). Default quando não preenchido: `2`.',
+        description: 'Nível pedagógico atual (1, 2, 3). Default quando não preenchido: `2`.',
         example: '1',
       },
       {
         name: 'active',
         type: 'boolean',
         required: false,
-        description:
-          'Indica se o aluno está ativo. Se não enviar, o backend usa `true`.',
+        description: 'Indica se o aluno está ativo. Se não enviar, o backend usa `true`.',
         example: 'true',
       },
     ],
@@ -509,9 +490,9 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
   "active": true
 }`,
     responses: [
-      { code: '201', description: 'Criado — aluno disponível no corpo.' },
+      { code: '201', description: 'Criado: aluno disponível no corpo.' },
       { code: '400', description: 'Dados inválidos ou campos obrigatórios ausentes.' },
-      { code: '401', description: 'Não autenticado — token ausente ou inválido.' },
+      { code: '401', description: 'Não autenticado: token ausente ou inválido.' },
     ],
   },
   {
@@ -519,8 +500,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student/{id}',
     title: 'Atualizar aluno',
-    description:
-      'Atualiza campos do aluno indicado pelo `id`. O corpo pode ser parcial: envie somente os campos que deseja alterar.',
+    description: 'Atualiza campos do aluno indicado pelo `id`. O corpo pode ser parcial: envie somente os campos que deseja alterar.',
     auth: true,
     pathParams: [
       {
@@ -546,8 +526,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
         name: 'phone_number',
         type: 'string',
         required: false,
-        description:
-          'Novo telefone do aluno. O backend/gestão salva apenas dígitos (remove caracteres não numéricos).',
+        description: 'Novo telefone do aluno. O backend/gestão salva apenas dígitos (remove caracteres não numéricos).',
       },
       {
         name: 'school_level',
@@ -586,8 +565,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     method: 'DELETE',
     path: '/student/{id}',
     title: 'Deletar aluno',
-    description:
-      'Remove o aluno com exclusão em cascade dos registros dependentes (`student_trails`, `conversation_logs`, `exercise_attempts`). Operação irreversível. Se o aluno já não existir, os dependentes ainda são limpos e a resposta é 204.',
+    description: 'Remove o aluno com exclusão em cascade dos registros dependentes (`student_trails`, `conversation_logs`, `exercise_attempts`). Operação irreversível. Se o aluno já não existir, os dependentes ainda são limpos e a resposta é 204.',
     auth: true,
     pathParams: [
       {
@@ -599,8 +577,7 @@ const STUDENT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '204',
-        description:
-          'Exclusão concluída (No Content), inclusive quando só havia dependentes órfãos.',
+        description: 'Exclusão concluída (No Content), inclusive quando só havia dependentes órfãos.',
       },
       { code: '400', description: 'id ausente.' },
       { code: '401', description: 'Não autenticado.' },
@@ -614,8 +591,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trails/',
     title: 'Listar trilhas (com filtros)',
-    description:
-      'Retorna a lista de trilhas. Use query params para filtrar por `institution_id` e `active`.',
+    description: 'Retorna a lista de trilhas. Use query params para filtrar por `institution_id` e `active`.',
     auth: true,
     queryParams: [
       {
@@ -641,8 +617,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trails/simple',
     title: 'Listar trilhas (formato simplificado)',
-    description:
-      'Versão reduzida da listagem, útil para selects e telas leves.',
+    description: 'Versão reduzida da listagem, útil para selects e telas leves.',
     auth: true,
     queryParams: [
       {
@@ -668,8 +643,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trails/{id}',
     title: 'Buscar trilha por ID',
-    description:
-      'Obtém os dados de uma única trilha a partir do identificador único.',
+    description: 'Obtém os dados de uma única trilha a partir do identificador único.',
     auth: true,
     pathParams: [
       {
@@ -689,8 +663,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/trails/',
     title: 'Criar nova trilha',
-    description:
-      'Cria uma nova trilha com os campos macro. `default_total_steps_per_stage` é opcional e o backend usa default `8` quando não enviado.',
+    description: 'Cria uma nova trilha com os campos macro. `default_total_steps_per_stage` é opcional e o backend usa default `8` quando não enviado.',
     auth: true,
     bodyFields: [
       {
@@ -725,8 +698,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'default_total_steps_per_stage',
         type: 'number (inteiro)',
         required: false,
-        description:
-          'Valor padrão de atividades por etapa (o backend usa `8` se omitido).',
+        description: 'Valor padrão de atividades por etapa (o backend usa `8` se omitido).',
         example: '8',
       },
       {
@@ -740,7 +712,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       { code: '201', description: 'Trilha criada com sucesso.' },
       { code: '400', description: 'Dados inválidos ou campos obrigatórios ausentes.' },
-      { code: '401', description: 'Não autenticado — token ausente ou inválido.' },
+      { code: '401', description: 'Não autenticado: token ausente ou inválido.' },
     ],
   },
   {
@@ -748,8 +720,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/trails/{id}',
     title: 'Atualizar trilha',
-    description:
-      'Atualiza campos da trilha indicada pelo `id`. O corpo pode ser parcial.',
+    description: 'Atualiza campos da trilha indicada pelo `id`. O corpo pode ser parcial.',
     auth: true,
     pathParams: [
       {
@@ -763,8 +734,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'institution_id',
         type: 'string',
         required: false,
-        description:
-          'Não permitido após criação (imutável). Enviar este campo retorna erro.',
+        description: 'Não permitido após criação (imutável). Enviar este campo retorna erro.',
       },
       { name: 'name', type: 'string', required: false, description: 'Novo nome da trilha.' },
       { name: 'description', type: 'string', required: false, description: 'Nova descrição geral.' },
@@ -794,8 +764,7 @@ const TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'DELETE',
     path: '/trails/{id}',
     title: 'Deletar trilha',
-    description:
-      'Remove a trilha com exclusão em cascade dos registros dependentes (`trail_stage_questions`, `trail_stages`, `student_trails`, `conversation_logs`). Operação irreversível.',
+    description: 'Remove a trilha com exclusão em cascade dos registros dependentes (`trail_stage_questions`, `trail_stages`, `student_trails`, `conversation_logs`). Operação irreversível.',
     auth: true,
     pathParams: [
       {
@@ -817,8 +786,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trail_stages/',
     title: 'Listar etapas (com filtros)',
-    description:
-      'Retorna a lista de etapas. Use query params para filtrar por `trail_id`, `active` e `is_released`.',
+    description: 'Retorna a lista de etapas. Use query params para filtrar por `trail_id`, `active` e `is_released`.',
     auth: true,
     queryParams: [
       {
@@ -890,8 +858,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trail_stages/',
     title: 'Buscar stage por trail_id e stage_number',
-    description:
-      'Obtém um único stage quando ambos os query params estão presentes. Equivale ao documento com id determinístico `{trail_id}_stage_{stage_number}`. O parâmetro `simple=1` também se aplica.',
+    description: 'Obtém um único stage quando ambos os query params estão presentes. Equivale ao documento com id determinístico `{trail_id}_stage_{stage_number}`. O parâmetro `simple=1` também se aplica.',
     auth: true,
     queryParams: [
       {
@@ -921,8 +888,7 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/trail_stages/',
     title: 'Criar nova etapa',
-    description:
-      'Cria uma nova etapa de uma trilha. `is_released` inicia como `false` e `active` inicia como `true`.',
+    description: 'Cria uma nova etapa de uma trilha. `is_released` inicia como `false` e `active` inicia como `true`.',
     auth: true,
     bodyFields: [
       {
@@ -950,23 +916,21 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_type',
         type: '"ai" | "fixed" | "exercise"',
         required: true,
-        description:
-          'Tipo da etapa (player do aluno). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
+        description: 'Tipo da etapa (player do aluno). Com `fixed` ou `exercise`, `prompt` deve ser null ou omitido.',
         example: 'ai',
       },
       {
         name: 'prompt',
         type: 'string | null',
         required: true,
-        description:
-          'Prompt base. Obrigatório (string não vazia) quando `stage_type` é `ai`; deve ser `null` para `fixed` e `exercise`.',
+        description: 'Prompt base. Obrigatório (string não vazia) quando `stage_type` é `ai`; deve ser `null` para `fixed` e `exercise`.',
         example: 'Explique o conteúdo de forma simples…',
       },
     ],
     responses: [
       { code: '201', description: 'Stage criado com sucesso.' },
       { code: '400', description: 'Dados inválidos ou conflito de stage_number.' },
-      { code: '401', description: 'Não autenticado — token ausente ou inválido.' },
+      { code: '401', description: 'Não autenticado: token ausente ou inválido.' },
     ],
   },
   {
@@ -994,15 +958,13 @@ const TRAIL_STAGE_ENDPOINTS: DocEndpoint[] = [
         name: 'stage_type',
         type: '"ai" | "fixed" | "exercise"',
         required: false,
-        description:
-          'Novo tipo da etapa. Se mudar para `fixed` ou `exercise`, o servidor grava `prompt` como null.',
+        description: 'Novo tipo da etapa. Se mudar para `fixed` ou `exercise`, o servidor grava `prompt` como null.',
       },
       {
         name: 'prompt',
         type: 'string | null',
         required: false,
-        description:
-          'Novo prompt. Com `stage_type` `ai` deve ser texto não vazio quando enviado; com `fixed`/`exercise` use null.',
+        description: 'Novo prompt. Com `stage_type` `ai` deve ser texto não vazio quando enviado; com `fixed`/`exercise` use null.',
       },
       {
         name: 'is_released',
@@ -1052,8 +1014,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trail_stage_questions/',
     title: 'Obter maior question_number da etapa',
-    description:
-      'Use `action=max` com `trail_id` e `stage_number`. Retorna `max_question_number`, `next_question_number` e `total_questions` (aceita filtros opcionais `active` e `is_released`).',
+    description: 'Use `action=max` com `trail_id` e `stage_number`. Retorna `max_question_number`, `next_question_number` e `total_questions` (aceita filtros opcionais `active` e `is_released`).',
     auth: true,
     queryParams: [
       {
@@ -1091,8 +1052,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Ex.: `{ trail_id, stage_number, max_question_number, next_question_number, total_questions }`.',
+        description: 'Ex.: `{ trail_id, stage_number, max_question_number, next_question_number, total_questions }`.',
       },
       { code: '400', description: 'trail_id ou stage_number ausentes/inválidos para action=max.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1103,16 +1063,14 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trail_stage_questions/',
     title: 'Listar atividades de uma etapa',
-    description:
-      'Retorna atividades ordenadas por `question_number` quando `trail_id` e `stage_number` são informados. Opcional: `active` (filtra ativas/inativas), `simple=1`.',
+    description: 'Retorna atividades ordenadas por `question_number` quando `trail_id` e `stage_number` são informados. Opcional: `active` (filtra ativas/inativas), `simple=1`.',
     auth: true,
     queryParams: [
       {
         name: 'trail_id',
         type: 'string',
         required: false,
-        description:
-          'ID da trilha — obrigatório com `stage_number` para listar ou com `question_number` para item único.',
+        description: 'ID da trilha: obrigatório com `stage_number` para listar ou com `question_number` para item único.',
       },
       {
         name: 'stage_number',
@@ -1124,8 +1082,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
         name: 'question_number',
         type: 'number (inteiro)',
         required: false,
-        description:
-          'Se informado junto com trail_id e stage_number, retorna uma única atividade (em vez da lista).',
+        description: 'Se informado junto com trail_id e stage_number, retorna uma única atividade (em vez da lista).',
       },
       {
         name: 'active',
@@ -1181,8 +1138,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/trail_stage_questions/{id}',
     title: 'Buscar atividade por ID do documento',
-    description:
-      'O `id` segue o padrão `{trail_id}_stage_{stage_number}_q_{question_number}`.',
+    description: 'O `id` segue o padrão `{trail_id}_stage_{stage_number}_q_{question_number}`.',
     auth: true,
     pathParams: [
       {
@@ -1201,8 +1157,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/trail_stage_questions/',
     title: 'Criar atividade / etapa',
-    description:
-      'Opcionalmente envie `is_released` (boolean). Se omitido, vale `true` só para `question_number === 1`, senão `false`. `active` inicia como `true`. O servidor usa `trail_stages.stage_type` para validar correção. Não envie `question_type` nem `prompt`.',
+    description: 'Opcionalmente envie `is_released` (boolean). Se omitido, vale `true` só para `question_number === 1`, senão `false`. `active` inicia como `true`. O servidor usa `trail_stages.stage_type` para validar correção. Não envie `question_type` nem `prompt`.',
     auth: true,
     bodyFields: [
       {
@@ -1261,8 +1216,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
         name: 'is_released',
         type: 'boolean',
         required: false,
-        description:
-          'Se omitido: true só quando question_number === 1; caso contrário false.',
+        description: 'Se omitido: true só quando question_number === 1; caso contrário false.',
         example: 'true',
       },
     ],
@@ -1291,8 +1245,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/trail_stage_questions/{id}',
     title: 'Atualizar atividade',
-    description:
-      'Atualização parcial. Não altere trail_id, stage_number nem question_number. Revalida usando o `stage_type` atual do `trail_stages`. Remove campos legados `question_type` e `prompt` do documento se existirem.',
+    description: 'Atualização parcial. Não altere trail_id, stage_number nem question_number. Revalida usando o `stage_type` atual do `trail_stages`. Remove campos legados `question_type` e `prompt` do documento se existirem.',
     auth: true,
     pathParams: [
       {
@@ -1346,7 +1299,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
       },
     ],
     responses: [
-      { code: '200', description: '{ ok: true, id } — documento atualizado (is_released persistido).' },
+      { code: '200', description: '{ ok: true, id }: documento atualizado (is_released persistido).' },
       { code: '400', description: 'Payload inválido ou campos de identidade no body.' },
       { code: '404', description: 'Não encontrado.' },
     ],
@@ -1356,8 +1309,7 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/trail_stage_questions/{id}?deactivate=1',
     title: 'Desativar atividade (sem deletar)',
-    description:
-      'Atalho: query `deactivate=1` e corpo JSON vazio `{}`. Equivale a `active: false`.',
+    description: 'Atalho: query `deactivate=1` e corpo JSON vazio `{}`. Equivale a `active: false`.',
     auth: true,
     pathParams: [
       {
@@ -1385,11 +1337,10 @@ const TRAIL_STAGE_QUESTION_ENDPOINTS: DocEndpoint[] = [
     method: 'DELETE',
     path: '/trail_stage_questions/{id}',
     title: 'DELETE não suportado',
-    description:
-      'A API não remove documentos desta collection; use desativação (`active: false`).',
+    description: 'A API não remove documentos desta collection; use desativação (`active: false`).',
     auth: true,
     pathParams: [
-      { name: 'id', type: 'string', description: '—' },
+      { name: 'id', type: 'string', description: 'N/A' },
     ],
     responses: [{ code: '405', description: 'Método não permitido.' }],
   },
@@ -1401,8 +1352,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/student_trails/next-content',
     title: 'Próximo conteúdo (player)',
-    description:
-      'Retorna o conteúdo na posição atual do aluno, com checagem de is_released/active. Usado pelo app web do aluno.',
+    description: 'Retorna o conteúdo na posição atual do aluno, com checagem de is_released/active. Usado pelo app web do aluno.',
     auth: false,
     queryParams: [
       {
@@ -1421,8 +1371,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'status ok (conteúdo), blocked, completed, inactive_student ou inactive_trail.',
+        description: 'status ok (conteúdo), blocked, completed, inactive_student ou inactive_trail.',
       },
       { code: '404', description: 'Aluno, trilha ou vínculo não encontrado.' },
     ],
@@ -1432,8 +1381,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/student_trails/advance',
     title: 'Avançar progresso (player)',
-    description:
-      'Aplica a grade canônica (stage → question) e atualiza student_trails. A lógica de progressão fica na API.',
+    description: 'Aplica a grade canônica (stage → question) e atualiza student_trails. A lógica de progressão fica na API.',
     auth: false,
     bodyFields: [
       {
@@ -1458,8 +1406,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'status ok com next_stage_number / next_question_number / completed, ou blocked/completed.',
+        description: 'status ok com next_stage_number / next_question_number / completed, ou blocked/completed.',
       },
       { code: '404', description: 'Aluno, trilha ou vínculo não encontrado.' },
     ],
@@ -1469,8 +1416,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/student_trails/',
     title: 'Buscar posição atual do aluno em uma trilha',
-    description:
-      'Retorna o estado atual do aluno dentro de uma trilha (etapa, atividade e status) a partir de `student_id` + `trail_id`.',
+    description: 'Retorna o estado atual do aluno dentro de uma trilha (etapa, atividade e status) a partir de `student_id` + `trail_id`.',
     auth: true,
     queryParams: [
       {
@@ -1489,8 +1435,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Objeto com etapa/atividade/status atuais, além de timestamps (started_at, completed_at, last_interaction_at, created_at, updated_at).',
+        description: 'Objeto com etapa/atividade/status atuais, além de timestamps (started_at, completed_at, last_interaction_at, created_at, updated_at).',
       },
       { code: '400', description: 'Parâmetros obrigatórios ausentes.' },
       { code: '404', description: 'Progresso não encontrado para student_id + trail_id.' },
@@ -1502,8 +1447,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/student_trails/',
     title: 'Criar progresso de aluno em uma trilha',
-    description:
-      'Cria um registro na collection `student_trails` para controlar o estado atual do aluno em uma trilha específica. Apenas um registro por combinação student_id + trail_id.',
+    description: 'Cria um registro na collection `student_trails` para controlar o estado atual do aluno em uma trilha específica. Apenas um registro por combinação student_id + trail_id.',
     auth: true,
     bodyFields: [
       {
@@ -1545,8 +1489,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
         name: 'status',
         type: '"not_started" | "in_progress" | "completed" | "blocked"',
         required: false,
-        description:
-          'Estado da jornada do aluno na trilha. Default `not_started` quando omitido.',
+        description: 'Estado da jornada do aluno na trilha. Default `not_started` quando omitido.',
         example: 'in_progress',
       },
     ],
@@ -1561,13 +1504,11 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '201',
-        description:
-          'Progresso criado com sucesso (apenas estado atual; histórico detalhado é salvo em outras collections).',
+        description: 'Progresso criado com sucesso (apenas estado atual; histórico detalhado é salvo em outras collections).',
       },
       {
         code: '409',
-        description:
-          'Já existe um registro de progresso para a combinação student_id + trail_id.',
+        description: 'Já existe um registro de progresso para a combinação student_id + trail_id.',
       },
       { code: '400', description: 'Payload inválido ou campos obrigatórios ausentes.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1578,8 +1519,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=advance_question',
     title: 'Avançar para a próxima atividade',
-    description:
-      'Incrementa `current_question_number` do aluno em uma trilha. Se o status estiver `not_started`, passa para `in_progress` e preenche `started_at` se ainda estiver null.',
+    description: 'Incrementa `current_question_number` do aluno em uma trilha. Se o status estiver `not_started`, passa para `in_progress` e preenche `started_at` se ainda estiver null.',
     auth: true,
     queryParams: [
       {
@@ -1604,13 +1544,11 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Objeto com posição atualizada (etapa, atividade e status). `last_interaction_at` é atualizado.',
+        description: 'Objeto com posição atualizada (etapa, atividade e status). `last_interaction_at` é atualizado.',
       },
       {
         code: '400',
-        description:
-          'Parâmetros inválidos ou tentativa de avançar quando o status está `completed` ou `blocked`.',
+        description: 'Parâmetros inválidos ou tentativa de avançar quando o status está `completed` ou `blocked`.',
       },
       { code: '404', description: 'Progresso não encontrado para student_id + trail_id.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1621,8 +1559,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=advance_stage',
     title: 'Avançar para a próxima etapa',
-    description:
-      'Incrementa `current_stage_number` e mantém `current_question_number` como está. Mesma regra de status/started_at do avanço de atividade.',
+    description: 'Incrementa `current_stage_number` e mantém `current_question_number` como está. Mesma regra de status/started_at do avanço de atividade.',
     auth: true,
     queryParams: [
       {
@@ -1647,13 +1584,11 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Objeto com nova etapa atual; `current_question_number` inalterado. `last_interaction_at` é atualizado.',
+        description: 'Objeto com nova etapa atual; `current_question_number` inalterado. `last_interaction_at` é atualizado.',
       },
       {
         code: '400',
-        description:
-          'Parâmetros inválidos ou tentativa de avançar quando o status está `completed` ou `blocked`.',
+        description: 'Parâmetros inválidos ou tentativa de avançar quando o status está `completed` ou `blocked`.',
       },
       { code: '404', description: 'Progresso não encontrado.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1664,8 +1599,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=mark_last_interaction',
     title: 'Marcar última interação',
-    description:
-      'Apenas atualiza `last_interaction_at` (e `updated_at`) do registro de progresso.',
+    description: 'Apenas atualiza `last_interaction_at` (e `updated_at`) do registro de progresso.',
     auth: true,
     queryParams: [
       {
@@ -1688,7 +1622,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
       },
     ],
     responses: [
-      { code: '200', description: '{ ok: true } — sucesso.' },
+      { code: '200', description: '{ ok: true }: sucesso.' },
       { code: '404', description: 'Progresso não encontrado.' },
       { code: '401', description: 'Não autenticado.' },
     ],
@@ -1698,8 +1632,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=complete',
     title: 'Concluir trilha para o aluno',
-    description:
-      'Define `status = "completed"`, preenche `completed_at` e atualiza `last_interaction_at`.',
+    description: 'Define `status = "completed"`, preenche `completed_at` e atualiza `last_interaction_at`.',
     auth: true,
     queryParams: [
       {
@@ -1732,8 +1665,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=block',
     title: 'Bloquear trilha para o aluno',
-    description:
-      'Define `status = "blocked"`. Pode ser usado para interromper a jornada do aluno na trilha quando houver algum impedimento.',
+    description: 'Define `status = "blocked"`. Pode ser usado para interromper a jornada do aluno na trilha quando houver algum impedimento.',
     auth: true,
     queryParams: [
       {
@@ -1766,8 +1698,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=update_status',
     title: 'Atualizar status manualmente',
-    description:
-      'Permite forçar o status da trilha do aluno para qualquer um dos valores válidos, respeitando as regras de timestamps (started_at/completed_at).',
+    description: 'Permite forçar o status da trilha do aluno para qualquer um dos valores válidos, respeitando as regras de timestamps (started_at/completed_at).',
     auth: true,
     queryParams: [
       {
@@ -1810,8 +1741,7 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
     method: 'PUT',
     path: '/student_trails/?action=update_position',
     title: 'Ajustar manualmente etapa/atividade atuais',
-    description:
-      'Atualiza diretamente `current_stage_number` e/ou `current_question_number` para correções pontuais, sem alterar o histórico de conversas.',
+    description: 'Atualiza diretamente `current_stage_number` e/ou `current_question_number` para correções pontuais, sem alterar o histórico de conversas.',
     auth: true,
     queryParams: [
       {
@@ -1850,11 +1780,10 @@ const STUDENT_TRAIL_ENDPOINTS: DocEndpoint[] = [
       },
     ],
     responses: [
-      { code: '200', description: '{ ok: true } — posição atualizada.' },
+      { code: '200', description: '{ ok: true }: posição atualizada.' },
       {
         code: '400',
-        description:
-          'Nenhum campo enviado ou valores inválidos (menores que 1).',
+        description: 'Nenhum campo enviado ou valores inválidos (menores que 1).',
       },
       { code: '404', description: 'Progresso não encontrado.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1868,8 +1797,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/exercise_attempts/',
     title: 'Registrar tentativa de exercício',
-    description:
-      'Cria um registro em `exercise_attempts` para uma atividade do tipo exercise. A API busca a atividade em `trail_stage_questions`, copia `correct_option`, calcula `is_correct`, define `score` (1 ou 0) e incrementa `attempt_number` para a combinação student_id + trail_id + stage_number + question_number. Atividades com `annulled: true` não aceitam tentativa.',
+    description: 'Cria um registro em `exercise_attempts` para uma atividade do tipo exercise. A API busca a atividade em `trail_stage_questions`, copia `correct_option`, calcula `is_correct`, define `score` (1 ou 0) e incrementa `attempt_number` para a combinação student_id + trail_id + stage_number + question_number. Atividades com `annulled: true` não aceitam tentativa.',
     auth: true,
     bodyFields: [
       {
@@ -1911,16 +1839,14 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
         name: 'student_answer',
         type: 'string',
         required: true,
-        description:
-          'Resposta enviada pelo aluno. Pode ser a letra da alternativa (ex.: "A") ou um valor aberto (ex.: "1/2").',
+        description: 'Resposta enviada pelo aluno. Pode ser a letra da alternativa (ex.: "A") ou um valor aberto (ex.: "1/2").',
         example: 'A',
       },
       {
         name: 'feedback',
         type: 'string | null',
         required: false,
-        description:
-          'Mensagem de feedback opcional definida pelo backend/gestão (ex.: "Resposta correta!", "Quase, revise o conceito de fração.").',
+        description: 'Mensagem de feedback opcional definida pelo backend/gestão (ex.: "Resposta correta!", "Quase, revise o conceito de fração.").',
       },
     ],
     bodyExample: `{
@@ -1935,8 +1861,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '201',
-        description:
-          'Tentativa registrada com sucesso. Retorna id, is_correct, score (1 ou 0) e attempt_number (número da tentativa).',
+        description: 'Tentativa registrada com sucesso. Retorna id, is_correct, score (1 ou 0) e attempt_number (número da tentativa).',
       },
       {
         code: '400',
@@ -1944,13 +1869,11 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
       },
       {
         code: '404',
-        description:
-          'Atividade não encontrada em trail_stage_questions com os parâmetros informados.',
+        description: 'Atividade não encontrada em trail_stage_questions com os parâmetros informados.',
       },
       {
         code: '409',
-        description:
-          'Atividade não é do tipo exercise, está sem correct_option configurado, ou está anulada.',
+        description: 'Atividade não é do tipo exercise, está sem correct_option configurado, ou está anulada.',
       },
     ],
   },
@@ -1959,8 +1882,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/exercise_attempts/?student_id={student_id}',
     title: 'Listar tentativas por aluno',
-    description:
-      'Lista todas as tentativas de exercícios de um aluno (qualquer trilha/atividade), ordenadas por attempted_at (mais antigas primeiro).',
+    description: 'Lista todas as tentativas de exercícios de um aluno (qualquer trilha/atividade), ordenadas por attempted_at (mais antigas primeiro).',
     auth: true,
     queryParams: [
       {
@@ -1973,8 +1895,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Array de documentos de exercise_attempts contendo histórico completo de tentativas do aluno.',
+        description: 'Array de documentos de exercise_attempts contendo histórico completo de tentativas do aluno.',
       },
       { code: '400', description: 'Parâmetros inválidos.' },
       { code: '401', description: 'Não autenticado.' },
@@ -1985,8 +1906,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/exercise_attempts/?trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
     title: 'Listar tentativas por atividade',
-    description:
-      'Lista todas as tentativas registradas para uma atividade específica (qualquer aluno), ordenadas por attempt_number (1, 2, 3, ...). Útil para análise pedagógica da atividade.',
+    description: 'Lista todas as tentativas registradas para uma atividade específica (qualquer aluno), ordenadas por attempt_number (1, 2, 3, ...). Útil para análise pedagógica da atividade.',
     auth: true,
     queryParams: [
       {
@@ -2011,8 +1931,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Array de exercise_attempts para a atividade informada (cada item com student_id, is_correct, score, feedback, attempt_number, timestamps etc.).',
+        description: 'Array de exercise_attempts para a atividade informada (cada item com student_id, is_correct, score, feedback, attempt_number, timestamps etc.).',
       },
       { code: '400', description: 'Parâmetros inválidos.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2023,8 +1942,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/exercise_attempts/?action=count&student_id={student_id}&trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
     title: 'Contar tentativas de um aluno em uma atividade',
-    description:
-      'Retorna quantas tentativas já foram registradas pelo aluno em uma atividade específica. Útil para regras de limite de tentativas ou desbloqueio de avanço.',
+    description: 'Retorna quantas tentativas já foram registradas pelo aluno em uma atividade específica. Útil para regras de limite de tentativas ou desbloqueio de avanço.',
     auth: true,
     queryParams: [
       {
@@ -2061,8 +1979,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Objeto com attempt_count (inteiro) para os parâmetros informados.',
+        description: 'Objeto com attempt_count (inteiro) para os parâmetros informados.',
       },
       { code: '400', description: 'Parâmetros obrigatórios ausentes ou inválidos.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2073,8 +1990,7 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/exercise_attempts/?action=last&student_id={student_id}&trail_id={trail_id}&stage_number={stage_number}&question_number={question_number}',
     title: 'Obter última tentativa do aluno na atividade',
-    description:
-      'Retorna apenas a tentativa mais recente (maior attempt_number) do aluno em uma atividade específica. Útil para saber se o aluno acertou por último e qual feedback recebeu.',
+    description: 'Retorna apenas a tentativa mais recente (maior attempt_number) do aluno em uma atividade específica. Útil para saber se o aluno acertou por último e qual feedback recebeu.',
     auth: true,
     queryParams: [
       {
@@ -2111,13 +2027,11 @@ const EXERCISE_ATTEMPT_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Documento único de exercise_attempts representando a última tentativa do aluno na atividade.',
+        description: 'Documento único de exercise_attempts representando a última tentativa do aluno na atividade.',
       },
       {
         code: '404',
-        description:
-          'Nenhuma tentativa encontrada para a combinação informada.',
+        description: 'Nenhuma tentativa encontrada para a combinação informada.',
       },
       { code: '400', description: 'Parâmetros inválidos.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2131,8 +2045,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     method: 'POST',
     path: '/conversation_logs/',
     title: 'Criar log de conversa',
-    description:
-      'Cria um registro de histórico na collection `conversation_logs` para cada mensagem trocada na sessão do aluno. No momento do POST, o servidor grava automaticamente `created_at` (timestamp do Firestore) e `created_at_brasilia` (string com data/hora atual em America/Sao_Paulo, formato `YYYY-MM-DDTHH:mm:ss`). Não é necessário (nem recomendado) enviar `created_at_brasilia` no body.',
+    description: 'Cria um registro de histórico na collection `conversation_logs` para cada mensagem trocada na sessão do aluno. No momento do POST, o servidor grava automaticamente `created_at` (timestamp do Firestore) e `created_at_brasilia` (string com data/hora atual em America/Sao_Paulo, formato `YYYY-MM-DDTHH:mm:ss`). Não é necessário (nem recomendado) enviar `created_at_brasilia` no body.',
     auth: true,
     bodyFields: [
       {
@@ -2181,24 +2094,21 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'institution_id',
         type: 'string | null',
         required: false,
-        description:
-          'ID da instituição, opcional, para facilitar filtros futuros (pode ser null).',
+        description: 'ID da instituição, opcional, para facilitar filtros futuros (pode ser null).',
         example: 'inst_001',
       },
       {
         name: 'message_type',
         type: '"text" | "instruction" | "exercise" | "feedback" | null',
         required: false,
-        description:
-          'Classificação opcional da mensagem (texto genérico, instrução, exercício, feedback).',
+        description: 'Classificação opcional da mensagem (texto genérico, instrução, exercício, feedback).',
         example: 'instruction',
       },
       {
         name: 'metadata',
         type: 'object | null',
         required: false,
-        description:
-          'Objeto opcional para metadados extras (ex.: nome do bloco de fluxo, canal, resultado de validação).',
+        description: 'Objeto opcional para metadados extras (ex.: nome do bloco de fluxo, canal, resultado de validação).',
         example: '{ "flow_block": "enviar_introducao" }',
       },
     ],
@@ -2218,8 +2128,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '201',
-        description:
-          'Log criado com sucesso. A resposta inclui `created_at_brasilia` (já preenchido) e `created_at` null até o cliente ler o documento (server timestamp).',
+        description: 'Log criado com sucesso. A resposta inclui `created_at_brasilia` (já preenchido) e `created_at` null até o cliente ler o documento (server timestamp).',
       },
       { code: '400', description: 'Payload inválido ou campos obrigatórios ausentes.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2242,8 +2151,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     responses: [
       {
         code: '200',
-        description:
-          'Objeto do log de conversa, incluindo timestamps e metadados (se existirem).',
+        description: 'Objeto do log de conversa, incluindo timestamps e metadados (se existirem).',
       },
       { code: '404', description: 'Log não encontrado.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2254,8 +2162,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/conversation_logs/',
     title: 'Listar histórico por aluno',
-    description:
-      'Retorna todos os logs de conversa de um aluno (todas as trilhas), ordenados por created_at ascendente.',
+    description: 'Retorna todos os logs de conversa de um aluno (todas as trilhas), ordenados por created_at ascendente.',
     auth: true,
     queryParams: [
       {
@@ -2276,8 +2183,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/conversation_logs/',
     title: 'Listar histórico por aluno e trilha',
-    description:
-      'Retorna apenas os logs de conversa de um aluno dentro de uma trilha específica.',
+    description: 'Retorna apenas os logs de conversa de um aluno dentro de uma trilha específica.',
     auth: true,
     queryParams: [
       {
@@ -2304,8 +2210,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/conversation_logs/',
     title: 'Listar histórico por aluno, trilha e etapa',
-    description:
-      'Filtra o histórico de um aluno para uma trilha e uma etapa específicas (útil para auditoria de um trecho da jornada).',
+    description: 'Filtra o histórico de um aluno para uma trilha e uma etapa específicas (útil para auditoria de um trecho da jornada).',
     auth: true,
     queryParams: [
       {
@@ -2338,8 +2243,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
     method: 'GET',
     path: '/conversation_logs/',
     title: 'Buscar histórico recente (últimas N mensagens)',
-    description:
-      'Retorna os últimos N registros de conversa de um aluno (opcionalmente filtrados por trilha), ordenados por created_at desc.',
+    description: 'Retorna os últimos N registros de conversa de um aluno (opcionalmente filtrados por trilha), ordenados por created_at desc.',
     auth: true,
     queryParams: [
       {
@@ -2352,8 +2256,7 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'trail_id',
         type: 'string',
         required: false,
-        description:
-          'Opcional — se enviado, o filtro é feito também por essa trilha. Caso contrário, retorna de todas.',
+        description: 'Opcional: se enviado, o filtro é feito também por essa trilha. Caso contrário, retorna de todas.',
       },
       {
         name: 'recent',
@@ -2365,15 +2268,13 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
         name: 'limit',
         type: 'number (inteiro)',
         required: false,
-        description:
-          'Quantidade máxima de registros (default 100, máximo 500 quando enviado).',
+        description: 'Quantidade máxima de registros (default 100, máximo 500 quando enviado).',
       },
     ],
     responses: [
       {
         code: '200',
-        description:
-          'Array com os últimos N registros, ordenados do mais recente para o mais antigo.',
+        description: 'Array com os últimos N registros, ordenados do mais recente para o mais antigo.',
       },
       { code: '400', description: 'Parâmetros inválidos ou ausentes.' },
       { code: '401', description: 'Não autenticado.' },
@@ -2382,10 +2283,10 @@ const CONVERSATION_LOG_ENDPOINTS: DocEndpoint[] = [
 ]
 
 const METHOD_EXPLAIN: Record<HttpMethod, string> = {
-  GET: 'Consulta — lê dados do servidor sem alterar o estado do recurso (idempotente).',
-  POST: 'Criação — envia um corpo (body) para criar um novo recurso; gera um novo id no servidor.',
-  PUT: 'Atualização — envia o recurso (ou campos) para substituir/atualizar o registro identificado na URL.',
-  DELETE: 'Exclusão — remove o recurso identificado na URL.',
+  GET: 'Consulta: lê dados do servidor sem alterar o estado do recurso (idempotente).',
+  POST: 'Criação: envia um corpo (body) para criar um novo recurso; gera um novo id no servidor.',
+  PUT: 'Atualização: envia o recurso (ou campos) para substituir/atualizar o registro identificado na URL.',
+  DELETE: 'Exclusão: remove o recurso identificado na URL.',
 }
 
 export function DocPageView({
@@ -2449,7 +2350,7 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Institution — endpoints</h2>
+        <h2>Institution: endpoints</h2>
         <p className="doc__section-intro muted">
           Rotas agrupadas por recurso. Ícone de cadeado indica que o backend pode
           exigir autenticação (por exemplo, cabeçalho{' '}
@@ -2606,11 +2507,11 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Exercise attempts — endpoints</h2>
+        <h2>Exercise attempts: endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>exercise_attempts</code>: histórico de tentativas de resposta
           dos alunos em atividades do tipo <code>exercise</code> dentro das trilhas
-          pedagógicas. Cada tentativa é um documento independente — não há sobrescrita,
+          pedagógicas. Cada tentativa é um documento independente: não há sobrescrita,
           permitindo análise fina de acertos, erros, número de tentativas e evolução.
         </p>
 
@@ -2764,7 +2665,7 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Student (Aluno) — endpoints</h2>
+        <h2>Student (Aluno): endpoints</h2>
         <p className="doc__section-intro muted">
           Rotas para cadastrar e gerenciar alunos vinculados a instituições.
           `student_level` é independente de `school_grade` (ano/série escolar).
@@ -2920,7 +2821,7 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Trails — endpoints</h2>
+        <h2>Trails: endpoints</h2>
         <p className="doc__section-intro muted">
           Rotas para cadastrar e gerenciar trilhas com campos macro.
         </p>
@@ -3075,7 +2976,7 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Etapas da trilha (trail stages) — endpoints</h2>
+        <h2>Etapas da trilha (trail stages): endpoints</h2>
         <p className="doc__section-intro muted">
           Rotas para cadastrar e gerenciar etapas de trilhas pedagógicas.
         </p>
@@ -3217,7 +3118,7 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Atividades da etapa (trail stage questions) — endpoints</h2>
+        <h2>Atividades da etapa (trail stage questions): endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>trail_stage_questions</code>: só o conteúdo sequencial das
           etapas (título, texto, correção quando a etapa for exercício). Comportamento (
@@ -3375,11 +3276,11 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Student trails — endpoints</h2>
+        <h2>Student trails: endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>student_trails</code>: estado atual do aluno em cada trilha
           pedagógica (etapa, atividade e status). Esta collection é a fonte de verdade
-          para o player saber onde continuar a jornada — o histórico detalhado de
+          para o player saber onde continuar a jornada: o histórico detalhado de
           conversa/exercícios fica em outras collections.
         </p>
 
@@ -3528,12 +3429,11 @@ export function DocPageView({
       </section>
 
       <section className="panel doc__section">
-        <h2>Conversation logs — endpoints</h2>
+        <h2>Conversation logs: endpoints</h2>
         <p className="doc__section-intro muted">
           Collection <code>conversation_logs</code>: histórico imutável das interações
           de sessão do aluno (mensagens enviadas/recebidas, etapa,
-          atividade e metadados). Esta collection não guarda o estado atual da trilha —
-          apenas o histórico, para auditoria, debug e análises.
+          atividade e metadados). Esta collection não guarda o estado atual da trilha : apenas o histórico, para auditoria, debug e análises.
         </p>
 
         <div className="doc__endpoints">

@@ -7,7 +7,23 @@ import {
 } from '../lib/institutionFirestore'
 import { usePermissions } from '../hooks/usePermissions'
 import type { Institution } from '../types/institution'
+import { sameIdSet } from '../lib/sameIdSet'
 import { GestaoContext, type GestaoContextValue } from './gestao-context'
+
+const FILTER_IDS_STORAGE_KEY = 'crias:gestao-filter-ids'
+
+function readStoredFilterIds(): Set<string> | null {
+  try {
+    const raw = window.localStorage.getItem(FILTER_IDS_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const ids = parsed.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+    return ids.length > 0 ? new Set(ids) : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * Perfil e escopo da Gestão v1.1.
@@ -18,7 +34,9 @@ export function GestaoProvider({ children }: { children: ReactNode }) {
   const { adminProfile, filterInstitutions, hasFullAccess } = usePermissions()
   const [all, setAll] = useState<Institution[]>([])
   const [loading, setLoading] = useState(Boolean(db))
-  const [picked, setPicked] = useState<Set<string> | null>(null)
+  const [picked, setPicked] = useState<Set<string> | null>(() =>
+    typeof window !== 'undefined' ? readStoredFilterIds() : null,
+  )
 
   useEffect(() => {
     if (!db) return
@@ -42,7 +60,7 @@ export function GestaoProvider({ children }: { children: ReactNode }) {
 
   const isSuper = useMemo(() => {
     if (hasFullAccess) return true
-    if (!adminProfile) return true
+    if (!adminProfile) return false
     if (adminProfile.all_institutions) return true
     return adminProfile.institution_ids.length !== 1
   }, [adminProfile, hasFullAccess])
@@ -60,23 +78,58 @@ export function GestaoProvider({ children }: { children: ReactNode }) {
     return next
   }, [institutions, picked])
 
+  /** Evita setState no-op que recria Set e dispara loops de useEffect. */
+  const setSelectedIds = (next: Set<string>) => {
+    setPicked((prev) => {
+      const nextSet = new Set(next)
+      if (sameIdSet(prev, nextSet)) return prev
+      try {
+        window.localStorage.setItem(
+          FILTER_IDS_STORAGE_KEY,
+          JSON.stringify([...nextSet].sort()),
+        )
+      } catch {
+        // ignore quota / private mode
+      }
+      return nextSet
+    })
+  }
+
+  const scopedInstitutions = useMemo(
+    () =>
+      isSuper
+        ? institutions.filter((i) => selectedIds.has(i.id))
+        : institutions.filter((i) => i.id === myInstitutionId),
+    [isSuper, institutions, selectedIds, myInstitutionId],
+  )
+
+  const scopedIds = useMemo(
+    () => new Set(scopedInstitutions.map((i) => i.id)),
+    [scopedInstitutions],
+  )
+
   const value = useMemo<GestaoContextValue>(() => {
-    const scopedInstitutions = isSuper
-      ? institutions.filter((i) => selectedIds.has(i.id))
-      : institutions.filter((i) => i.id === myInstitutionId)
     return {
       institutions,
       institutionsLoading: loading,
       isSuper,
       myInstitutionId,
       selectedIds,
-      setSelectedIds: (next) => setPicked(new Set(next)),
+      setSelectedIds,
       scopedInstitutions,
-      scopedIds: new Set(scopedInstitutions.map((i) => i.id)),
+      scopedIds,
       institutionName: (id) =>
         institutions.find((i) => i.id === id)?.name || 'N/A',
     }
-  }, [institutions, loading, isSuper, myInstitutionId, selectedIds])
+  }, [
+    institutions,
+    loading,
+    isSuper,
+    myInstitutionId,
+    selectedIds,
+    scopedInstitutions,
+    scopedIds,
+  ])
 
   return (
     <GestaoContext.Provider value={value}>{children}</GestaoContext.Provider>

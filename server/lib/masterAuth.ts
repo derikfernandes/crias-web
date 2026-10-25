@@ -66,7 +66,10 @@ export async function isMasterInFirestore(
   if (snap.empty) return false
   const data = snap.docs[0]?.data() ?? {}
   if (data.active === false) return false
-  return data.is_master === true
+  // Admin de escola também tem is_master=true (perfil local). Master global
+  // no Firestore exige is_master + (all_institutions | is_super_admin).
+  if (data.is_master !== true) return false
+  return data.all_institutions === true || data.is_super_admin === true
 }
 
 export async function isMasterEmail(

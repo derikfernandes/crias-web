@@ -69,6 +69,12 @@ export type DashboardSummaryView = {
   avgCompletion: number | null
   avgLessonCompletion: number | null
   avgAccuracy: number | null
+  /** true enquanto métricas do escopo ainda não chegaram (mostra Carregando). */
+  avgAccuracyLoading?: boolean
+  /** Mesmo gate do acerto: nunca N/A em Conclusão enquanto carrega. */
+  completionLoading?: boolean
+  /** Evita flash 0 em Alunos/Trilhas antes do doc de métricas. */
+  countsLoading?: boolean
 }
 
 export type DashboardStudentsChartBucket = {
@@ -95,6 +101,8 @@ export type DashboardStudentChartFilter =
 export type DashboardStudentsLessonBar = {
   key: string
   label: string
+  /** Nome completo para tooltip (pode ser longo). */
+  fullLabel?: string
   lessonNumber: number
   count: number
   enrolledCount: number
@@ -102,6 +110,8 @@ export type DashboardStudentsLessonBar = {
 
 export type DashboardStudentsChartsView = {
   studentCount: number
+  /** true até métricas/linhas chegarem — UI mostra Carregando… (nunca 0). */
+  loading?: boolean
   completionBuckets: DashboardStudentsChartBucket[]
   statuses: DashboardStudentsStatus[]
   lessonBars: DashboardStudentsLessonBar[]
@@ -221,6 +231,8 @@ export type DashboardPageViewProps = {
   dataError: string | null
   exportError: string | null
   isDashboardLoading: boolean
+  /** Troca de instituição com conteúdo anterior visível (sem BootSymbol). */
+  isDashboardRefreshing?: boolean
   loadLabel: string
   loadPercent: number
   logsError: string | null
@@ -231,6 +243,10 @@ export type DashboardPageViewProps = {
   annulledAnswersExcluded: number
   filteredStudentCount: number
   totalStudentCount: number
+  /** true enquanto alunos do escopo ainda carregam (evita Alunos (0) flash). */
+  studentsCountLoading?: boolean
+  /** true enquanto exercícios do escopo ainda carregam (evita Exercícios (0) flash). */
+  exercisesLoading?: boolean
   questionPickerLabel: string
   showQuestionPicker: boolean
   onToggleQuestionPicker: () => void
@@ -315,4 +331,9 @@ export type DashboardPageViewProps = {
   selectedAgentTrailId: string | null
   onSelectAgentTrailId: (trailId: string | null) => void
   selectedAgentStudents: DashboardAgentStudentLink[]
+  /** Ex.: "Atualizado às 14:30" (Brasília); null se ainda sem métricas. */
+  metricsUpdatedAtLabel?: string | null
+  onForceRefreshMetrics?: () => void
+  /** Atualizar forçando recalc no servidor (pode levar dezenas de s). */
+  metricsForceRefreshing?: boolean
 }

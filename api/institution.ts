@@ -1,6 +1,14 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from 'firebase-admin/app'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 
+import {
+  canAccessInstitution,
+  filterInstitutionsByAccess,
+  requireGestaoAdminFromRequest,
+  type GestaoAdminPrincipal,
+} from '../server/lib/gestaoAdminAuth'
+import { gestaoCorsHeaders } from '../server/lib/gestaoCors'
+
 type Json = Record<string, unknown>
 
 function jsonResponse(
@@ -16,12 +24,8 @@ function jsonResponse(
   })
 }
 
-function corsHeaders(): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  }
+function corsHeaders(request: Request): Record<string, string> {
+  return gestaoCorsHeaders(request, 'GET,POST,PUT,DELETE,OPTIONS')
 }
 
 function serializeTs(value: unknown): string | null {
@@ -82,7 +86,10 @@ async function handleRequest(request: Request): Promise<Response> {
     const simple = url.searchParams.get('simple') === '1'
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders() })
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(request),
+      })
     }
 
     let db: ReturnType<typeof getFirestore>
@@ -97,10 +104,28 @@ async function handleRequest(request: Request): Promise<Response> {
         status: 500,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          ...corsHeaders(),
+          ...corsHeaders(request),
         },
       })
     }
+
+    const auth = await requireGestaoAdminFromRequest(
+      db,
+      request.headers.get('Authorization'),
+    )
+    if (!auth.ok) {
+      return new Response(
+        JSON.stringify({ error: auth.error, code: auth.code }),
+        {
+          status: auth.status,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            ...corsHeaders(request),
+          },
+        },
+      )
+    }
+    const principal: GestaoAdminPrincipal = auth.principal
 
     const collection = process.env.INSTITUTIONS_COLLECTION ?? 'institutions'
 
@@ -109,7 +134,7 @@ async function handleRequest(request: Request): Promise<Response> {
         status,
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          ...corsHeaders(),
+          ...corsHeaders(request),
         },
       })
     }
@@ -120,6 +145,12 @@ async function handleRequest(request: Request): Promise<Response> {
       // GET /institution/:id
       if (request.method === 'GET') {
         if (id) {
+          if (!canAccessInstitution(principal, id)) {
+            return respond(403, {
+              error: 'Sem permissão para esta instituição.',
+              code: 'forbidden',
+            })
+          }
           const snap = await db.collection(collection).doc(id).get()
           if (!snap.exists) return respond(404, { error: 'Not found' })
           const data = snap.data() ?? {}
@@ -140,7 +171,7 @@ async function handleRequest(request: Request): Promise<Response> {
               status: 200,
               headers: {
                 'Content-Type': 'application/json; charset=utf-8',
-                ...corsHeaders(),
+                ...corsHeaders(request),
               },
             },
           )
@@ -171,16 +202,23 @@ async function handleRequest(request: Request): Promise<Response> {
           }
         })
 
-        return jsonResponse(items as Json[], {
+        const scoped = filterInstitutionsByAccess(principal, items)
+
+        return jsonResponse(scoped as Json[], {
           status: 200,
-          headers: corsHeaders(),
+          headers: corsHeaders(request),
         })
       }
 
-      // POST /institution/
+      // POST /institution/ — só quem vê todas (Master/super).
       if (request.method === 'POST') {
+        if (principal.allowedInstitutionIds !== null) {
+          return respond(403, {
+            error: 'Sem permissão para criar instituição.',
+            code: 'forbidden',
+          })
+        }
         if (id) return respond(400, { error: 'id não deve ser enviado em POST' })
-
         let payload: unknown
         try {
           payload = await request.json()
@@ -262,13 +300,19 @@ async function handleRequest(request: Request): Promise<Response> {
             public_link: link,
             ...optionalFields,
           },
-          { status: 201, headers: corsHeaders() },
+          { status: 201, headers: corsHeaders(request) },
         )
       }
 
       // PUT /institution/:id
       if (request.method === 'PUT') {
         if (!id) return respond(400, { error: 'id é obrigatório em PUT' })
+        if (!canAccessInstitution(principal, id)) {
+          return respond(403, {
+            error: 'Sem permissão para esta instituição.',
+            code: 'forbidden',
+          })
+        }
 
         let payload: unknown
         try {
@@ -303,18 +347,30 @@ async function handleRequest(request: Request): Promise<Response> {
         if (!snap.exists) return respond(404, { error: 'Not found' })
 
         await ref.update(updates)
-        return jsonResponse({ ok: true, id }, { status: 200, headers: corsHeaders() })
+        return jsonResponse(
+          { ok: true, id },
+          { status: 200, headers: corsHeaders(request) },
+        )
       }
 
-      // DELETE /institution/:id
+      // DELETE /institution/:id — só quem vê todas (Master/super).
       if (request.method === 'DELETE') {
         if (!id) return respond(400, { error: 'id é obrigatório em DELETE' })
+        if (principal.allowedInstitutionIds !== null) {
+          return respond(403, {
+            error: 'Sem permissão para excluir instituição.',
+            code: 'forbidden',
+          })
+        }
 
         const ref = db.collection(collection).doc(id)
         const snap = await ref.get()
         if (!snap.exists) return respond(404, { error: 'Not found' })
         await ref.delete()
-        return new Response(null, { status: 204, headers: corsHeaders() })
+        return new Response(null, {
+          status: 204,
+          headers: corsHeaders(request),
+        })
       }
 
       return respond(405, { error: `Método ${request.method} não permitido` })

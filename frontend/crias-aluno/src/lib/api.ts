@@ -716,7 +716,7 @@ export type PanelTrail = {
   activities: PanelActivity[]
 }
 export type StudentPanel = {
-  student: { id: string; name: string; phone: string }
+  student: { id: string; name: string; phone: string; email: string; login_identifier: 'phone' | 'email' | null }
   trails: PanelTrail[]
   performance: {
     correct: number
@@ -725,7 +725,7 @@ export type StudentPanel = {
     by_trail: Array<{ trail_id: string; name: string; correct: number; wrong: number }>
     by_activity: Array<{ trail_id: string; number: number; correct: number; wrong: number }>
   }
-  errors: Array<{ trail: string; activity: number; step: number; statement: string; answer: string; correct: string }>
+  errors: Array<{ trail_id: string; trail: string; activity: number; step: number; statement: string; answer: string; correct: string }>
   monitor: {
     questions: number
     days: number
@@ -746,8 +746,11 @@ export async function fetchStudentPanel(studentId: string): Promise<StudentPanel
   return body as StudentPanel
 }
 
-/** Nome e telefone do próprio aluno (cabeçalho do Painel). */
-export async function updateOwnProfile(studentId: string, input: { name: string; phone_number: string }): Promise<void> {
+/** Cadastro do próprio aluno (Perfil): nome, telefone, e-mail e qual dos dois vale para a senha (regra de login 1.2). */
+export async function updateOwnProfile(
+  studentId: string,
+  input: { name: string; phone_number?: string; email?: string; login_identifier?: 'phone' | 'email' | null },
+): Promise<void> {
   const url = new URL(`${API_BASE}/student`, window.location.origin)
   url.searchParams.set('id', studentId)
   const res = await fetchWithTimeout(url.pathname + url.search, {

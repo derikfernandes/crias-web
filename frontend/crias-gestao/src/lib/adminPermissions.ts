@@ -244,3 +244,8 @@ export function defaultNavPermissions(): NavPermission[] {
     (key) => key !== 'admin' && key !== 'student_passwords',
   )
 }
+
+/** ID do documento de quem acessa só por telefone (sem e-mail): `tel_` + dígitos. */
+export function adminPhoneDocId(phone: string): string {
+  return `tel_${phone.replace(/\D/g, '')}`
+}

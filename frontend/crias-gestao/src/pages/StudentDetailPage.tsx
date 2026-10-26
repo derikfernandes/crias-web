@@ -76,13 +76,13 @@ export function StudentDetailPage() {
 
   const [linkTrailId, setLinkTrailId] = useState('')
   const [linkStatus, setLinkStatus] = useState<StudentTrailStatus>('not_started')
-  const [linkBusy, setLinkBusy] = useState(false)
+  const linkBusy = false
   const [linkError, setLinkError] = useState<string | null>(null)
   const [editingTrailId, setEditingTrailId] = useState<string | null>(null)
   const [editStage, setEditStage] = useState('')
   const [editQuestion, setEditQuestion] = useState('')
   const [editStatus, setEditStatus] = useState<StudentTrailStatus>('not_started')
-  const [editBusy, setEditBusy] = useState(false)
+  const editBusy = false
   const [editError, setEditError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -310,58 +310,89 @@ export function StudentDetailPage() {
     return institutionTrails.filter((t) => !linkedTrailIdSet.has(t.id))
   }, [institutionTrails, linkedTrailIdSet])
 
-  async function handleLinkTrail(e: FormEvent) {
-    e.preventDefault()
-    if (!db || !id || !stu?.institution_id) return
+  /*
+   * Trilhas vinculadas (1.1.1.b): vincular, desvincular e mudar atividade, etapa ou status NÃO gravam na linha.
+   * As mudanças ficam pendentes e só o Salvar do topo grava (junto com o cadastro).
+   */
+  type TrailEdit = { stage: number; question: number; status: StudentTrailStatus }
+  const [edits, setEdits] = useState<Map<string, TrailEdit>>(new Map())
+  const [unlinked, setUnlinked] = useState<Set<string>>(new Set())
+  const [newLinks, setNewLinks] = useState<Array<{ trailId: string; status: StudentTrailStatus }>>([])
+
+  const pendingTrails = edits.size > 0 || unlinked.size > 0 || newLinks.length > 0
+
+  function cancelTrailChanges() {
+    setEdits(new Map())
+    setUnlinked(new Set())
+    setNewLinks([])
+    setEditingTrailId(null)
+    setLinkError(null)
+    setEditError(null)
+  }
+
+  /** Grava as mudanças pendentes de trilhas. Lança erro se alguma falhar (o pop-up de sair mostra a mensagem). */
+  async function persistTrailChanges(): Promise<void> {
+    if (!db || !id) return
     const firestore = db
+    for (const [rowId, e] of edits) {
+      if (unlinked.has(rowId)) continue
+      await runTransaction(firestore, async (tx) => {
+        const ref = doc(firestore, STUDENT_TRAILS_COLLECTION, rowId)
+        const snap = await tx.get(ref)
+        if (!snap.exists()) throw new Error('Registro de trilha do aluno não encontrado.')
+        const data = snap.data() ?? {}
+        const now = serverTimestamp()
+        const patch: Record<string, unknown> = {
+          current_stage_number: e.stage,
+          current_question_number: e.question,
+          status: e.status,
+          updated_at: now,
+          last_interaction_at: now,
+        }
+        if ((e.status === 'in_progress' || e.status === 'completed') && !data.started_at) patch.started_at = now
+        if (e.status === 'completed') patch.completed_at = now
+        tx.update(ref, patch)
+      })
+    }
+    for (const rowId of unlinked) await deleteDoc(doc(firestore, STUDENT_TRAILS_COLLECTION, rowId))
+    for (const link of newLinks) {
+      if (!stu?.institution_id) throw new Error('Este aluno não tem instituição.')
+      await runTransaction(firestore, async (tx) => {
+        const ref = doc(firestore, STUDENT_TRAILS_COLLECTION, studentTrailDocId(id, link.trailId))
+        const snap = await tx.get(ref)
+        if (snap.exists()) throw new Error('Este aluno já está vinculado a esta trilha (registro já existe).')
+        const now = serverTimestamp()
+        tx.set(ref, {
+          student_id: id,
+          institution_id: stu.institution_id,
+          trail_id: link.trailId,
+          current_stage_number: 1,
+          current_question_number: 1,
+          status: link.status,
+          started_at: link.status === 'in_progress' ? now : null,
+          completed_at: null,
+          last_interaction_at: null,
+          created_at: now,
+          updated_at: now,
+        })
+      })
+    }
+    setEdits(new Map())
+    setUnlinked(new Set())
+    setNewLinks([])
+  }
+
+  function handleLinkTrail(e: FormEvent) {
+    e.preventDefault()
     const trailId = linkTrailId.trim()
     if (!trailId) {
       setLinkError('Selecione uma trilha.')
       return
     }
-
-    setLinkBusy(true)
     setLinkError(null)
-    try {
-      await runTransaction(firestore, async (tx) => {
-        const ref = doc(
-          firestore,
-          STUDENT_TRAILS_COLLECTION,
-          studentTrailDocId(id, trailId),
-        )
-        const snap = await tx.get(ref)
-        if (snap.exists()) {
-          throw new Error(
-            'Este aluno já está vinculado a esta trilha (registro já existe).',
-          )
-        }
-        const now = serverTimestamp()
-        const base: Record<string, unknown> = {
-          student_id: id,
-          institution_id: stu.institution_id,
-          trail_id: trailId,
-          current_stage_number: 1,
-          current_question_number: 1,
-          status: linkStatus,
-          completed_at: null,
-          last_interaction_at: null,
-          created_at: now,
-          updated_at: now,
-        }
-        if (linkStatus === 'in_progress') {
-          base.started_at = now
-        } else {
-          base.started_at = null
-        }
-        tx.set(ref, base)
-      })
-      setLinkTrailId('')
-      setLinkStatus('not_started')
-    } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Erro ao vincular trilha.')
-    } finally {
-      setLinkBusy(false)
-    }
+    setNewLinks((cur) => (cur.some((l) => l.trailId === trailId) ? cur : [...cur, { trailId, status: linkStatus }]))
+    setLinkTrailId('')
+    setLinkStatus('not_started')
   }
 
   function handleStartEditTrail(row: StudentTrail) {
@@ -403,104 +434,74 @@ export function StudentDetailPage() {
     )
   }
 
-  async function handleSaveTrailPosition(row: StudentTrail) {
-    if (!db) return
-    setEditBusy(true)
+  function handleSaveTrailPosition(row: StudentTrail) {
     setEditError(null)
     try {
       const nextStage = parsePositiveInteger(editStage, 'Etapa atual')
       const nextQuestion = parsePositiveInteger(editQuestion, 'Atividade atual')
       const nextStatus = parseStudentTrailStatus(editStatus)
-      const firestore = db
-      await runTransaction(firestore, async (tx) => {
-        const ref = doc(firestore, STUDENT_TRAILS_COLLECTION, row.id)
-        const snap = await tx.get(ref)
-        if (!snap.exists()) {
-          throw new Error('Registro de trilha do aluno não encontrado.')
-        }
-        const data = snap.data() ?? {}
-        const now = serverTimestamp()
-        const patch: Record<string, unknown> = {
-          current_stage_number: nextStage,
-          current_question_number: nextQuestion,
-          status: nextStatus,
-          updated_at: now,
-          last_interaction_at: now,
-        }
-        if (
-          (nextStatus === 'in_progress' || nextStatus === 'completed') &&
-          !data.started_at
-        ) {
-          patch.started_at = now
-        }
-        if (nextStatus === 'completed') {
-          patch.completed_at = now
-        }
-        tx.update(ref, patch)
-      })
+      setEdits((cur) => new Map(cur).set(row.id, { stage: nextStage, question: nextQuestion, status: nextStatus }))
       setEditingTrailId(null)
       setEditStage('')
       setEditQuestion('')
       setEditStatus('not_started')
     } catch (err) {
-      setEditError(
-        err instanceof Error ? err.message : 'Erro ao atualizar progresso da trilha.',
-      )
-    } finally {
-      setEditBusy(false)
+      setEditError(err instanceof Error ? err.message : 'Valores inválidos.')
     }
   }
 
-  async function handleUnlinkTrail(row: StudentTrail) {
-    if (!db || editBusy) return
-    const meta = trailById.get(row.trail_id)
-    const label = meta?.name?.trim() ? meta.name : row.trail_id
-    const ok = window.confirm(
-      `Desvincular o aluno da trilha "${label}"?\n\n` +
-        'O registro em student_trails será removido. O histórico de conversa permanece.',
-    )
-    if (!ok) return
-
-    setEditBusy(true)
-    setEditError(null)
-    try {
-      await deleteDoc(doc(db, STUDENT_TRAILS_COLLECTION, row.id))
-      if (editingTrailId === row.id) {
-        setEditingTrailId(null)
-        setEditStage('')
-        setEditQuestion('')
-        setEditStatus('not_started')
-      }
-    } catch (err) {
-      setEditError(
-        err instanceof Error ? err.message : 'Erro ao desvincular trilha.',
-      )
-    } finally {
-      setEditBusy(false)
-    }
+  /** Marca ou desmarca a trilha para desvincular (só grava no Salvar do topo). */
+  function handleUnlinkTrail(row: StudentTrail) {
+    setUnlinked((cur) => {
+      const next = new Set(cur)
+      if (next.has(row.id)) next.delete(row.id)
+      else next.add(row.id)
+      return next
+    })
   }
 
   if (!id) {
     return <StudentDetailPageView status="missing-id" />
   }
 
-  const trailRows: StudentDetailTrailRow[] = sortedTrails.map((row) => {
+  const trailRows: StudentDetailTrailRow[] = [
+    ...sortedTrails.map((row) => {
     const meta = trailById.get(row.trail_id)
     const label = meta?.name?.trim() ? meta.name : row.trail_id
+    const pendingEdit = edits.get(row.id)
     return {
+      pending: unlinked.has(row.id) ? ('unlink' as const) : pendingEdit ? ('edit' as const) : undefined,
       id: row.id,
       trailHref: trailPath(row.trail_id),
       trailLabel: label,
       trailIdSecondary: meta?.name?.trim() ? row.trail_id : null,
       inactiveHint: Boolean(meta?.name?.trim() && !meta.active),
       isEditing: editingTrailId === row.id,
-      stageDisplay: row.current_stage_number,
-      questionDisplay: row.current_question_number,
-      status: row.status,
+      stageDisplay: pendingEdit?.stage ?? row.current_stage_number,
+      questionDisplay: pendingEdit?.question ?? row.current_question_number,
+      status: pendingEdit?.status ?? row.status,
       startedAtLabel: formatSaoPauloDateTime(row.started_at),
       lastInteractionAtLabel: formatSaoPauloDateTime(row.last_interaction_at),
     }
-  })
+    }),
+    ...newLinks.map((l) => {
+      const meta = institutionTrails.find((t) => t.id === l.trailId)
+      return {
+        pending: 'new' as const,
+        id: `new:${l.trailId}`,
+        trailHref: trailPath(l.trailId),
+        trailLabel: meta?.name?.trim() ? meta.name : l.trailId,
+        trailIdSecondary: null,
+        inactiveHint: false,
+        isEditing: false,
+        stageDisplay: 1,
+        questionDisplay: 1,
+        status: l.status,
+        startedAtLabel: 'N/A',
+        lastInteractionAtLabel: 'N/A',
+      }
+    }),
+  ]
 
   return (
     <StudentDetailPageView
@@ -508,7 +509,17 @@ export function StudentDetailPage() {
       error={error}
       loading={loading}
       notFound={!stu}
-      formSlot={stu ? <StudentForm docId={id} initial={stu} /> : null}
+      formSlot={
+        stu ? (
+          <StudentForm
+            docId={id}
+            initial={stu}
+            extraDirty={pendingTrails}
+            extraSave={persistTrailChanges}
+            extraCancel={cancelTrailChanges}
+          />
+        ) : null
+      }
       hasStudent={Boolean(stu)}
       loadingTrails={loadingTrails}
       trailsError={trailsError}
@@ -532,16 +543,27 @@ export function StudentDetailPage() {
       }}
       onStartEditTrail={(rowId) => {
         const row = trails.find((t) => t.id === rowId)
-        if (row) handleStartEditTrail(row)
+        if (!row) return
+        handleStartEditTrail(row)
+        const e = edits.get(row.id)
+        if (e) {
+          setEditStage(String(e.stage))
+          setEditQuestion(String(e.question))
+          setEditStatus(e.status)
+        }
       }}
       onCancelEditTrail={handleCancelEditTrail}
       onSaveTrailPosition={(rowId) => {
         const row = trails.find((t) => t.id === rowId)
-        if (row) void handleSaveTrailPosition(row)
+        if (row) handleSaveTrailPosition(row)
       }}
       onUnlinkTrail={(rowId) => {
+        if (rowId.startsWith('new:')) {
+          setNewLinks((cur) => cur.filter((l) => `new:${l.trailId}` !== rowId))
+          return
+        }
         const row = trails.find((t) => t.id === rowId)
-        if (row) void handleUnlinkTrail(row)
+        if (row) handleUnlinkTrail(row)
       }}
       missingInstitutionId={!stu?.institution_id}
       institutionTrailsError={institutionTrailsError}
@@ -560,7 +582,7 @@ export function StudentDetailPage() {
           !t.active ? ' (inativa)' : ''
         }`,
       }))}
-      onLinkTrailSubmit={(e) => void handleLinkTrail(e)}
+      onLinkTrailSubmit={(e) => handleLinkTrail(e)}
       loadingLogs={loadingLogs}
       logsError={logsError}
       logsEmpty={logs.length === 0}

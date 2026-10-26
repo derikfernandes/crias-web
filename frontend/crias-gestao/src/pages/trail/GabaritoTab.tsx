@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
+import { BulkPanel } from '../../components/BulkPanel'
 import { Banner, Dialog, FilterPopover, ScrollX } from '../../design/gx/ui'
+import { planGabarito, plural, type GabaritoCell } from '../../lib/bulkActions'
+import { downloadText, toCsv } from '../../lib/tableFiles'
 import { correctToLetter, letterOf } from '../../lib/trailActivities'
-import { setAnnulled } from '../../lib/trailOps'
+import { saveCorrectOptions, setAnnulled } from '../../lib/trailOps'
 import type { StructurePhase } from '../../lib/trailEditor'
 import type { TrailStageQuestion } from '../../types/trailStageQuestion'
 
@@ -11,13 +14,19 @@ export type GabaritoDrafts = Map<string, string>
  * Gabarito (1.1.12): resposta correta de cada exercício da trilha aberta, com "Só faltando" e
  * "Só anulados". Exercícios anulados ficam fora do cálculo de acerto. O Salvar do título grava tudo.
  */
+const BASE_COLUMNS = ['ID Trilha', 'Trilha', 'Atividade', 'Exercício', 'Gabarito', 'Anular (sim / não)']
+
 export function GabaritoTab({
+  trailId,
+  trailName,
   cells,
   phases,
   optionCount,
   drafts,
   onDrafts,
 }: {
+  trailId: string
+  trailName: string
   cells: TrailStageQuestion[]
   phases: StructurePhase[]
   optionCount: number
@@ -49,6 +58,16 @@ export function GabaritoTab({
   })
   const letters = Array.from({ length: optionCount }, (_, i) => letterOf(i))
 
+  /** Exercícios numerados dentro de cada atividade (1, 2, 3...), como na planilha em massa. */
+  const bulkCells = useMemo<GabaritoCell[]>(() => {
+    const counter = new Map<number, number>()
+    return exercises.map((c) => {
+      const n = (counter.get(c.question_number) ?? 0) + 1
+      counter.set(c.question_number, n)
+      return { id: c.id, activity: c.question_number, exercise: n, letter: correctToLetter(c.correct_option), annulled: c.annulled }
+    })
+  }, [exercises])
+
   function set(c: TrailStageQuestion, letter: string) {
     const saved = correctToLetter(c.correct_option)
     const next = new Map(drafts)
@@ -77,6 +96,56 @@ export function GabaritoTab({
         </p>
       </div>
       {error ? <Banner>{error}</Banner> : null}
+      <BulkPanel
+        title="Alterar gabarito em massa"
+        subtitle="Altere o gabarito e anule exercícios de uma vez com uma planilha"
+        columns={BASE_COLUMNS}
+        note='A planilha base vem com o gabarito atual. Somente as alterações nas colunas "gabarito" ou "anular" são registradas.'
+        baseLabel="Baixar planilha base"
+        onDownload={() =>
+          downloadText(
+            `base-gabarito-${trailId}.csv`,
+            toCsv(
+              BASE_COLUMNS,
+              bulkCells.map((c) => [trailId, trailName, String(c.activity), String(c.exercise), c.letter, c.annulled ? 'sim' : 'não']),
+            ),
+          )
+        }
+        plan={(rows) => {
+          const p = planGabarito(rows, { trailId, cells: bulkCells, optionCount })
+          return {
+            data: p,
+            preview: {
+              confirmTitle: 'Alterar gabarito em massa?',
+              confirmText: `${plural(p.changedLetters, 'gabarito será alterado', 'gabaritos serão alterados')}, ${p.annulled} ${
+                p.annulled === 1 ? 'exercício anulado' : 'exercícios anulados'
+              }${p.reactivated > 0 ? `, ${p.reactivated} reativado${p.reactivated === 1 ? '' : 's'}` : ''} e ${p.unchanged} ${
+                p.unchanged === 1 ? 'fica' : 'ficam'
+              } como ${p.unchanged === 1 ? 'está' : 'estão'}.`,
+              actionable: p.items.length,
+              issues: p.issues,
+            },
+          }
+        }}
+        apply={async (p) => {
+          const letters = new Map(p.items.filter((i) => i.letter !== undefined).map((i) => [i.cellId, i.letter as string]))
+          if (letters.size > 0) await saveCorrectOptions(letters)
+          for (const i of p.items) {
+            if (i.annulled !== undefined) await setAnnulled(i.cellId, i.annulled, 'Alterado em massa')
+          }
+          // As trocas pendentes dessas células ficam sem efeito: a planilha acabou de gravar.
+          const next = new Map(drafts)
+          for (const i of p.items) next.delete(i.cellId)
+          if (next.size !== drafts.size) onDrafts(next)
+          return {
+            summary: `${p.changedLetters} ${p.changedLetters === 1 ? 'gabarito alterado' : 'gabaritos alterados'}, ${p.annulled} ${
+              p.annulled === 1 ? 'anulado' : 'anulados'
+            }${p.reactivated > 0 ? `, ${p.reactivated} ${p.reactivated === 1 ? 'reativado' : 'reativados'}` : ''}, ${p.unchanged} sem mudança.`,
+          }
+        }}
+        actionLabel="Alterar"
+        confirmLabel="Alterar"
+      />
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0 }}>
           <FilterPopover

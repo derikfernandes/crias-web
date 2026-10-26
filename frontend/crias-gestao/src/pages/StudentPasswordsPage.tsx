@@ -1,22 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { snapshotToStudent } from '../lib/studentFirestore'
 import { useCollection } from '../hooks/useCollection'
 import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
 import { studentCode } from '../lib/gestaoFormat'
-import { updateStudentPassword } from '../lib/studentApi'
 import {
   bulkGenerateStudentPasswords,
   countMissingStudentPasswords,
-  exportStudentPasswordsCsv,
   fetchStudentPasswords,
-  importStudentsCsv,
-  regenerateStudentPassword,
   type StudentPasswordRow,
 } from '../lib/studentPasswordsApi'
-import { downloadBlob, pick, readTable, toCsv } from '../lib/tableFiles'
-import { phoneKey } from '../lib/studentBulk'
+import { EditBar } from '../components/EditBar'
+import { useUnsavedChanges } from '../contexts/UnsavedContext'
+import { BulkPanel } from '../components/BulkPanel'
+import { planPasswords, plural } from '../lib/bulkActions'
+import { setPasswordsBulk } from '../lib/studentBulk'
+import { downloadText, toCsv } from '../lib/tableFiles'
 import {
   Banner,
   BootSymbol,
@@ -31,13 +31,27 @@ import {
 } from '../design/gx/ui'
 
 const BULK_BATCH_LIMIT = 100
+const PW_LETTERS = 'abcdefghjkmnpqrstuvwxyz'
+const PW_DIGITS = '23456789'
 
-type MassPlan = {
-  fileName: string
-  csv: string
-  rows: number
-  errors: Array<{ line: number; nome?: string; celular?: string; error: string }>
+/** Senha de 6 caracteres como a do servidor: minúsculas e dígitos, com pelo menos um de cada, sem 0 o 1 l i. */
+function generatePassword(): string {
+  const pick = (alphabet: string) => {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    return alphabet[buf[0] % alphabet.length]
+  }
+  const chars = [pick(PW_LETTERS), pick(PW_DIGITS)]
+  while (chars.length < 6) chars.push(pick(PW_LETTERS + PW_DIGITS))
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    const j = buf[0] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
 }
+const MASS_COLUMNS = ['ID Instituição', 'ID Aluno', 'Nome (visualização)', 'Telefone (visualização)', 'Senha']
 
 /** Senhas dos alunos (1.1.14 e orientações 17 e 19): só Master, instituição do filtro global. */
 export function StudentPasswordsPage() {
@@ -49,7 +63,9 @@ export function StudentPasswordsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  /** Senhas novas ainda não salvas (aluno -> senha). O Salvar do topo grava tudo. */
+  const [pendingPw, setPendingPw] = useState<Map<string, string>>(new Map())
+  const [savingPw, setSavingPw] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [byName, setByName] = useState<Set<string> | null>(null)
   const [byCode, setByCode] = useState<Set<string> | null>(null)
@@ -57,11 +73,8 @@ export function StudentPasswordsPage() {
   const [confirm, setConfirm] = useState<
     | { kind: 'bulk'; count: number }
     | { kind: 'one'; id: string; name: string }
-    | { kind: 'mass' }
     | null
   >(null)
-  const [plan, setPlan] = useState<MassPlan | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async (institutionId: string) => {
     setLoading(true)
@@ -78,7 +91,6 @@ export function StudentPasswordsPage() {
 
   useEffect(() => {
     setRows([])
-    setPlan(null)
     setByName(null)
     setByCode(null)
     if (isMaster && single) void load(single.id)
@@ -88,6 +100,7 @@ export function StudentPasswordsPage() {
     () => rows.map((r) => ({ row: r, code: studentCode(r.id) })),
     [rows],
   )
+  const emailById = useMemo(() => new Map(students.rows.map((s) => [s.id, s.email ?? ''])), [students.rows])
   const nameSel = byName ?? new Set(rows.map((r) => r.id))
   const codeSel = byCode ?? new Set(rows.map((r) => r.id))
   const filtered = useMemo(
@@ -100,20 +113,6 @@ export function StudentPasswordsPage() {
   )
   const pager = usePager(filtered, 50)
   const missing = rows.filter((r) => !r.password).length
-
-  function patchRow(id: string, patch: Partial<StudentPasswordRow>) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-  }
-
-  async function exportCsv() {
-    if (!single) return
-    setError(null)
-    try {
-      downloadBlob(`senhas-${single.id}.csv`, await exportStudentPasswordsCsv(single.id, single.name))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao exportar.')
-    }
-  }
 
   async function askBulk() {
     if (!single) return
@@ -156,97 +155,52 @@ export function StudentPasswordsPage() {
       setNotice(`${total} ${total === 1 ? 'senha gerada' : 'senhas geradas'}. Você pode exportar o CSV da escola inteira.`)
       await load(single.id)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha na geração em lote.')
+      setError(e instanceof Error ? e.message : 'Falha na geração em massa.')
     } finally {
       setBulkBusy(false)
     }
   }
 
-  async function runRegenerate(id: string) {
+  /** Gera a senha nova na tela. Só vai para o banco no Salvar do topo. */
+  function runRegenerate(id: string) {
     setConfirm(null)
-    setBusyId(id)
+    setPendingPw((prev) => new Map(prev).set(id, generatePassword()))
+  }
+
+  function saveTyped(id: string, next: string) {
+    setPendingPw((prev) => new Map(prev).set(id, next))
+  }
+
+  /** Grava as senhas pendentes. Lança erro se alguma falhar (o pop-up de sair mostra a mensagem). */
+  async function persistPasswords() {
+    const items = [...pendingPw.entries()]
+      .map(([id, password]) => ({ line: 0, student: students.rows.find((s) => s.id === id), password }))
+      .filter((i): i is { line: number; student: NonNullable<typeof i.student>; password: string } => Boolean(i.student))
+    const r = await setPasswordsBulk(items)
+    const failed = new Set(r.issues.map((i) => i.ref))
+    setPendingPw((prev) => {
+      const next = new Map(prev)
+      for (const [id] of prev) if (!failed.has(id)) next.delete(id)
+      return next
+    })
+    if (single) await load(single.id)
+    if (r.issues.length > 0) throw new Error(`${r.issues.length} senha(s) não foram salvas: ${r.issues[0].error}`)
+    setNotice(`${plural(r.done, 'senha salva', 'senhas salvas')}.`)
+  }
+
+  async function savePasswords() {
+    setSavingPw(true)
     setError(null)
     try {
-      const r = await regenerateStudentPassword(id)
-      patchRow(id, { password: r.password, has_password_hash: true, has_password_encrypted: true })
+      await persistPasswords()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao gerar a senha.')
+      setError(e instanceof Error ? e.message : 'Falha ao salvar as senhas.')
     } finally {
-      setBusyId(null)
+      setSavingPw(false)
     }
   }
 
-  async function saveTyped(id: string, next: string) {
-    setBusyId(id)
-    setError(null)
-    try {
-      await updateStudentPassword(id, next)
-      patchRow(id, { password: next, has_password_hash: true, has_password_encrypted: true })
-      setNotice('Senha salva.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao salvar a senha.')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  /* Alterar senhas em massa: exporta, edita a coluna senha e carrega o arquivo. */
-  async function loadMass(file: File | null) {
-    setPlan(null)
-    if (!file || !single) return
-    setError(null)
-    try {
-      const table = await readTable(file)
-      const byPhone = new Map(
-        students.rows.filter((s) => s.institution_id === single.id).map((s) => [phoneKey(s.phone_number), s]),
-      )
-      const errors: MassPlan['errors'] = []
-      const out: string[][] = []
-      table.forEach((row, i) => {
-        const line = i + 2
-        const phone = pick(row, 'celular', 'telefone')
-        const name = pick(row, 'nome')
-        const pw = pick(row, 'senha', 'password')
-        if (!phone && !name && !pw) return
-        if (!pw) return
-        if (pw.length < 6) {
-          errors.push({ line, nome: name, celular: phone, error: 'A senha precisa de pelo menos 6 caracteres.' })
-          return
-        }
-        if (!byPhone.has(phoneKey(phone))) {
-          errors.push({ line, nome: name, celular: phone, error: 'Aluno não encontrado nesta instituição.' })
-          return
-        }
-        out.push([single.name || single.id, name, phone, pw])
-      })
-      setPlan({
-        fileName: file.name,
-        csv: toCsv(['escola', 'nome', 'celular', 'senha'], out, { sep: ',', bom: false }),
-        rows: out.length,
-        errors,
-      })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao ler o arquivo.')
-    }
-  }
-
-  async function runMass() {
-    if (!plan || !single) return
-    setConfirm(null)
-    setBulkBusy(true)
-    setError(null)
-    try {
-      const r = await importStudentsCsv(plan.csv)
-      setNotice(`Senhas alteradas: ${r.updated} atualizada(s), ${r.errors.length} erro(s).`)
-      setPlan({ ...plan, rows: 0, errors: [...plan.errors, ...r.errors] })
-      if (fileRef.current) fileRef.current.value = ''
-      await load(single.id)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao alterar as senhas em massa.')
-    } finally {
-      setBulkBusy(false)
-    }
-  }
+  useUnsavedChanges(pendingPw.size > 0 && !savingPw, persistPasswords)
 
   if (g.institutionsLoading || students.ready === false) return <BootSymbol />
 
@@ -267,71 +221,56 @@ export function StudentPasswordsPage() {
       <PageHead
         title="Senhas dos alunos"
         subtitle="Nome, celular e senha dos alunos de cada escola. Toda visualização, exportação e nova senha fica registrada."
+        titleAction={<EditBar dirty={pendingPw.size > 0} busy={savingPw} onSave={savePasswords} onCancel={() => setPendingPw(new Map())} />}
       />
       {!single ? <Banner>Selecione uma instituição no filtro do topo.</Banner> : null}
       {error ? <Banner>{error}</Banner> : null}
       {notice ? <Banner tone="ok">{notice}</Banner> : null}
 
-      <section className="gx-card" aria-label="Alterar senhas em massa">
-        <div>
-          <h2>Alterar senhas em massa</h2>
-          <p className="gx-muted" style={{ fontSize: 14, lineHeight: 1.6 }}>
-            Exporte o CSV, edite a coluna senha e carregue o arquivo. Colunas: escola, nome, celular, senha.
-          </p>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <button type="button" className="gx-btn" disabled={!single} onClick={() => void exportCsv()}>
-            Exportar CSV
-          </button>
-          <label className="gx-btn" style={{ position: 'relative', opacity: single ? 1 : 0.4 }}>
-            Carregar arquivo CSV
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              disabled={!single}
-              aria-label="Carregar arquivo CSV de senhas"
-              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-              onChange={(e) => void loadMass(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <button
-            type="button"
-            className="gx-btn gx-btn--primary"
-            disabled={!plan || plan.rows === 0 || bulkBusy}
-            onClick={() => setConfirm({ kind: 'mass' })}
-          >
-            Alterar senhas
-          </button>
-          <span data-fade="1" className="gx-muted" style={{ flex: '1 1 160px' }}>
-            {plan ? `${plan.fileName}: ${plan.rows} senha(s) prontas` : 'Nenhum arquivo escolhido'}
-          </span>
-        </div>
-        {plan && plan.errors.length > 0 ? (
-          <div className="gx-tablewrap" data-sfade="x">
-            <table className="gx-table" aria-label="Linhas com erro">
-              <thead>
-                <tr>
-                  <th>Linha</th>
-                  <th>Nome</th>
-                  <th>Celular</th>
-                  <th>Erro</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.errors.slice(0, 50).map((e) => (
-                  <tr key={`${e.line}-${e.error}`}>
-                    <td>{e.line}</td>
-                    <td>{na(e.nome)}</td>
-                    <td>{na(e.celular)}</td>
-                    <td style={{ color: 'var(--v-err)' }}>{e.error}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+      <BulkPanel
+        title="Alterar senhas em massa"
+        subtitle="Altere as senhas de vários alunos de uma vez com uma planilha"
+        columns={MASS_COLUMNS}
+        note="Somente senhas preenchidas serão alteradas. A planilha base vem com a senha em branco. O aluno é achado pelo ID Aluno."
+        baseLabel="Baixar planilha base"
+        disabled={!single}
+        disabledHint="Selecione uma instituição no filtro do topo."
+        onDownload={() => {
+          if (!single) return
+          const list = students.rows
+            .filter((s) => s.institution_id === single.id && s.active)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+          downloadText(
+            `base-senhas-${single.id}.csv`,
+            toCsv(MASS_COLUMNS, list.map((s) => [single.id, s.id, s.name, s.phone_number, ''])),
+          )
+        }}
+        plan={(table) => {
+          const p = planPasswords(table, { institutionId: single?.id ?? '', students: students.rows })
+          return {
+            data: p,
+            preview: {
+              confirmTitle: 'Alterar senhas em massa?',
+              confirmText: `${plural(p.items.length, 'senha será alterada', 'senhas serão alteradas')}, ${p.unchanged} ${
+                p.unchanged === 1 ? 'fica' : 'ficam'
+              } como ${p.unchanged === 1 ? 'está' : 'estão'}. As senhas antigas deixam de funcionar.`,
+              warning: 'Essa ação não pode ser desfeita.',
+              actionable: p.items.length,
+              issues: p.issues,
+            },
+          }
+        }}
+        apply={async (p) => {
+          const r = await setPasswordsBulk(p.items)
+          if (single) await load(single.id)
+          return {
+            summary: `${plural(r.done, 'senha alterada', 'senhas alteradas')}, ${p.unchanged} sem mudança.`,
+            issues: r.issues,
+          }
+        }}
+        actionLabel="Alterar senhas"
+        confirmLabel="Alterar senhas"
+      />
 
       <section className="gx-card" aria-label="Alunos da escola" style={{ padding: 0, gap: 0, overflow: 'visible' }}>
         <div className="gx-card__head" style={{ padding: '20px 20px 0' }}>
@@ -390,8 +329,9 @@ export function StudentPasswordsPage() {
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Código</th>
-                <th>Celular</th>
+                <th>ID Aluno</th>
+                <th>Telefone</th>
+                <th>E-mail</th>
                 <th>Senha</th>
               </tr>
             </thead>
@@ -405,27 +345,29 @@ export function StudentPasswordsPage() {
                   </td>
                   <td className="num">{na(l.code)}</td>
                   <td>{na(l.row.phone_number)}</td>
+                  <td>{na(emailById.get(l.row.id))}</td>
                   <td>
                     <PasswordCell
-                      password={l.row.password}
-                      generating={busyId === l.row.id}
-                      saving={busyId === l.row.id}
+                      password={pendingPw.get(l.row.id) ?? l.row.password}
+                      pending={pendingPw.has(l.row.id)}
+                      generating={false}
+                      saving={savingPw}
                       legacyHint={l.row.has_password_hash ? 'Senha anterior sem revelação. Gere uma nova senha.' : undefined}
                       onGenerate={() => setConfirm({ kind: 'one', id: l.row.id, name: l.row.name })}
-                      onSave={(next) => void saveTyped(l.row.id, next)}
+                      onSave={(next) => saveTyped(l.row.id, next)}
                     />
                   </td>
                 </tr>
               ))}
               {!single ? (
                 <tr>
-                  <td colSpan={4} className="gx-table__empty">
+                  <td colSpan={5} className="gx-table__empty">
                     Selecione uma instituição no filtro do topo.
                   </td>
                 </tr>
               ) : filtered.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={4} className="gx-table__empty">
+                  <td colSpan={5} className="gx-table__empty">
                     Nenhum aluno com os filtros atuais.
                   </td>
                 </tr>
@@ -456,16 +398,7 @@ export function StudentPasswordsPage() {
         text={confirm?.kind === 'one' ? `Gerar nova senha para ${confirm.name || 'este aluno'}? A senha anterior deixará de funcionar.` : undefined}
         confirmLabel="Gerar nova senha"
         onCancel={() => setConfirm(null)}
-        onConfirm={() => confirm?.kind === 'one' && void runRegenerate(confirm.id)}
-      />
-      <ConfirmDialog
-        open={confirm?.kind === 'mass'}
-        title="Tem certeza que deseja alterar senhas em massa?"
-        text={plan ? `${plan.rows} ${plan.rows === 1 ? 'senha será alterada' : 'senhas serão alteradas'}. As senhas antigas deixam de funcionar.` : undefined}
-        confirmLabel="Alterar senhas"
-        busy={bulkBusy}
-        onCancel={() => setConfirm(null)}
-        onConfirm={() => void runMass()}
+        onConfirm={() => confirm?.kind === 'one' && runRegenerate(confirm.id)}
       />
     </div>
   )

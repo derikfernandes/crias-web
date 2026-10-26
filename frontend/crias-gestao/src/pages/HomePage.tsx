@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { InstitutionCadastro } from '../components/InstitutionCadastro'
 import { Link, useNavigate } from 'react-router-dom'
-import { updateInstitution } from '../lib/institutionFirestore'
 import { snapshotToExerciseAttempt } from '../lib/exerciseAttemptFirestore'
 import {
   fetchInstitutionMetrics,
@@ -42,7 +42,6 @@ import type { Trail } from '../types/trail'
 import {
   Banner,
   BootSymbol,
-  ConfirmDialog,
   Fade,
   FilterPopover,
   Icon,
@@ -266,8 +265,15 @@ function SuperHome({
                 <article className="gx-card" key={inst.id}>
                   <header className="gx-card__head">
                     <div style={{ minWidth: 0 }}>
-                      <Fade as="h3">{instName}</Fade>
-                      <p className="gx-muted">{na(inst.type)}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <Fade as="h3">{instName}</Fade>
+                        <Link to={`/instituicoes/${inst.id}`} className="gx-btn gx-btn--icon gx-btn--ghost" aria-label={`Editar ${instName}`} title="Editar">
+                          <Icon name="pencil" size={16} />
+                        </Link>
+                      </div>
+                      <p className="gx-muted">
+                        <span className="gx-tag">ID {inst.id}</span> {na(inst.type)}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <ArrowButton
@@ -353,42 +359,6 @@ function SchoolHome({
   const navigate = useNavigate()
   const g = useGestao()
   const { canNav } = usePermissions()
-  const [name, setName] = useState(institution.name)
-  const [type, setType] = useState(institution.type)
-  const [confirm, setConfirm] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setName(institution.name)
-    setType(institution.type)
-  }, [institution.name, institution.type])
-
-  const changed =
-    name.trim() !== institution.name.trim() || type.trim() !== institution.type.trim()
-  const valid = name.trim() !== '' && type.trim() !== ''
-
-  async function save() {
-    setSaving(true)
-    setError(null)
-    try {
-      await updateInstitution(institution.id, {
-        name: name.trim(),
-        type: type.trim(),
-        active: institution.active,
-      })
-      setSaved(true)
-      setConfirm(false)
-      window.setTimeout(() => setSaved(false), 2500)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível salvar.')
-      setConfirm(false)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   /* Trilhas */
   const [trailSel, setTrailSel] = useState<Set<string> | null>(null)
   const trailSelected = useMemo(
@@ -496,37 +466,7 @@ function SchoolHome({
           </>
         }
       />
-      {error ? <Banner>{error}</Banner> : null}
-      <section className="gx-card" aria-label="Cadastro">
-        <div className="gx-card__head">
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, minWidth: 0, flexWrap: 'wrap' }}>
-            <h2>Cadastro</h2>
-            <span className="gx-muted" style={{ fontSize: 12 }}>
-              ID {institution.id} · Criada em {fmtDate(institution.created_at)} · Atualizada em{' '}
-              {fmtDate(institution.updated_at)}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="gx-btn gx-btn--primary gx-btn--sm"
-            disabled={!changed || !valid || saving}
-            onClick={() => setConfirm(true)}
-          >
-            Salvar
-          </button>
-        </div>
-        <div className="gx-grid">
-          <label className="gx-field">
-            <span>Nome</span>
-            <input className="gx-input" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="gx-field">
-            <span>Tipo</span>
-            <input className="gx-input" value={type} onChange={(e) => setType(e.target.value)} />
-          </label>
-        </div>
-        {saved ? <Banner tone="ok">Alterações salvas.</Banner> : null}
-      </section>
+      <InstitutionCadastro institution={institution} />
 
       {canNav('dashboard') ? (
         <div style={{ display: 'flex' }}>
@@ -699,14 +639,6 @@ function SchoolHome({
         </div>
       </section>
 
-      <ConfirmDialog
-        open={confirm}
-        title="Deseja mesmo alterar o cadastro?"
-        confirmLabel="Alterar"
-        busy={saving}
-        onCancel={() => setConfirm(false)}
-        onConfirm={() => void save()}
-      />
     </div>
   )
 }

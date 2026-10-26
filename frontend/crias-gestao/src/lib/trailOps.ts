@@ -252,7 +252,8 @@ export async function createTrailFromPreview(input: {
     description: input.description.trim(),
     subject: input.subject.trim(),
     default_total_steps_per_stage: input.phases.length,
-    active: false,
+    // 1.1.1.b: a trilha nova nasce ativa.
+    active: true,
     structurePhases: input.phases,
   })
   if (!id) throw new Error('Não foi possível criar a trilha.')

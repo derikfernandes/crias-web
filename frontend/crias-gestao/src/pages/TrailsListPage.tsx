@@ -26,6 +26,7 @@ export function TrailsListPage() {
   const { canNav } = usePermissions()
   const trails = useCollection('trails', snapshotToTrail)
   const [picked, setPicked] = useState<Set<string> | null>(null)
+  const [pickedSubjects, setPickedSubjects] = useState<Set<string> | null>(null)
   const [sort, setSort] = useState<SortState | null>({ key: 'name', dir: 'asc' })
 
   const scoped = useMemo(
@@ -40,10 +41,21 @@ export function TrailsListPage() {
     return out
   }, [scoped, picked])
 
+  const subjects = useMemo(
+    () => [...new Set(scoped.map((t) => t.subject.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [scoped],
+  )
+  const selectedSubjects = useMemo(() => {
+    if (!pickedSubjects) return new Set(subjects)
+    return new Set([...pickedSubjects].filter((x) => subjects.includes(x)))
+  }, [subjects, pickedSubjects])
+  // Trilha sem matéria só some se a pessoa tirar alguma matéria da lista.
+  const subjectOk = (t: { subject: string }) => !t.subject.trim() || selectedSubjects.has(t.subject.trim())
+
   const rows = useMemo(
     () =>
       sortRows(
-        scoped.filter((t) => selected.has(t.id)),
+        scoped.filter((t) => selected.has(t.id) && subjectOk(t)),
         sort,
         (t, k) =>
           k === 'name'
@@ -60,10 +72,12 @@ export function TrailsListPage() {
                     ? (t.created_at?.toMillis?.() ?? null)
                     : '',
       ),
-    [scoped, selected, sort, g],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoped, selected, selectedSubjects, sort, g],
   )
   const pager = usePager(rows, 5)
 
+  const multi = g.scopedInstitutions.length > 1
   const creatable = g.scopedInstitutions.length === 1 ? g.scopedInstitutions[0] : null
 
   if (!trails.ready || g.institutionsLoading) return <BootSymbol />
@@ -87,19 +101,36 @@ export function TrailsListPage() {
           ) : null
         }
         tools={
-          <div style={{ flex: '0 1 max(calc(50% - 6px), min(100%, 360px))', minWidth: 0, marginTop: 32 }}>
-            <FilterPopover
-              variant="field"
-              align="left"
-              label="Filtrar trilhas"
-              options={scoped.map((t) => ({ id: t.id, name: t.name || t.id }))}
-              selected={selected}
-              onChange={(n) => {
-                setPicked(n)
-                pager.reset()
-              }}
-              emptyText="Nenhuma trilha encontrada."
-            />
+          <div className="gx-filters" role="group" aria-label="Filtros">
+            <span className="gx-filters__label">Filtros</span>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar trilhas"
+                options={scoped.map((t) => ({ id: t.id, name: t.name || t.id }))}
+                selected={selected}
+                onChange={(n) => {
+                  setPicked(n)
+                  pager.reset()
+                }}
+                emptyText="Nenhuma trilha encontrada."
+              />
+            </div>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar matérias"
+                options={subjects.map((x) => ({ id: x, name: x }))}
+                selected={selectedSubjects}
+                onChange={(n) => {
+                  setPickedSubjects(n)
+                  pager.reset()
+                }}
+                emptyText="Nenhuma matéria encontrada."
+              />
+            </div>
           </div>
         }
       />
@@ -115,7 +146,7 @@ export function TrailsListPage() {
             <thead>
               <tr>
                 <SortHead label="Nome" sortKey="name" sort={sort} onSort={setSort} />
-                <SortHead label="Instituição" sortKey="inst" sort={sort} onSort={setSort} />
+                {multi ? <SortHead label="Instituição" sortKey="inst" sort={sort} onSort={setSort} /> : null}
                 <SortHead label="Matéria" sortKey="subject" sort={sort} onSort={setSort} />
                 <SortHead label="Ativa" sortKey="active" sort={sort} onSort={setSort} />
                 <SortHead label="Criada em" sortKey="created" sort={sort} onSort={setSort} />
@@ -126,18 +157,16 @@ export function TrailsListPage() {
               {pager.slice.map((t) => (
                 <tr key={t.id}>
                   <td>
-                    <Link to={`/trilhas/${t.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
-                      {t.name || t.id}
-                    </Link>
+                    <strong>{t.name || t.id}</strong>
                   </td>
-                  <td>{g.institutionName(t.institution_id)}</td>
+                  {multi ? <td>{g.institutionName(t.institution_id)}</td> : null}
                   <td>{na(t.subject)}</td>
                   <td>
                     <span className={activePillClass(t.active)}>{t.active ? 'Sim' : 'Não'}</span>
                   </td>
                   <td>{fmtDate(t.created_at)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <Link to={`/trilhas/${t.id}`} className="gx-btn">
+                    <Link to={`/trilhas/${t.id}`} className="gx-btn gx-btn--open">
                       Abrir
                     </Link>
                   </td>
@@ -145,7 +174,7 @@ export function TrailsListPage() {
               ))}
               {pager.total === 0 ? (
                 <tr>
-                  <td colSpan={6} className="gx-table__empty">
+                  <td colSpan={multi ? 6 : 5} className="gx-table__empty">
                     Nenhuma trilha encontrada.
                   </td>
                 </tr>

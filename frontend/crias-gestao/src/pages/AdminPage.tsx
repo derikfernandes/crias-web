@@ -1,11 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useCollection } from '../hooks/useCollection'
 import { useGestao } from '../hooks/useGestao'
+import { useAuth } from '../hooks/useAuth'
 import { usePermissions } from '../hooks/usePermissions'
-import { MENU_ITEMS, PROFILE_LABEL, PROFILE_MENU } from '../lib/adminProfiles'
 import { ADMIN_USERS_COLLECTION, snapshotToAdminUser } from '../lib/adminUserFirestore'
 import { deleteAdminUser, saveAdminUser, type UserDraft } from '../lib/adminUsersOps'
 import { Banner, BootSymbol, PageHead } from '../design/gx/ui'
+import { UsersBulk } from './admin/UsersBulk'
+import { ProfilesCard } from './admin/ProfilesCard'
+import { useProfileEdits } from './admin/useProfileEdits'
+import { useUserEdits } from './admin/useUserEdits'
+import { EditBar } from '../components/EditBar'
+import { useUnsavedChanges } from '../contexts/UnsavedContext'
+import { Icon } from '../design/gx/ui'
 import { UsersTable, rowFromUser, type UserRowModel } from './admin/UsersTable'
 
 const EMPTY: UserDraft = { email: '', profile: 'basico', institutionIds: [], active: true }
@@ -14,6 +21,7 @@ const EMPTY: UserDraft = { email: '', profile: 'basico', institutionIds: [], act
 export function AdminPage() {
   const g = useGestao()
   const { adminProfile, hasFullAccess } = usePermissions()
+  const { user } = useAuth()
   const users = useCollection(ADMIN_USERS_COLLECTION, snapshotToAdminUser)
   const [drafts, setDrafts] = useState<UserRowModel[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -34,38 +42,54 @@ export function AdminPage() {
     [drafts, visible],
   )
 
+  const edit = useUserEdits(rows)
+  const profiles = useProfileEdits(users.rows, isSuper)
+  const saveEdit = async (row: UserRowModel, draft: UserDraft) => {
+    await saveAdminUser({ ...draft, institutionIds: isSuper ? draft.institutionIds : mine ? [mine] : [] }, 'institution', false)
+    setNotice('Usuário salvo.')
+    void row
+  }
+  const dirtyAll = edit.dirty || profiles.dirty
+  const saveAllEdits = async () => {
+    if (profiles.dirty) await profiles.save()
+    if (edit.dirty) await edit.saveAll(saveEdit)
+  }
+  const cancelAll = () => {
+    edit.cancel()
+    profiles.cancel()
+  }
+  useUnsavedChanges(dirtyAll, saveAllEdits)
+
   if (!users.ready || g.institutionsLoading) return <BootSymbol />
 
   return (
     <div className="gx-page">
-      <PageHead title="Permissões" subtitle="Defina quais as permissões para cada usuário da instituição." />
+      <PageHead
+        title="Permissões"
+        subtitle="Defina quais as permissões para cada usuário da instituição."
+        titleAction={<EditBar dirty={dirtyAll} onSave={saveAllEdits} onCancel={cancelAll} />}
+      />
       {users.error ? <Banner onRetry={users.retry}>{users.error}</Banner> : null}
       {notice ? <Banner tone="ok">{notice}</Banner> : null}
 
-      <section className="gx-card" aria-label="Perfis">
-        <h2>Perfis</h2>
-        {(['admin', 'basico'] as const).map((p) => (
-          <div
-            key={p}
-            style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 18px', border: '1px solid var(--v-soft2)', borderRadius: 12, padding: '12px 14px' }}
-          >
-            <strong style={{ fontSize: 15, minWidth: 70 }}>{PROFILE_LABEL[p]}</strong>
-            {MENU_ITEMS.map((m) => (
-              <label key={m.key} className="gx-check">
-                <input type="checkbox" checked={PROFILE_MENU[p].includes(m.key)} disabled readOnly />
-                {m.label}
-              </label>
-            ))}
-          </div>
-        ))}
-        <p className="gx-muted" style={{ fontSize: 12 }}>
-          Perfis são combinações prontas das permissões que cada usuário já tem. Super admin acessa tudo.
-        </p>
-      </section>
+      <ProfilesCard menus={profiles.menus} canEdit={isSuper} onToggle={profiles.toggle} />
+
+      <UsersBulk
+        scope="institution"
+        users={visible}
+        institutions={g.institutions.map((i) => ({ id: i.id, name: i.name }))}
+        fixedInstitutionId={isSuper ? null : mine}
+        ownEmail={user?.email ?? null}
+      />
 
       <section className="gx-card" aria-label="Usuários">
         <div className="gx-card__head">
-          <h2>Usuários</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2>Usuários</h2>
+            <button type="button" className="gx-linkbtn" onClick={() => (edit.editing ? edit.cancel() : edit.setEditing(true))}>
+              <Icon name="pencil" size={14} /> {edit.editing ? 'Sair da edição' : 'Editar'}
+            </button>
+          </div>
           <button
             type="button"
             className="gx-btn gx-btn--primary"
@@ -73,12 +97,14 @@ export function AdminPage() {
               setDrafts((d) => [{ id: `${Date.now()}`, isNew: true, draft: { ...EMPTY, institutionIds: mine ? [mine] : [] } }, ...d])
             }
           >
-            + Novo usuário
+            + Adicionar usuário
           </button>
         </div>
         <UsersTable
           rows={rows}
-          canEdit
+          canEdit={edit.editing}
+          edits={edit.edits}
+          onChangeDraft={edit.onChangeDraft}
           profileOptions={[
             { value: 'admin', label: 'Admin' },
             { value: 'basico', label: 'Básico' },

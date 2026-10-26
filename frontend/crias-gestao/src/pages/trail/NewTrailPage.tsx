@@ -1,33 +1,79 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Banner, BootSymbol, Icon, PageHead } from '../../design/gx/ui'
+import { Banner, BootSymbol, ConfirmDialog, Icon, PageHead, Switch } from '../../design/gx/ui'
+import { useCollection } from '../../hooks/useCollection'
 import { useGestao } from '../../hooks/useGestao'
+import { useGuardedNavigate, useUnsavedChanges } from '../../contexts/UnsavedContext'
+import { snapshotToStudent } from '../../lib/studentFirestore'
 import { blankActivity, stepLabel, letterOf, type ActivityDraft } from '../../lib/trailActivities'
 import { generateActivitiesWithAi } from '../../lib/trailAiApi'
 import {
   DEFAULT_OBJECTIVE,
   DEFAULT_STRUCTURE,
   effectiveOrder,
-  generationSummary,
   phasesFromConfig,
   type GenerationConfig,
   type StructureConfig,
 } from '../../lib/trailConfig'
-import { createTrailFromPreview } from '../../lib/trailOps'
+import { applyTrailStudentChanges, createTrailFromPreview } from '../../lib/trailOps'
 import {
   CadastroSection,
   EstruturaSection,
   NumberOfActivities,
   ObjetivoSection,
   OrientacoesSection,
-  StepBar,
+  Pencil,
   type CadastroValue,
 } from './ConfigSections'
 import { FilesPicker, type PickedFile } from './FilesPicker'
 
+type Stage = 'config' | 'preview' | 'students'
+
+/** Linha só de uma linha, com o fim esmaecendo: resumo dos blocos recolhidos. */
+function Summary({ children }: { children: string }) {
+  return (
+    <span data-fade="1" className="gx-muted" style={{ display: 'block', minWidth: 0 }}>
+      {children}
+    </span>
+  )
+}
+
+/** Cabeçalho de bloco da Configuração: número, título e lápis quando recolhido (1.1.1.b, F). */
+function BlockBar({
+  n,
+  title,
+  ai,
+  open,
+  onToggle,
+}: {
+  n: string
+  title: string
+  ai?: boolean
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="gx-stepbar">
+      <button type="button" className="gx-stepbar__title" onClick={onToggle} aria-expanded={open}>
+        <span className="gx-stepbar__num">{n}</span>
+        <strong>{title}</strong>
+      </button>
+      {ai ? <span className="gx-tag gx-tag--ai">IA</span> : null}
+      {!open ? (
+        <Pencil label={`Editar ${title}`} onClick={onToggle} />
+      ) : (
+        <button type="button" className="gx-roundarrow" aria-label={`Recolher ${title}`} title="Recolher" onClick={onToggle}>
+          <Icon name="chev-up" size={16} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 /**
- * Nova trilha (1.1.9): fluxo único, sempre por IA. Seis passos (Cadastro, Objetivo, Estrutura,
- * Habilidades, Orientações, Arquivos). "Gerar prévia" abre a Prévia; só "Salvar trilha" grava.
+ * Nova trilha (1.1.1.b): três etapas. Configuração (blocos Cadastro, Estrutura e Criar com IA), Prévia e
+ * Adicionar alunos (opcional). "Criar trilha" gera a prévia; "Continuar" segue para os alunos; só
+ * "Salvar trilha" grava (trilha, atividades e alunos marcados). Cancelar pergunta "Tem certeza que deseja sair?".
  * Com Habilidades, Orientações e Arquivos vazios não chama a IA: a prévia tem só a Atividade 1 em branco.
  */
 export function NewTrailPage() {
@@ -46,9 +92,14 @@ export function NewTrailPage() {
   const [skills, setSkills] = useState('')
   const [guidelines, setGuidelines] = useState('')
   const [files, setFiles] = useState<PickedFile[]>([])
-  const [open, setOpen] = useState<Set<number>>(new Set([1]))
+  const [stage, setStage] = useState<Stage>('config')
+  const [createConfirm, setCreateConfirm] = useState(false)
+  const [open, setOpen] = useState<Set<number>>(new Set([1, 2, 3]))
+  const [studentChanges, setStudentChanges] = useState<Map<string, boolean>>(new Map())
+  const guardedNavigate = useGuardedNavigate()
+  const allStudents = useCollection('students', snapshotToStudent)
   const [preview, setPreview] = useState<ActivityDraft[] | null>(null)
-  const [previewOpen, setPreviewOpen] = useState<Set<number>>(new Set([0]))
+  const [previewSel, setPreviewSel] = useState(0)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,12 +125,12 @@ export function NewTrailPage() {
     filesText: files.length > 0 ? 'enviados' : '',
   }
 
-  function setStep(k: number, on: boolean) {
-    if (k < 1 || k > 6) return
+  function toggleBlock(k: number) {
+    seenRef.current[k] = false
     setOpen((s) => {
       const n = new Set(s)
-      if (on) n.add(k)
-      else n.delete(k)
+      if (n.has(k)) n.delete(k)
+      else n.add(k)
       return n
     })
   }
@@ -89,7 +140,8 @@ export function NewTrailPage() {
     if (!ready) return
     if (!useAi) {
       setPreview([blankActivity(1, phases, structure.options)])
-      setPreviewOpen(new Set([0]))
+      setPreviewSel(0)
+      setStage('preview')
       return
     }
     setGenerating(true)
@@ -104,7 +156,8 @@ export function NewTrailPage() {
         signal: ctrl.signal,
       })
       setPreview(result)
-      setPreviewOpen(new Set([0]))
+      setPreviewSel(0)
+      setStage('preview')
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         setError(e instanceof Error ? e.message : 'Não foi possível gerar a prévia.')
@@ -114,25 +167,103 @@ export function NewTrailPage() {
     }
   }
 
+  /** Grava a trilha, as atividades da prévia e os alunos marcados. Lança erro se falhar. */
+  async function persistTrail(): Promise<void> {
+    if (!preview || !institution) throw new Error('Crie a trilha antes de salvar.')
+    const id = await createTrailFromPreview({
+      institutionId: institution.id,
+      name: cad.name,
+      subject: cad.subject,
+      description: cad.description,
+      phases,
+      activities: preview,
+    })
+    if (studentChanges.size > 0) {
+      await applyTrailStudentChanges({ trailId: id, institutionId: institution.id, changes: studentChanges, links: [] })
+    }
+    navigate(`/trilhas/${id}?aba=content`, { replace: true })
+  }
+
   async function saveTrail() {
-    if (!preview || !institution) return
     setSaving(true)
     setError(null)
     try {
-      const id = await createTrailFromPreview({
-        institutionId: institution.id,
-        name: cad.name,
-        subject: cad.subject,
-        description: cad.description,
-        phases,
-        activities: preview,
-      })
-      navigate(`/trilhas/${id}?aba=content`, { replace: true })
+      await persistTrail()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível salvar a trilha.')
       setSaving(false)
     }
   }
+
+  const dirty = Boolean(cad.name.trim() || cad.subject.trim() || cad.description.trim() || skills.trim() || guidelines.trim() || files.length > 0 || preview)
+  useUnsavedChanges(dirty && !saving, preview ? persistTrail : undefined)
+
+  /*
+   * Recolhimento pela rolagem (1.1.1.b, F): Cadastro e Estrutura recolhem quando a pessoa passou por eles inteiros
+   * (a linha de baixo do bloco entrou na tela) e depois eles saíram inteiros pelo topo, sob o cabeçalho fixo.
+   * Criar com IA recolhe quando a pessoa sobe e o bloco sai inteiro pela base da tela. A tela não pula: o que
+   * o bloco recolhido deixou de ocupar é descontado da rolagem.
+   */
+  const seenRef = useRef<Record<number, boolean>>({})
+  const pendingShift = useRef<number | null>(null)
+  const lastTop = useRef(0)
+  useEffect(() => {
+    if (stage !== 'config') return
+    const main = document.querySelector('.gx-main') as HTMLElement | null
+    if (!main) return
+    const onScroll = () => {
+      const goingUp = main.scrollTop < lastTop.current
+      lastTop.current = main.scrollTop
+      if (pendingShift.current !== null) return
+      const head = document.querySelector('.gx-head') as HTMLElement | null
+      const headBottom = head ? head.getBoundingClientRect().bottom : main.getBoundingClientRect().top
+      const viewBottom = main.getBoundingClientRect().bottom
+      for (const n of [1, 2, 3]) {
+        const el = document.getElementById(`bloco-${n}`)
+        if (!el || !open.has(n)) continue
+        const r = el.getBoundingClientRect()
+        if (n < 3) {
+          if (r.bottom <= viewBottom && r.bottom > headBottom) seenRef.current[n] = true
+          if (seenRef.current[n] && r.bottom <= headBottom - 8) {
+            seenRef.current[n] = false
+            pendingShift.current = r.height
+            setOpen((cur) => {
+              const next = new Set(cur)
+              next.delete(n)
+              return next
+            })
+            return
+          }
+        } else {
+          if (r.top < viewBottom) seenRef.current[3] = true
+          if (goingUp && seenRef.current[3] && r.top >= viewBottom + 8) {
+            seenRef.current[3] = false
+            setOpen((cur) => {
+              const next = new Set(cur)
+              next.delete(3)
+              return next
+            })
+            return
+          }
+        }
+      }
+    }
+    main.addEventListener('scroll', onScroll, { passive: true })
+    return () => main.removeEventListener('scroll', onScroll)
+  }, [stage, open])
+
+  useLayoutEffect(() => {
+    if (pendingShift.current === null) return
+    const main = document.querySelector('.gx-main') as HTMLElement | null
+    const before = pendingShift.current
+    pendingShift.current = null
+    if (!main) return
+    // Altura que o bloco recolhido deixou de ocupar: só sobra o cabeçalho e o resumo.
+    const collapsedBlocks = [1, 2].filter((n) => !open.has(n))
+    const el = collapsedBlocks.length ? document.getElementById(`bloco-${collapsedBlocks[collapsedBlocks.length - 1]}`) : null
+    const delta = before - (el?.getBoundingClientRect().height ?? 0)
+    if (delta > 0) main.scrollTop = Math.max(0, main.scrollTop - delta)
+  }, [open])
 
   if (g.institutionsLoading) return <BootSymbol />
 
@@ -145,219 +276,368 @@ export function NewTrailPage() {
     )
   }
 
+  const trailName = cad.name.trim() || 'Nova trilha'
+
+  /* Etapas do topo: Configuração e Prévia levam seta verde (só continuidade); Adicionar alunos só depois da Prévia. */
+  const stageNav = (
+    <nav className="gx-newstages" aria-label="Etapas da nova trilha">
+      <button
+        type="button"
+        className="gx-newstage"
+        aria-current={stage === 'config'}
+        onClick={() => {
+          // Voltar para a Configuração não pede confirmação; a Prévia fica inativa até tocar em Criar trilha de novo.
+          setPreview(null)
+          setStudentChanges(new Map())
+          setStage('config')
+        }}
+      >
+        Configuração
+        <Icon name="chev-right" />
+      </button>
+      <button
+        type="button"
+        className="gx-newstage"
+        aria-current={stage === 'preview'}
+        disabled={!preview && !ready}
+        onClick={() => (preview ? setStage('preview') : void generate())}
+      >
+        Prévia
+        <Icon name="chev-right" />
+      </button>
+      <button type="button" className="gx-newstage" aria-current={stage === 'students'} disabled={!preview} onClick={() => setStage('students')}>
+        Adicionar alunos <span className="gx-muted">(opcional)</span>
+      </button>
+    </nav>
+  )
+
+  const mainAction =
+    stage === 'config' ? (
+      <button
+        type="button"
+        className={ready && !generating ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
+        disabled={!ready || generating}
+        onClick={() => void generate()}
+      >
+        {generating ? 'Gerando…' : 'Criar trilha'}
+      </button>
+    ) : stage === 'preview' ? (
+      <button type="button" className="gx-btn gx-btn--primary gx-btn--pulse" onClick={() => setStage('students')}>
+        Continuar
+      </button>
+    ) : (
+      <button type="button" className="gx-btn gx-btn--primary gx-btn--pulse" disabled={saving} onClick={() => setCreateConfirm(true)}>
+        {saving ? 'Salvando…' : 'Salvar trilha'}
+      </button>
+    )
+
+  const head = (
+    <PageHead
+      title={trailName}
+      subtitle={`Crie em poucos passos · ${institution.name || institution.id}`}
+      titleAction={
+        <span className="gx-editbar">
+          <button type="button" className="gx-btn" disabled={saving} onClick={() => guardedNavigate('/trilhas')}>
+            Cancelar
+          </button>
+          {mainAction}
+        </span>
+      }
+      tools={stageNav}
+    />
+  )
+  const createDialog = (
+    <ConfirmDialog
+      open={createConfirm}
+      title="Tem certeza que deseja criar a trilha?"
+      text="A configuração de estrutura não poderá ser alterada depois."
+      cancelLabel="Continuar editando"
+      confirmLabel="Salvar"
+      busy={saving}
+      onCancel={() => setCreateConfirm(false)}
+      onConfirm={() => {
+        setCreateConfirm(false)
+        void saveTrail()
+      }}
+    />
+  )
+
   /* ---------- Prévia ---------- */
-  if (preview) {
-    const summary = generationSummary(config)
+  if (stage === 'preview' && preview) {
+    const cur = preview[Math.min(previewSel, preview.length - 1)]
+    const dash = (v: string | number) => (String(v).trim() === '' ? '' : String(v))
+    const rows = (items: Array<[string, string]>) => (
+      <dl className="gx-info gx-info--compact">
+        {items.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd data-fade="1">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    )
     return (
       <div className="gx-page">
-        <PageHead
-          title={cad.name || 'Nova trilha'}
-          subtitle="Prévia: revise antes de salvar. Nada foi gravado ainda."
-          titleAction={
-            <button
-              type="button"
-              className="gx-btn gx-btn--primary gx-btn--pulse"
-              disabled={saving}
-              onClick={() => void saveTrail()}
-            >
-              {saving ? 'Salvando…' : 'Salvar trilha'}
-            </button>
-          }
-          tools={
-            <nav role="tablist" aria-label="Seções da trilha" className="gx-tabs">
-              <button type="button" role="tab" className="gx-tab" aria-selected={false} onClick={() => setPreview(null)}>
-                Configuração
-              </button>
-              <button type="button" role="tab" className="gx-tab" aria-selected>
-                Prévia
-              </button>
-            </nav>
-          }
-        />
+        {head}
+        {createDialog}
         {error ? <Banner>{error}</Banner> : null}
-        <section className="gx-card" aria-label="Configuração de geração">
-          <h2>Configuração de geração</h2>
-          <dl className="gx-info">
-            {summary.map((it) => (
-              <div key={it.k}>
-                <dt>{it.k}</dt>
-                <dd>{it.v}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-        <section className="gx-card" aria-label="Atividades da prévia">
-          <div className="gx-card__head">
-            <div>
-              <h2>Prévia da trilha</h2>
-              <p className="gx-muted">
-                {useAi
-                  ? 'Atividades geradas pela IA com a configuração acima.'
-                  : 'Sem habilidades, orientações ou arquivos: a trilha começa com a Atividade 1 em branco.'}
-              </p>
+        <div className="gx-previewcols" aria-label="Configuração">
+          <section className="gx-card">
+            <h2 className="gx-previewcols__title">
+              <span className="gx-stepbar__num">01</span> Cadastro
+            </h2>
+            {rows([
+              ['Nome', dash(cad.name)],
+              ['Matéria', dash(cad.subject)],
+              ['Descrição', dash(cad.description)],
+              ['Objetivo', dash(objective)],
+            ])}
+          </section>
+          <section className="gx-card">
+            <h2 className="gx-previewcols__title">
+              <span className="gx-stepbar__num">02</span> Estrutura
+            </h2>
+            {rows([
+              ['Conteúdos', String(config.contents)],
+              ['Exercícios', String(config.exercises)],
+              ['Ordem', config.order.map((k) => (k === 'c' ? 'Conteúdo' : 'Exercício')).join(', ')],
+              ['Alternativas', String(structure.options)],
+              ['Atividades', String(activities)],
+            ])}
+          </section>
+          <section className="gx-card">
+            <h2 className="gx-previewcols__title">
+              <span className="gx-stepbar__num">03</span> Criar com IA <span className="gx-tag gx-tag--ai">IA</span>
+            </h2>
+            {rows([
+              ['Habilidades', dash(skills)],
+              ['Orientações', dash(guidelines)],
+              ['Arquivos', files.map((f) => f.file.name).join(', ')],
+            ])}
+          </section>
+        </div>
+        <p className="gx-muted">
+          {useAi
+            ? 'Atividades geradas pela IA com a configuração acima. Nada foi gravado ainda.'
+            : 'Sem habilidades, orientações ou arquivos: a trilha começa com a Atividade 1 em branco. Nada foi gravado ainda.'}
+        </p>
+        <p className="gx-sectionlabel">Atividades</p>
+        <div className="gx-split">
+          <section className="gx-card" aria-label="Atividades da trilha">
+            <div className="gx-card__head">
+              <h2>Atividades da trilha</h2>
             </div>
-            <button type="button" className="gx-btn" onClick={() => setPreview(null)}>
-              Voltar e ajustar
-            </button>
-          </div>
-          <ol className="gx-list">
-            {preview.map((a, i) => {
-              const isOpen = previewOpen.has(i)
-              return (
-                <li className="gx-acc" key={a.number}>
+            <ol className="gx-list">
+              {preview.map((a, i) => (
+                <li className="gx-actrow" key={a.number}>
                   <button
                     type="button"
-                    aria-expanded={isOpen}
-                    onClick={() =>
-                      setPreviewOpen((s) => {
-                        const n = new Set(s)
-                        if (n.has(i)) n.delete(i)
-                        else n.add(i)
-                        return n
-                      })
-                    }
+                    className={i === previewSel ? 'gx-actbtn is-on' : 'gx-actbtn'}
+                    aria-pressed={i === previewSel}
+                    onClick={() => setPreviewSel(i)}
                   >
                     <span className="gx-num">{a.number}</span>
-                    <strong data-fade="1" style={{ flex: 1, minWidth: 0, fontSize: 15 }}>
-                      {a.title || `Atividade ${a.number}`}
-                    </strong>
-                    <span style={{ display: 'flex', gap: 3 }} aria-hidden="true">
-                      {a.steps.map((s, k) => (
-                        <span key={k} className={`gx-swatch gx-swatch--${s.kind}`} style={{ width: 9, height: 9 }} />
-                      ))}
-                    </span>
-                    {useAi ? <span className="gx-tag gx-tag--ai">IA</span> : null}
-                    <Icon name={isOpen ? 'chev-up' : 'chev-down'} />
+                    <strong data-fade="1">{a.title || `Atividade ${a.number}`}</strong>
                   </button>
-                  {isOpen ? (
-                    <div>
-                      {a.steps.map((s, k) => (
-                        <div className="gx-step" key={k}>
-                          <div className="gx-step__top">
-                            <span>Etapa {k + 1}</span>
-                            <span className={s.kind === 'e' ? 'gx-pill gx-pill--warn' : 'gx-pill'}>
-                              {s.kind === 'e' ? 'Exercício' : 'Conteúdo'}
-                            </span>
-                          </div>
-                          <strong className="gx-step__title">{stepLabel(a.steps, k)}</strong>
-                          <p className="gx-step__body">
-                            {s.content ||
-                              (useAi ? 'N/A' : 'Conteúdo em branco. Preencha depois, na aba Conteúdo.')}
-                          </p>
-                          {s.kind === 'e' && s.options.some(Boolean) ? (
-                            <ul className="gx-list">
-                              {s.options.map((o, oi) => (
-                                <li key={oi} className="gx-step__body">
-                                  {letterOf(oi)}) {o}
-                                  {s.correct === letterOf(oi) ? ' ✓' : ''}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                  {useAi ? <span className="gx-tag gx-tag--ai">IA</span> : null}
                 </li>
-              )
-            })}
-          </ol>
+              ))}
+            </ol>
+          </section>
+          <section className="gx-card" aria-label="Conteúdo das etapas">
+            <div className="gx-card__head">
+              <h2>Conteúdo das etapas</h2>
+            </div>
+            {cur ? (
+              <>
+                <p className="gx-muted">
+                  Atividade {cur.number}: {cur.title || `Atividade ${cur.number}`}
+                </p>
+                {cur.steps.map((st, k) => (
+                  <div className="gx-step" key={k}>
+                    <div className="gx-step__top">
+                      <span>Etapa {k + 1}</span>
+                      <span className={st.kind === 'e' ? 'gx-pill gx-pill--warn' : 'gx-pill'}>{st.kind === 'e' ? 'Exercício' : 'Conteúdo'}</span>
+                    </div>
+                    <strong className="gx-step__title">{stepLabel(cur.steps, k)}</strong>
+                    <p className="gx-step__body">
+                      {st.content || (useAi ? 'N/A' : 'Conteúdo em branco. Preencha depois, na aba Conteúdo.')}
+                    </p>
+                    {st.kind === 'e' && st.options.some(Boolean) ? (
+                      <ul className="gx-list">
+                        {st.options.map((o, oi) => (
+                          <li key={oi} className="gx-step__body">
+                            {letterOf(oi)}) {o}
+                            {st.correct === letterOf(oi) ? ' ✓' : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ))}
+              </>
+            ) : null}
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  /* ---------- Adicionar alunos (opcional) ---------- */
+  if (stage === 'students' && preview) {
+    const list = allStudents.rows
+      .filter((s) => s.institution_id === institution.id && s.active)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+    const on = (id: string) => studentChanges.get(id) === true
+    const setAll = (value: boolean) => setStudentChanges(value ? new Map(list.map((s) => [s.id, true])) : new Map())
+    return (
+      <div className="gx-page">
+        {head}
+        {createDialog}
+        {error ? <Banner>{error}</Banner> : null}
+        <section className="gx-card" aria-label="Alunos da trilha">
+          <div className="gx-card__head">
+            <div>
+              <h2>Ativar ou inativar alunos</h2>
+              <p className="gx-muted">
+                Os alunos ativados terão acesso à trilha assim que ela for salva. Você também pode fazer isso depois, na aba Alunos.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <button type="button" className="gx-btn" onClick={() => setAll(true)}>
+                Ativar todos
+              </button>
+              <button type="button" className="gx-btn" onClick={() => setAll(false)}>
+                Inativar todos
+              </button>
+            </div>
+          </div>
+          <p className="gx-muted">
+            {[...studentChanges.values()].filter(Boolean).length} de {list.length} ativados.
+          </p>
+          <div className="gx-scrollbox" data-sfade="y">
+            {list.map((s) => (
+              <div className="gx-togglerow" key={s.id}>
+                <strong data-fade="1">{s.name || s.id}</strong>
+                <span className="gx-muted" style={{ minWidth: 56 }}>
+                  {s.id}
+                </span>
+                <Switch
+                  checked={on(s.id)}
+                  label={on(s.id) ? 'Ativo' : 'Inativo'}
+                  onChange={(v) =>
+                    setStudentChanges((prev) => {
+                      const next = new Map(prev)
+                      if (v) next.set(s.id, true)
+                      else next.delete(s.id)
+                      return next
+                    })
+                  }
+                />
+              </div>
+            ))}
+            {list.length === 0 ? <p className="gx-muted">Nenhum aluno ativo nesta instituição.</p> : null}
+          </div>
         </section>
       </div>
     )
   }
 
-  /* ---------- Passos ---------- */
-  const bar = (n: number, title: string, small?: string, ai?: boolean) => (
-    <StepBar
-      n={n}
-      title={title}
-      small={small}
-      ai={ai}
-      open={open.has(n)}
-      onToggle={() => setStep(n, true)}
-      onUp={() => setStep(n, false)}
-      onDown={() => setStep(n + 1, true)}
-      last={n === 6}
-    />
-  )
+  /* ---------- Configuração: três blocos ---------- */
+  const cadSummary = [cad.name, cad.subject, cad.description].filter((x) => x.trim()).join(' · ')
+  const structSummary = `${config.contents} conteúdo(s) + ${config.exercises} exercício(s) · ${structure.options} alternativas · ${activities} atividades`
+  const aiSummary = [skills.trim() && `Habilidades: ${skills.trim()}`, guidelines.trim() && `Orientações: ${guidelines.trim()}`, files.length > 0 && `Arquivos: ${files.map((f) => f.file.name).join(', ')}`]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div className="gx-page">
-      <PageHead
-        title="Nova trilha"
-        subtitle={`Crie em poucos passos · ${institution.name || institution.id}`}
-        titleAction={
-          <button
-            type="button"
-            className={ready && !generating ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
-            disabled={!ready || generating}
-            onClick={() => void generate()}
-          >
-            {generating ? 'Gerando…' : 'Gerar prévia'}
-          </button>
-        }
-      />
+      {head}
       {error ? <Banner>{error}</Banner> : null}
 
-      <CadastroSection
-        value={cad}
-        onChange={setCad}
-        readOnly={false}
-        editing={false}
-        hideHeader
-        bar={bar(1, 'Cadastro')}
-      />
-      {open.has(2) ? (
-        <ObjetivoSection value={objective} onChange={setObjective} readOnly={false} locked={false} editing={false} bar={bar(2, 'Objetivo', 'recomendado')} />
-      ) : (
-        <section className="gx-card">{bar(2, 'Objetivo', 'recomendado')}</section>
-      )}
-      {open.has(3) ? (
-        <EstruturaSection
-          value={structure}
-          onChange={setStructure}
-          locked={false}
-          bar={bar(3, 'Estrutura', 'padrão')}
-          extra={<NumberOfActivities value={activities} onChange={setActivities} />}
-        />
-      ) : (
-        <section className="gx-card">{bar(3, 'Estrutura', 'padrão')}</section>
-      )}
-      <section className="gx-card" aria-label="Habilidades">
-        {bar(4, 'Habilidades', 'opcional', true)}
-        {open.has(4) ? (
-          <label className="gx-field">
-            <span>Habilidades ou conteúdos que as atividades devem trabalhar</span>
-            <textarea
-              className="gx-textarea"
-              rows={4}
-              value={skills}
-              placeholder="Ex.: Calcular porcentagem de um valor. Resolver problemas com frações."
-              onChange={(e) => setSkills(e.target.value)}
-            />
-          </label>
-        ) : null}
-      </section>
-      {open.has(5) ? (
-        <OrientacoesSection
-          value={guidelines}
-          onChange={setGuidelines}
-          locked={false}
-          bar={bar(5, 'Orientações', 'opcional', true)}
-        />
-      ) : (
-        <section className="gx-card">{bar(5, 'Orientações', 'opcional', true)}</section>
-      )}
-      <section className="gx-card" aria-label="Arquivos">
-        {bar(6, 'Arquivos', 'opcional', true)}
-        {open.has(6) ? <FilesPicker files={files} onChange={setFiles} /> : null}
-      </section>
-      <p className="gx-muted">
-        {useAi
-          ? 'A prévia será gerada por IA com o que você preencheu. Nada é gravado até "Salvar trilha".'
-          : 'Sem habilidades, orientações ou arquivos a prévia começa em branco, só com a Atividade 1.'}
-      </p>
+      <div className="gx-newblocks">
+        <nav className="gx-newindex" aria-label="Índice">
+          {[
+            [1, 'Cadastro'],
+            [2, 'Estrutura'],
+            [3, 'Criar com IA'],
+          ].map(([n, t]) => (
+            <a
+              key={n}
+              href={`#bloco-${n}`}
+              onClick={(e) => {
+                e.preventDefault()
+                setOpen((s) => new Set(s).add(n as number))
+                document.getElementById(`bloco-${n}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }}
+            >
+              <span className="gx-stepbar__num">{`0${n}`}</span>
+              {t}
+            </a>
+          ))}
+          <p className="gx-muted">Defina as informações para criar com inteligência artificial.</p>
+        </nav>
+
+        <div className="gx-newcol">
+          <section id="bloco-1" className="gx-card gx-cfgblock" aria-label="Cadastro">
+            <BlockBar n="01" title="Cadastro" open={open.has(1)} onToggle={() => toggleBlock(1)} />
+            {open.has(1) ? (
+              <>
+                <CadastroSection value={cad} onChange={setCad} readOnly={false} editing={false} hideHeader bar={null} />
+                <ObjetivoSection value={objective} onChange={setObjective} readOnly={false} locked={false} editing={false} bar={null} />
+              </>
+            ) : (
+              <Summary>{cadSummary}</Summary>
+            )}
+          </section>
+
+          <section id="bloco-2" className="gx-card gx-cfgblock" aria-label="Estrutura">
+            <BlockBar n="02" title="Estrutura" open={open.has(2)} onToggle={() => toggleBlock(2)} />
+            {open.has(2) ? (
+              <EstruturaSection
+                value={structure}
+                onChange={setStructure}
+                locked={false}
+                bar={null}
+                extra={<NumberOfActivities value={activities} onChange={setActivities} />}
+              />
+            ) : (
+              <Summary>{structSummary}</Summary>
+            )}
+          </section>
+
+          <section id="bloco-3" className="gx-card gx-cfgblock" aria-label="Criar com IA">
+            <BlockBar n="03" title="Criar com IA" ai open={open.has(3)} onToggle={() => toggleBlock(3)} />
+            {open.has(3) ? (
+              <>
+                <label className="gx-field">
+                  <span>Habilidades ou conteúdos que as atividades devem trabalhar</span>
+                  <textarea
+                    className="gx-textarea"
+                    rows={4}
+                    value={skills}
+                    placeholder="Ex.: Calcular porcentagem de um valor. Resolver problemas com frações."
+                    onChange={(e) => setSkills(e.target.value)}
+                  />
+                </label>
+                <OrientacoesSection value={guidelines} onChange={setGuidelines} locked={false} bar={<h3 className="gx-h">Orientações (opcional)</h3>} />
+                <div>
+                  <h3 className="gx-h">Arquivos (opcional)</h3>
+                  <FilesPicker files={files} onChange={setFiles} />
+                </div>
+              </>
+            ) : (
+              <Summary>{aiSummary}</Summary>
+            )}
+          </section>
+
+          <p className="gx-muted">
+            {useAi
+              ? 'A prévia será gerada por IA com o que você preencheu. Nada é gravado até "Salvar trilha".'
+              : 'Sem habilidades, orientações ou arquivos a prévia começa em branco, só com a Atividade 1.'}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

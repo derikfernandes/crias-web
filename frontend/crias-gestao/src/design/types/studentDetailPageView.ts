@@ -12,6 +12,8 @@ export type StudentDetailTrailRow = {
   status: string
   startedAtLabel: string
   lastInteractionAtLabel: string
+  /** Mudança ainda não salva: só o Salvar do topo grava (1.1.1.b). */
+  pending?: 'edit' | 'unlink' | 'new'
 }
 
 export type StudentDetailLinkableTrail = {

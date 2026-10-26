@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 
 /* Peças de interface da Gestão v1.1 (INTERFACE.md 1.1.x). Só apresentação. */
@@ -214,6 +215,7 @@ export function PageHead({
         <h1 data-fade="1">{title}</h1>
         <span className="gx-head__rule" aria-hidden="true" />
         {titleAction ?? null}
+        <span className="gx-head__slot" data-head-slot="1" />
       </div>
       <div className="gx-head__sub">
         <p data-fade="1">{subtitle}</p>
@@ -387,14 +389,20 @@ export function Dialog({
   )
 }
 
-/** Confirmação no padrão do app (substitui window.confirm). */
+/**
+ * Pop-up de confirmação (1.1.1.b, C.1). Três tipos de botão: neutro (contorno amarelo, "Continuar editando" ou
+ * "Cancelar"), ação (verde sólido) e destrutivo (contorno vermelho, "Cancelar edição", "Desativar trilha").
+ * `extra` é um terceiro botão em linha própria, na largura toda (por exemplo, "Sair sem salvar").
+ */
 export function ConfirmDialog({
   open,
   title,
   text,
   confirmLabel,
   cancelLabel = 'Cancelar',
+  tone = 'action',
   busy,
+  extra,
   onConfirm,
   onCancel,
 }: {
@@ -403,7 +411,9 @@ export function ConfirmDialog({
   text?: ReactNode
   confirmLabel: string
   cancelLabel?: string
+  tone?: 'action' | 'destructive'
   busy?: boolean
+  extra?: ReactNode
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -413,19 +423,22 @@ export function ConfirmDialog({
       title={title}
       onClose={onCancel}
       actions={
-        <>
-          <button type="button" className="gx-btn" onClick={onCancel}>
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className="gx-btn gx-btn--primary"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-        </>
+        <div className="gx-dialog__stack">
+          <div className="gx-dialog__row">
+            <button type="button" className="gx-btn gx-btn--neutral" onClick={onCancel}>
+              {cancelLabel}
+            </button>
+            <button
+              type="button"
+              className={tone === 'destructive' ? 'gx-btn gx-btn--danger-line' : 'gx-btn gx-btn--primary'}
+              disabled={busy}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </button>
+          </div>
+          {extra ?? null}
+        </div>
       }
     >
       {text ? <p>{text}</p> : null}
@@ -464,8 +477,8 @@ export function DeletarDialog({
       title={title}
       onClose={onCancel}
       actions={
-        <>
-          <button type="button" className="gx-btn" onClick={onCancel}>
+        <div className="gx-dialog__row">
+          <button type="button" className="gx-btn gx-btn--neutral" onClick={onCancel}>
             Cancelar
           </button>
           <button
@@ -476,7 +489,7 @@ export function DeletarDialog({
           >
             {confirmLabel}
           </button>
-        </>
+        </div>
       }
     >
       <p>{subtitle}</p>
@@ -1016,7 +1029,10 @@ export function PasswordCell({
   saving,
   canGenerate = true,
   legacyHint,
+  pending,
 }: {
+  /** Senha nova ainda não salva: aparece visível até o Salvar do topo. */
+  pending?: boolean
   password: string | null
   onGenerate?: () => void
   /** Grava uma senha digitada. Sem isto o lápis de editar não aparece. */
@@ -1026,7 +1042,8 @@ export function PasswordCell({
   canGenerate?: boolean
   legacyHint?: string
 }) {
-  const [shown, setShown] = useState(false)
+  const [shownState, setShown] = useState(false)
+  const shown = shownState || Boolean(pending)
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -1063,7 +1080,7 @@ export function PasswordCell({
             setEditing(false)
           }}
         >
-          Salvar
+          Aplicar
         </button>
         <button type="button" className="gx-btn gx-btn--sm" onClick={() => setEditing(false)}>
           Cancelar
@@ -1131,4 +1148,16 @@ export function PasswordCell({
       {generateBtn}
     </span>
   )
+}
+
+/**
+ * Põe botões no fim da linha do título da página (onde ficam Cancelar e Salvar), mesmo quando quem os
+ * controla é um componente filho, como o formulário do aluno.
+ */
+export function HeadActions({ children }: { children: ReactNode }) {
+  const [slot, setSlot] = useState<Element | null>(null)
+  useEffect(() => {
+    setSlot(document.querySelector('[data-head-slot]'))
+  }, [])
+  return slot ? createPortal(children, slot) : null
 }

@@ -1,12 +1,17 @@
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { sendPasswordResetEmail } from 'firebase/auth'
 import { auth, db } from './firebase'
-import { adminUserDocId, normalizeAdminEmail } from './adminPermissions'
+import { adminPhoneDocId, adminUserDocId, normalizeAdminEmail } from './adminPermissions'
 import { navPermissionsFor, type ProfileId } from './adminProfiles'
 import { ADMIN_USERS_COLLECTION } from './adminUserFirestore'
 
 export type UserDraft = {
   email: string
+  /** Nome e telefone (opcionais, 1.1.1.b). */
+  name?: string
+  phone?: string
+  /** Só com telefone e e-mail: qual vale para a senha (lib/loginRule.ts). */
+  loginIdentifier?: 'phone' | 'email'
   profile: ProfileId
   /** Instituições do usuário (aba Instituições). Vazio na aba Crias. */
   institutionIds: string[]
@@ -16,7 +21,10 @@ export type UserDraft = {
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function draftValid(d: UserDraft, needsInstitution: boolean): boolean {
-  if (!EMAIL_RE.test(d.email.trim())) return false
+  // Nome obrigatório e e-mail ou telefone (o acesso é por um dos dois).
+  if (!(d.name ?? '').trim()) return false
+  const email = d.email.trim()
+  if (email ? !EMAIL_RE.test(email) : !(d.phone ?? '').replace(/\D/g, '')) return false
   if (needsInstitution && d.institutionIds.length === 0) return false
   return true
 }
@@ -28,14 +36,17 @@ export async function saveAdminUser(
   isNew: boolean,
 ): Promise<string> {
   if (!db) throw new Error('Firebase não inicializado.')
-  const email = normalizeAdminEmail(d.email)
-  const id = adminUserDocId(email)
+  const email = d.email.trim() ? normalizeAdminEmail(d.email) : ''
+  const id = email ? adminUserDocId(email) : adminPhoneDocId(d.phone ?? '')
   const isSuper = scope === 'crias' && d.profile === 'super'
   const profile = d.profile === 'basico' ? 'basico' : 'admin'
   await setDoc(
     doc(db, ADMIN_USERS_COLLECTION, id),
     {
       email,
+      ...(d.name?.trim() ? { name: d.name.trim() } : {}),
+      ...(d.phone?.trim() ? { phone_number: d.phone.trim() } : {}),
+      login_identifier: d.email.trim() && (d.phone ?? '').replace(/\D/g, '') ? (d.loginIdentifier ?? 'phone') : null,
       active: d.active,
       is_super_admin: isSuper,
       is_master: isSuper || profile === 'admin',

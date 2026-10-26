@@ -8,6 +8,8 @@ import {
   type AiPromptRecord,
   type AiPromptVersion,
 } from '../lib/aiPromptsApi'
+import { EditBar } from '../components/EditBar'
+import { useLeaveGuard, useUnsavedChanges } from '../contexts/UnsavedContext'
 import { Banner, BootSymbol, ConfirmDialog, Icon, na, PageHead } from '../design/gx/ui'
 import { formatSaoPauloDateTimeShort } from '../lib/formatSaoPaulo'
 
@@ -74,21 +76,34 @@ export function AiPromptsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id, selected?.version])
 
-  async function save() {
+  /** Grava uma versão nova. Lança erro se falhar (o pop-up de sair mostra a mensagem). */
+  async function persist() {
     if (!selected || locked || !dirty) return
+    const updated = await updateAiPrompt({ id: selected.id, body: draft, note: note.trim() || undefined })
+    setMessage(`Salvo: ${updated.title} (versão ${updated.version}).`)
+    await load()
+  }
+
+  async function save() {
     setSaving(true)
     setError(null)
     setMessage(null)
     try {
-      const updated = await updateAiPrompt({ id: selected.id, body: draft, note: note.trim() || undefined })
-      setMessage(`Salvo: ${updated.title} (versão ${updated.version}).`)
-      await load()
+      await persist()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  function cancelEdit() {
+    setDraft(selected?.body ?? '')
+    setNote('')
+  }
+
+  useUnsavedChanges(Boolean(selected && !locked && dirty && !saving), persist)
+  const leaveGuard = useLeaveGuard()
 
   async function restoreDefault() {
     if (!selected) return
@@ -126,6 +141,7 @@ export function AiPromptsPage() {
       <PageHead
         title="Prompts"
         subtitle="Instruções que orientam a geração de conteúdo. Cada salvamento cria uma nova versão e fica registrado."
+        titleAction={<EditBar dirty={Boolean(selected && !locked && dirty)} busy={saving} onSave={() => void save()} onCancel={cancelEdit} />}
       />
       {error ? <Banner onRetry={() => void load()}>{error}</Banner> : null}
       {message ? <Banner tone="ok">{message}</Banner> : null}
@@ -134,7 +150,11 @@ export function AiPromptsPage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16 }}>
           <label className="gx-field" style={{ flex: '0 1 340px', minWidth: 220 }}>
             <span>Agente</span>
-            <select className="gx-select" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} disabled={saving}>
+            <select className="gx-select" value={selectedId} onChange={(e) => {
+                const next = e.target.value
+                if (next !== selectedId) leaveGuard(() => setSelectedId(next))
+              }}
+              disabled={saving}>
               {prompts.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title} · versão {p.version}
@@ -194,16 +214,6 @@ export function AiPromptsPage() {
                     style={{ maxWidth: 560 }}
                   />
                 </label>
-                <div>
-                  <button
-                    type="button"
-                    className={dirty ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
-                    disabled={!dirty || saving}
-                    onClick={() => void save()}
-                  >
-                    {saving ? 'Salvando…' : 'Salvar'}
-                  </button>
-                </div>
               </>
             )}
           </>

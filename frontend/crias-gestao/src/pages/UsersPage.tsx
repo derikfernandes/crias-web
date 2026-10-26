@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useCollection } from '../hooks/useCollection'
 import { useGestao } from '../hooks/useGestao'
+import { useAuth } from '../hooks/useAuth'
 import { usePermissions } from '../hooks/usePermissions'
 import {
   adminUserDocId,
@@ -10,6 +11,13 @@ import { ADMIN_USERS_COLLECTION, snapshotToAdminUser } from '../lib/adminUserFir
 import { deleteAdminUser, saveAdminUser, type UserDraft } from '../lib/adminUsersOps'
 import type { AdminUser } from '../types/adminUser'
 import { Banner, BootSymbol, PageHead } from '../design/gx/ui'
+import { UsersBulk } from './admin/UsersBulk'
+import { ProfilesCard } from './admin/ProfilesCard'
+import { useProfileEdits } from './admin/useProfileEdits'
+import { useUserEdits } from './admin/useUserEdits'
+import { EditBar } from '../components/EditBar'
+import { useUnsavedChanges } from '../contexts/UnsavedContext'
+import { Icon } from '../design/gx/ui'
 import { UsersTable, rowFromUser, type UserRowModel } from './admin/UsersTable'
 
 const EMPTY: UserDraft = { email: '', profile: 'basico', institutionIds: [], active: true }
@@ -34,6 +42,7 @@ function masterStub(email: string): AdminUser {
 export function UsersPage() {
   const g = useGestao()
   const { hasFullAccess, adminProfile } = usePermissions()
+  const { user } = useAuth()
   const users = useCollection(ADMIN_USERS_COLLECTION, snapshotToAdminUser)
   const [tab, setTab] = useState<'crias' | 'inst'>('crias')
   const [drafts, setDrafts] = useState<{ crias: UserRowModel[]; inst: UserRowModel[] }>({ crias: [], inst: [] })
@@ -65,6 +74,24 @@ export function UsersPage() {
   const criasRows = [...drafts.crias, ...crias.map(rowFromUser)]
   const instRows = [...drafts.inst, ...inst.sort((a, b) => (a.institution_ids[0] ?? '').localeCompare(b.institution_ids[0] ?? '')).map(rowFromUser)]
 
+  const edit = useUserEdits(tab === 'crias' ? criasRows : instRows)
+  const profiles = useProfileEdits(users.rows, true)
+  const saveEdit = async (row: UserRowModel, draft: UserDraft) => {
+    await saveAdminUser(draft, tab === 'crias' ? 'crias' : 'institution', false)
+    setNotice('Usuário salvo.')
+    void row
+  }
+  const dirtyAll = edit.dirty || profiles.dirty
+  const saveAllEdits = async () => {
+    if (profiles.dirty) await profiles.save()
+    if (edit.dirty) await edit.saveAll(saveEdit)
+  }
+  const cancelAll = () => {
+    edit.cancel()
+    profiles.cancel()
+  }
+  useUnsavedChanges(dirtyAll, saveAllEdits)
+
   if (!users.ready || g.institutionsLoading) return <BootSymbol />
   if (!isSuper) {
     return (
@@ -83,14 +110,31 @@ export function UsersPage() {
 
   return (
     <div className="gx-page">
-      <PageHead title="Usuários" subtitle="Cadastro de usuários para o painel de gestão." />
+      <PageHead
+        title="Usuários"
+        subtitle="Cadastro de usuários para o painel de gestão."
+        titleAction={<EditBar dirty={dirtyAll} onSave={saveAllEdits} onCancel={cancelAll} />}
+      />
       {users.error ? <Banner onRetry={users.retry}>{users.error}</Banner> : null}
       {notice ? <Banner tone="ok">{notice}</Banner> : null}
+      <ProfilesCard menus={profiles.menus} canEdit onToggle={profiles.toggle} />
+      <UsersBulk
+        key={tab}
+        scope={tab === 'crias' ? 'crias' : 'institution'}
+        users={tab === 'crias' ? crias : inst}
+        institutions={g.institutions.map((i) => ({ id: i.id, name: i.name }))}
+        ownEmail={user?.email ?? null}
+      />
       <section className="gx-card" aria-label="Usuários">
         <div className="gx-card__head">
-          <h2>Usuários</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2>Usuários</h2>
+            <button type="button" className="gx-linkbtn" onClick={() => (edit.editing ? edit.cancel() : edit.setEditing(true))}>
+              <Icon name="pencil" size={14} /> {edit.editing ? 'Sair da edição' : 'Editar'}
+            </button>
+          </div>
           <button type="button" className="gx-btn gx-btn--primary" onClick={add}>
-            + Novo usuário
+            + Adicionar usuário
           </button>
         </div>
         <nav role="tablist" aria-label="Usuários" className="gx-tabs" style={{ marginTop: 0 }}>
@@ -104,7 +148,9 @@ export function UsersPage() {
         {tab === 'crias' ? (
           <UsersTable
             rows={criasRows}
-            canEdit
+            canEdit={edit.editing}
+            edits={edit.edits}
+            onChangeDraft={edit.onChangeDraft}
             profileOptions={[
               { value: 'super', label: 'Super admin' },
               { value: 'admin', label: 'Admin' },
@@ -124,7 +170,9 @@ export function UsersPage() {
         ) : (
           <UsersTable
             rows={instRows}
-            canEdit
+            canEdit={edit.editing}
+            edits={edit.edits}
+            onChangeDraft={edit.onChangeDraft}
             showInstitution
             institutionOptions={g.institutions.map((i) => ({ value: i.id, label: i.name || i.id }))}
             profileOptions={[

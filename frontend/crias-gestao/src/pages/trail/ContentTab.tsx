@@ -1,3 +1,5 @@
+import { BulkPanel } from '../../components/BulkPanel'
+import { plural } from '../../lib/bulkActions'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Banner, DeletarDialog, Icon } from '../../design/gx/ui'
 import { loadXlsx } from '../../lib/loadXlsx'
@@ -14,7 +16,6 @@ import {
   templateRows,
   letterOf,
   type ActivityDraft,
-  type SheetParse,
   type StepDraft,
 } from '../../lib/trailActivities'
 import { generateActivitiesWithAi } from '../../lib/trailAiApi'
@@ -192,13 +193,8 @@ export function ContentTab({
   const [aiFiles, setAiFiles] = useState<PickedFile[]>([])
   const [generating, setGenerating] = useState(false)
   const [preview, setPreview] = useState<ActivityDraft[] | null>(null)
-  const [previewOpen, setPreviewOpen] = useState<Set<number>>(new Set([0]))
+  const [previewOpen, setPreviewOpen] = useState<Set<number>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
-
-  // Planilha
-  const [sheet, setSheet] = useState<SheetParse | null>(null)
-  const [sheetName, setSheetName] = useState('')
-  const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (activities.length > 0 && aiCount === 5) setAiCount(Math.min(MAX_ACTIVITIES, Math.max(1, activities.length)))
@@ -294,7 +290,7 @@ export function ContentTab({
         signal: ctrl.signal,
       })
       setPreview(numberAfter(activities, result))
-      setPreviewOpen(new Set([0]))
+      setPreviewOpen(new Set())
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         setError(e instanceof Error ? e.message : 'Não foi possível gerar a prévia.')
@@ -330,41 +326,13 @@ export function ContentTab({
     XLSX.writeFile(wb, `modelo-atividades-${trailId}.xlsx`)
   }
 
-  async function loadSheet(file: File | null) {
-    setSheet(null)
-    setSheetName('')
-    if (!file) return
-    setError(null)
-    try {
-      const XLSX = await loadXlsx()
-      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
-      const ws = wb.Sheets[SHEET_TEMPLATE] ?? wb.Sheets[wb.SheetNames[wb.SheetNames.length - 1]]
-      if (!ws) {
-        setError(`A planilha precisa conter a aba "${SHEET_TEMPLATE}".`)
-        return
-      }
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
-      const parsed = parseActivitySheet(rows, phases, optionCount)
-      setSheet(parsed)
-      setSheetName(file.name)
-      if (parsed.activities.length === 0) {
-        setError('Nenhuma linha válida na planilha. Corrija os erros e carregue de novo.')
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao ler a planilha.')
-    }
-  }
-
-  function addSheet() {
-    if (!sheet || sheet.activities.length === 0) return
-    const next = numberAfter(activities, sheet.activities)
-    void run(async () => {
-      await addActivities(trailId, next, activities.map((a) => a.number))
-      setSheet(null)
-      setSheetName('')
-      if (fileInput.current) fileInput.current.value = ''
-      setSelected(next[next.length - 1]?.number ?? null)
-    }, `${next.length} ${next.length === 1 ? 'atividade adicionada' : 'atividades adicionadas'}.`)
+  /** Lê a aba do modelo (a de instruções vem antes e não serve). */
+  async function readActivitySheet(file: File) {
+    const XLSX = await loadXlsx()
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+    const ws = wb.Sheets[SHEET_TEMPLATE] ?? wb.Sheets[wb.SheetNames[wb.SheetNames.length - 1]]
+    if (!ws) throw new Error(`A planilha precisa conter a aba "${SHEET_TEMPLATE}".`)
+    return XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' })
   }
 
   /* ----- Prévia (página dentro da aba) ----- */
@@ -383,7 +351,7 @@ export function ContentTab({
               Cancelar
             </button>
             <button type="button" className="gx-btn gx-btn--primary" disabled={busy} onClick={addPreview}>
-              Adicionar atividades
+              Criar atividades
             </button>
           </div>
         </div>
@@ -439,16 +407,74 @@ export function ContentTab({
       {error ? <Banner>{error}</Banner> : null}
       {notice ? <Banner tone="ok">{notice}</Banner> : null}
 
-      <section className="gx-card" aria-label="Adicionar atividades com inteligência artificial" style={{ padding: '16px 20px' }}>
-        <button type="button" className="gx-collapse" aria-expanded={aiOpen} onClick={() => setAiOpen((v) => !v)}>
-          <h2>Adicionar atividades com inteligência artificial</h2>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <p className="gx-sectionlabel">Novas atividades</p>
+      <div className="gx-newacts">
+      <BulkPanel
+        title="Adicionar atividades em massa"
+        subtitle="Adicione várias atividades de uma vez com uma planilha. Elas entram depois da última existente e nada é substituído."
+        columns={templateHeaders(phases)}
+        baseLabel="Baixar planilha modelo"
+        onDownload={() => void downloadTemplate()}
+        read={readActivitySheet}
+        plan={(rows) => {
+          const parsed = parseActivitySheet(rows as Record<string, unknown>[], phases, optionCount)
+          return {
+            data: parsed,
+            preview: {
+              confirmTitle: 'Adicionar atividades em massa?',
+              confirmText: `${plural(parsed.activities.length, 'atividade será adicionada', 'atividades serão adicionadas')} depois da última existente.`,
+              actionable: parsed.activities.length,
+              issues: parsed.errors.map((er) => ({ line: er.row, ref: er.field, error: er.message })),
+            },
+          }
+        }}
+        apply={async (parsed) => {
+          const next = numberAfter(activities, parsed.activities)
+          await addActivities(trailId, next, activities.map((a) => a.number))
+          setSelected(next[next.length - 1]?.number ?? null)
+          return { summary: `${plural(next.length, 'atividade adicionada', 'atividades adicionadas')}.` }
+        }}
+        actionLabel="Adicionar atividades"
+        confirmLabel="Adicionar atividades"
+      />
+      <section className="gx-card gx-bulk" aria-label="Adicionar atividades com inteligência artificial">
+        <div
+          className="gx-bulk__head"
+          role="button"
+          tabIndex={0}
+          aria-expanded={aiOpen}
+          onClick={() => setAiOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setAiOpen((v) => !v)
+            }
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <h2>Adicionar atividades com Inteligência Artificial</h2>
+            <p className="gx-muted">Gere novas atividades a partir das habilidades e orientações</p>
+          </div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
             <span className="gx-tag gx-tag--ai">IA</span>
-            <Icon name={aiOpen ? 'chev-up' : 'chev-down'} />
+            <button
+              type="button"
+              className={canGenerate ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
+              disabled={!canGenerate}
+              onClick={(e) => {
+                e.stopPropagation()
+                void generate()
+              }}
+            >
+              {generating ? 'Gerando…' : 'Gerar prévia'}
+            </button>
+            <span className="gx-roundarrow" aria-hidden="true">
+              <Icon name={aiOpen ? 'chev-up' : 'chev-down'} />
+            </span>
           </span>
-        </button>
+        </div>
         {aiOpen ? (
-          <>
+          <div className="gx-bulk__body">
             <NumberOfActivities value={aiCount} onChange={setAiCount} />
             <label className="gx-field" style={{ maxWidth: 280 }}>
               <span>Objetivo</span>
@@ -475,70 +501,12 @@ export function ContentTab({
               <textarea className="gx-textarea" rows={3} value={aiNotes} onChange={(e) => setAiNotes(e.target.value)} />
             </label>
             <FilesPicker files={aiFiles} onChange={setAiFiles} compact />
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className={canGenerate ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
-                disabled={!canGenerate}
-                onClick={() => void generate()}
-              >
-                {generating ? 'Gerando…' : 'Gerar prévia'}
-              </button>
-            </div>
-          </>
-        ) : null}
-      </section>
-
-      <section className="gx-card" aria-label="Adicionar atividades em lote" style={{ padding: '16px 20px' }}>
-        <div className="gx-card__head">
-          <h2>Adicionar atividades em lote</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-            <button type="button" className="gx-btn" onClick={() => void downloadTemplate()}>
-              Baixar planilha modelo
-            </button>
-            <label className="gx-btn" style={{ position: 'relative' }}>
-              <Icon name="download" />
-              Carregar planilha
-              <input
-                ref={fileInput}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                aria-label="Carregar planilha de atividades"
-                onChange={(e) => void loadSheet(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <button
-              type="button"
-              className="gx-btn gx-btn--primary"
-              disabled={busy || !sheet || sheet.activities.length === 0}
-              onClick={addSheet}
-            >
-              Adicionar atividades
-            </button>
-          </div>
-        </div>
-        {sheet ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p className="gx-muted">
-              {sheetName}: {sheet.activities.length} de {sheet.totalRows} linhas válidas. As atividades entram depois
-              da última existente e nada é substituído.
-            </p>
-            {sheet.errors.length > 0 ? (
-              <ul className="gx-list" aria-label="Erros da planilha">
-                {sheet.errors.slice(0, 8).map((er, i) => (
-                  <li key={i} className="gx-banner gx-banner--err">
-                    <p>
-                      Linha {er.row}, {er.field}: {er.message}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
         ) : null}
       </section>
+      </div>
 
+      <p className="gx-sectionlabel">Atividades</p>
       <div className="gx-split">
         <section className="gx-card" aria-label="Atividades da trilha">
           <div className="gx-card__head" style={{ flexWrap: 'nowrap' }}>

@@ -98,6 +98,41 @@ async function handle(url: URL, init?: RequestInit): Promise<Response | null> {
     }
   }
 
+  if (path === '/api/dashboard_metrics' && method === 'GET') {
+    const inst = url.searchParams.get('institution_id') ?? ''
+    const stu = studentsOf(inst).filter(([, s]) => s.active !== false)
+    const trails = listCollection('trails').filter(([, t]) => t.institution_id === inst)
+    const links = listCollection('student_trails').filter(([, l]) => l.institution_id === inst)
+    const students = stu.map(([id, s], i) => {
+      const mine = links.filter(([, l]) => l.student_id === id)
+      const released = mine.length * 4
+      const done = Math.min(released, mine.reduce((n, [, l]) => n + Number(l.current_stage_number ?? 1), 0))
+      const correct = (i * 3) % 9
+      const wrong = (i * 5) % 4
+      return {
+        id, name: s.name, active: true, done, released,
+        lessons_done: Math.floor(done / 4), lessons_released: mine.length,
+        correct, wrong, accuracy_pct: correct + wrong > 0 ? Math.round((correct / (correct + wrong)) * 100) : null,
+      }
+    })
+    const done = students.reduce((n, s) => n + s.done, 0)
+    const released = students.reduce((n, s) => n + s.released, 0)
+    const correct = students.reduce((n, s) => n + s.correct, 0)
+    const wrong = students.reduce((n, s) => n + s.wrong, 0)
+    const pills = trails.flatMap(([tid, t]) =>
+      [1, 2, 3].map((q) => ({ key: `${tid}|${q}`, trail_id: tid, trail_name: t.name, stage_number: 4, question_number: q, title: `Exercício ${q}`, gabarito: 'B', total: 20 + q, correct: 10 + q * 3, wrong: 10 - q, accuracy_pct: Math.round(((10 + q * 3) / (20 + q)) * 100) })),
+    )
+    const agent = (days: number) => ({ period_days: days, total_messages: 75, unique_students: Math.min(students.length, 21), agents: [], series: [] })
+    return json({
+      institution_id: inst, computed_at: Date.now(), active_students: students.length, active_trails: trails.length,
+      avg_completion: released ? Math.round((done / released) * 100) : null, avg_lesson_completion: 40,
+      completion_done: done, completion_released: released, lesson_completion_done: 10, lesson_completion_released: 30,
+      avg_accuracy: correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : null, accuracy_correct: correct, accuracy_tried: correct + wrong,
+      exercise_count: pills.length, worst_pills: pills.slice(0, 3), best_pills: pills.slice(-3), exercise_pills: pills, stage_bars: [],
+      students, agent_usage_by_period: { '0': agent(0), '7': agent(7), '30': agent(30) },
+    })
+  }
+
   if (path === '/api/dashboard_summary' && method === 'GET') {
     const inst = url.searchParams.get('institution_id') ?? ''
     const trailIds = [...new Set(listCollection('trails').filter(([, t]) => t.institution_id === inst).map(([id]) => id))]

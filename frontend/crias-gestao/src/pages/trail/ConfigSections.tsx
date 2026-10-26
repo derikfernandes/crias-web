@@ -112,6 +112,7 @@ export function CadastroSection({
   meta,
   bar,
   hideHeader,
+  showActive = true,
 }: {
   value: CadastroValue
   onChange: (next: CadastroValue) => void
@@ -124,6 +125,8 @@ export function CadastroSection({
   meta?: ReactNode
   bar?: ReactNode
   hideHeader?: boolean
+  /** A chave Trilha ativa fica no topo da trilha aberta; aqui só na criação. */
+  showActive?: boolean
 }) {
   return (
     <section className="gx-card" aria-label="Cadastro">
@@ -135,12 +138,14 @@ export function CadastroSection({
             {readOnly && onEdit ? <Pencil label="Editar cadastro da trilha" onClick={onEdit} /> : null}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-            <Switch
-              checked={value.active}
-              label="Trilha ativa"
-              disabled={readOnly}
-              onChange={(active) => onChange({ ...value, active })}
-            />
+            {showActive ? (
+              <Switch
+                checked={value.active}
+                label="Trilha ativa"
+                disabled={readOnly}
+                onChange={(active) => onChange({ ...value, active })}
+              />
+            ) : null}
             {editing ? (
               <>
                 <button type="button" className="gx-btn" onClick={onCancel}>

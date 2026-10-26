@@ -34,8 +34,8 @@ export function LoginPageView({
     <div className="gx-root gx-login">
       <Horizon mode="home" />
       <div className="gx-login__card">
-        <img className="gx-login__logo gx-brand__light" src="/crias-logo-gestao.svg" alt="Crias Gestão" />
-        <img className="gx-login__logo gx-brand__dark" src="/crias-logo-gestao-branco.svg" alt="Crias Gestão" />
+        <img className="gx-login__logo gx-brand__light" src="/crias-logo-educacao.svg" alt="Crias Educação" />
+        <img className="gx-login__logo gx-brand__dark" src="/crias-logo-educacao-branco.svg" alt="Crias Educação" />
         {configError ? (
           <Banner>{configError}</Banner>
         ) : (

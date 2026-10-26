@@ -9,6 +9,8 @@ import type { AdminUser, NavPermission } from '../types/adminUser'
  */
 
 export type ProfileId = 'super' | 'admin' | 'basico'
+/** Perfis que o Super admin pode editar (o Super admin sempre acessa tudo). */
+export type EditableProfileId = Exclude<ProfileId, 'super'>
 
 export const PROFILE_LABEL: Record<ProfileId, string> = {
   super: 'Super admin',
@@ -27,17 +29,27 @@ export const MENU_ITEMS: Array<{ key: MenuKey; label: string; permission: NavPer
   { key: 'admin', label: 'Permissões', permission: 'admin' },
 ]
 
-/** Menu de cada perfil pronto. Fixo no código. */
-export const PROFILE_MENU: Record<Exclude<ProfileId, 'super'>, MenuKey[]> = {
+/** Menu padrão de cada perfil. O Super admin pode mudar (coleção `admin_profiles`, ver adminProfileOps.ts). */
+export const PROFILE_MENU: Record<EditableProfileId, MenuKey[]> = {
   admin: ['home', 'dash', 'trilhas', 'alunos', 'senhas', 'admin'],
   basico: ['home', 'dash', 'trilhas'],
 }
 
-/** Itens de menu de um perfil no formato das permissões do banco. */
-export function navPermissionsFor(profile: Exclude<ProfileId, 'super'>): NavPermission[] {
-  return MENU_ITEMS.filter(
-    (m) => PROFILE_MENU[profile].includes(m.key) && m.permission !== 'student_passwords',
-  ).map((m) => m.permission)
+/** Chaves de menu no formato das permissões do banco. Senhas fica de fora: vem do Master. */
+export function navPermissionsForMenu(menu: MenuKey[]): NavPermission[] {
+  return MENU_ITEMS.filter((m) => menu.includes(m.key) && m.permission !== 'student_passwords').map((m) => m.permission)
+}
+
+let activeMenus: Record<EditableProfileId, MenuKey[]> = PROFILE_MENU
+
+/** Menus salvos em `admin_profiles`, mantidos aqui para quem grava usuário (saveAdminUser) usar o menu certo. */
+export function setActiveProfileMenus(menus: Record<EditableProfileId, MenuKey[]>): void {
+  activeMenus = menus
+}
+
+/** Itens de menu de um perfil no formato das permissões do banco (menu salvo, senão o padrão). */
+export function navPermissionsFor(profile: EditableProfileId): NavPermission[] {
+  return navPermissionsForMenu(activeMenus[profile])
 }
 
 /** Perfil de um usuário, lido dos campos que já existem. */

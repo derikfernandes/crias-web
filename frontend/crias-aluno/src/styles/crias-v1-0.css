@@ -438,3 +438,58 @@ html[data-v2=dark]{--s-nav:#0a1711;--s-ink:oklch(0.96 0.015 100);--s-ink2:oklch(
   .v1-0-trailrow.is-active .v1-1-tab__curve--down{top:calc(100% + 0.5px)}
   .v1-0-sidebar__nav{padding-top:28px}
 }
+
+/* Tela cheia (1.1.1.b, Revisão 9) */
+.v1-0-fsbtn{width:var(--r-tap,40px);height:var(--r-tap,40px);min-width:36px;min-height:36px;flex:none;margin-left:auto;padding:0;border:1px solid var(--v-line);border-radius:999px;background:var(--v-raise);color:var(--v-t2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.v1-0-fsbtn:hover{background:var(--v-soft2);color:var(--v-ink)}
+
+/* ===== Painel do aluno em dashboard (1.1.1.b, Revisões 6 e 7) ===== */
+.v1-2-pills{flex:none;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:8px calc(var(--r-gutter) + var(--r-av)) 12px;max-width:calc(780px + 2*(var(--r-gutter) + var(--r-av)));width:100%;margin:0 auto;box-sizing:border-box}
+.v1-2-pills button{flex:none;height:36px;padding:0 16px;border-radius:999px;border:1px solid var(--v-line);background:var(--v-soft);color:var(--v-t2);font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.v1-2-pills button[aria-pressed=true]{border-color:#00be85;background:var(--v-gsoft);color:var(--v-gink);font-weight:700}
+.v1-2-scroll{touch-action:pan-y}
+.v1-2-cards{width:100%;max-width:780px;margin:0 auto;padding:8px 0 24px;display:flex;flex-direction:column;gap:16px}
+.v1-2-card{border:1px solid var(--v-line);border-radius:16px;background:var(--v-raise);box-shadow:var(--v-card);padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.v1-2-card h3{margin:0;font-family:Outfit,sans-serif;font-size:19px;font-weight:600}
+.v1-2-muted{margin:0;font-size:13px;color:var(--v-t3)}
+.v1-2-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.v1-2-stat{background:var(--v-soft);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px}
+.v1-2-stat span{font-size:12px;color:var(--v-t3)}
+.v1-2-stat strong{font-family:Outfit,sans-serif;font-size:22px}
+.v1-2-trailrow{display:flex;flex-direction:column;gap:6px}
+.v1-2-trailrow>div{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.v1-2-trailrow span{color:var(--v-t3);font-size:13px;flex:none}
+.v1-2-legend{margin:0;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--v-t3)}
+.v1-2-dot{width:8px;height:8px;border-radius:999px;display:inline-block;margin-left:6px}
+.v1-2-dot:first-child{margin-left:0}
+.v1-2-dot--ok{background:#00be85}
+.v1-2-dot--err{background:var(--v-err)}
+.v1-2-ranks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.v1-2-rank{border:1px solid var(--v-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.v1-2-rank h4{margin:0;font-family:Outfit,sans-serif;font-size:15px}
+.v1-2-rank__row{display:flex;align-items:center;gap:8px;min-width:0}
+.v1-2-rank__row>span:first-child{flex:1;min-width:0;white-space:nowrap;overflow:hidden;font-size:13px;font-weight:600}
+.v1-2-chev{flex:none;width:26px;height:26px;border-radius:999px;border:1px solid var(--v-line);background:var(--v-raise);color:var(--v-t2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.v1-2-tag{flex:none;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.v1-2-tag--err{background:var(--v-errSoft);color:var(--v-err)}
+.v1-2-tag--ok{background:var(--v-gsoft);color:var(--v-gink)}
+.v1-2-rank__more{display:flex;flex-direction:column;gap:8px;padding:8px 0 2px;font-size:13px}
+.v1-2-rank__more p{margin:0}
+
+/* Pop-ups (1.1.1.b, C.1) */
+.v1-0-btn-neutral{height:44px;padding:0 22px;border-radius:999px;border:1.5px solid #ffd500;background:var(--v-raise);color:var(--v-ink);font-family:Manrope,sans-serif;font-size:15px;font-weight:700;cursor:pointer}
+.v1-0-btn-danger{height:44px;padding:0 22px;border-radius:999px;border:1.5px solid #d9534a;background:var(--v-raise);color:var(--v-err);font-family:Manrope,sans-serif;font-size:15px;font-weight:700;cursor:pointer}
+.v1-0-modal__box .v1-0-modal__actions>*{flex:1}
+
+/* Perfil do aluno */
+.v1-2-perfil{flex:1;min-height:0;overflow-y:auto;padding:8px calc(var(--r-gutter) + var(--r-av)) 32px;max-width:calc(900px + 2*(var(--r-gutter) + var(--r-av)));width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:20px}
+.v1-2-perfil__head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.v1-2-perfil__head h1{margin:0;font-family:Outfit,sans-serif;font-size:28px;font-weight:600}
+.v1-2-perfil__bar{display:inline-flex;gap:8px}
+.v1-2-perfil__cols{display:flex;flex-wrap:wrap;gap:32px 56px;align-items:flex-start}
+.v1-2-perfil__main{flex:1 1 380px;max-width:560px;display:flex;flex-direction:column;gap:14px}
+.v1-2-perfil__side{flex:1 1 220px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.v1-2-perfil__side a:not(.v1-0-btn){color:var(--v-ink);font-weight:600;text-decoration:none}
+.v1-2-perfil__label{margin:0;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--v-lab)}
+.v1-2-perfil__radio{border:0;padding:0;margin:0;display:flex;gap:16px;align-items:center;font-size:14px}
+.v1-2-perfil__radio legend{font-size:13px;font-weight:600;color:var(--v-t2);padding:0;margin-bottom:6px}

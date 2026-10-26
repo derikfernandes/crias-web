@@ -127,6 +127,10 @@ export type NextContentOk = {
    * feedback da tentativa — o player não reexibe.
    */
   exercise_feedback?: boolean
+  /**
+   * Stage `ai`: pending = geração em andamento (poll); ready = texto ok.
+   */
+  ai_status?: 'ready' | 'pending' | 'not_applicable'
 }
 
 /** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */

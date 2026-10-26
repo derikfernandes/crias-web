@@ -19,6 +19,7 @@ import {
   getNextContent,
   getStudentTrailStatus,
   listStudentTrailsForStudent,
+  scheduleWarmCurrentAiStage,
 } from '../server/lib/studentTrailProgressService'
 import {
   validateStudentTrailCreate,
@@ -1441,6 +1442,15 @@ async function handleRequest(request: Request): Promise<Response> {
           db,
           collection,
           createPayload,
+        )
+        // Pré-aquece Etapa 1 (ou célula inicial) se for IA — 1º acesso já acha cache.
+        waitUntil(
+          scheduleWarmCurrentAiStage(db, {
+            student_id: createPayload.student_id,
+            trail_id: createPayload.trail_id,
+            stage_number: createPayload.current_stage_number,
+            question_number: createPayload.current_question_number,
+          }),
         )
         return jsonResponse(
           {

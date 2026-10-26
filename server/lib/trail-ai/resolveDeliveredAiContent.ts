@@ -165,7 +165,8 @@ export async function markTrailAiDelivered(
   await Promise.all(writes)
 }
 
-const PENDING_STALE_MS = 45_000
+/** Claim pending mais antigo que isto pode ser retomado (outro gerador travou). */
+export const PENDING_STALE_MS = 90_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

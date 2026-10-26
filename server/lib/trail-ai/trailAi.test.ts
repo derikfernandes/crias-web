@@ -63,11 +63,12 @@ describe('buildTrailAiPrompt', () => {
 })
 
 describe('generateContentWithGemini', () => {
-  it('envia maxOutputTokens 8000 e devolve texto', async () => {
+  it('envia maxOutputTokens 8000, AbortSignal e devolve texto', async () => {
     const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
       const href = String(url)
       expect(href).toContain('generateContent')
       expect(href).toContain('key=test-key')
+      expect(init?.signal).toBeDefined()
       const body = JSON.parse(String(init?.body ?? '{}')) as {
         generationConfig?: { maxOutputTokens?: number }
       }
@@ -86,6 +87,25 @@ describe('generateContentWithGemini', () => {
       fetchImpl,
     )
     expect(result.text).toContain('Oi')
+  })
+
+  it('propaga timeout do fetch como erro claro', async () => {
+    const fetchImpl = vi.fn(async () => {
+      const err = new Error('The operation was aborted due to timeout')
+      err.name = 'TimeoutError'
+      throw err
+    }) as unknown as typeof fetch
+
+    await expect(
+      generateContentWithGemini(
+        { systemInstruction: 'sys', userText: 'user' },
+        {
+          GEMINI_API_KEY: 'test-key',
+          GEMINI_FETCH_TIMEOUT_MS: '5000',
+        } as NodeJS.ProcessEnv,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/generateContent timeout após 5000ms/)
   })
 
   it('monta URL Vertex global + gemini-3.7-flash', () => {

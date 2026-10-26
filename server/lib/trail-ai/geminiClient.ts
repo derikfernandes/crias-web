@@ -12,6 +12,9 @@
  * (host regional `{location}-aiplatform.googleapis.com` quando location ≠ `global`).
  */
 
+/** Teto de espera do HTTP generateContent (evita hang sem fim no serverless). */
+export const GEMINI_FETCH_TIMEOUT_MS = 25_000
+
 export type GeminiGenerateInput = {
   systemInstruction: string
   userText: string
@@ -313,11 +316,34 @@ export async function generateContentWithGemini(
     },
   }
 
-  const res = await fetchImpl(url.toString(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  })
+  const timeoutMs = (() => {
+    const raw = readEnv('GEMINI_FETCH_TIMEOUT_MS', env)
+    const n = raw ? Number.parseInt(raw, 10) : NaN
+    return Number.isFinite(n) && n >= 5_000 ? Math.min(n, 55_000) : GEMINI_FETCH_TIMEOUT_MS
+  })()
+
+  let res: Response
+  try {
+    res = await fetchImpl(url.toString(), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (err) {
+    const name = err instanceof Error ? err.name : ''
+    const msg = err instanceof Error ? err.message : String(err)
+    if (
+      name === 'TimeoutError' ||
+      name === 'AbortError' ||
+      /aborted|timeout/i.test(msg)
+    ) {
+      throw new Error(
+        `generateContent timeout após ${timeoutMs}ms (modelo=${model}).`,
+      )
+    }
+    throw err
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '')

@@ -609,8 +609,11 @@ function contentToAssistantText(
     : ''
   let body = (content.content ?? '').trim()
 
-  if (!body && content.stage_type === 'ai' && content.prompt) {
-    body = 'Gerando conteúdo da tutoria…'
+  if (!body && content.stage_type === 'ai' && content.ai_status === 'pending') {
+    // Sem bolha de placeholder: o player mantém "Carregando…" / skeleton.
+    body = ''
+  } else if (!body && content.stage_type === 'ai' && content.prompt) {
+    body = ''
   }
 
   if (opts?.stripOptions) {
@@ -908,6 +911,10 @@ export default function PlayerPage() {
   /** C2-R4 N02: invalida prefetch history stale (trail change / remount). */
   const historyFetchGenRef = useRef(0)
   const historyIdleCancelRef = useRef<(() => void) | null>(null)
+  /** Auto-retry / poll de next-content (timeout ou ai_status=pending). */
+  const contentLoadGenRef = useRef(0)
+  const contentRetryTimerRef = useRef<number | null>(null)
+  const aiPendingPollTimerRef = useRef<number | null>(null)
   /** Usuário saiu da Maria enquanto a resposta ainda vinha. */
   const mariaCancelledRef = useRef(false)
   /**
@@ -1799,7 +1806,7 @@ export default function PlayerPage() {
     // C3-R5 N01: não apagar crias:exercise-select no hydrate — o efeito
     // restaura a seleção mid-aula após next-content. Limpa em advance/submit.
     setExercisePhase('idle')
-    setTrailBusyLabel('Preparando etapa…')
+    setTrailBusyLabel('Carregando…')
     // R10-Z07: não zerar sidechat/draft aqui — hydrate no efeito de trailId.
     setMariaEntrance(false)
     mariaCancelledRef.current = false
@@ -1814,6 +1821,15 @@ export default function PlayerPage() {
       historyIdleCancelRef.current()
       historyIdleCancelRef.current = null
     }
+    if (contentRetryTimerRef.current != null) {
+      window.clearTimeout(contentRetryTimerRef.current)
+      contentRetryTimerRef.current = null
+    }
+    if (aiPendingPollTimerRef.current != null) {
+      window.clearTimeout(aiPendingPollTimerRef.current)
+      aiPendingPollTimerRef.current = null
+    }
+    const loadGen = ++contentLoadGenRef.current
     setHistoryReady(false)
     setHistoryExpanded(false)
     setHistoryHasMore(false)
@@ -1831,6 +1847,7 @@ export default function PlayerPage() {
     try {
       // next-content primeiro — CTA / first paint não esperam history.
       const data = await fetchNextContent(session.student_id, trailId)
+      if (loadGen !== contentLoadGenRef.current) return
       setContent(data)
 
       if (data.status !== 'ok') {
@@ -1898,13 +1915,22 @@ export default function PlayerPage() {
         data.stage_type === 'exercise'
           ? normalizeExerciseOptions(data.options)
           : []
-      const text = contentToAssistantText(data, {
-        stripOptions: options.length > 0,
-      })
+      const aiPending =
+        data.stage_type === 'ai' &&
+        data.ai_status === 'pending' &&
+        !(data.content ?? '').trim()
+      const text = aiPending
+        ? ''
+        : contentToAssistantText(data, {
+            stripOptions: options.length > 0,
+          })
 
-      // Libera composer/CTA assim que a etapa atual existe.
+      // Libera composer/CTA assim que a etapa atual existe (pending: skeleton + poll).
       setHistoryReady(true)
       setExercisePhase('idle')
+      if (aiPending) {
+        setTrailBusyLabel('Carregando…')
+      }
 
       // Semeia a etapa corrente sem esperar history (lesson-card + bolha).
       // Persist só depois do history (evita log duplicado no remount).
@@ -1914,10 +1940,15 @@ export default function PlayerPage() {
        * Fase IA cujo texto já foi o feedback do exercício (servidor marca
        * `exercise_feedback`): o feedback vem do histórico (bolha do exercício).
        * Sem bolha da célula — senão, ao avançar, ela reaparecia como 2º feedback.
+       * ai_status=pending: sem bolha vazia; o poll entrega quando ready.
        */
       const cellIsExerciseFeedback =
         data.stage_type === 'ai' && data.exercise_feedback === true
-      if ((text || data.stage_type !== 'ai') && !cellIsExerciseFeedback) {
+      if (
+        !aiPending &&
+        (text || data.stage_type !== 'ai') &&
+        !cellIsExerciseFeedback
+      ) {
         setMessages((prev) =>
           appendTrailMessage(prev, {
             id: msgId,
@@ -2071,13 +2102,89 @@ export default function PlayerPage() {
         })()
       })
     } catch (err) {
+      if (loadGen !== contentLoadGenRef.current) return
+      const retryable = isRetryableSystemError(err)
       reportError(err, 'Erro ao carregar a trilha.', () => {
         void loadHistoryAndContent()
       })
       setContent(null)
-      setHistoryReady(true)
+      if (retryable) {
+        // Timeout / rede / 5xx: mantém "Carregando…" + Tentar de novo (nunca "Trilha indisponível").
+        setHistoryReady(false)
+        setTrailBusyLabel('Carregando…')
+        contentRetryTimerRef.current = window.setTimeout(() => {
+          contentRetryTimerRef.current = null
+          if (loadGen !== contentLoadGenRef.current) return
+          void loadHistoryAndContent()
+        }, 2_000)
+      } else {
+        setHistoryReady(true)
+      }
     }
   }, [clearError, persistLog, reportError, session.student_id, trailId])
+
+  /**
+   * Poll curto enquanto a etapa IA está pending (GET não espera Gemini).
+   * Não reseta o thread: só revalida next-content até ready.
+   */
+  useEffect(() => {
+    const pending =
+      content?.status === 'ok' &&
+      content.stage_type === 'ai' &&
+      content.ai_status === 'pending' &&
+      !(content.content ?? '').trim()
+    if (!pending) return
+    if (aiPendingPollTimerRef.current != null) {
+      window.clearTimeout(aiPendingPollTimerRef.current)
+    }
+    const gen = contentLoadGenRef.current
+    aiPendingPollTimerRef.current = window.setTimeout(() => {
+      aiPendingPollTimerRef.current = null
+      if (gen !== contentLoadGenRef.current) return
+      void (async () => {
+        try {
+          const data = await fetchNextContent(session.student_id, trailId)
+          if (gen !== contentLoadGenRef.current) return
+          if (data.status !== 'ok') {
+            setContent(data)
+            return
+          }
+          const stillPending =
+            data.stage_type === 'ai' &&
+            data.ai_status === 'pending' &&
+            !(data.content ?? '').trim()
+          if (stillPending) {
+            setContent(data)
+            return
+          }
+          // Ready: rehidrata a etapa (bolha + history se preciso).
+          clearError()
+          void loadHistoryAndContent()
+        } catch (err) {
+          if (gen !== contentLoadGenRef.current) return
+          if (isRetryableSystemError(err)) {
+            reportError(err, 'Erro ao carregar a trilha.', () => {
+              void loadHistoryAndContent()
+            })
+            // Mantém poll: o efeito reprograma enquanto content segue pending.
+          }
+        }
+      })()
+    }, 1_500)
+    return () => {
+      if (aiPendingPollTimerRef.current != null) {
+        window.clearTimeout(aiPendingPollTimerRef.current)
+        aiPendingPollTimerRef.current = null
+      }
+    }
+  }, [
+    clearError,
+    content,
+    loadHistoryAndContent,
+    reportError,
+    session.student_id,
+    trailId,
+  ])
 
   // ER06: exercício sem opções → erro de sistema + retry (não lock eterno).
   useEffect(() => {
@@ -3103,6 +3210,20 @@ export default function PlayerPage() {
             }),
           ])
         }
+        return data
+      }
+
+      // IA ainda gerando em background — poll do efeito; sem bolha vazia.
+      if (
+        data.stage_type === 'ai' &&
+        data.ai_status === 'pending' &&
+        !(data.content ?? '').trim()
+      ) {
+        deliveredKeyRef.current = trailCellKey(
+          data.stage_number,
+          data.question_number,
+        )
+        setTrailBusyLabel('Carregando…')
         return data
       }
 
@@ -4260,14 +4381,22 @@ export default function PlayerPage() {
     content.stage_type === 'exercise' &&
     !exerciseDone
 
-  /** C2-R6 N04: trilha bogus / inativa — empty-state + sem composer zumbi. */
+  /**
+   * "Trilha indisponível" só para trilha/aluno inexistente ou inativo.
+   * Timeout / rede / 5xx / ai pending → Carregando + Tentar de novo (nunca este empty).
+   */
   const trailShellUnavailable =
     historyReady &&
-    ((content != null &&
-      (content.status === 'not_found' ||
-        content.status === 'inactive_trail' ||
-        content.status === 'inactive_student')) ||
-      (content == null && Boolean(error)))
+    content != null &&
+    (content.status === 'not_found' ||
+      content.status === 'inactive_trail' ||
+      content.status === 'inactive_student')
+
+  const aiContentPending =
+    content?.status === 'ok' &&
+    content.stage_type === 'ai' &&
+    content.ai_status === 'pending' &&
+    !(content.content ?? '').trim()
 
   // C2-R10 N03: lede distinto do título (evita eco “Trilha não encontrada” ×2).
   const trailEmptyCopyRaw =
@@ -4284,15 +4413,17 @@ export default function PlayerPage() {
       : trailEmptyCopyRaw
 
   const placeholder =
-    content == null
-      ? historyReady
-        ? 'Trilha indisponível no momento'
-        : 'Carregando a trilha...'
+    content == null || aiContentPending
+      ? 'Carregando…'
       : content.status === 'completed'
         ? statusToSystemText(content)
-        : content.status !== 'ok'
+        : content.status === 'not_found' ||
+            content.status === 'inactive_trail' ||
+            content.status === 'inactive_student'
           ? 'Trilha indisponível no momento'
-          : 'Pergunte ao seu monitor...'
+          : content.status !== 'ok'
+            ? 'Carregando…'
+            : 'Pergunte ao seu monitor...'
 
   const trailBusy = Boolean(busy && busyReason === 'trail') || continuarLeaving
   /**
@@ -5047,11 +5178,16 @@ export default function PlayerPage() {
             </div>
           ) : null}
 
-          {!historyReady || (historyReady && !content && !error) ? (
+          {!historyReady ||
+          (historyReady && !content && !error) ||
+          aiContentPending ? (
             <div className="v1-0-skel" role="status" aria-busy="true" aria-live="polite">
               <div style={{ width: '30%' }} />
               <div style={{ width: '90%' }} />
               <div style={{ width: '65%' }} />
+              {aiContentPending || (!historyReady && Boolean(error)) ? (
+                <p className="v1-0-skel__label">Carregando…</p>
+              ) : null}
             </div>
           ) : null}
           {trailShellUnavailable ? (

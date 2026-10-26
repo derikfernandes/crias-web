@@ -73,10 +73,11 @@ describe('buildTrailAiPrompt', () => {
 
 describe('generateContentWithGemini', () => {
   it('usa GEMINI_API_KEY e devolve texto das candidates', async () => {
-    const fetchImpl = vi.fn(async (url: string | URL) => {
+    const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
       const href = String(url)
       expect(href).toContain('generateContent')
       expect(href).toContain('key=test-key')
+      expect(init?.signal).toBeDefined()
       return new Response(
         JSON.stringify({
           candidates: [{ content: { parts: [{ text: '*Oi*|||Parágrafo.' }] } }],
@@ -95,6 +96,25 @@ describe('generateContentWithGemini', () => {
     )
     expect(result.text).toContain('*Oi*')
     expect(result.model).toBe('gemini-2.0-flash')
+  })
+
+  it('propaga timeout do fetch como erro claro', async () => {
+    const fetchImpl = vi.fn(async () => {
+      const err = new Error('The operation was aborted due to timeout')
+      err.name = 'TimeoutError'
+      throw err
+    }) as unknown as typeof fetch
+
+    await expect(
+      generateContentWithGemini(
+        { systemInstruction: 'sys', userText: 'user' },
+        {
+          GEMINI_API_KEY: 'test-key',
+          GEMINI_FETCH_TIMEOUT_MS: '5000',
+        } as NodeJS.ProcessEnv,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/generateContent timeout após 5000ms/)
   })
 
   it('falha sem credenciais', async () => {

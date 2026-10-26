@@ -56,6 +56,11 @@ export type NextContentOk = {
    * mostrado ao aluno como o feedback da tentativa. O player não reexibe.
    */
   exercise_feedback?: boolean
+  /**
+   * Stage `ai`: `ready` com texto em cache; `pending` = geração em background
+   * (GET nunca bloqueia no Gemini). Demais tipos: `not_applicable`.
+   */
+  ai_status?: 'ready' | 'pending' | 'not_applicable'
 }
 
 export type NextContentStatusBody = {
@@ -1096,12 +1101,13 @@ export async function getNextContent(
     typeof stageData.title === 'string' ? stageData.title : null
 
   let exerciseFeedback = false
+  let aiStatus: 'ready' | 'pending' | 'not_applicable' = 'not_applicable'
   const backgroundTasks: Array<Promise<void>> = []
-  // stage_type=ai → gera/recupera conteúdo via Gemini (Vertex gemini-3.7-flash).
+  // stage_type=ai → cache O(1) no GET; Gemini só em background (nunca bloqueia o aluno).
   if (stageType === 'ai') {
     try {
-      const { ensureTrailAiContent } = await import(
-        './trail-ai/ensureTrailAiContent.js'
+      const { resolveDeliveredAiContent, markTrailAiDelivered } = await import(
+        './trail-ai/resolveDeliveredAiContent.js'
       )
       const cell = {
         student_id: studentId,
@@ -1109,16 +1115,28 @@ export async function getNextContent(
         stage_number: pos.current_stage_number,
         question_number: pos.current_question_number,
       }
-      const ensured = await ensureTrailAiContent(db, cell)
-      content = ensured.content
-      exerciseFeedback = ensured.shown_as_exercise_feedback
-      if (!ensured.delivered_marked && !exerciseFeedback) {
+      const existing = await resolveDeliveredAiContent(db, cell)
+      if (existing?.message_text?.trim()) {
+        content = existing.message_text
+        exerciseFeedback = existing.shown_as_exercise_feedback === true
+        aiStatus = 'ready'
+        if (!existing.delivered_at_brasilia && !exerciseFeedback) {
+          backgroundTasks.push(
+            markTrailAiDelivered(db, {
+              ...cell,
+              log_id: existing.log_id,
+            }).catch(() => {}),
+          )
+        }
+      } else {
+        aiStatus = 'pending'
+        content = null
         backgroundTasks.push(
           (async () => {
-            const { markTrailAiDelivered } = await import(
-              './trail-ai/resolveDeliveredAiContent.js'
+            const { ensureTrailAiContent } = await import(
+              './trail-ai/ensureTrailAiContent.js'
             )
-            await markTrailAiDelivered(db, { ...cell, log_id: ensured.log_id })
+            await ensureTrailAiContent(db, cell)
           })().catch(() => {}),
         )
       }
@@ -1187,6 +1205,7 @@ export async function getNextContent(
       is_released: true,
       next_action: 'deliver_content',
       progress_version: pos.progress_version,
+      ai_status: aiStatus,
       ...(stageType === 'ai' ? { exercise_feedback: exerciseFeedback } : {}),
     },
     background,
@@ -1367,6 +1386,74 @@ export async function getAdvanceGate(
       progress_version: pos.progress_version,
     },
   }
+}
+
+/**
+ * Pré-aquece a célula atual se for `ai` (matrícula / demo): 1º acesso já
+ * encontra cache em trail_ai_deliveries. Best-effort via waitUntil.
+ */
+export function scheduleWarmCurrentAiStage(
+  db: Firestore,
+  input: {
+    student_id: string
+    trail_id: string
+    stage_number: number
+    question_number: number
+  },
+): Promise<void> {
+  return (async () => {
+    try {
+      const stageNumber = Math.trunc(input.stage_number)
+      const questionNumber = Math.trunc(input.question_number)
+      if (stageNumber < 1 || questionNumber < 1) return
+
+      const stagesCollection =
+        process.env.TRAIL_STAGES_COLLECTION ?? 'trail_stages'
+      const questionsCollection =
+        process.env.TRAIL_STAGE_QUESTIONS_COLLECTION ?? 'trail_stage_questions'
+      const [stageSnap, questionSnap] = await Promise.all([
+        db
+          .collection(stagesCollection)
+          .doc(stageDocId(input.trail_id, stageNumber))
+          .get(),
+        db
+          .collection(questionsCollection)
+          .doc(
+            trailStageQuestionDocId(
+              input.trail_id,
+              stageNumber,
+              questionNumber,
+            ),
+          )
+          .get(),
+      ])
+      if (!stageSnap.exists || !questionSnap.exists) return
+      const stageData = (stageSnap.data() ?? {}) as Record<string, unknown>
+      const questionData = (questionSnap.data() ?? {}) as Record<string, unknown>
+      if (asStageType(stageData.stage_type) !== 'ai') return
+      if (
+        evaluateContentAvailability({
+          is_released: asBool(questionData.is_released, false),
+          active_stage: asBool(stageData.active, true),
+          active_question: asBool(questionData.active, true),
+        }) === 'blocked'
+      ) {
+        return
+      }
+
+      const { ensureTrailAiContent } = await import(
+        './trail-ai/ensureTrailAiContent.js'
+      )
+      await ensureTrailAiContent(db, {
+        student_id: input.student_id,
+        trail_id: input.trail_id,
+        stage_number: stageNumber,
+        question_number: questionNumber,
+      })
+    } catch {
+      // Warm na matrícula nunca deve falhar o create.
+    }
+  })()
 }
 
 /**

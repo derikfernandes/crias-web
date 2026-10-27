@@ -122,7 +122,7 @@ Regras comuns de leitura: importar **sempre adiciona ou altera**, nunca apaga o 
 - Topo da Prévia da nova trilha: botão **"Salvar trilha"** (salva direto, sem passar por Adicionar alunos) e a etapa "Adicionar alunos" com contorno verde.
 - **Feedback e conclusão são etapas de conteúdo comuns** (lógica só de interface): ao ligar as chaves, a estrutura ganha uma etapa de IA depois de cada exercício (título "Feedback") e uma etapa de IA no fim (título "Conclusão"). A Prévia reconhece pela posição: etapa logo depois do exercício = feedback (com a chave ligada), etapa final = conclusão (com a chave ligada). Ao reabrir uma trilha, as chaves voltam a partir das etapas gravadas. A geração por IA recebe a estrutura já com essas etapas e o prompt de geração vai tratar "depois do exercício = feedback" e "final = conclusiva" (a combinar no prompt; ver `docs/ORIENTACOES-CURSOR-1.2.md`).
 - **Alinhado ao design (sem divergência):** botão "Adicionar atividades" em Adicionar atividades com IA; chaves Feedback imediato e Etapa conclusiva.
-- **Única divergência que sobrou (decidir):** ao tocar em "Salvar trilha" na Prévia o código ainda abre o pop-up "Tem certeza que deseja criar a trilha? A configuração de estrutura não poderá ser alterada depois." (botões "Continuar editando" e "Salvar"), enquanto o design diz "salva direto". O Design deve dizer se o pop-up sai.
+- **Decidido (Thiago): manter a confirmação.** Ao tocar em "Salvar trilha" na Prévia abre o pop-up "Tem certeza que deseja criar a trilha? A configuração de estrutura não poderá ser alterada depois." (botões "Continuar editando" e "Salvar"). O Design deve ajustar o protótipo e o INTERFACE.md (1.1.1.b.43: "salva direto" passa a "salva depois da confirmação").
 - Observação: o bloco de Feedback e o de Conclusão mostram um texto-padrão na Prévia ("Informa se a resposta está correta e explica o porquê..." e "Sintetiza os pontos principais da atividade, sem conceito novo...") quando a etapa ainda não tem texto, porque o conteúdo real é gerado quando o aluno estuda. O design pode definir outro texto.
 
 ### 3.5 Alunos
@@ -170,6 +170,6 @@ Regras comuns de leitura: importar **sempre adiciona ou altera**, nunca apaga o 
 
 ## 6. O que pedir ao Design
 1. Atualizar o protótipo (Aluno e Educação) com os itens das seções 1 a 4, principalmente 1.1, 1.2, 1.4, 2 e 3.4.
-2. Decidir a divergência da Prévia (3.4): pop-up ao salvar a trilha.
+2. Ajustar o item 1.1.1.b.43: Salvar trilha na Prévia pede confirmação (3.4).
 3. Dizer se entra "+ Adicionar perfil" (perfil personalizado com nome).
 4. Validar tablet (retrato e paisagem) de Nova trilha, Prévia, Dados e Painel do aluno.

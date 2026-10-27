@@ -16,7 +16,18 @@ const phases = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa' }) // 3 c
 describe('estrutura da trilha', () => {
   it('conteúdos primeiro e exercícios por último', () => {
     expect(defaultOrder(3, 1)).toEqual(['c', 'c', 'c', 'e'])
-    expect(phases.map((p) => p.stage_type)).toEqual(['fixed', 'fixed', 'fixed', 'exercise'])
+    expect(phases.map((p) => p.stage_type)).toEqual(['ai', 'ai', 'ai', 'exercise'])
+  })
+  it('conteúdo nasce por IA, com título e comando do bloco por tipo', () => {
+    expect(phases.slice(0, 3).map((p) => p.title)).toEqual(['Introdução', 'Explicação', 'Conclusão'])
+    expect(phases.slice(0, 3).every((p) => p.prompt.length > 0)).toBe(true)
+    expect(phases[3].prompt).toBe('')
+  })
+  it('ao salvar, mantém tipo e comando já gravados na mesma posição', () => {
+    const saved = phases.map((p, i) => (i === 1 ? { ...p, stage_type: 'fixed' as const, title: 'Meu texto', prompt: '' } : p))
+    const again = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa' }, saved)
+    expect(again[1]).toMatchObject({ stage_type: 'fixed', title: 'Meu texto' })
+    expect(again[0].prompt).toBe(phases[0].prompt)
   })
   it('mudar as quantidades vira Personalizado, e volta a profundidade pronta quando combina', () => {
     const custom = withCounts(DEFAULT_STRUCTURE, 6, 2)

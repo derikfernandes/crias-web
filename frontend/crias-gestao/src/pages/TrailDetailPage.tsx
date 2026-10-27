@@ -9,6 +9,7 @@ import {
   Switch,
 } from '../design/gx/ui'
 import { deleteTrailCascade } from '../lib/trailApi'
+import { structurePhasesFromTrailData } from '../lib/trailEditor'
 import {
   phasesFromConfig,
   type GenerationConfig,
@@ -117,7 +118,11 @@ function OpenTrail({ id }: { id: string }) {
   async function performSave(): Promise<void> {
     if (!trail) return
     if (tab === 'config') {
-      await saveTrailConfig({ trailId: id, phases: phasesFromConfig(structure), existingCells: data.cells })
+      await saveTrailConfig({
+        trailId: id,
+        phases: phasesFromConfig(structure, structurePhasesFromTrailData(trail.phase_blueprint, data.stages)),
+        existingCells: data.cells,
+      })
       setNotice('Configuração salva.')
     } else if (tab === 'students') {
       const r = await applyTrailStudentChanges({

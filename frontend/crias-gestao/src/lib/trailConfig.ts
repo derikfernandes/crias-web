@@ -127,16 +127,52 @@ export function moveStep(order: StepKind[], from: number, to: number): StepKind[
   return next
 }
 
-/** Etapas da estrutura no formato que o banco usa (`phase_blueprint` e `trail_stages`). */
-export function phasesFromConfig(cfg: StructureConfig): StructurePhase[] {
+/**
+ * Tipos de bloco de conteúdo que o prompt gerador reconhece (geradorSystemPrompt.ts, item 5.2).
+ * O texto ao aluno é sempre gerado por IA (personalização); o comando do bloco diz ao gerador qual tipo escrever.
+ */
+const BLOCK_COMMANDS: Record<string, [string, string]> = {
+  intro: ['Introdução', 'Nomeie e defina os conceitos centrais do conteúdo base, em linguagem simples, sem aprofundar.'],
+  explain: ['Explicação', 'Desenvolva os conceitos do conteúdo base e mostre como eles se relacionam.'],
+  example: ['Exemplo prático', 'Aplique o conteúdo base em uma situação concreta, com o raciocínio passo a passo.'],
+  deepen: ['Aprofundamento', 'Avance em nuances, variações e exceções do conteúdo base.'],
+  conclusion: ['Conclusão', 'Sintetize os pontos principais do conteúdo base, sem apresentar conceito novo.'],
+}
+
+/** Tipo de bloco de cada conteúdo, pela posição (1ª Introdução, última Conclusão quando há 3 ou mais). */
+function contentKinds(total: number): string[] {
+  if (total <= 1) return ['intro']
+  if (total === 2) return ['intro', 'explain']
+  const middle = ['explain', 'example', 'deepen']
+  const kinds = ['intro']
+  for (let i = 0; i < total - 2; i++) kinds.push(middle[i % middle.length])
+  kinds.push('conclusion')
+  return kinds
+}
+
+/**
+ * Etapas da estrutura no formato que o banco usa (`phase_blueprint` e `trail_stages`).
+ * Conteúdo nasce sempre como IA, com título e comando do bloco pelo tipo. Com `existing` (trilha já salva),
+ * a etapa da mesma posição e do mesmo tipo (conteúdo ou exercício) mantém título, tipo e comando.
+ */
+export function phasesFromConfig(cfg: StructureConfig, existing?: StructurePhase[]): StructurePhase[] {
+  const order = effectiveOrder(cfg)
+  const kinds = contentKinds(order.filter((k) => k === 'c').length)
   let c = 0
   let e = 0
-  return effectiveOrder(cfg).map((k, i) => {
+  return order.map((k, i) => {
+    const old = existing?.[i]
     if (k === 'c') {
+      const [title, command] = BLOCK_COMMANDS[kinds[c]]
       c += 1
-      return { id: `bp-${i + 1}`, title: `Conteúdo ${c}`, stage_type: 'fixed' as const, prompt: '' }
+      if (old && old.stage_type !== 'exercise') {
+        const keepsCommand = old.stage_type !== 'ai' || old.prompt.trim() !== ''
+        return { id: `bp-${i + 1}`, title: old.title, stage_type: old.stage_type, prompt: keepsCommand ? old.prompt : command }
+      }
+      return { id: `bp-${i + 1}`, title, stage_type: 'ai' as const, prompt: command }
     }
     e += 1
+    if (old && old.stage_type === 'exercise') return { id: `bp-${i + 1}`, title: old.title, stage_type: 'exercise' as const, prompt: '' }
     return { id: `bp-${i + 1}`, title: `Exercício ${e}`, stage_type: 'exercise' as const, prompt: '' }
   })
 }

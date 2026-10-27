@@ -4,7 +4,13 @@ import { composeStudentPanel, letterOf } from './studentPanelService.js'
 const ts = (ms: number) => ({ toMillis: () => ms })
 
 const base = {
-  student: { id: 's1', name: 'Ana', phone_number: '11900000001' },
+  student: {
+    id: 's1',
+    name: 'Ana',
+    phone_number: '11900000001',
+    email: 'ana@escola.org',
+    login_identifier: 'email',
+  },
   links: [{ student_id: 's1', trail_id: 't1', status: 'in_progress', current_question_number: 2, current_stage_number: 1 }],
   trails: [{ id: 't1', name: 'Matemática básica' }],
   stages: [{ trail_id: 't1', stage_number: 2, stage_type: 'exercise' }],
@@ -40,7 +46,20 @@ describe('painel do aluno', () => {
     expect(p.performance.wrong).toBe(1)
     expect(p.performance.pct).toBe(50)
     expect(p.errors).toHaveLength(1)
-    expect(p.errors[0]).toMatchObject({ activity: 2, answer: 'A', correct: 'B' })
+    expect(p.errors[0]).toMatchObject({
+      trail_id: 't1',
+      activity: 2,
+      answer: 'A',
+      correct: 'B',
+    })
+  })
+
+  it('devolve email e login_identifier do aluno', () => {
+    expect(p.student).toMatchObject({
+      id: 's1',
+      email: 'ana@escola.org',
+      login_identifier: 'email',
+    })
   })
 
   it('resume o uso do monitor e agrupa as dúvidas por atividade', () => {

@@ -526,6 +526,29 @@ function digitsOnly(raw: string): string {
   return raw.replace(/\D/g, '')
 }
 
+/**
+ * Regra de login 1.2 (`login_identifier`):
+ * - `email`: só autentica digitando e-mail (telefone não entra).
+ * - `phone`: só autentica digitando telefone (e-mail não entra).
+ * - ausente: aceita os dois.
+ * Login por ID do documento (ex.: s1766) sempre entra.
+ */
+function filterCandidatesByLoginIdentifier(
+  candidates: StudentCandidate[],
+  loginRaw: string,
+): StudentCandidate[] {
+  const typed = loginRaw.trim()
+  return candidates.filter((c) => {
+    const li = c.data.login_identifier
+    if (li !== 'phone' && li !== 'email') return true
+    if (typed === c.id) return true
+    if (loginLooksLikeEmail(typed)) return li === 'email'
+    const phone = digitsOnly(typed)
+    if (phone.length >= 8) return li === 'phone'
+    return true
+  })
+}
+
 async function institutionNameFor(
   db: Firestore,
   institutionsCollection: string,
@@ -758,14 +781,24 @@ export async function identifyStudent(
       }
     }
     const doc = snap.docs[0]
+    const legacyCandidate: StudentCandidate = {
+      id: doc.id,
+      data: (doc.data() ?? {}) as Record<string, unknown>,
+      institution_id: institutionFilter,
+    }
+    // Mesma regra 1.2: login_identifier=email não autentica por telefone.
+    if (filterCandidatesByLoginIdentifier([legacyCandidate], phone).length === 0) {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'Aluno não encontrado para telefone e instituição informados.',
+        httpStatus: 404,
+      }
+    }
     return finishIdentifyCandidate(
       db,
       institutionsCollection,
-      {
-        id: doc.id,
-        data: (doc.data() ?? {}) as Record<string, unknown>,
-        institution_id: institutionFilter,
-      },
+      legacyCandidate,
       password,
     )
   }
@@ -774,6 +807,7 @@ export async function identifyStudent(
   if (institutionFilter) {
     candidates = candidates.filter((c) => c.institution_id === institutionFilter)
   }
+  candidates = filterCandidatesByLoginIdentifier(candidates, loginRaw)
 
   if (candidates.length === 0) {
     return {

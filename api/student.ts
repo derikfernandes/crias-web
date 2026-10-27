@@ -143,7 +143,25 @@ function validateStudentLevel(v: unknown): 1 | 2 | 3 | null {
   return null
 }
 
+function normalizeEmail(v: unknown): string | null {
+  const s = sanitizeString(v)
+  return s ? s.toLowerCase() : null
+}
+
+function parseLoginIdentifier(v: unknown): 'phone' | 'email' | null {
+  if (v === 'phone' || v === 'email') return v
+  return null
+}
+
 function toStudentOutput(data: Record<string, unknown>, id: string): Json {
+  const email =
+    typeof data.email === 'string' && data.email.trim()
+      ? data.email.trim().toLowerCase()
+      : ''
+  const login_identifier =
+    data.login_identifier === 'phone' || data.login_identifier === 'email'
+      ? data.login_identifier
+      : null
   return {
     id,
     institution_id: typeof data.institution_id === 'string' ? data.institution_id : '',
@@ -154,6 +172,8 @@ function toStudentOutput(data: Record<string, unknown>, id: string): Json {
         : typeof data.phone_number === 'number'
           ? String(data.phone_number).replace(/\D/g, '')
           : '',
+    email,
+    login_identifier,
     school_level:
       typeof data.school_level === 'string' ? data.school_level : '',
     school_grade:
@@ -419,12 +439,17 @@ async function handleRequest(request: Request): Promise<Response> {
         const institution_id = sanitizeString(body.institution_id)
         const name = sanitizeString(body.name)
         const phone_number = sanitizePhoneNumber(body.phone_number)
+        const email = normalizeEmail(body.email)
+        const login_identifier = parseLoginIdentifier(body.login_identifier)
         // Escrita nova: preferir canónico BR 55… quando válido; senão dígitos sanitizados.
-        const canonical = phone_number ? toCanonicalPhone(phone_number) : null
-        const phoneToStore =
-          canonical && canonical.ok ? canonical.canonical : phone_number
-        const phoneErr = assertCanonicalBrPhone(phoneToStore ?? '')
-        if (phoneErr) return respond(400, { error: phoneErr })
+        // Telefone opcional se houver e-mail (regra de login 1.2).
+        let phoneToStore: string | null = null
+        if (phone_number) {
+          const canonical = toCanonicalPhone(phone_number)
+          phoneToStore = canonical.ok ? canonical.canonical : phone_number
+          const phoneErr = assertCanonicalBrPhone(phoneToStore)
+          if (phoneErr) return respond(400, { error: phoneErr })
+        }
         const school_level = sanitizeString(body.school_level)
         const school_grade = sanitizeString(body.school_grade)
 
@@ -434,8 +459,14 @@ async function handleRequest(request: Request): Promise<Response> {
           return respond(400, { error: 'Campo "name" é obrigatório' })
         const nameErr = assertStudentName(name)
         if (nameErr) return respond(400, { error: nameErr })
-        if (!phone_number)
-          return respond(400, { error: 'Campo "phone_number" é obrigatório' })
+        if (!phone_number && !email) {
+          return respond(400, {
+            error: 'Informe o telefone ou o e-mail (pelo menos um dos dois).',
+          })
+        }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return respond(400, { error: 'E-mail inválido.' })
+        }
         if (!school_level)
           return respond(400, { error: 'Campo "school_level" é obrigatório' })
         if (!school_grade)
@@ -455,6 +486,14 @@ async function handleRequest(request: Request): Promise<Response> {
           validateStudentLevel(body.student_level) ?? 2 // default intermediário
 
         const active = typeof body.active === 'boolean' ? body.active : true
+        const effectiveLoginIdentifier =
+          phoneToStore && email
+            ? login_identifier ?? 'phone'
+            : phoneToStore
+              ? 'phone'
+              : email
+                ? 'email'
+                : null
 
         let password_hash: string | undefined
         let password_encrypted: string | undefined
@@ -508,7 +547,11 @@ async function handleRequest(request: Request): Promise<Response> {
           tx.set(studentRef, {
             institution_id,
             name,
-            phone_number: phoneToStore,
+            phone_number: phoneToStore ?? '',
+            ...(email ? { email } : {}),
+            ...(effectiveLoginIdentifier
+              ? { login_identifier: effectiveLoginIdentifier }
+              : {}),
             school_level: normalizedSchoolLevel,
             school_grade,
             student_level: studentLevel,
@@ -529,7 +572,9 @@ async function handleRequest(request: Request): Promise<Response> {
             id: newId,
             institution_id,
             name,
-            phone_number: phoneToStore,
+            phone_number: phoneToStore ?? '',
+            email: email ?? '',
+            login_identifier: effectiveLoginIdentifier,
             school_level: normalizedSchoolLevel,
             school_grade,
             student_level: studentLevel,
@@ -572,18 +617,43 @@ async function handleRequest(request: Request): Promise<Response> {
         if ('phone_number' in body && body.phone_number !== undefined) {
           const sanitizedPhone = sanitizePhoneNumber(body.phone_number)
           if (!sanitizedPhone) {
-            return respond(400, {
-              error:
-                'Campo "phone_number" inválido. Informe apenas números (o backend remove caracteres não numéricos).',
-            })
+            // Telefone vazio permitido se restar e-mail (validado após ler o doc).
+            updates.phone_number = ''
+          } else {
+            const canonical = toCanonicalPhone(sanitizedPhone)
+            const phoneToStore = canonical.ok
+              ? canonical.canonical
+              : sanitizedPhone
+            const phoneErr = assertCanonicalBrPhone(phoneToStore)
+            if (phoneErr) return respond(400, { error: phoneErr })
+            updates.phone_number = phoneToStore
           }
-          const canonical = toCanonicalPhone(sanitizedPhone)
-          const phoneToStore = canonical.ok
-            ? canonical.canonical
-            : sanitizedPhone
-          const phoneErr = assertCanonicalBrPhone(phoneToStore)
-          if (phoneErr) return respond(400, { error: phoneErr })
-          updates.phone_number = phoneToStore
+        }
+
+        if ('email' in body && body.email !== undefined) {
+          const raw =
+            typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+          if (raw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+            return respond(400, { error: 'E-mail inválido.' })
+          }
+          updates.email = raw
+        }
+
+        if ('login_identifier' in body && body.login_identifier !== undefined) {
+          if (
+            body.login_identifier === null ||
+            body.login_identifier === ''
+          ) {
+            updates.login_identifier = null
+          } else {
+            const li = parseLoginIdentifier(body.login_identifier)
+            if (!li) {
+              return respond(400, {
+                error: 'Campo "login_identifier" inválido. Use "phone" ou "email".',
+              })
+            }
+            updates.login_identifier = li
+          }
         }
 
         const school_level = sanitizeString(body.school_level)
@@ -648,6 +718,27 @@ async function handleRequest(request: Request): Promise<Response> {
         const ref = db.collection(collection).doc(id)
         const snap = await ref.get()
         if (!snap.exists) return respond(404, { error: 'Not found' })
+
+        const current = (snap.data() ?? {}) as Record<string, unknown>
+        const nextPhone =
+          'phone_number' in updates
+            ? String(updates.phone_number ?? '')
+            : typeof current.phone_number === 'string'
+              ? current.phone_number.replace(/\D/g, '')
+              : typeof current.phone_number === 'number'
+                ? String(current.phone_number).replace(/\D/g, '')
+                : ''
+        const nextEmail =
+          'email' in updates
+            ? String(updates.email ?? '')
+            : typeof current.email === 'string'
+              ? current.email.trim().toLowerCase()
+              : ''
+        if (!nextPhone && !nextEmail) {
+          return respond(400, {
+            error: 'Informe o telefone ou o e-mail (pelo menos um dos dois).',
+          })
+        }
 
         await ref.update(updates)
         return jsonResponse({ ok: true, id }, { status: 200, headers: corsHeaders() })

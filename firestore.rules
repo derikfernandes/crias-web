@@ -61,6 +61,13 @@ service cloud.firestore {
       allow write: if signedIn();
     }
 
+    // Perfis editáveis de menu (Gestão: admin | basico). Super admin grava; escola lê.
+    // Deploy à parte: `firebase deploy --only firestore:rules` (não vai no deploy Vercel).
+    match /admin_profiles/{profileId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
     match /counters/institutions {
       allow read, write: if signedIn();
     }

@@ -13,6 +13,16 @@ export {
 export type { ExtractedDoc, ExtractResult, UploadedDoc } from './extractText.js'
 export { generateAiTrail } from './generate.js'
 export type { GenerateAiTrailInput, GenerateAiTrailResult } from './generate.js'
+export {
+  DEFAULT_TRAIL_GENERATE_TIMEOUT_MS,
+  TRAIL_GENERATE_ROUTE_BUDGET_MS,
+  TRAIL_GENERATE_TIMEOUT_USER_MESSAGE,
+  canAffordTrailGenerateCall,
+  friendlyTrailGenerateError,
+  isTrailGenerateTimeoutError,
+  remainingTrailGenerateTimeoutMs,
+  resolveTrailGenerateTimeoutMs,
+} from './timeout.js'
 export { mapGeneratedTrailToDraft } from './mapToTrailModel.js'
 export type {
   MappedContentEtapa,

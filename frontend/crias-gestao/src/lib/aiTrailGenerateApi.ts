@@ -91,5 +91,21 @@ export async function generateAiTrailFromFiles(input: {
     json.error = `Erro HTTP ${res.status}`
     json.ok = false
   }
+  if (json.error) {
+    json.error = friendlyAiTrailGenerateError(json.error)
+  }
   return json
+}
+
+/** Timeout / detalhes técnicos da IA → mensagem amigável (sem generateContent nem modelo). */
+export function friendlyAiTrailGenerateError(message: string): string {
+  if (
+    /generateContent timeout|timeout após|demorou demais|aborted due to timeout|The operation was aborted/i.test(
+      message,
+    ) ||
+    (/generateContent/i.test(message) && /timeout|tempo|esgotad/i.test(message))
+  ) {
+    return 'A geração demorou demais. Tente de novo em instantes.'
+  }
+  return message
 }

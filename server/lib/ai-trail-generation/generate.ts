@@ -7,6 +7,13 @@ import {
 } from '../trail-ai/geminiClient.js'
 import { getDefaultAiTrailPrompt } from './defaultPrompt.js'
 import {
+  canAffordTrailGenerateCall,
+  friendlyTrailGenerateError,
+  isTrailGenerateTimeoutError,
+  remainingTrailGenerateTimeoutMs,
+  resolveTrailGenerateTimeoutMs,
+} from './timeout.js'
+import {
   extractDocuments,
   formatSourcesForPrompt,
   type UploadedDoc,
@@ -72,11 +79,13 @@ async function callModel(
   userText: string,
   env: NodeJS.ProcessEnv,
   generateImpl: typeof generateContentWithGemini,
+  timeoutMs: number,
 ): Promise<GeminiGenerateResult> {
   return generateImpl(
     {
       systemInstruction,
       userText,
+      timeoutMs,
       generationConfig: {
         maxOutputTokens: 65536,
         temperature: 0.4,
@@ -118,12 +127,21 @@ export async function generateAiTrail(
   let model = ''
   let rawText = ''
   let repaired = false
+  const startedAt = Date.now()
+  const perCallTimeoutMs = resolveTrailGenerateTimeoutMs(env)
 
   try {
-    const first = await callModel(systemWrapper, userText, env, generateImpl)
+    const first = await callModel(
+      systemWrapper,
+      userText,
+      env,
+      generateImpl,
+      perCallTimeoutMs,
+    )
     model = first.model
     rawText = first.text
   } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
     return {
       ok: false,
       trail: null,
@@ -133,7 +151,7 @@ export async function generateAiTrail(
       repaired: false,
       truncatedSources: extracted.truncated,
       totalSourceChars: extracted.totalChars,
-      error: err instanceof Error ? err.message : String(err),
+      error: friendlyTrailGenerateError(raw),
     }
   }
 
@@ -165,6 +183,24 @@ export async function generateAiTrail(
 
   let validation = validateGeneratedTrail(trail)
   if (!validation.ok) {
+    const repairTimeoutMs = remainingTrailGenerateTimeoutMs(
+      startedAt,
+      perCallTimeoutMs,
+    )
+    if (!canAffordTrailGenerateCall(repairTimeoutMs)) {
+      return {
+        ok: false,
+        trail,
+        draft: null,
+        issues: validation.issues,
+        model,
+        repaired: false,
+        truncatedSources: extracted.truncated,
+        totalSourceChars: extracted.totalChars,
+        rawText,
+        error: 'Validação falhou após tentativa de correção.',
+      }
+    }
     repaired = true
     const repairUser =
       REPAIR_INSTRUCTION +
@@ -172,12 +208,19 @@ export async function generateAiTrail(
       '\n\nJSON anterior:\n' +
       JSON.stringify(trail)
     try {
-      const second = await callModel(systemWrapper, repairUser, env, generateImpl)
+      const second = await callModel(
+        systemWrapper,
+        repairUser,
+        env,
+        generateImpl,
+        repairTimeoutMs,
+      )
       model = second.model
       rawText = second.text
       trail = parseTrailJson(rawText)
       validation = validateGeneratedTrail(trail)
     } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
       return {
         ok: false,
         trail,
@@ -188,8 +231,9 @@ export async function generateAiTrail(
         truncatedSources: extracted.truncated,
         totalSourceChars: extracted.totalChars,
         rawText,
-        error:
-          err instanceof Error
+        error: isTrailGenerateTimeoutError(raw)
+          ? friendlyTrailGenerateError(raw)
+          : err instanceof Error
             ? `Repair falhou: ${err.message}`
             : 'Repair falhou.',
       }

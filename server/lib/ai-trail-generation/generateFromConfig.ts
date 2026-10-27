@@ -6,6 +6,12 @@ import {
   type GeminiGenerateResult,
 } from '../trail-ai/geminiClient.js'
 import {
+  canAffordTrailGenerateCall,
+  friendlyTrailGenerateError,
+  remainingTrailGenerateTimeoutMs,
+  resolveTrailGenerateTimeoutMs,
+} from './timeout.js'
+import {
   extractDocuments,
   formatSourcesForPrompt,
   type UploadedDoc,
@@ -321,11 +327,13 @@ async function callModel(
   user: string,
   env: NodeJS.ProcessEnv,
   impl: typeof generateContentWithGemini,
+  timeoutMs: number,
 ): Promise<GeminiGenerateResult> {
   return impl(
     {
       systemInstruction: system,
       userText: user,
+      timeoutMs,
       generationConfig: {
         maxOutputTokens: 65536,
         temperature: 0.4,
@@ -401,8 +409,16 @@ export async function generateActivitiesFromConfig(
   }
   let model = ''
   let repaired = false
+  const startedAt = Date.now()
+  const perCallTimeoutMs = resolveTrailGenerateTimeoutMs(env)
   try {
-    const first = await callModel(ACTIVITIES_SYSTEM, userText, env, impl)
+    const first = await callModel(
+      ACTIVITIES_SYSTEM,
+      userText,
+      env,
+      impl,
+      perCallTimeoutMs,
+    )
     model = first.model
     let parsed: unknown
     try {
@@ -420,12 +436,28 @@ export async function generateActivitiesFromConfig(
     }
     let check = validateActivities(parsed, { count, structure: input.structure, options })
     if (!check.ok) {
+      const repairTimeoutMs = remainingTrailGenerateTimeoutMs(
+        startedAt,
+        perCallTimeoutMs,
+      )
+      if (!canAffordTrailGenerateCall(repairTimeoutMs)) {
+        return {
+          ok: false,
+          activities: [],
+          issues: check.issues,
+          model,
+          repaired: false,
+          error: 'A IA não conseguiu cumprir a estrutura pedida. Tente de novo.',
+          ...base,
+        }
+      }
       repaired = true
       const second = await callModel(
         ACTIVITIES_SYSTEM,
         `${REPAIR}${check.issues.map((i) => `- ${i.message}`).join('\n')}\n\nPedido original:\n${userText}\n\nJSON anterior:\n${JSON.stringify(parsed)}`,
         env,
         impl,
+        repairTimeoutMs,
       )
       model = second.model
       check = validateActivities(parseActivities(second.text), { count, structure: input.structure, options })
@@ -440,13 +472,14 @@ export async function generateActivitiesFromConfig(
       ...base,
     }
   } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
     return {
       ok: false,
       activities: [],
       issues: [],
       model,
       repaired,
-      error: e instanceof Error ? e.message : String(e),
+      error: friendlyTrailGenerateError(raw),
       ...base,
     }
   }

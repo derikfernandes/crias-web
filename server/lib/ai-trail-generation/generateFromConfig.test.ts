@@ -141,6 +141,22 @@ describe('generateActivitiesFromConfig', () => {
     expect(sent).toContain('[habilidades]: Porcentagem')
     expect(sent).toContain('[descricao]: N/A')
     expect(sent).toContain('Matemática básica')
+    expect(impl.mock.calls[0][0].timeoutMs).toBe(125_000)
+  })
+
+  it('passa timeoutMs longo (TRAIL_GENERATE_TIMEOUT_MS) e traduz erro de timeout', async () => {
+    const impl = vi.fn().mockRejectedValue(
+      new Error('generateContent timeout após 25000ms (modelo=gemini-3.7-flash).'),
+    )
+    const r = await generateActivitiesFromConfig(
+      input,
+      { TRAIL_GENERATE_TIMEOUT_MS: '130000' } as NodeJS.ProcessEnv,
+      impl,
+    )
+    expect(r.ok).toBe(false)
+    expect(impl.mock.calls[0][0].timeoutMs).toBe(130_000)
+    expect(r.error).toBe('A geração demorou demais. Tente de novo em instantes.')
+    expect(r.error).not.toMatch(/generateContent|gemini-/i)
   })
 
   it('tenta um reparo quando a primeira resposta não cumpre o pedido', async () => {

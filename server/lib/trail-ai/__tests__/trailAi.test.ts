@@ -9,9 +9,11 @@ import {
   buildVertexGenerateContentUrl,
   DEFAULT_VERTEX_LOCATION,
   DEFAULT_VERTEX_MODEL,
+  GEMINI_FETCH_TIMEOUT_MS,
   generateContentWithGemini,
   normalizeVertexModelId,
   resolveEffectiveVertexLocation,
+  resolveGenerateContentTimeoutMs,
   resolveTrailAiModel,
   resolveVertexTarget,
 } from '../geminiClient'
@@ -98,6 +100,59 @@ describe('generateContentWithGemini', () => {
     expect(result.model).toBe('gemini-2.0-flash')
   })
 
+  it('sem timeoutMs usa o padrão 25s (AbortSignal.timeout)', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+        }),
+        { status: 200 },
+      )
+    }) as unknown as typeof fetch
+
+    await generateContentWithGemini(
+      { systemInstruction: 'sys', userText: 'user' },
+      { GEMINI_API_KEY: 'test-key' } as NodeJS.ProcessEnv,
+      fetchImpl,
+    )
+    expect(timeoutSpy).toHaveBeenCalledWith(GEMINI_FETCH_TIMEOUT_MS)
+    expect(resolveGenerateContentTimeoutMs(undefined, {})).toBe(25_000)
+    timeoutSpy.mockRestore()
+  })
+
+  it('com timeoutMs explícito respeita o valor e ignora o teto de 55s', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+        }),
+        { status: 200 },
+      )
+    }) as unknown as typeof fetch
+
+    await generateContentWithGemini(
+      {
+        systemInstruction: 'sys',
+        userText: 'user',
+        timeoutMs: 125_000,
+      },
+      {
+        GEMINI_API_KEY: 'test-key',
+        GEMINI_FETCH_TIMEOUT_MS: '5000',
+      } as NodeJS.ProcessEnv,
+      fetchImpl,
+    )
+    expect(timeoutSpy).toHaveBeenCalledWith(125_000)
+    expect(
+      resolveGenerateContentTimeoutMs(125_000, {
+        GEMINI_FETCH_TIMEOUT_MS: '5000',
+      } as NodeJS.ProcessEnv),
+    ).toBe(125_000)
+    timeoutSpy.mockRestore()
+  })
+
   it('propaga timeout do fetch como erro claro', async () => {
     const fetchImpl = vi.fn(async () => {
       const err = new Error('The operation was aborted due to timeout')
@@ -107,14 +162,26 @@ describe('generateContentWithGemini', () => {
 
     await expect(
       generateContentWithGemini(
-        { systemInstruction: 'sys', userText: 'user' },
+        { systemInstruction: 'sys', userText: 'user', timeoutMs: 12_000 },
         {
           GEMINI_API_KEY: 'test-key',
-          GEMINI_FETCH_TIMEOUT_MS: '5000',
         } as NodeJS.ProcessEnv,
         fetchImpl,
       ),
-    ).rejects.toThrow(/generateContent timeout após 5000ms/)
+    ).rejects.toThrow(/generateContent timeout após 12000ms/)
+  })
+
+  it('env GEMINI_FETCH_TIMEOUT_MS (sem timeoutMs) aplica teto 55s', () => {
+    expect(
+      resolveGenerateContentTimeoutMs(undefined, {
+        GEMINI_FETCH_TIMEOUT_MS: '90000',
+      } as NodeJS.ProcessEnv),
+    ).toBe(55_000)
+    expect(
+      resolveGenerateContentTimeoutMs(undefined, {
+        GEMINI_FETCH_TIMEOUT_MS: '5000',
+      } as NodeJS.ProcessEnv),
+    ).toBe(5_000)
   })
 
   it('falha sem credenciais', async () => {

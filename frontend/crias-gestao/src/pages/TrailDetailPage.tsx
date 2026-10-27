@@ -11,6 +11,7 @@ import {
 import { deleteTrailCascade } from '../lib/trailApi'
 import { structurePhasesFromTrailData } from '../lib/trailEditor'
 import {
+  effectiveOrder,
   phasesFromConfig,
   type GenerationConfig,
   type StructureConfig,
@@ -158,7 +159,8 @@ function OpenTrail({ id }: { id: string }) {
   const buildConfig = useMemo(
     () =>
       (extra: { activities: number; objective: string; skills: string; guidelines: string; filesText: string }): GenerationConfig => {
-        const order = phasesFromConfig(data.config).map((p) => (p.stage_type === 'exercise' ? ('e' as const) : ('c' as const)))
+        // Só conteúdo e exercício; feedback e conclusão vão pelas chaves.
+        const order = effectiveOrder(data.config)
         return {
           name: trail?.name ?? '',
           subject: trail?.subject ?? '',
@@ -167,6 +169,8 @@ function OpenTrail({ id }: { id: string }) {
           contents: order.filter((k) => k === 'c').length,
           exercises: order.filter((k) => k === 'e').length,
           order,
+          feedback: data.config.feedback,
+          conclusive: data.config.conclusive,
           activities: extra.activities,
           options: data.config.options,
           skills: extra.skills,

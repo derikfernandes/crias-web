@@ -118,6 +118,8 @@ export function NewTrailPage() {
     contents: order.filter((k) => k === 'c').length,
     exercises: order.filter((k) => k === 'e').length,
     order,
+    feedback: structure.feedback,
+    conclusive: structure.conclusive,
     activities,
     options: structure.options,
     skills,
@@ -370,7 +372,7 @@ export function NewTrailPage() {
         {error ? <Banner>{error}</Banner> : null}
         <PreviewPanel
           activities={preview}
-          opts={{ feedback: true, conclusive: structure.conclusive !== false }}
+          opts={{ feedback: structure.feedback !== false, conclusive: structure.conclusive !== false }}
           options={structure.options}
           name={cad.name.trim() || 'N/A'}
           sub={sub}
@@ -501,7 +503,6 @@ export function NewTrailPage() {
                 onChange={setStructure}
                 locked={false}
                 bar={null}
-                showConclusive
                 extra={<NumberOfActivities value={activities} onChange={setActivities} />}
               />
             ) : (

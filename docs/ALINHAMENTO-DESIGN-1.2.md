@@ -1,6 +1,6 @@
 # Alinhamento com o Claude Design: tudo que mudou no código depois do pacote 1.1.1.b
 
-Data: 26/10/2026. Estado do repositório: commit `94fbf20` (thiagocrias/crias-web, main).
+Data: 26/10/2026. Estado do repositório: ver o commit mais recente em thiagocrias/crias-web (main).
 Referência: o pacote do Claude Design entrou em `bceaf2d` (25/10, 14:22). O pacote da Prévia (itens 1.1.1.b.41 a 44) entrou em `94fbf20`.
 
 Como ler: cada item diz **o que é**, **onde aparece na tela** e **como está hoje no código**. Textos entre aspas são exatamente os que aparecem na interface. Onde o código **diverge do design**, está marcado com **DIVERGÊNCIA**, para o Design decidir se o protótipo muda ou se o código volta.
@@ -106,7 +106,7 @@ Regras comuns de leitura: importar **sempre adiciona ou altera**, nunca apaga o 
 ### 3.3 Trilhas
 - **Lista**: filtros "Filtrar trilhas" e "Filtrar matérias" na barra de Filtros; tabela Nome, Instituição (só quando há mais de uma), Matéria, Ativa, Criada em e botão **Abrir** no fim da linha.
 - **Nova trilha em três etapas** (cabeçalho: Configuração > Prévia > Adicionar alunos (opcional)):
-  1. **Configuração**: índice à esquerda (01 Cadastro, 02 Estrutura, 03 Criar com IA) e três cartões que recolhem pela rolagem. Botão do topo: "Criar trilha" (gera a prévia). Estrutura ganhou a chave **"Etapa conclusiva"** (ligada por padrão) ao lado de "Feedback imediato".
+  1. **Configuração**: índice à esquerda (01 Cadastro, 02 Estrutura, 03 Criar com IA) e três cartões que recolhem pela rolagem. Botão do topo: "Criar trilha" (gera a prévia). Estrutura tem as chaves **"Feedback imediato"** e **"Etapa conclusiva"** (as duas ligadas por padrão), como no design 1.1.1.b.14 e 1.1.1.b.15: blocos azul (feedback, colado depois de cada exercício) e bege (conclusão, fixa no fim), legenda com "feedback" e "conclusão", e a profundidade mostra "3 + 1 + 1", "5 + 2 + 2", "8 + 3 + 3". No Personalizado, o exercício leva a seta esquerda e o feedback a seta direita; a conclusão não se move.
   2. **Prévia**: ver 3.4.
   3. **Adicionar alunos (opcional)**: "Ativar ou inativar alunos", botões "Ativar todos" e "Inativar todos", contador "X de Y ativados", lista com chave Ativo/Inativo. Botão do topo: "Salvar trilha".
   A trilha **nasce ativa**. Só "Salvar trilha" grava (trilha, atividades e alunos marcados). "Cancelar" pergunta "Tem certeza que deseja sair?".
@@ -120,12 +120,10 @@ Regras comuns de leitura: importar **sempre adiciona ou altera**, nunca apaga o 
 - Resumo: nome, "matéria · objetivo" (ou N/A); 3 números (atividades, exercícios no total, "≈ N min por atividade"); linhas Conteúdos, Exercícios, Alternativas por exercício, Feedback instantâneo, Bloco conclusivo; nota "Tempo aproximado: 1 min por bloco de conteúdo, feedback ou conclusão e 2 min por exercício." Sem botão no Resumo.
 - Mesma Prévia em **Adicionar atividades com IA** (trilha aberta), com Resumo "Novas atividades".
 - Topo da Prévia da nova trilha: botão **"Salvar trilha"** (salva direto, sem passar por Adicionar alunos) e a etapa "Adicionar alunos" com contorno verde.
-- **DIVERGÊNCIAS em relação ao design da Prévia (decidir):**
-  1. **Confirmação ao salvar**: o design diz "salva direto"; o código mantém o pop-up "Tem certeza que deseja criar a trilha? A configuração de estrutura não poderá ser alterada depois." (regra anterior 1.5). O Design deve dizer se o pop-up sai.
-  2. **Rótulo do botão em Adicionar atividades com IA**: o design diz "Adicionar atividades"; o código usa **"Criar atividades"** (pedido anterior). O Design deve dizer qual vale.
-  3. **Feedback instantâneo** não é chave no código (o design tem chave): hoje é a etiqueta fixa "Feedback imediato" e o Resumo mostra sempre "Sim".
-  4. **Etapa conclusiva**: a chave existe e liga/desliga a Prévia (bloco B conclusivo e "Bloco conclusivo: Sim/Não"), mas **nada é gravado**: a trilha criada não tem etapa conclusiva e as atividades geradas não trazem texto de conclusão (a Prévia mostra um texto explicativo no lugar). Em Adicionar atividades com IA o Resumo mostra "Bloco conclusivo: Não". Falta backend (`conc`, booleano, padrão verdadeiro no formulário).
-  5. Feedback e Conclusão na Prévia mostram um texto-padrão ("Informa se a resposta está correta e explica o porquê..." e "Sintetiza os pontos principais da atividade, sem conceito novo...") porque o conteúdo real só é gerado quando o aluno estuda. O design pode definir outro texto.
+- **Feedback e conclusão são etapas de conteúdo comuns** (lógica só de interface): ao ligar as chaves, a estrutura ganha uma etapa de IA depois de cada exercício (título "Feedback") e uma etapa de IA no fim (título "Conclusão"). A Prévia reconhece pela posição: etapa logo depois do exercício = feedback (com a chave ligada), etapa final = conclusão (com a chave ligada). Ao reabrir uma trilha, as chaves voltam a partir das etapas gravadas. A geração por IA recebe a estrutura já com essas etapas e o prompt de geração vai tratar "depois do exercício = feedback" e "final = conclusiva" (a combinar no prompt; ver `docs/ORIENTACOES-CURSOR-1.2.md`).
+- **Alinhado ao design (sem divergência):** botão "Adicionar atividades" em Adicionar atividades com IA; chaves Feedback imediato e Etapa conclusiva.
+- **Única divergência que sobrou (decidir):** ao tocar em "Salvar trilha" na Prévia o código ainda abre o pop-up "Tem certeza que deseja criar a trilha? A configuração de estrutura não poderá ser alterada depois." (botões "Continuar editando" e "Salvar"), enquanto o design diz "salva direto". O Design deve dizer se o pop-up sai.
+- Observação: o bloco de Feedback e o de Conclusão mostram um texto-padrão na Prévia ("Informa se a resposta está correta e explica o porquê..." e "Sintetiza os pontos principais da atividade, sem conceito novo...") quando a etapa ainda não tem texto, porque o conteúdo real é gerado quando o aluno estuda. O design pode definir outro texto.
 
 ### 3.5 Alunos
 - Lista: colunas na ordem do design 1.1.1.b: Nome, ID Aluno, Trilha atual, Atividade, Etapa, Status, Telefone, Escolaridade, Nível pedagógico, Criado em, Atualizado em, Ativo e a seta de abrir. Filtros "Filtrar por nome" e "Filtrar por ID".
@@ -172,6 +170,6 @@ Regras comuns de leitura: importar **sempre adiciona ou altera**, nunca apaga o 
 
 ## 6. O que pedir ao Design
 1. Atualizar o protótipo (Aluno e Educação) com os itens das seções 1 a 4, principalmente 1.1, 1.2, 1.4, 2 e 3.4.
-2. Decidir as cinco divergências da Prévia (3.4).
+2. Decidir a divergência da Prévia (3.4): pop-up ao salvar a trilha.
 3. Dizer se entra "+ Adicionar perfil" (perfil personalizado com nome).
 4. Validar tablet (retrato e paisagem) de Nova trilha, Prévia, Dados e Painel do aluno.

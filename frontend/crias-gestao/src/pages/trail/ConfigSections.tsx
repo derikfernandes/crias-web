@@ -11,6 +11,7 @@ import {
   counts,
   effectiveOrder,
   moveStep,
+  rolesFromConfig,
   structureTotalLabel,
   withCounts,
   withDepth,
@@ -333,23 +334,28 @@ export function EstruturaSection({
   locked,
   bar,
   extra,
-  showConclusive,
 }: {
   value: StructureConfig
   onChange: (next: StructureConfig) => void
   locked: boolean
   bar?: ReactNode
   extra?: ReactNode
-  /** Mostra a chave "Etapa conclusiva" (só na nova trilha). */
-  showConclusive?: boolean
 }) {
   const order = effectiveOrder(value)
   const { contents, exercises } = counts(order)
   const custom = value.depth === 'custom'
+  const feedbackOn = value.feedback !== false
+  const conclusiveOn = value.conclusive !== false
   const [dragFrom, setDragFrom] = useState<number | null>(null)
+  let seen = -1
+  const blocks = rolesFromConfig({ order, feedback: value.feedback, conclusive: value.conclusive }).map((role) => {
+    if (role === 'c' || role === 'e') seen += 1
+    // Feedback acompanha o exercício anterior; a conclusão não pertence à ordem.
+    return { role, orderIndex: role === 'k' ? null : seen }
+  })
   const depthItems: Array<[DepthId, string, string]> = [
-    ...DEPTHS.map((d) => [d[0], d[1], `${d[2]} + ${d[3]}`] as [DepthId, string, string]),
-    ['custom', 'Personalizado', custom ? `${contents} + ${exercises}` : ''],
+    ...DEPTHS.map((d) => [d[0], d[1], feedbackOn ? `${d[2]} + ${d[3]} + ${d[3]}` : `${d[2]} + ${d[3]}`] as [DepthId, string, string]),
+    ['custom', 'Personalizado', custom ? (feedbackOn ? `${contents} + ${exercises} + ${exercises}` : `${contents} + ${exercises}`) : ''],
   ]
 
   return (
@@ -376,15 +382,8 @@ export function EstruturaSection({
           onChange={(n) => onChange({ ...value, options: n })}
         />
         <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <span className="gx-pill gx-pill--ok">Feedback imediato</span>
-          {showConclusive ? (
-            <Switch
-              checked={value.conclusive !== false}
-              label="Etapa conclusiva"
-              disabled={locked}
-              onChange={(v) => onChange({ ...value, conclusive: v })}
-            />
-          ) : null}
+          <Switch checked={feedbackOn} label="Feedback imediato" disabled={locked} onChange={(v) => onChange({ ...value, feedback: v })} />
+          <Switch checked={conclusiveOn} label="Etapa conclusiva" disabled={locked} onChange={(v) => onChange({ ...value, conclusive: v })} />
         </span>
       </div>
       <span style={{ fontSize: 14, fontWeight: 600 }}>Profundidade</span>
@@ -409,44 +408,46 @@ export function EstruturaSection({
         ))}
       </div>
       <ol aria-label="Etapas de cada atividade" className="gx-blocks">
-        {order.map((k, i) => (
-          <li
-            key={`${i}-${k}`}
-            className={`gx-block gx-block--${k}`}
-            draggable={custom && !locked}
-            onDragStart={() => setDragFrom(i)}
-            onDragOver={(e) => custom && !locked && e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault()
-              if (dragFrom !== null && custom && !locked) {
-                onChange({ ...value, order: moveStep(order, dragFrom, i) })
-              }
-              setDragFrom(null)
-            }}
-          >
-            <span>{i + 1}</span>
-            {custom && !locked ? (
-              <span className="gx-block__arrows">
-                <button
-                  type="button"
-                  aria-label={`Mover etapa ${i + 1} para a esquerda`}
-                  disabled={i === 0}
-                  onClick={() => onChange({ ...value, order: moveStep(order, i, i - 1) })}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Mover etapa ${i + 1} para a direita`}
-                  disabled={i === order.length - 1}
-                  onClick={() => onChange({ ...value, order: moveStep(order, i, i + 1) })}
-                >
-                  ›
-                </button>
-              </span>
-            ) : null}
-          </li>
-        ))}
+        {blocks.map((b, n) => {
+          const canDrag = custom && !locked && b.role !== 'k' && b.role !== 'f'
+          const idx = b.orderIndex
+          // Exercício com feedback: seta para a esquerda no exercício e para a direita no feedback; o par anda junto.
+          const left = idx !== null && idx > 0 && (b.role === 'c' || b.role === 'e')
+          const right = idx !== null && idx < order.length - 1 && (b.role === 'c' || b.role === 'f' || (b.role === 'e' && !feedbackOn))
+          return (
+            <li
+              key={`${n}-${b.role}`}
+              className={`gx-block gx-block--${b.role}`}
+              draggable={canDrag}
+              onDragStart={() => idx !== null && setDragFrom(idx)}
+              onDragOver={(e) => canDrag && e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragFrom !== null && idx !== null && custom && !locked) {
+                  onChange({ ...value, order: moveStep(order, dragFrom, idx) })
+                }
+                setDragFrom(null)
+              }}
+              title={b.role === 'k' ? 'A etapa conclusiva fica sempre no fim' : undefined}
+            >
+              <span>{n + 1}</span>
+              {custom && !locked && (left || right) ? (
+                <span className="gx-block__arrows">
+                  {left ? (
+                    <button type="button" aria-label={`Mover etapa ${n + 1} para a esquerda`} onClick={() => onChange({ ...value, order: moveStep(order, idx!, idx! - 1) })}>
+                      ‹
+                    </button>
+                  ) : null}
+                  {right ? (
+                    <button type="button" aria-label={`Mover etapa ${n + 1} para a direita`} onClick={() => onChange({ ...value, order: moveStep(order, idx!, idx! + 1) })}>
+                      ›
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
       </ol>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 20px', fontSize: 14, color: 'var(--v-t2)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -457,7 +458,19 @@ export function EstruturaSection({
           <span className="gx-swatch gx-swatch--e" aria-hidden="true" />
           exercício
         </span>
-        <strong style={{ marginLeft: 'auto', color: 'var(--v-ink)' }}>{structureTotalLabel(order)}</strong>
+        {feedbackOn ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="gx-swatch gx-swatch--f" aria-hidden="true" />
+            feedback
+          </span>
+        ) : null}
+        {conclusiveOn ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="gx-swatch gx-swatch--k" aria-hidden="true" />
+            conclusão
+          </span>
+        ) : null}
+        <strong style={{ marginLeft: 'auto', color: 'var(--v-ink)' }}>{structureTotalLabel(blocks.map((b) => b.role))}</strong>
       </div>
       {extra ?? null}
     </section>

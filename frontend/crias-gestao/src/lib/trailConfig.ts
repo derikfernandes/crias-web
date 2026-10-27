@@ -56,9 +56,11 @@ export type StructureConfig = {
   order: StepKind[]
   options: number
   /**
-   * Etapa conclusiva no fim de cada atividade (1.1.1.b.42): ligada por padrão. Só vale no formulário e na Prévia.
-   * TODO backend 1.1.1.b: gravar `conc` (booleano) no documento da trilha e gerar a etapa conclusiva.
+   * Feedback imediato (1.1.1.b.14): cada exercício ganha logo depois uma etapa de feedback, que é uma etapa
+   * de conteúdo a mais. Ligado por padrão.
    */
+  feedback?: boolean
+  /** Etapa conclusiva (1.1.1.b.15 e 1.1.1.b.42): uma etapa de conteúdo a mais, fixa no fim. Ligada por padrão. */
   conclusive?: boolean
 }
 
@@ -84,7 +86,7 @@ export function counts(order: StepKind[]): { contents: number; exercises: number
   return { contents: order.length - exercises, exercises }
 }
 
-export function structureTotalLabel(order: StepKind[]): string {
+export function structureTotalLabel(order: unknown[]): string {
   return `${order.length} etapa${order.length === 1 ? '' : 's'} por atividade`
 }
 
@@ -144,41 +146,86 @@ const BLOCK_COMMANDS: Record<string, [string, string]> = {
   conclusion: ['Conclusão', 'Sintetize os pontos principais do conteúdo base, sem apresentar conceito novo.'],
 }
 
-/** Tipo de bloco de cada conteúdo, pela posição (1ª Introdução, última Conclusão quando há 3 ou mais). */
-function contentKinds(total: number): string[] {
+/** Papel de cada etapa: conteúdo, exercício, feedback (logo após o exercício) ou conclusão (fixa no fim). */
+export type PhaseRole = 'c' | 'e' | 'f' | 'k'
+
+export const FEEDBACK_TITLE = 'Feedback'
+export const CONCLUSION_TITLE = 'Conclusão'
+const FEEDBACK_COMMAND =
+  'Feedback do exercício: informe se a resposta do aluno está correta e explique o porquê, sem apresentar conceito novo.'
+
+/** Etapas da estrutura em ordem, já com os feedbacks e a conclusão. */
+export function rolesFromConfig(cfg: Pick<StructureConfig, 'feedback' | 'conclusive'> & { order: StepKind[] }): PhaseRole[] {
+  const out: PhaseRole[] = []
+  for (const k of cfg.order) {
+    out.push(k)
+    if (k === 'e' && cfg.feedback !== false) out.push('f')
+  }
+  if (cfg.conclusive !== false) out.push('k')
+  return out
+}
+
+/** Papel de cada etapa já gravada: feedback e conclusão são etapas de conteúdo com o título padrão. */
+export function phaseRoles(phases: Array<Pick<StructurePhase, 'stage_type' | 'title'>>): PhaseRole[] {
+  const roles: PhaseRole[] = []
+  phases.forEach((p, i) => {
+    if (p.stage_type === 'exercise') roles.push('e')
+    else if (p.title.trim() === FEEDBACK_TITLE && roles[i - 1] === 'e') roles.push('f')
+    else if (p.title.trim() === CONCLUSION_TITLE && i === phases.length - 1) roles.push('k')
+    else roles.push('c')
+  })
+  return roles
+}
+
+/** Tipo de bloco de cada conteúdo, pela posição (1ª Introdução; a última é Conclusão quando há 3 ou mais e não há etapa conclusiva). */
+function contentKinds(total: number, withConclusionStep: boolean): string[] {
   if (total <= 1) return ['intro']
   if (total === 2) return ['intro', 'explain']
   const middle = ['explain', 'example', 'deepen']
+  const lastIsConclusion = !withConclusionStep
   const kinds = ['intro']
-  for (let i = 0; i < total - 2; i++) kinds.push(middle[i % middle.length])
-  kinds.push('conclusion')
+  for (let i = 0; i < total - (lastIsConclusion ? 2 : 1); i++) kinds.push(middle[i % middle.length])
+  if (lastIsConclusion) kinds.push('conclusion')
   return kinds
 }
 
 /**
  * Etapas da estrutura no formato que o banco usa (`phase_blueprint` e `trail_stages`).
- * Conteúdo nasce sempre como IA, com título e comando do bloco pelo tipo. Com `existing` (trilha já salva),
- * a etapa da mesma posição e do mesmo tipo (conteúdo ou exercício) mantém título, tipo e comando.
+ * Conteúdo nasce sempre como IA, com título e comando do bloco pelo tipo. Feedback e conclusão são etapas de IA
+ * comuns (o prompt de geração trata a etapa depois do exercício como feedback e a final como conclusiva).
+ * Com `existing` (trilha já salva), a etapa da mesma posição e do mesmo papel mantém título, tipo e comando.
  */
 export function phasesFromConfig(cfg: StructureConfig, existing?: StructurePhase[]): StructurePhase[] {
   const order = effectiveOrder(cfg)
-  const kinds = contentKinds(order.filter((k) => k === 'c').length)
+  const roles = rolesFromConfig({ order, feedback: cfg.feedback, conclusive: cfg.conclusive })
+  const kinds = contentKinds(order.filter((k) => k === 'c').length, cfg.conclusive !== false)
+  const oldRoles = existing ? phaseRoles(existing) : []
   let c = 0
   let e = 0
-  return order.map((k, i) => {
-    const old = existing?.[i]
-    if (k === 'c') {
-      const [title, command] = BLOCK_COMMANDS[kinds[c]]
-      c += 1
-      if (old && old.stage_type !== 'exercise') {
-        const keepsCommand = old.stage_type !== 'ai' || old.prompt.trim() !== ''
-        return { id: `bp-${i + 1}`, title: old.title, stage_type: old.stage_type, prompt: keepsCommand ? old.prompt : command }
-      }
-      return { id: `bp-${i + 1}`, title, stage_type: 'ai' as const, prompt: command }
+  return roles.map((role, i) => {
+    const id = `bp-${i + 1}`
+    const old = existing && oldRoles[i] === role ? existing[i] : undefined
+    if (role === 'e') {
+      e += 1
+      if (old) return { id, title: old.title, stage_type: 'exercise' as const, prompt: '' }
+      return { id, title: `Exercício ${e}`, stage_type: 'exercise' as const, prompt: '' }
     }
-    e += 1
-    if (old && old.stage_type === 'exercise') return { id: `bp-${i + 1}`, title: old.title, stage_type: 'exercise' as const, prompt: '' }
-    return { id: `bp-${i + 1}`, title: `Exercício ${e}`, stage_type: 'exercise' as const, prompt: '' }
+    let title: string
+    let command: string
+    if (role === 'f') {
+      title = FEEDBACK_TITLE
+      command = FEEDBACK_COMMAND
+    } else if (role === 'k') {
+      ;[title, command] = BLOCK_COMMANDS.conclusion
+    } else {
+      ;[title, command] = BLOCK_COMMANDS[kinds[c]]
+      c += 1
+    }
+    if (old) {
+      const keepsCommand = old.stage_type !== 'ai' || old.prompt.trim() !== ''
+      return { id, title: old.title, stage_type: old.stage_type, prompt: keepsCommand ? old.prompt : command }
+    }
+    return { id, title, stage_type: 'ai' as const, prompt: command }
   })
 }
 
@@ -193,7 +240,9 @@ export function configFromTrail(
   options: number = DEFAULT_OPTIONS,
 ): StructureConfig {
   const phases = structurePhasesFromTrailData(trail.phase_blueprint, stages)
-  const order = phases.map(kindOfPhase)
+  const roles = phaseRoles(phases)
+  // Feedback e conclusão são etapas a mais: saem da ordem (que só tem conteúdo e exercício) e viram as chaves.
+  const order = roles.filter((r): r is StepKind => r === 'c' || r === 'e')
   const { contents, exercises } = counts(order)
   const preset = DEPTHS.find(
     (d) =>
@@ -207,6 +256,8 @@ export function configFromTrail(
     exercises,
     order,
     options: Math.max(MIN_OPTIONS, Math.min(MAX_OPTIONS, options)),
+    feedback: roles.includes('f'),
+    conclusive: roles.includes('k'),
   }
 }
 
@@ -229,6 +280,9 @@ export type GenerationConfig = {
   contents: number
   exercises: number
   order: StepKind[]
+  /** Feedback depois de cada exercício e etapa conclusiva no fim (etapas de conteúdo a mais). */
+  feedback?: boolean
+  conclusive?: boolean
   activities: number
   options: number
   skills: string

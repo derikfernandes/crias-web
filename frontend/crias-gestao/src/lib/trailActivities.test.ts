@@ -8,27 +8,29 @@ import {
   parseActivitySheet,
   templateHeaders,
 } from './trailActivities'
-import { defaultOrder, phasesFromConfig, DEFAULT_STRUCTURE, withCounts, effectiveOrder } from './trailConfig'
+import { configFromTrail, defaultOrder, phasesFromConfig, DEFAULT_STRUCTURE, withCounts, effectiveOrder } from './trailConfig'
 import { estimateMinutes, previewBlocks, previewSummary } from './trailPreview'
 import type { TrailStageQuestion } from '../types/trailStageQuestion'
 
-const phases = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa' }) // 3 conteúdos + 1 exercício
+const BAIXA = { ...DEFAULT_STRUCTURE, depth: 'baixa' as const }
+const full = phasesFromConfig(BAIXA) // 3 conteúdos + 1 exercício + feedback + conclusão
+const phases = phasesFromConfig({ ...BAIXA, feedback: false, conclusive: false }) // 3 conteúdos + 1 exercício
 
 describe('estrutura da trilha', () => {
   it('conteúdos primeiro e exercícios por último', () => {
     expect(defaultOrder(3, 1)).toEqual(['c', 'c', 'c', 'e'])
-    expect(phases.map((p) => p.stage_type)).toEqual(['ai', 'ai', 'ai', 'exercise'])
+    expect(full.map((p) => p.stage_type)).toEqual(['ai', 'ai', 'ai', 'exercise', 'ai', 'ai'])
   })
   it('conteúdo nasce por IA, com título e comando do bloco por tipo', () => {
-    expect(phases.slice(0, 3).map((p) => p.title)).toEqual(['Introdução', 'Explicação', 'Conclusão'])
-    expect(phases.slice(0, 3).every((p) => p.prompt.length > 0)).toBe(true)
-    expect(phases[3].prompt).toBe('')
+    expect(full.map((p) => p.title)).toEqual(['Introdução', 'Explicação', 'Exemplo prático', 'Exercício 1', 'Feedback', 'Conclusão'])
+    expect(full.filter((p) => p.stage_type === 'ai').every((p) => p.prompt.length > 0)).toBe(true)
+    expect(full[3].prompt).toBe('')
   })
   it('ao salvar, mantém tipo e comando já gravados na mesma posição', () => {
-    const saved = phases.map((p, i) => (i === 1 ? { ...p, stage_type: 'fixed' as const, title: 'Meu texto', prompt: '' } : p))
-    const again = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa' }, saved)
+    const saved = full.map((p, i) => (i === 1 ? { ...p, stage_type: 'fixed' as const, title: 'Meu texto', prompt: '' } : p))
+    const again = phasesFromConfig(BAIXA, saved)
     expect(again[1]).toMatchObject({ stage_type: 'fixed', title: 'Meu texto' })
-    expect(again[0].prompt).toBe(phases[0].prompt)
+    expect(again[0].prompt).toBe(full[0].prompt)
   })
   it('mudar as quantidades vira Personalizado, e volta a profundidade pronta quando combina', () => {
     const custom = withCounts(DEFAULT_STRUCTURE, 6, 2)
@@ -106,15 +108,37 @@ describe('planilha de atividades: sempre adiciona', () => {
 describe('prévia da trilha', () => {
   const steps = (kinds: Array<'c' | 'e'>) =>
     kinds.map((kind, i) => ({ stage: i + 1, kind, title: '', content: 'x', options: kind === 'e' ? ['a', 'b'] : [], correct: '' }))
-  const act = { number: 1, title: 'A', released: false, steps: steps(['c', 'c', 'c', 'e']) }
-  it('feedback acompanha o exercício e a conclusão fica no fim', () => {
+  // 3 conteúdos, 1 exercício, o feedback e a conclusão (que são etapas de conteúdo a mais)
+  const act = { number: 1, title: 'A', released: false, steps: steps(['c', 'c', 'c', 'e', 'c', 'c']) }
+  it('etapa depois do exercício é feedback e a última é conclusão', () => {
     const b = previewBlocks(act, { feedback: true, conclusive: true })
     expect(b.map((x) => x.kind)).toEqual(['c', 'c', 'c', 'e', 'f', 'k'])
     expect(b.map((x) => x.id)).toEqual(['B1', 'B2', 'B3', 'B4', 'B5', 'B6'])
   })
+  it('com feedback e conclusão desligados, tudo é conteúdo', () => {
+    expect(previewBlocks(act, { feedback: false, conclusive: false }).map((x) => x.kind)).toEqual(['c', 'c', 'c', 'e', 'c', 'c'])
+  })
   it('tempo: 1 min por conteúdo, feedback ou conclusão e 2 por exercício', () => {
     expect(estimateMinutes(['c', 'c', 'c', 'e', 'f', 'k'])).toBe(7)
     const s = previewSummary([act, act], { feedback: true, conclusive: false })
-    expect(s).toMatchObject({ activities: 2, exercises: 2, contents: 3, minutes: 6, conclusive: false, feedback: true })
+    expect(s).toMatchObject({ activities: 2, exercises: 2, contents: 4, minutes: 7, conclusive: false, feedback: true })
+  })
+})
+
+describe('feedback e etapa conclusiva na estrutura', () => {
+  it('viram etapas de IA comuns e voltam para as chaves ao ler a trilha', () => {
+    const ph = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'media' })
+    expect(ph.map((p) => p.title).slice(-4)).toEqual(['Exercício 1', 'Feedback', 'Exercício 2', 'Feedback'].slice(0, 0).concat(['Feedback', 'Exercício 2', 'Feedback', 'Conclusão']))
+    const cfg = configFromTrail(
+      { phase_blueprint: ph.map((p) => ({ title: p.title, stage_type: p.stage_type, prompt: p.prompt || null })) },
+      [],
+    )
+    expect(cfg).toMatchObject({ depth: 'media', contents: 5, exercises: 2, feedback: true, conclusive: true })
+    expect(phasesFromConfig(cfg).map((p) => p.title)).toEqual(ph.map((p) => p.title))
+  })
+  it('sem as chaves, a estrutura é só conteúdo e exercício', () => {
+    const ph = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa', feedback: false, conclusive: false })
+    expect(ph.map((p) => p.stage_type)).toEqual(['ai', 'ai', 'ai', 'exercise'])
+    expect(ph[2].title).toBe('Conclusão')
   })
 })

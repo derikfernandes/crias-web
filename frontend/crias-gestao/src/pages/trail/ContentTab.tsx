@@ -24,6 +24,7 @@ import {
   OBJECTIVES,
   MAX_ACTIVITIES,
   orNA,
+  phaseRoles,
   type GenerationConfig,
 } from '../../lib/trailConfig'
 import {
@@ -336,6 +337,7 @@ export function ContentTab({
 
   /* ----- Prévia (página dentro da aba) ----- */
   if (preview) {
+    const roles = phaseRoles(phases)
     return (
       <section aria-label="Prévia" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="gx-card__head" style={{ alignItems: 'flex-start' }}>
@@ -350,15 +352,14 @@ export function ContentTab({
               Cancelar
             </button>
             <button type="button" className="gx-btn gx-btn--primary" disabled={busy} onClick={addPreview}>
-              Criar atividades
+              Adicionar atividades
             </button>
           </div>
         </div>
         {error ? <Banner>{error}</Banner> : null}
         <PreviewPanel
           activities={preview}
-          // TODO backend 1.1.1.b: a etapa conclusiva ainda não existe nas atividades salvas.
-          opts={{ feedback: true, conclusive: false }}
+          opts={{ feedback: roles.includes('f'), conclusive: roles.includes('k') }}
           options={optionCount}
           name="Novas atividades"
           sub={trail.name || 'N/A'}

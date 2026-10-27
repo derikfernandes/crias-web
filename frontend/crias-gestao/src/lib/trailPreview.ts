@@ -28,18 +28,24 @@ export type PreviewBlock = {
 const FEEDBACK_BODY = 'Informa se a resposta está correta e explica o porquê. Gerado pela IA quando o aluno responde.'
 const CONCLUSION_BODY = 'Sintetiza os pontos principais da atividade, sem conceito novo. Gerada pela IA.'
 
-/** Blocos de uma atividade na ordem do aluno: o feedback vem logo após o exercício e a conclusão fica no fim. */
+/**
+ * Blocos de uma atividade na ordem do aluno. Feedback e conclusão são etapas de conteúdo comuns: a etapa logo
+ * depois de um exercício é feedback (com o feedback ligado) e a etapa final é a conclusão (com a conclusão ligada).
+ */
 export function previewBlocks(activity: ActivityDraft, opts: PreviewOptions): PreviewBlock[] {
-  const out: Omit<PreviewBlock, 'id'>[] = []
-  activity.steps.forEach((st, i) => {
+  const last = activity.steps.length - 1
+  const out: Omit<PreviewBlock, 'id'>[] = activity.steps.map((st, i) => {
     if (st.kind === 'e') {
-      out.push({ kind: 'e', title: stepLabel(activity.steps, i), body: st.content, options: st.options.filter(Boolean), correct: st.correct })
-      if (opts.feedback) out.push({ kind: 'f', title: 'Feedback', body: FEEDBACK_BODY, options: [], correct: '' })
-    } else {
-      out.push({ kind: 'c', title: stepLabel(activity.steps, i), body: st.content, options: [], correct: '' })
+      return { kind: 'e' as const, title: stepLabel(activity.steps, i), body: st.content, options: st.options.filter(Boolean), correct: st.correct }
     }
+    if (opts.conclusive && i === last && i > 0) {
+      return { kind: 'k' as const, title: 'Conclusão', body: st.content || CONCLUSION_BODY, options: [], correct: '' }
+    }
+    if (opts.feedback && activity.steps[i - 1]?.kind === 'e') {
+      return { kind: 'f' as const, title: 'Feedback', body: st.content || FEEDBACK_BODY, options: [], correct: '' }
+    }
+    return { kind: 'c' as const, title: stepLabel(activity.steps, i), body: st.content, options: [], correct: '' }
   })
-  if (opts.conclusive) out.push({ kind: 'k', title: 'Conclusão', body: CONCLUSION_BODY, options: [], correct: '' })
   return out.map((b, i) => ({ ...b, id: `B${i + 1}` }))
 }
 

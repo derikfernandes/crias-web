@@ -55,6 +55,11 @@ export type StructureConfig = {
   /** Ordem das etapas; só vale em "custom". */
   order: StepKind[]
   options: number
+  /**
+   * Etapa conclusiva no fim de cada atividade (1.1.1.b.42): ligada por padrão. Só vale no formulário e na Prévia.
+   * TODO backend 1.1.1.b: gravar `conc` (booleano) no documento da trilha e gerar a etapa conclusiva.
+   */
+  conclusive?: boolean
 }
 
 export const DEFAULT_STRUCTURE: StructureConfig = {

@@ -602,12 +602,13 @@ export function FilterPopover({
             ? 'gx-filter__btn gx-filter__btn--field'
             : 'gx-filter__btn'
         }
+        aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="filter" />
-        <span>{label}</span>
+        <span className="gx-filter__label">{label}</span>
         <span className="gx-filter__count">{count}</span>
         <Icon name="chev-down" />
       </button>

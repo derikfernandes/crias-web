@@ -527,6 +527,25 @@ _Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno v1.1.1b.dc.html` e `Crias Ges
 - Padrão de edição: Cancelar e Salvar ficam apagados até haver alteração; ao digitar, Cancelar fica ativo e Salvar fica verde. Cancelar volta aos dados salvos.
 - Suporte: telefone "+55 (31) 99752-0152", com o mesmo link do botão (https://wa.me/553197520152). E-mail abre o mailto. Botão: "Falar com o suporte".
 
+**1.1.1.b.41 Prévia em lista com Resumo** (26/10/2026)
+
+*Gestão: Nova trilha, aba Prévia, e Adicionar atividades com IA*
+- A prévia passa a ser uma lista de atividades (número, nome, "X conteúdos · Y exercícios · ≈ N min") com um cartão Resumo à direita. Ao abrir uma atividade aparecem os blocos B1, B2... coloridos por tipo (Conteúdo verde, Exercício amarelo, Feedback azul, Conclusão verde escuro). Até 6 atividades; "+ N atividades" mostra o restante.
+- Resumo: nome da trilha, matéria e objetivo; atividades, exercícios no total e minutos por atividade; linhas Conteúdos, Exercícios, Alternativas por exercício, Feedback instantâneo e Bloco conclusivo (uma por linha). Não há "Liberação".
+- Tempo aproximado, calculado só no frontend: 1 min por bloco de conteúdo, feedback ou conclusão e 2 min por exercício.
+- Os botões continuam no topo: Continuar leva a Adicionar alunos e Salvar trilha fica no topo (sem botão no Resumo). Em Adicionar atividades com IA, Cancelar e Adicionar atividades seguem no topo e a atividade aberta mantém o detalhe das etapas abaixo dos blocos. O editor de atividades da Prévia continua abaixo da lista; abrir uma linha seleciona a atividade nele.
+
+**1.1.1.b.42 Ajustes da prévia** (26/10/2026)
+- Etapa conclusiva vem ligada por padrão na Configuração da trilha.
+- Na prévia, o bloco de conclusão usa a mesma cor da Configuração (bege #e9e1c6, texto #4a4030) e tem o mesmo tamanho dos outros blocos.
+- Nova trilha e Adicionar atividades com IA: ao abrir uma atividade aparecem os blocos e o conteúdo de cada etapa (incluindo feedback e conclusão), igual à prévia de trilhas já criadas. À direita de cada linha fica só a seta de abrir e recolher. Todas as atividades começam recolhidas.
+
+**1.1.1.b.43 Salvar na Prévia** (26/10/2026)
+- Na Prévia da nova trilha, o botão do topo passa de "Continuar" para "Salvar trilha" e salva direto. A etapa "Adicionar alunos" também fica com contorno verde: a pessoa escolhe salvar agora ou ir adicionar alunos antes.
+
+**1.1.1.b.44 Topo da Gestão entre 920 e 1000px** (26/10/2026)
+- Até 1000px de largura o filtro de instituições fica só com ícone e o espaço entre os itens do topo cai para 6px, para o botão Sair não ser cortado.
+
 ## Gestão 1.1.1.b (antes Redesign, aprovada em 24/10/2026)
 
 Aprovada como Gestão 1.1.1.b: `Crias Gestao v1.1.1b.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.

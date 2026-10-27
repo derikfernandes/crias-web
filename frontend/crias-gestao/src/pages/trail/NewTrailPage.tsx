@@ -5,7 +5,7 @@ import { useCollection } from '../../hooks/useCollection'
 import { useGestao } from '../../hooks/useGestao'
 import { useGuardedNavigate, useUnsavedChanges } from '../../contexts/UnsavedContext'
 import { snapshotToStudent } from '../../lib/studentFirestore'
-import { blankActivity, stepLabel, letterOf, type ActivityDraft } from '../../lib/trailActivities'
+import { blankActivity, type ActivityDraft } from '../../lib/trailActivities'
 import { generateActivitiesWithAi } from '../../lib/trailAiApi'
 import {
   DEFAULT_OBJECTIVE,
@@ -26,6 +26,7 @@ import {
   type CadastroValue,
 } from './ConfigSections'
 import { FilesPicker, type PickedFile } from './FilesPicker'
+import { PreviewPanel } from './PreviewPanel'
 
 type Stage = 'config' | 'preview' | 'students'
 
@@ -72,7 +73,7 @@ function BlockBar({
 
 /**
  * Nova trilha (1.1.1.b): três etapas. Configuração (blocos Cadastro, Estrutura e Criar com IA), Prévia e
- * Adicionar alunos (opcional). "Criar trilha" gera a prévia; "Continuar" segue para os alunos; só
+ * Adicionar alunos (opcional). "Criar trilha" gera a prévia; na Prévia "Salvar trilha" grava direto e "Adicionar alunos" (opcional) fica com contorno verde; só
  * "Salvar trilha" grava (trilha, atividades e alunos marcados). Cancelar pergunta "Tem certeza que deseja sair?".
  * Com Habilidades, Orientações e Arquivos vazios não chama a IA: a prévia tem só a Atividade 1 em branco.
  */
@@ -99,7 +100,6 @@ export function NewTrailPage() {
   const guardedNavigate = useGuardedNavigate()
   const allStudents = useCollection('students', snapshotToStudent)
   const [preview, setPreview] = useState<ActivityDraft[] | null>(null)
-  const [previewSel, setPreviewSel] = useState(0)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -140,7 +140,6 @@ export function NewTrailPage() {
     if (!ready) return
     if (!useAi) {
       setPreview([blankActivity(1, phases, structure.options)])
-      setPreviewSel(0)
       setStage('preview')
       return
     }
@@ -156,7 +155,6 @@ export function NewTrailPage() {
         signal: ctrl.signal,
       })
       setPreview(result)
-      setPreviewSel(0)
       setStage('preview')
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -305,7 +303,7 @@ export function NewTrailPage() {
         Prévia
         <Icon name="chev-right" />
       </button>
-      <button type="button" className="gx-newstage" aria-current={stage === 'students'} disabled={!preview} onClick={() => setStage('students')}>
+      <button type="button" className={stage === 'preview' ? 'gx-newstage gx-newstage--opt' : 'gx-newstage'} aria-current={stage === 'students'} disabled={!preview} onClick={() => setStage('students')}>
         Adicionar alunos <span className="gx-muted">(opcional)</span>
       </button>
     </nav>
@@ -322,8 +320,8 @@ export function NewTrailPage() {
         {generating ? 'Gerando…' : 'Criar trilha'}
       </button>
     ) : stage === 'preview' ? (
-      <button type="button" className="gx-btn gx-btn--primary gx-btn--pulse" onClick={() => setStage('students')}>
-        Continuar
+      <button type="button" className="gx-btn gx-btn--primary gx-btn--pulse" disabled={saving} onClick={() => setCreateConfirm(true)}>
+        {saving ? 'Salvando…' : 'Salvar trilha'}
       </button>
     ) : (
       <button type="button" className="gx-btn gx-btn--primary gx-btn--pulse" disabled={saving} onClick={() => setCreateConfirm(true)}>
@@ -362,123 +360,27 @@ export function NewTrailPage() {
     />
   )
 
-  /* ---------- Prévia ---------- */
+  /* ---------- Prévia: lista de atividades e Resumo (1.1.1.b.41 a 1.1.1.b.43) ---------- */
   if (stage === 'preview' && preview) {
-    const cur = preview[Math.min(previewSel, preview.length - 1)]
-    const dash = (v: string | number) => (String(v).trim() === '' ? '' : String(v))
-    const rows = (items: Array<[string, string]>) => (
-      <dl className="gx-info gx-info--compact">
-        {items.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd data-fade="1">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    )
+    const sub = [cad.subject.trim(), objective.trim()].filter(Boolean).join(' · ') || 'N/A'
     return (
       <div className="gx-page">
         {head}
         {createDialog}
         {error ? <Banner>{error}</Banner> : null}
-        <div className="gx-previewcols" aria-label="Configuração">
-          <section className="gx-card">
-            <h2 className="gx-previewcols__title">
-              <span className="gx-stepbar__num">01</span> Cadastro
-            </h2>
-            {rows([
-              ['Nome', dash(cad.name)],
-              ['Matéria', dash(cad.subject)],
-              ['Descrição', dash(cad.description)],
-              ['Objetivo', dash(objective)],
-            ])}
-          </section>
-          <section className="gx-card">
-            <h2 className="gx-previewcols__title">
-              <span className="gx-stepbar__num">02</span> Estrutura
-            </h2>
-            {rows([
-              ['Conteúdos', String(config.contents)],
-              ['Exercícios', String(config.exercises)],
-              ['Ordem', config.order.map((k) => (k === 'c' ? 'Conteúdo' : 'Exercício')).join(', ')],
-              ['Alternativas', String(structure.options)],
-              ['Atividades', String(activities)],
-            ])}
-          </section>
-          <section className="gx-card">
-            <h2 className="gx-previewcols__title">
-              <span className="gx-stepbar__num">03</span> Criar com IA <span className="gx-tag gx-tag--ai">IA</span>
-            </h2>
-            {rows([
-              ['Habilidades', dash(skills)],
-              ['Orientações', dash(guidelines)],
-              ['Arquivos', files.map((f) => f.file.name).join(', ')],
-            ])}
-          </section>
-        </div>
-        <p className="gx-muted">
-          {useAi
-            ? 'Atividades geradas pela IA com a configuração acima. Nada foi gravado ainda.'
-            : 'Sem habilidades, orientações ou arquivos: a trilha começa com a Atividade 1 em branco. Nada foi gravado ainda.'}
-        </p>
-        <p className="gx-sectionlabel">Atividades</p>
-        <div className="gx-split">
-          <section className="gx-card" aria-label="Atividades da trilha">
-            <div className="gx-card__head">
-              <h2>Atividades da trilha</h2>
-            </div>
-            <ol className="gx-list">
-              {preview.map((a, i) => (
-                <li className="gx-actrow" key={a.number}>
-                  <button
-                    type="button"
-                    className={i === previewSel ? 'gx-actbtn is-on' : 'gx-actbtn'}
-                    aria-pressed={i === previewSel}
-                    onClick={() => setPreviewSel(i)}
-                  >
-                    <span className="gx-num">{a.number}</span>
-                    <strong data-fade="1">{a.title || `Atividade ${a.number}`}</strong>
-                  </button>
-                  {useAi ? <span className="gx-tag gx-tag--ai">IA</span> : null}
-                </li>
-              ))}
-            </ol>
-          </section>
-          <section className="gx-card" aria-label="Conteúdo das etapas">
-            <div className="gx-card__head">
-              <h2>Conteúdo das etapas</h2>
-            </div>
-            {cur ? (
-              <>
-                <p className="gx-muted">
-                  Atividade {cur.number}: {cur.title || `Atividade ${cur.number}`}
-                </p>
-                {cur.steps.map((st, k) => (
-                  <div className="gx-step" key={k}>
-                    <div className="gx-step__top">
-                      <span>Etapa {k + 1}</span>
-                      <span className={st.kind === 'e' ? 'gx-pill gx-pill--warn' : 'gx-pill'}>{st.kind === 'e' ? 'Exercício' : 'Conteúdo'}</span>
-                    </div>
-                    <strong className="gx-step__title">{stepLabel(cur.steps, k)}</strong>
-                    <p className="gx-step__body">
-                      {st.content || (useAi ? 'N/A' : 'Conteúdo em branco. Preencha depois, na aba Conteúdo.')}
-                    </p>
-                    {st.kind === 'e' && st.options.some(Boolean) ? (
-                      <ul className="gx-list">
-                        {st.options.map((o, oi) => (
-                          <li key={oi} className="gx-step__body">
-                            {letterOf(oi)}) {o}
-                            {st.correct === letterOf(oi) ? ' ✓' : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                ))}
-              </>
-            ) : null}
-          </section>
-        </div>
+        <PreviewPanel
+          activities={preview}
+          opts={{ feedback: true, conclusive: structure.conclusive !== false }}
+          options={structure.options}
+          name={cad.name.trim() || 'N/A'}
+          sub={sub}
+          title="Prévia da trilha"
+          lede={
+            useAi
+              ? 'Confira as atividades geradas antes de salvar'
+              : 'Sem habilidades, orientações ou arquivos: a trilha começa com a Atividade 1 em branco'
+          }
+        />
       </div>
     )
   }
@@ -599,6 +501,7 @@ export function NewTrailPage() {
                 onChange={setStructure}
                 locked={false}
                 bar={null}
+                showConclusive
                 extra={<NumberOfActivities value={activities} onChange={setActivities} />}
               />
             ) : (

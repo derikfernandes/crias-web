@@ -9,6 +9,7 @@ import {
   templateHeaders,
 } from './trailActivities'
 import { defaultOrder, phasesFromConfig, DEFAULT_STRUCTURE, withCounts, effectiveOrder } from './trailConfig'
+import { estimateMinutes, previewBlocks, previewSummary } from './trailPreview'
 import type { TrailStageQuestion } from '../types/trailStageQuestion'
 
 const phases = phasesFromConfig({ ...DEFAULT_STRUCTURE, depth: 'baixa' }) // 3 conteúdos + 1 exercício
@@ -99,5 +100,21 @@ describe('planilha de atividades: sempre adiciona', () => {
     const r = parseActivitySheet(legacy, phases, 4)
     expect(r.activities).toHaveLength(1)
     expect(r.activities[0].steps[3].correct).toBe('')
+  })
+})
+
+describe('prévia da trilha', () => {
+  const steps = (kinds: Array<'c' | 'e'>) =>
+    kinds.map((kind, i) => ({ stage: i + 1, kind, title: '', content: 'x', options: kind === 'e' ? ['a', 'b'] : [], correct: '' }))
+  const act = { number: 1, title: 'A', released: false, steps: steps(['c', 'c', 'c', 'e']) }
+  it('feedback acompanha o exercício e a conclusão fica no fim', () => {
+    const b = previewBlocks(act, { feedback: true, conclusive: true })
+    expect(b.map((x) => x.kind)).toEqual(['c', 'c', 'c', 'e', 'f', 'k'])
+    expect(b.map((x) => x.id)).toEqual(['B1', 'B2', 'B3', 'B4', 'B5', 'B6'])
+  })
+  it('tempo: 1 min por conteúdo, feedback ou conclusão e 2 por exercício', () => {
+    expect(estimateMinutes(['c', 'c', 'c', 'e', 'f', 'k'])).toBe(7)
+    const s = previewSummary([act, act], { feedback: true, conclusive: false })
+    expect(s).toMatchObject({ activities: 2, exercises: 2, contents: 3, minutes: 6, conclusive: false, feedback: true })
   })
 })

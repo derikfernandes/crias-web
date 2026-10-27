@@ -333,12 +333,15 @@ export function EstruturaSection({
   locked,
   bar,
   extra,
+  showConclusive,
 }: {
   value: StructureConfig
   onChange: (next: StructureConfig) => void
   locked: boolean
   bar?: ReactNode
   extra?: ReactNode
+  /** Mostra a chave "Etapa conclusiva" (só na nova trilha). */
+  showConclusive?: boolean
 }) {
   const order = effectiveOrder(value)
   const { contents, exercises } = counts(order)
@@ -372,8 +375,16 @@ export function EstruturaSection({
           disabled={locked}
           onChange={(n) => onChange({ ...value, options: n })}
         />
-        <span className="gx-pill gx-pill--ok" style={{ marginLeft: 'auto' }}>
-          Feedback imediato
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <span className="gx-pill gx-pill--ok">Feedback imediato</span>
+          {showConclusive ? (
+            <Switch
+              checked={value.conclusive !== false}
+              label="Etapa conclusiva"
+              disabled={locked}
+              onChange={(v) => onChange({ ...value, conclusive: v })}
+            />
+          ) : null}
         </span>
       </div>
       <span style={{ fontSize: 14, fontWeight: 600 }}>Profundidade</span>

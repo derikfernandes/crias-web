@@ -33,6 +33,7 @@ import {
   setActivityReleased,
 } from '../../lib/trailOps'
 import type { StructurePhase } from '../../lib/trailEditor'
+import { PreviewPanel } from './PreviewPanel'
 import type { Trail } from '../../types/trail'
 import type { TrailStageQuestion } from '../../types/trailStageQuestion'
 import { NumberOfActivities, Pencil } from './ConfigSections'
@@ -193,7 +194,6 @@ export function ContentTab({
   const [aiFiles, setAiFiles] = useState<PickedFile[]>([])
   const [generating, setGenerating] = useState(false)
   const [preview, setPreview] = useState<ActivityDraft[] | null>(null)
-  const [previewOpen, setPreviewOpen] = useState<Set<number>>(new Set())
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -290,7 +290,6 @@ export function ContentTab({
         signal: ctrl.signal,
       })
       setPreview(numberAfter(activities, result))
-      setPreviewOpen(new Set())
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         setError(e instanceof Error ? e.message : 'Não foi possível gerar a prévia.')
@@ -338,7 +337,7 @@ export function ContentTab({
   /* ----- Prévia (página dentro da aba) ----- */
   if (preview) {
     return (
-      <section className="gx-card" aria-label="Prévia">
+      <section aria-label="Prévia" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div className="gx-card__head" style={{ alignItems: 'flex-start' }}>
           <div style={{ minWidth: 0, flex: '1 1 260px' }}>
             <h2>Prévia</h2>
@@ -356,48 +355,14 @@ export function ContentTab({
           </div>
         </div>
         {error ? <Banner>{error}</Banner> : null}
-        <ol className="gx-list">
-          {preview.map((a, i) => {
-            const open = previewOpen.has(i)
-            return (
-              <li className="gx-acc" key={a.number}>
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() =>
-                    setPreviewOpen((s) => {
-                      const n = new Set(s)
-                      if (n.has(i)) n.delete(i)
-                      else n.add(i)
-                      return n
-                    })
-                  }
-                >
-                  <span className="gx-num">{a.number}</span>
-                  <strong data-fade="1" style={{ flex: 1, minWidth: 0, fontSize: 15 }}>
-                    {a.title}
-                  </strong>
-                  <span className="gx-tag gx-tag--ai">IA</span>
-                  <Icon name={open ? 'chev-up' : 'chev-down'} />
-                </button>
-                {open ? (
-                  <div>
-                    {a.steps.map((_, k) => (
-                      <ol className="gx-list" key={k} style={{ gap: 0 }}>
-                        <StepView
-                          steps={a.steps}
-                          index={k}
-                          expanded
-                          onToggle={() => undefined}
-                        />
-                      </ol>
-                    ))}
-                  </div>
-                ) : null}
-              </li>
-            )
-          })}
-        </ol>
+        <PreviewPanel
+          activities={preview}
+          // TODO backend 1.1.1.b: a etapa conclusiva ainda não existe nas atividades salvas.
+          opts={{ feedback: true, conclusive: false }}
+          options={optionCount}
+          name="Novas atividades"
+          sub={trail.name || 'N/A'}
+        />
       </section>
     )
   }

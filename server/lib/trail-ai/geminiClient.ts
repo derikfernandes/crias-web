@@ -15,11 +15,20 @@
 /** Teto de espera do HTTP generateContent (evita hang sem fim no serverless). */
 export const GEMINI_FETCH_TIMEOUT_MS = 25_000
 
+/** Teto só para o default/env `GEMINI_FETCH_TIMEOUT_MS` — não vale para `timeoutMs` explícito. */
+export const GEMINI_FETCH_TIMEOUT_CAP_MS = 55_000
+
 export type GeminiGenerateInput = {
   systemInstruction: string
   userText: string
   /** Overrides opcionais de generationConfig (ex.: JSON schema, maxOutputTokens). */
   generationConfig?: Record<string, unknown>
+  /**
+   * Timeout HTTP explícito (ms). Sem teto de 55s.
+   * Omitido: usa `GEMINI_FETCH_TIMEOUT_MS` (env, teto 55s) ou o padrão 25s
+   * (aluno / Monitor).
+   */
+  timeoutMs?: number
 }
 
 export type GeminiGenerateResult = {
@@ -252,6 +261,29 @@ function vertex404Guidance(location: string, model: string): string {
 }
 
 /**
+ * Resolve o timeout HTTP de generateContent.
+ * - `explicitMs` válido (≥ 5s): usa como está, sem teto de 55s (ex.: geração de trilha).
+ * - Senão: env `GEMINI_FETCH_TIMEOUT_MS` (mín. 5s, teto 55s) ou padrão 25s.
+ */
+export function resolveGenerateContentTimeoutMs(
+  explicitMs: number | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  if (
+    typeof explicitMs === 'number' &&
+    Number.isFinite(explicitMs) &&
+    explicitMs >= 5_000
+  ) {
+    return Math.floor(explicitMs)
+  }
+  const raw = readEnv('GEMINI_FETCH_TIMEOUT_MS', env)
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n >= 5_000
+    ? Math.min(n, GEMINI_FETCH_TIMEOUT_CAP_MS)
+    : GEMINI_FETCH_TIMEOUT_MS
+}
+
+/**
  * Chama `models/{model}:generateContent` (Generative Language) ou
  * Vertex `publishers/google/models/{model}:generateContent` quando VERTEX_* + OAuth.
  * Preferência auth: OAuth refresh; fallback: `GEMINI_API_KEY` (só Generative Language).
@@ -316,11 +348,7 @@ export async function generateContentWithGemini(
     },
   }
 
-  const timeoutMs = (() => {
-    const raw = readEnv('GEMINI_FETCH_TIMEOUT_MS', env)
-    const n = raw ? Number.parseInt(raw, 10) : NaN
-    return Number.isFinite(n) && n >= 5_000 ? Math.min(n, 55_000) : GEMINI_FETCH_TIMEOUT_MS
-  })()
+  const timeoutMs = resolveGenerateContentTimeoutMs(input.timeoutMs, env)
 
   let res: Response
   try {

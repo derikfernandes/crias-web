@@ -34,6 +34,19 @@ type ApiResponse = {
   activities?: ApiActivity[]
 }
 
+/** Timeout / detalhes técnicos da IA → mensagem amigável (sem generateContent nem modelo). */
+export function friendlyAiGenerateError(message: string): string {
+  if (
+    /generateContent timeout|timeout após|demorou demais|aborted due to timeout|The operation was aborted/i.test(
+      message,
+    ) ||
+    (/generateContent/i.test(message) && /timeout|tempo|esgotad/i.test(message))
+  ) {
+    return 'A geração demorou demais. Tente de novo em instantes.'
+  }
+  return message
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -117,7 +130,8 @@ export async function generateActivitiesWithAi(
   }
   if (!res.ok || json.ok === false || !Array.isArray(json.activities)) {
     const issue = json.issues?.[0]?.message
-    throw new Error(json.error ?? issue ?? `Falha na geração (HTTP ${res.status}).`)
+    const raw = json.error ?? issue ?? `Falha na geração (HTTP ${res.status}).`
+    throw new Error(friendlyAiGenerateError(raw))
   }
   return json.activities.map((a, i) => ({
     number: i + 1,

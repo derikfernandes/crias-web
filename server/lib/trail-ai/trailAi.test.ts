@@ -98,10 +98,9 @@ describe('generateContentWithGemini', () => {
 
     await expect(
       generateContentWithGemini(
-        { systemInstruction: 'sys', userText: 'user' },
+        { systemInstruction: 'sys', userText: 'user', timeoutMs: 5_000 },
         {
           GEMINI_API_KEY: 'test-key',
-          GEMINI_FETCH_TIMEOUT_MS: '5000',
         } as NodeJS.ProcessEnv,
         fetchImpl,
       ),

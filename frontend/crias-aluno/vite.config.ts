@@ -23,6 +23,7 @@ export default defineConfig({
       '/trail_stage_questions': { target: tipApi, changeOrigin: true },
       '/conversation_logs': { target: tipApi, changeOrigin: true },
       '/exercise_attempts': { target: tipApi, changeOrigin: true },
+      '/unified_login': { target: tipApi, changeOrigin: true },
       '/api': { target: tipApi, changeOrigin: true },
     },
   },

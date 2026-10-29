@@ -320,6 +320,100 @@ function throwHttpError(
   throw new ApiRequestError(friendly, res.status)
 }
 
+/* ===== Login unificado por e-mail (Firebase = senha canônica) ===== */
+
+export type UnifiedRolesResponse =
+  | {
+      status: 'ok'
+      email: string
+      roles: { student: boolean; gestao: boolean }
+      student: IdentifyOkResponse | null
+    }
+  | {
+      status: 'needs_institution'
+      email?: string
+      roles?: { student: boolean; gestao: boolean }
+      institutions: IdentifyInstitutionChoice[]
+    }
+
+export async function fetchUnifiedRoles(input: {
+  idToken: string
+  institution_id?: string
+}): Promise<UnifiedRolesResponse> {
+  const res = await fetchWithTimeout(`${API_BASE}/unified_login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${input.idToken}`,
+    },
+    body: JSON.stringify({
+      action: 'roles',
+      institution_id: input.institution_id || undefined,
+    }),
+  })
+  const body = (await parseJson(res)) as UnifiedRolesResponse & ApiError
+  if (res.ok && body?.status === 'needs_institution') {
+    return body
+  }
+  if (!res.ok || body?.status !== 'ok') {
+    throwHttpError(res, body, 'Não foi possível entrar.')
+  }
+  return body
+}
+
+export type EnsureFirebaseResponse =
+  | {
+      status: 'ok'
+      firebase: 'created'
+      student: IdentifyOkResponse
+    }
+  | {
+      status: 'needs_institution'
+      institutions: IdentifyInstitutionChoice[]
+    }
+
+/** Migra aluno só-e-mail (hash) → Firebase, se ainda não houver user Auth. */
+export async function ensureFirebaseForStudentEmail(input: {
+  email: string
+  password: string
+  institution_id?: string
+}): Promise<EnsureFirebaseResponse> {
+  const res = await fetchWithTimeout(`${API_BASE}/unified_login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'ensure_firebase',
+      email: input.email,
+      password: input.password,
+      institution_id: input.institution_id || undefined,
+    }),
+  })
+  const body = (await parseJson(res)) as EnsureFirebaseResponse & ApiError & {
+    code?: string
+  }
+  if (res.ok && body?.status === 'needs_institution') {
+    return body
+  }
+  if (!res.ok || body?.status !== 'ok') {
+    const code = typeof body?.code === 'string' ? body.code : ''
+    if (
+      res.status === 401 ||
+      res.status === 403 ||
+      /unauthorized|invalid_credentials|use_firebase_password|password_not_set/i.test(
+        code,
+      )
+    ) {
+      throw new ApiRequestError(
+        'Não foi possível entrar. Confira os dados.',
+        res.status || 401,
+        { code: code || undefined, authFailed: false },
+      )
+    }
+    throwHttpError(res, body, 'Não foi possível entrar.')
+  }
+  return body
+}
+
 export async function identifyStudent(input: {
   /** Login livre: telefone, e-mail ou ID do aluno. */
   login?: string

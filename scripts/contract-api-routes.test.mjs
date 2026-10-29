@@ -23,6 +23,7 @@ const EXPECTED_API_FILES = [
   'exercise_attempts.ts',
   'dashboard_summary.ts',
   'trilha_auth.ts',
+  'unified_login.ts',
 ]
 
 /** Pares source → destination que sistemas externos e o admin dependem. */
@@ -74,6 +75,10 @@ const CRITICAL_REWRITES = [
   {
     source: '/trilha/auth',
     destination: '/api/trilha_auth',
+  },
+  {
+    source: '/unified_login',
+    destination: '/api/unified_login',
   },
   {
     source: '/student/by-phone/:phone([0-9]+)',

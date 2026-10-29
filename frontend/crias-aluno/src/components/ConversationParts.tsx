@@ -49,18 +49,18 @@ export function BotMessage({
     <div className="v1-0-msg v1-0-msg--bot">
       <span className="v1-0-msg__sym">
         {monitor ? (
-          <MonitorAvatar size={32} live={live} />
+          <MonitorAvatar size={38} live={live} />
         ) : (
-          <CriasSymbol size={32} animated={animatedSymbol} />
+          <CriasSymbol size={38} animated={animatedSymbol} />
         )}
       </span>
       <div className="v1-0-msg__body">
         <span className="v1-0-msg__labelrow">
           <span className="v1-0-msg__symsm">
             {monitor ? (
-              <MonitorAvatar size={22} live={live} />
+              <MonitorAvatar size={33} live={live} />
             ) : (
-              <CriasSymbol size={22} animated={animatedSymbol} />
+              <CriasSymbol size={33} animated={animatedSymbol} />
             )}
           </span>
           <span className="v1-0-msg__label" data-fade="1" id={labelId}>
@@ -98,12 +98,12 @@ export function TypingRow({ monitor = false }: { monitor?: boolean }) {
   return (
     <div className="v1-0-msg v1-0-msg--bot" role="status" aria-live="polite" aria-label="O monitor está digitando">
       <span className="v1-0-msg__sym">
-        <MonitorAvatar size={32} loading />
+        <MonitorAvatar size={38} loading />
       </span>
       <div className="v1-0-msg__body">
         <span className="v1-0-msg__labelrow">
           <span className="v1-0-msg__symsm">
-            <MonitorAvatar size={22} loading />
+            <MonitorAvatar size={33} loading />
           </span>
           <span className="v1-0-msg__label">Monitor</span>
         </span>

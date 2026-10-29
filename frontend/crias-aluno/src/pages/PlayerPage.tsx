@@ -30,7 +30,6 @@ import {
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
-import CriasSymbol from '../components/CriasSymbol'
 import {
   ArrowRightIcon,
   ArrowUpIcon,
@@ -4745,7 +4744,11 @@ export default function PlayerPage() {
       data-current-step="true"
       data-trail-completed="true"
     >
-      <CriasSymbol size={64} />
+      <span className="v125-check" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
+        </svg>
+      </span>
       <span className="v1-0-done__title">Trilha concluída</span>
       <span className="v1-0-done__text">
         {totalActivitiesHere > 0
@@ -4753,7 +4756,7 @@ export default function PlayerPage() {
           : `Você concluiu ${trailHeading}.`}
       </span>
       <Link to="/" className="v1-0-btn">
-        Voltar para página inicial
+        Início
       </Link>
     </div>
   ) : null

@@ -15,26 +15,26 @@ function sanitizeOptionText(v: unknown): string | null {
   return s.length ? s : null
 }
 
-function parseChoiceKeyFromString(s: string): string {
+function parseChoiceKeyFromString(s: string): string | null {
   const letter = s.match(/^\(?([A-Za-z])\)?\s*[\)\.\:]/)
   if (letter) return letter[1].toUpperCase()
   const numbered = s.match(/^\(?(\d{1,2})\)?\s*[\)\.\:]/)
   if (numbered) return String(Number(numbered[1]))
-  return s
+  return null
 }
 
 /** Normaliza options estruturados do doc Firestore. */
 export function coerceStructuredOptions(raw: unknown): ExerciseOption[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null
   const out: ExerciseOption[] = []
-  for (const item of raw) {
+  for (const [index, item] of raw.entries()) {
     if (typeof item === 'string') {
       const s = item.trim()
       if (!s) return null
-      out.push({
-        key: parseChoiceKeyFromString(s),
-        text: s,
-      })
+      // Alternativa sem marcador: a chave é a letra da posição (A, B, C...), nunca o texto inteiro, que o
+      // aluno enviaria como resposta e nunca bateria com o gabarito.
+      const key = parseChoiceKeyFromString(s) ?? String.fromCharCode(65 + index)
+      out.push({ key, text: parseChoiceKeyFromString(s) ? s : `${key}) ${s}` })
       continue
     }
     if (!item || typeof item !== 'object') return null

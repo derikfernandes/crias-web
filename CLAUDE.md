@@ -1,9 +1,16 @@
 # Regras do projeto Crias (redesign)
 
+- **Responder sempre em português do Brasil.**
+
 ## Base atual: v1.1 (fechada em 16/10/2026)
 
 - Versões: **v1.1** é a versão atual, fechada em 16/10/2026 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). **v1.0** é a base anterior (`Crias Aluno v1.0.dc.html` e `Crias Painel v1.0.dc.html`). Não existe v1.1. Nada muda sem pedido explícito. No repositório: `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`. Versões e telas antigas ficam em `historico/`.
 - As regras completas estão em `INTERFACE.md`, seções "Base v1.1: fechamento" (1.1.27 a 1.1.38), "Base v1.1: primeira parte" (1.1.1 a 1.1.26) e "Base v1.0 travada". Onde houver conflito, vale o fechamento, depois a primeira parte, depois a v1.0.
+
+## Pacote 1.2.5
+
+- `Crias Aluno.dc.html` (28/10/2026): retomada no Início, régua da atividade, monitor em destaque e corrigindo exercícios, fechamento da atividade e constância no Painel. Regras em INTERFACE.md, "Pacote 1.2.5" (1.2.5.1 a 1.2.5.12; a revisão mais nova vale sobre as anteriores). Aplicação no app: ver `frontend/crias-aluno/design/RELATORIO-1.2.5.md`.
+- Exercícios: enunciado, alternativas e gabarito têm uma regra única (A) em diante é alternativa; gabarito abaixo ou na etapa seguinte, nunca exibido). Ver `docs/REGRA-EXERCICIOS.md`.
 
 ## Repositório e escopo
 
@@ -27,7 +34,7 @@
 - No tema claro o fundo da área de conteúdo é branco. Bege (#fcfbf6, #f7f5ec, #fefdfa) só em destaques, campos e balões. O menu lateral usa #fdfcf9 no claro (v1.1); no escuro segue #0a1711.
 - Ação principal: verde #00be85 com texto e ícone brancos (hover #00a974, pressionado #00925f). Vale para botões e setas de ação. Avatar do usuário: verde escuro #00593d com letra branca.
 - Seta de abrir trilha na home: verde #00be85 (o mesmo da seta do menu), sem caixa de botão, do tamanho da fonte do título (19px), alinhada à direita da linha do título.
-- Avatar do monitor nas mensagens: personagem do monitor (`crias-monitor.js`, ver abaixo); o círculo amarelo "M" saiu na v1.1. Sem Maria animada, sem emojis, sem reações. O símbolo do Crias (arquivo) aparece na entrada e na trilha concluída. No Início do aluno (v1.2.1, INTERFACE.md 1.2.1.1) fica o personagem do monitor em movimento (`entrada`, 128px, 60% da velocidade).
+- Avatar do monitor nas mensagens (38px na web, 33px no celular): personagem do monitor (`crias-monitor.js`, ver abaixo); o círculo amarelo "M" saiu na v1.1. Sem Maria animada, sem emojis, sem reações. O símbolo do Crias (arquivo) aparece na entrada e na trilha concluída. No Início do aluno (v1.2.1, INTERFACE.md 1.2.1.1) fica o personagem do monitor em movimento (`entrada`, 128px, 60% da velocidade).
 - Rótulos "Acompanhamento" e "Trilhas" no menu: caixa alta, 11px, verde escuro #00593d (no escuro #5fe3b5), com linha fina ao lado.
 - Títulos em Outfit, texto em Manrope. Cantos 12px (cartões 16px), botões em pílula.
 

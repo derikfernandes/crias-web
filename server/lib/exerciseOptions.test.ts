@@ -140,6 +140,13 @@ describe('resolveExerciseOptions', () => {
     ])
   })
 
+  it('alternativa sem marcador ganha a letra da posição como chave', () => {
+    expect(coerceStructuredOptions(['um', 'dois'])).toEqual([
+      { key: 'A', text: 'A) um' },
+      { key: 'B', text: 'B) dois' },
+    ])
+  })
+
   it('coerce strings', () => {
     expect(coerceStructuredOptions(['A) x', 'B) y'])).toEqual([
       { key: 'A', text: 'A) x' },

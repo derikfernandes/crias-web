@@ -170,10 +170,13 @@ export function normalizeExerciseOptions(
         continue
       }
       const numbered = s.match(/^\(?(\d{1,2})\)?\s*[\)\.\:]/)
-      out.push({
-        key: numbered ? String(Number(numbered[1])) : s,
-        text: s,
-      })
+      if (numbered) {
+        out.push({ key: String(Number(numbered[1])), text: s })
+        continue
+      }
+      // Sem marcador: a chave é a letra da posição, nunca o texto inteiro.
+      const key = String.fromCharCode(65 + out.length)
+      out.push({ key, text: `${key}) ${s}` })
       continue
     }
     if (item && typeof item === 'object') {

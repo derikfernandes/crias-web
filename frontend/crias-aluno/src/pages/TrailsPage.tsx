@@ -1,4 +1,4 @@
-import { useMemo, useState, type MouseEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { getSession } from '../lib/session'
 import type { StudentTrailRow, TrailActivity } from '../lib/api'
@@ -105,10 +105,11 @@ export default function TrailsPage() {
   }, [trailRows, session.student_id])
 
   /**
-   * Regra do Início: até 2 trilhas, a última aberta primeiro, e só as que ainda não foram
-   * concluídas. Trilha já concluída não aparece (continua no menu lateral).
+   * Regra do Início (1.2.5.1): a trilha de acesso mais recente que ainda não foi concluída vira o cartão
+   * principal de retomada; as demais não concluídas ficam em linhas compactas. Trilha concluída não aparece
+   * (continua no menu lateral).
    */
-  const visible = ordered.filter((r) => r.status !== 'completed').slice(0, 2)
+  const visible = ordered.filter((r) => r.status !== 'completed')
   /** Todas concluídas: o Início não mostra cards, só um aviso. */
   const allDone = ordered.length > 0 && visible.length === 0
   const homeLoading =
@@ -124,22 +125,6 @@ export default function TrailsPage() {
       /* ignore */
     }
     navigate('/monitoria')
-  }
-
-  function tilt(e: MouseEvent<HTMLElement>) {
-    const el = e.currentTarget
-    const r = el.getBoundingClientRect()
-    const x = (e.clientX - r.left) / r.width
-    const y = (e.clientY - r.top) / r.height
-    el.style.transform = `rotateX(${((0.5 - y) * 14).toFixed(2)}deg) rotateY(${((x - 0.5) * 16).toFixed(2)}deg) translateZ(8px)`
-    el.style.setProperty('--gx', `${(x * 100).toFixed(1)}%`)
-    el.style.setProperty('--gy', `${(y * 100).toFixed(1)}%`)
-  }
-
-  function untilt(e: MouseEvent<HTMLElement>) {
-    const el = e.currentTarget
-    el.style.transform = 'rotateX(0deg) rotateY(0deg)'
-    el.style.setProperty('--gy', '-30%')
   }
 
   const title = empty || allDone ? `Olá, ${firstName}.` : greeting
@@ -170,69 +155,90 @@ export default function TrailsPage() {
               Carregando suas trilhas…
             </p>
           ) : (
-            <div
-              className={`v1-0-grid${visible.length === 1 ? ' v1-0-grid--1' : ''}`}
-              style={{ ['--cols' as string]: Math.max(visible.length, 1) }}
-            >
-              {visible.map((row) => {
+            <div className="v125-home">
+              {visible.slice(0, 1).map((row) => {
                 const label = trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
                 const { label: progresso, pct, cta } = progressMeta(
                   row,
                   questionTotals?.[row.trail_id],
                   stageTotals?.[row.trail_id],
                 )
-                const completed = row.status === 'completed'
                 const titles = activities?.[row.trail_id] ?? []
-                const nowRaw = completed
-                  ? 'Trilha concluída'
-                  : titles.find((t) => t.number === row.current_question_number)
-                      ?.title || `Atividade ${Math.max(row.current_question_number, 1)}`
-                const now = sanitizeUiCopy(nowRaw)
+                const now = sanitizeUiCopy(
+                  titles.find((t) => t.number === row.current_question_number)?.title ||
+                    `Atividade ${Math.max(row.current_question_number, 1)}`,
+                )
+                const etapa = formatEtapaLabel(
+                  Math.max(row.current_stage_number, 1),
+                  stageTotals?.[row.trail_id],
+                )
+                const fresh = row.status === 'not_started'
                 return (
                   <Link
                     key={row.id}
                     to={`/trilha/${encodeURIComponent(row.trail_id)}`}
-                    className="v1-0-tcard"
+                    className="v125-resume"
                     title={label}
                     aria-label={`${label}. ${progresso}. ${cta}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
-                    onMouseMove={tilt}
-                    onMouseLeave={untilt}
                   >
-                    <span className="v1-0-tcard__glow" aria-hidden="true" />
-                    <span className="v1-0-tcard__head">
-                      <span className="v1-0-tcard__main">
-                        <span className="v1-0-tcard__titlerow">
-                          <span className="v1-0-tcard__name" data-fade="1">
-                            {label}
-                          </span>
-                          <svg className="v1-0-tcard__chev" role="img" aria-label={cta} width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                            <title>{cta}</title>
-                            <path d="M9 5l7 7-7 7" />
-                          </svg>
-                        </span>
-                        <span className="v1-0-bar">
-                          <span
-                            className="v1-0-bar__fill"
-                            style={{ width: `${pct ?? 0}%` }}
-                          />
-                        </span>
-                        <span className="v1-0-tcard__meta" data-fade="1">
-                          {progresso}
-                        </span>
-                      </span>
+                    <span className="v125-resume__eyebrow">{fresh ? 'COMECE POR AQUI' : 'CONTINUE DE ONDE PAROU'}</span>
+                    <span className="v125-resume__name" data-fade="1">
+                      {label}
                     </span>
-                    <span className="v1-0-tcard__foot">
+                    <span className="v1-0-bar">
+                      <span className="v1-0-bar__fill" style={{ width: `${pct ?? 0}%` }} />
+                    </span>
+                    <span className="v125-resume__meta" data-fade="1">
+                      {[progresso, etapa].filter(Boolean).join(' · ')}
+                    </span>
+                    <span className="v125-resume__foot">
                       <span className="v1-0-tcard__now">
                         <span className="v1-0-tcard__nowlabel">AGORA</span>
                         <span className="v1-0-tcard__nowvalue" data-fade="1">
                           {now}
                         </span>
                       </span>
+                      <span className="v125-resume__cta">
+                        {cta}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </span>
                     </span>
                   </Link>
                 )
               })}
+              {visible.length > 1 ? (
+                <div className="v125-rows">
+                  {visible.slice(1).map((row) => {
+                    const label = trailNames?.[row.trail_id] || row.trail_id || 'Trilha'
+                    const { label: progresso, cta } = progressMeta(
+                      row,
+                      questionTotals?.[row.trail_id],
+                      stageTotals?.[row.trail_id],
+                    )
+                    return (
+                      <Link
+                        key={row.id}
+                        to={`/trilha/${encodeURIComponent(row.trail_id)}`}
+                        className="v125-row"
+                        title={label}
+                        aria-label={`${label}. ${progresso}. ${cta}`}
+                        onClick={() => writeFocusedTrailId(row.trail_id)}
+                      >
+                        <span className="v125-row__name" data-fade="1">
+                          {label}
+                        </span>
+                        <span className="v125-row__meta">{progresso}</span>
+                        <svg className="v1-0-tcard__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M9 5l7 7-7 7" />
+                        </svg>
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : null}
             </div>
           )}
           <div className="v1-0-home__composer">

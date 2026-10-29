@@ -63,9 +63,16 @@ export function BotMessage({
               <CriasSymbol size={33} animated={animatedSymbol} />
             )}
           </span>
-          <span className="v1-0-msg__label" data-fade="1" id={labelId}>
-            {label}
-          </span>
+          {monitor ? (
+            <span className="v1-0-msg__label" data-fade="1" id={labelId}>
+              {label}
+            </span>
+          ) : (
+            // Bloco de conteúdo sem título (1.2.5.9): só o símbolo do Crias e o texto.
+            <span className="v1-0-msg__label v125-sr" data-fade="1" id={labelId}>
+              {label}
+            </span>
+          )}
           {feedback ? (
             <span className={`v1-0-badge v1-0-badge--${feedback}`}>
               {feedback === 'ok' ? 'Acertou' : 'Quase'}

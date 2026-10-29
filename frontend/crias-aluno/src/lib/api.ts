@@ -380,19 +380,37 @@ export async function listStudentTrails(
   return Array.isArray(body) ? (body as StudentTrailRow[]) : []
 }
 
-/** Totais de etapas por trilha (sidebar Maria — progresso). */
-export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
+export type TrailStageInfo = { stage_number: number; stage_type: string; title: string }
+
+/** Etapas de cada trilha (número, tipo e título): régua da atividade e totais de etapas. */
+export async function fetchTrailStages(): Promise<Record<string, TrailStageInfo[]>> {
   const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
   url.searchParams.set('simple', '1')
   const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok || !Array.isArray(body)) return {}
-  const map: Record<string, number> = {}
-  for (const row of body as Array<{ trail_id?: string; stage_number?: number }>) {
+  const map: Record<string, TrailStageInfo[]> = {}
+  for (const row of body as Array<{ trail_id?: string; stage_number?: number; stage_type?: string; title?: string; active?: boolean }>) {
     const tid = row.trail_id
-    if (!tid) continue
+    if (!tid || row.active === false) continue
     const n = typeof row.stage_number === 'number' ? row.stage_number : 0
-    map[tid] = Math.max(map[tid] ?? 0, n)
+    if (n < 1) continue
+    ;(map[tid] ??= []).push({
+      stage_number: n,
+      stage_type: typeof row.stage_type === 'string' ? row.stage_type : 'fixed',
+      title: typeof row.title === 'string' ? row.title : '',
+    })
+  }
+  for (const list of Object.values(map)) list.sort((x, y) => x.stage_number - y.stage_number)
+  return map
+}
+
+/** Totais de etapas por trilha (progresso). */
+export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
+  const stages = await fetchTrailStages()
+  const map: Record<string, number> = {}
+  for (const [tid, list] of Object.entries(stages)) {
+    map[tid] = list.reduce((m, s) => Math.max(m, s.stage_number), 0)
   }
   return map
 }

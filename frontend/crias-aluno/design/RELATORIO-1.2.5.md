@@ -13,21 +13,23 @@ Causa e regra nova em `docs/REGRA-EXERCICIOS.md`. Resumo:
 ## Aplicado do 1.2.5
 | Item | Estado |
 |---|---|
-| 1.2.5.1 Início com retomada (cartão principal "CONTINUE DE ONDE PAROU" / "COMECE POR AQUI", demais trilhas em linhas compactas, cartão primeiro e linhas 0,2s depois) | Aplicado |
+| 1.2.5.1 Início com retomada (cartão principal, demais trilhas em linhas, cartão primeiro e linhas 0,2s depois) | Aplicado |
+| 1.2.5.2, .7, .8, .9, .11 Régua da atividade: nome da atividade, um segmento por etapa nas cores da Gestão (conteúdo, exercício, feedback, conclusão), feita e atual em cor cheia sem piscar, à frente com contorno; abaixo, "Etapa X de Y" em negrito (ou "Exercício Z de W", também no feedback dele) e "Atividade X de Y" à direita; topo só com o nome da trilha ("Conversar com seu monitor" na Monitoria) | Aplicado. Os tipos vêm de `/api/trail_stages?simple=1` (tipo e título); feedback = etapa de IA logo depois do exercício, conclusão = última etapa com título "Conclusão" |
+| 1.2.5.3, .4, .7 Monitor em destaque (fundo azul muito claro, 52px, sem rótulo, trechos grifados tocáveis: 2 ajudas + continuar) | Aplicado só na 1ª etapa de cada atividade e no fim da atividade, como na 1.2.5.7. Frases fixas do frontend que variam por atividade (`lib/monitorOffers.ts`). Tocar numa ajuda envia a pergunta ao monitor; tocar em continuar avança |
+| 1.2.5.5, .7, .10 Fechamento da atividade: check, "Atividade concluída", nome, etapas, exercícios certos com barra, tempo e "PRÓXIMA", sem caixa, seguido do monitor | Aplicado. "Exercícios certos" vem do painel (`by_activity`); o tempo é a estimativa da régua (sem dado no banco) |
+| 1.2.5.9 Conteúdo sem título (só símbolo e texto); exercício sem símbolo e com etiqueta amarela "Responda" | Aplicado |
 | 1.2.5.7 Ícones nas mensagens: 38px na web e 33px no celular | Aplicado |
-| 1.2.5.11 Check verde desenhado em "Trilha concluída" | Aplicado |
-| 1.2.5.11 Trilha concluída: botão "Início", **sem ícone de casinha** | Aplicado (cartão); protótipo corrigido (sem o ícone) |
+| 1.2.5.11 Check verde desenhado em "Atividade concluída" e "Trilha concluída"; trilha concluída com botão "Início" (sem ícone) no lugar do Continuar, também no cartão | Aplicado |
 | 1.2.5.12 Painel sem "Sua semana" | Já era assim no app |
 
-## Ainda não aplicado (fica para a próxima etapa)
-- 1.2.5.2 / 1.2.5.7 / 1.2.5.8 / 1.2.5.9: régua de etapas com cores por tipo e tempo, "Etapa X de Y" / "Atividade X de Y" abaixo da régua, topo só com o nome da trilha.
-- 1.2.5.3 / 1.2.5.4 / 1.2.5.7: monitor em destaque com trechos grifados (2 ajudas + continuar), correção do exercício pelo monitor.
-- 1.2.5.5 / 1.2.5.10 / 1.2.5.11: caixa "Atividade concluída" com estatísticas e fechamento automático, "NOVA ATIVIDADE", e o Continuar virando "Início" na barra da trilha concluída.
-- 1.2.5.8 a 1.2.5.12: geração única de mensagem (caixa de espera no lugar final, esmaecimento, respiro de 0,9s), exercício sem símbolo com etiqueta "Responda", resposta do aluno subindo ao topo, feedback como bloco "Acertou/Quase".
+## Ainda não aplicado
+- 1.2.5.8, .9, .10, .11: geração única de mensagem (caixa de espera no lugar final que vira a mensagem, ícone fixo, esmaecimento de 0,5s com subida de 6px, respiro de 0,9s entre mensagens), resposta do aluno subindo ao topo do exercício com o monitor carregando abaixo, rolagem com a resposta presa ao topo.
+- 1.2.5.7: "Continuar" travado em "Aguarde…" no fechamento até a caixa final do monitor, feedback do exercício corrigido pelo monitor em destaque (o feedback segue como bloco de conteúdo, como na 1.2.5.12), tocar num segmento feito para rolar até a etapa.
+- 1.2.5.5: rótulo "NOVA ATIVIDADE" na linha entre atividades; caixa "Trilha concluída" com estatísticas da trilha.
 - 1.2.5.6: constância no Painel (o pacote já a retirou na 1.2.5.12).
-Motivo: mexem no coração do `PlayerPage` (fluxo de mensagens, exercício e avanço), que não deve ser alterado junto com a correção do erro dos exercícios. Precisam de dados que o app não tem hoje (tipo de cada etapa da atividade, tempo de estudo por atividade).
+Motivo: as animações de geração e o travamento do Continuar mexem no avanço e nos tempos de espera do `PlayerPage`, que hoje reagem à resposta real da API. Vão em uma etapa própria, testada com o backend.
 
 ## Checar com o backend
-- Tipo de cada etapa por atividade (conteúdo, exercício, feedback, conclusão) para a régua.
 - Tempo de estudo por atividade e datas de estudo por dia (fuso America/Sao_Paulo).
+- Marcar a etapa de conclusão com o título "Conclusão" (a Gestão já grava assim em trilhas novas) para a régua pintar o segmento bege.
 - Rodar `npm run audit:exercises` com a conta de serviço para achar exercícios antigos com problema.

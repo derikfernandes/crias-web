@@ -1,3 +1,5 @@
+import ActivityRuler from '../components/ActivityRuler'
+import { stageRoles } from '../lib/stageRoles'
 import Horizon from '../components/Horizon'
 import EdgeFade from '../components/EdgeFade'
 import LogoutDialog from '../components/LogoutDialog'
@@ -16,7 +18,8 @@ import {
   fetchTrailActivities,
   fetchTrailNames,
   fetchTrailQuestionTotals,
-  fetchTrailStageTotals,
+  fetchTrailStages,
+  type TrailStageInfo,
   isAuthError,
   listStudentTrails,
   type StudentTrailRow,
@@ -102,6 +105,8 @@ export default function ChatLayout() {
   const [trailsError, setTrailsError] = useState<string | null>(null)
   const [trailsLoading, setTrailsLoading] = useState(true)
   const [stageTotals, setStageTotals] = useState<Record<string, number>>({})
+  /** Tipo e título de cada etapa por trilha: régua da atividade (1.2.5.2). */
+  const [stageInfos, setStageInfos] = useState<Record<string, TrailStageInfo[]>>({})
   /** Totais de atividades (question) por trilha — INTERFACE / R5-N01. */
   const [questionTotals, setQuestionTotals] = useState<Record<string, number>>(
     {},
@@ -383,12 +388,21 @@ export default function ChatLayout() {
 
   useEffect(() => {
     let cancelled = false
-    void fetchTrailStageTotals()
+    void fetchTrailStages()
       .then((map) => {
-        if (!cancelled) setStageTotals(map)
+        if (cancelled) return
+        setStageInfos(map)
+        const totals: Record<string, number> = {}
+        for (const [tid, list] of Object.entries(map)) {
+          totals[tid] = list.reduce((m, st) => Math.max(m, st.stage_number), 0)
+        }
+        setStageTotals(totals)
       })
       .catch(() => {
-        if (!cancelled) setStageTotals({})
+        if (!cancelled) {
+          setStageInfos({})
+          setStageTotals({})
+        }
       })
     void fetchTrailNames()
       .then((map) => {
@@ -648,7 +662,7 @@ export default function ChatLayout() {
   const topTitle = activeTrailId
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria
-      ? 'Monitoria'
+      ? 'Conversar com seu monitor'
       : location.pathname === '/painel'
         ? 'Painel'
         : ''
@@ -669,24 +683,10 @@ export default function ChatLayout() {
     playerCompleted && totalStepsTop > 0
       ? Math.max(totalStepsTop, playerStageNumber ?? 1)
       : (playerStageNumber ?? activeRow?.current_stage_number ?? null)
-  const topStage = onMonitoria
-    ? 'Conversar com seu monitor'
-    : activeTrailId
-      ? formatTrailChromeProgress({
-          activity: shownActivityTop,
-          totalActivities:
-            questionTotals[activeTrailId] > 0
-              ? questionTotals[activeTrailId]
-              : null,
-          step: stepTop,
-          totalSteps: totalStepsTop > 0 ? totalStepsTop : null,
-        })
-      : null
-  const dotIndex =
-    totalStepsTop > 0 && stepTop != null
-      ? Math.min(totalStepsTop, Math.max(1, stepTop)) - 1
-      : -1
-  const dotsDone = playerCompleted
+  const rulerRoles = activeTrailId && !onMonitoria ? stageRoles(stageInfos[activeTrailId] ?? []) : []
+  const rulerActivityName = activeTrailId
+    ? (activities[activeTrailId] ?? []).find((a) => a.number === shownActivityTop)?.title ?? ''
+    : ''
 
   const closeIcon = (
     <>
@@ -1005,32 +1005,19 @@ export default function ChatLayout() {
                 {topTitle}
               </span>
             ) : null}
-            {topStage ? (
-              <span className="v1-0-topbar__stage">
-                {onMonitoria || dotIndex < 0 ? (
-                  <span className="v1-0-dot v1-0-dot--single" aria-hidden="true" />
-                ) : (
-                  <span className="v1-0-topbar__dots" aria-hidden="true">
-                    {Array.from({ length: totalStepsTop }, (_, i) => {
-                      const done = i < dotIndex || (i === dotIndex && dotsDone)
-                      const now = i === dotIndex && !dotsDone
-                      return (
-                        <span
-                          key={i}
-                          className={`v1-0-dot${done ? ' is-done' : ''}${now ? ' is-now' : ''}`}
-                        />
-                      )
-                    })}
-                  </span>
-                )}
-                <span className="v1-0-topbar__stagetext" data-fade="1">
-                  {topStage}
-                </span>
-              </span>
-            ) : null}
           </div>
           <FullscreenButton />
         </header>
+        {rulerRoles.length > 0 ? (
+          <ActivityRuler
+            roles={rulerRoles}
+            current={(stepTop ?? 1) - 1}
+            completed={playerCompleted}
+            activityName={rulerActivityName}
+            activityNumber={shownActivityTop}
+            activityTotal={activeTrailId && questionTotals[activeTrailId] > 0 ? questionTotals[activeTrailId] : null}
+          />
+        ) : null}
         <div className="v1-0-content" inert={mainInert || undefined}>
           <Outlet
             context={{
@@ -1041,6 +1028,7 @@ export default function ChatLayout() {
               activeTrailRow: activeRow,
               trailNames,
               stageTotals,
+              stageInfos,
               questionTotals,
               activities,
               viewActivity,

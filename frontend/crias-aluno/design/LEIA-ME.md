@@ -1,6 +1,6 @@
-# crias-aluno · design (v1.1)
+# crias-aluno · design (1.1.1.b)
 
-Esta pasta guarda o design do Crias Aluno e do Crias Gestão. Os apps em uso são `frontend/crias-aluno` e `frontend/crias-gestao`.
+Esta pasta guarda o design do Crias Aluno e do Crias Educação (app `crias-gestao`). Os apps em uso são `frontend/crias-aluno` e `frontend/crias-gestao`.
 
 ## Versões
 
@@ -8,14 +8,15 @@ Esta pasta guarda o design do Crias Aluno e do Crias Gestão. Os apps em uso sã
 | --- | --- |
 | v0 | Frontend original |
 | v1.0 | Primeira versão do redesign, já aplicada (`src/styles/crias-v1-0.css`) |
-| **v1.1** | Versão atual destes protótipos |
+| v1.1 | Base oficial |
+| **1.1.1.b** | Versão atual destes protótipos (regras em INTERFACE.md, "Pacote 1.1.1.b: regras consolidadas") |
 
 ## O que tem aqui
 
 | Pasta ou arquivo | O que é |
 | --- | --- |
 | `prototipo/Crias Aluno.dc.html` | Protótipo do aluno (precisa de `support.js` e `assets/`) |
-| `prototipo/Crias Gestao.dc.html` | Protótipo da gestão |
+| `prototipo/Crias Gestao.dc.html` | Protótipo do Crias Educação |
 | `prototipo/Crias Aluno offline.html`, `Crias Gestao offline.html` | Os mesmos protótipos em arquivo único, abrem sem internet |
 | `design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
 | `INTERFACE.md` | Regras de interface, numeradas por versão (1.1.x e 1.0.x) |

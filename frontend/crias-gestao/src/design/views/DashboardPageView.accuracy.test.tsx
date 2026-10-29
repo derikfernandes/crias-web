@@ -189,7 +189,7 @@ describe('DashboardPageView acerto / monitor loading', () => {
         />
       </MemoryRouter>,
     )
-    const opp = screen.getByLabelText('Oportunidades')
+    const opp = screen.getByLabelText('Desempenho')
     expect(opp.textContent).toContain('Carregando…')
     expect(opp.textContent).not.toMatch(/\bN\/A\b/)
   })

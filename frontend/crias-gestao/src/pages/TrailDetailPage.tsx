@@ -4,11 +4,14 @@ import {
   Banner,
   BootSymbol,
   DeletarDialog,
-  Dialog,
+  ConfirmDialog,
   PageHead,
+  Switch,
 } from '../design/gx/ui'
 import { deleteTrailCascade } from '../lib/trailApi'
+import { structurePhasesFromTrailData } from '../lib/trailEditor'
 import {
+  effectiveOrder,
   phasesFromConfig,
   type GenerationConfig,
   type StructureConfig,
@@ -21,6 +24,8 @@ import {
 } from '../lib/trailOps'
 import { usePermissions } from '../hooks/usePermissions'
 import { useGestao } from '../hooks/useGestao'
+import { EditBar } from '../components/EditBar'
+import { useUnsavedChanges } from '../contexts/UnsavedContext'
 import {
   CadastroSection,
   EstruturaSection,
@@ -75,7 +80,8 @@ function OpenTrail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [activateConfirm, setActivateConfirm] = useState(false)
+  const [cadConfirm, setCadConfirm] = useState(false)
+  const [deactivateConfirm, setDeactivateConfirm] = useState(false)
 
   // Sincroniza os rascunhos com o que está salvo, enquanto o usuário não está editando.
   useEffect(() => {
@@ -109,39 +115,52 @@ function OpenTrail({ id }: { id: string }) {
     }
   }
 
-  function headerSave() {
-    if (!trail || !headerDirty) return
+  /** Grava o que está pendente na aba aberta. Lança erro se falhar (o pop-up de sair mostra a mensagem). */
+  async function performSave(): Promise<void> {
+    if (!trail) return
     if (tab === 'config') {
-      void guard(async () => {
-        await saveTrailConfig({
-          trailId: id,
-          phases: phasesFromConfig(structure),
-          existingCells: data.cells,
-        })
-      }, 'Configuração salva.')
-    } else if (tab === 'students') {
-      void guard(async () => {
-        const r = await applyTrailStudentChanges({
-          trailId: id,
-          institutionId: trail.institution_id,
-          changes: studentChanges,
-          links: data.links,
-        })
-        setStudentChanges(new Map())
-        setNotice(`Alunos atualizados: ${r.created + r.activated} ativado(s), ${r.deactivated} inativado(s).`)
+      await saveTrailConfig({
+        trailId: id,
+        phases: phasesFromConfig(structure, structurePhasesFromTrailData(trail.phase_blueprint, data.stages)),
+        existingCells: data.cells,
       })
+      setNotice('Configuração salva.')
+    } else if (tab === 'students') {
+      const r = await applyTrailStudentChanges({
+        trailId: id,
+        institutionId: trail.institution_id,
+        changes: studentChanges,
+        links: data.links,
+      })
+      setStudentChanges(new Map())
+      setNotice(`Alunos atualizados: ${r.created + r.activated} ativado(s), ${r.deactivated} inativado(s).`)
     } else if (tab === 'gabarito') {
-      void guard(async () => {
-        await saveCorrectOptions(drafts)
-        setDrafts(new Map())
-      }, 'Gabarito salvo.')
+      await saveCorrectOptions(drafts)
+      setDrafts(new Map())
+      setNotice('Gabarito salvo.')
     }
   }
+
+  function headerSave() {
+    if (!trail || !headerDirty) return
+    void guard(performSave)
+  }
+
+  /** Cancelar edição: desfaz só o que ainda não foi salvo na aba aberta. */
+  function headerCancel() {
+    if (tab === 'config') setStructure(data.config)
+    else if (tab === 'students') setStudentChanges(new Map())
+    else if (tab === 'gabarito') setDrafts(new Map())
+    setError(null)
+  }
+
+  useUnsavedChanges(headerDirty && !busy, performSave)
 
   const buildConfig = useMemo(
     () =>
       (extra: { activities: number; objective: string; skills: string; guidelines: string; filesText: string }): GenerationConfig => {
-        const order = phasesFromConfig(data.config).map((p) => (p.stage_type === 'exercise' ? ('e' as const) : ('c' as const)))
+        // Só conteúdo e exercício; feedback e conclusão vão pelas chaves.
+        const order = effectiveOrder(data.config)
         return {
           name: trail?.name ?? '',
           subject: trail?.subject ?? '',
@@ -150,6 +169,8 @@ function OpenTrail({ id }: { id: string }) {
           contents: order.filter((k) => k === 'c').length,
           exercises: order.filter((k) => k === 'e').length,
           order,
+          feedback: data.config.feedback,
+          conclusive: data.config.conclusive,
           activities: extra.activities,
           options: data.config.options,
           skills: extra.skills,
@@ -176,14 +197,12 @@ function OpenTrail({ id }: { id: string }) {
     )
   }
 
-  const saveLabel = tab === 'gabarito' ? 'Salvar' : 'Salvar'
   // Configuração ativa = somente visualização: sem Salvar no topo.
   const showSave = tab !== 'content' && !(tab === 'config' && locked)
   const cadChanged =
     cad.name.trim() !== trail.name.trim() ||
     cad.subject.trim() !== trail.subject.trim() ||
-    cad.description.trim() !== trail.description.trim() ||
-    cad.active !== trail.active
+    cad.description.trim() !== trail.description.trim()
 
   async function saveCadastro() {
     if (!trail) return
@@ -192,7 +211,6 @@ function OpenTrail({ id }: { id: string }) {
         name: cad.name.trim(),
         subject: cad.subject.trim(),
         description: cad.description.trim(),
-        active: cad.active,
       })
       setCadEditing(false)
     }, 'Cadastro salvo.')
@@ -205,17 +223,11 @@ function OpenTrail({ id }: { id: string }) {
         subtitle={`${g.institutionName(trail.institution_id)}${trail.subject ? ` · ${trail.subject}` : ''}`}
         titleAction={
           showSave ? (
-            <button
-              type="button"
-              className={headerDirty ? 'gx-btn gx-btn--primary gx-btn--pulse' : 'gx-btn gx-btn--primary'}
-              disabled={!headerDirty || busy}
-              onClick={headerSave}
-            >
-              {saveLabel}
-            </button>
+            <EditBar dirty={headerDirty} busy={busy} onSave={headerSave} onCancel={headerCancel} />
           ) : null
         }
         tools={
+          <div className="gx-tabsrow">
           <nav role="tablist" aria-label="Seções da trilha" className="gx-tabs">
             {TABS.map(([key, label]) => (
               <button
@@ -230,6 +242,16 @@ function OpenTrail({ id }: { id: string }) {
               </button>
             ))}
           </nav>
+          <Switch
+            checked={trail.active}
+            label="Trilha ativa"
+            disabled={busy}
+            onChange={(next) => {
+              if (next) void guard(() => patchTrail(id, { active: true }), 'Trilha ativada.')
+              else setDeactivateConfirm(true)
+            }}
+          />
+          </div>
         }
       />
       {data.error ? <Banner>{data.error}</Banner> : null}
@@ -248,10 +270,8 @@ function OpenTrail({ id }: { id: string }) {
               setCad({ name: trail.name, subject: trail.subject, description: trail.description, active: trail.active })
               setCadEditing(false)
             }}
-            onSave={() => {
-              if (cad.active && !trail.active) setActivateConfirm(true)
-              else void saveCadastro()
-            }}
+            onSave={() => setCadConfirm(true)}
+            showActive={false}
             saveDisabled={!cadChanged || !cad.name.trim() || busy}
             meta={
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', fontSize: 13, color: 'var(--v-t3)' }}>
@@ -287,6 +307,7 @@ function OpenTrail({ id }: { id: string }) {
       {tab === 'students' ? (
         <StudentsTab
           trailId={id}
+          trailName={trail.name}
           students={data.students}
           links={data.links}
           activities={data.activities}
@@ -295,21 +316,26 @@ function OpenTrail({ id }: { id: string }) {
           onChanges={setStudentChanges}
           busy={busy}
           onApplyMass={async (mass) => {
-            await guard(async () => {
-              const r = await applyTrailStudentChanges({
+            setBusy(true)
+            setError(null)
+            try {
+              return await applyTrailStudentChanges({
                 trailId: id,
                 institutionId: trail.institution_id,
                 changes: mass,
                 links: data.links,
               })
-              setNotice(`Alunos da trilha alterados em lote: ${r.created + r.activated} ativado(s), ${r.deactivated} inativado(s).`)
-            })
+            } finally {
+              setBusy(false)
+            }
           }}
         />
       ) : null}
 
       {tab === 'gabarito' ? (
         <GabaritoTab
+          trailId={id}
+          trailName={trail.name}
           cells={data.cells}
           phases={data.phases}
           optionCount={data.config.options}
@@ -331,30 +357,32 @@ function OpenTrail({ id }: { id: string }) {
           })
         }
       />
-      <Dialog
-        open={activateConfirm}
-        title="Ativar a trilha?"
-        onClose={() => setActivateConfirm(false)}
-        actions={
-          <>
-            <button type="button" className="gx-btn" onClick={() => setActivateConfirm(false)}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="gx-btn gx-btn--primary"
-              onClick={() => {
-                setActivateConfirm(false)
-                void saveCadastro()
-              }}
-            >
-              Ativar
-            </button>
-          </>
-        }
-      >
-        <p>Com a trilha ativa, Objetivo, Estrutura e Orientações ficam bloqueados (somente visualização).</p>
-      </Dialog>
+      <ConfirmDialog
+        open={cadConfirm}
+        title="Tem certeza que deseja alterar o cadastro?"
+        text="Essa ação não pode ser desfeita."
+        cancelLabel="Continuar editando"
+        confirmLabel="Alterar"
+        busy={busy}
+        onCancel={() => setCadConfirm(false)}
+        onConfirm={() => {
+          setCadConfirm(false)
+          void saveCadastro()
+        }}
+      />
+      <ConfirmDialog
+        open={deactivateConfirm}
+        title="Tem certeza que deseja desativar a trilha?"
+        text="Os alunos deixam de ver a trilha até ela ser ativada de novo. Conteúdo, gabarito e progresso continuam salvos."
+        confirmLabel="Desativar trilha"
+        tone="destructive"
+        busy={busy}
+        onCancel={() => setDeactivateConfirm(false)}
+        onConfirm={() => {
+          setDeactivateConfirm(false)
+          void guard(() => patchTrail(id, { active: false }), 'Trilha desativada.')
+        }}
+      />
     </div>
   )
 }

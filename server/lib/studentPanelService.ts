@@ -31,6 +31,7 @@ export type PanelPerformance = {
 }
 
 export type PanelError = {
+  trail_id: string
   trail: string
   activity: number
   step: number
@@ -56,7 +57,13 @@ export type PanelDoubt = {
 }
 
 export type StudentPanel = {
-  student: { id: string; name: string; phone: string }
+  student: {
+    id: string
+    name: string
+    phone: string
+    email: string
+    login_identifier: 'phone' | 'email' | null
+  }
   trails: PanelTrail[]
   performance: PanelPerformance
   errors: PanelError[]
@@ -187,6 +194,7 @@ export function composeStudentPanel(input: PanelInput): StudentPanel {
       wrongList.push({
         at: millis(a.attempted_at),
         error: {
+          trail_id: tid,
           trail: trailName.get(tid) ?? tid,
           activity: n,
           step: stageNumber,
@@ -238,8 +246,19 @@ export function composeStudentPanel(input: PanelInput): StudentPanel {
     doubtMap.set(key, d)
   }
 
+  const loginIdentifierRaw = input.student.login_identifier
+  const login_identifier =
+    loginIdentifierRaw === 'phone' || loginIdentifierRaw === 'email'
+      ? loginIdentifierRaw
+      : null
   return {
-    student: { id: input.student.id, name: str(input.student.name), phone: str(input.student.phone_number) },
+    student: {
+      id: input.student.id,
+      name: str(input.student.name),
+      phone: str(input.student.phone_number),
+      email: str(input.student.email).trim().toLowerCase(),
+      login_identifier,
+    },
     trails,
     performance: {
       correct,

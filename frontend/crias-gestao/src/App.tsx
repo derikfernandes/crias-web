@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { AdminLayout } from './layouts/AdminLayout'
 import { ProtectedPage, RequireStudentAuth } from './layouts/RouteGuards'
 import { LoginPage } from './pages/LoginPage'
+import { usePermissions } from './hooks/usePermissions'
 import './design/styles/app.css'
 import './design/styles/gestao.css'
 
@@ -28,6 +29,9 @@ const InstitutionNewPage = lazy(() =>
   import('./pages/InstitutionNewPage').then((m) => ({
     default: m.InstitutionNewPage,
   })),
+)
+const InstitutionPage = lazy(() =>
+  import('./pages/InstitutionPage').then((m) => ({ default: m.InstitutionPage })),
 )
 const TrailDetailPage = lazy(() =>
   import('./pages/TrailDetailPage').then((m) => ({
@@ -59,6 +63,9 @@ const AiPromptsPage = lazy(() =>
   import('./pages/AiPromptsPage').then((m) => ({
     default: m.AiPromptsPage,
   })),
+)
+const ProfilePage = lazy(() =>
+  import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 )
 const TrailsListPage = lazy(() =>
   import('./pages/TrailsListPage').then((m) => ({
@@ -156,7 +163,14 @@ function AppRoutes() {
               </ProtectedPage>
             }
           />
-          <Route path="/instituicoes/:id" element={<Navigate to="/" replace />} />
+          <Route
+            path="/instituicoes/:id"
+            element={
+              <ProtectedPage>
+                <InstitutionPage />
+              </ProtectedPage>
+            }
+          />
           <Route
             path="/alunos/novo"
             element={
@@ -210,15 +224,16 @@ function AppRoutes() {
             path="/usuarios"
             element={
               <ProtectedPage>
-                <UsersPage />
+                <UsersEntry />
               </ProtectedPage>
             }
           />
+          <Route path="/admin" element={<Navigate to="/usuarios" replace />} />
           <Route
-            path="/admin"
+            path="/perfil"
             element={
               <ProtectedPage>
-                <AdminPage />
+                <ProfilePage />
               </ProtectedPage>
             }
           />
@@ -252,6 +267,12 @@ function AppRoutes() {
       </Suspense>
     </AdminLayout>
   )
+}
+
+/** Usuários: o Super admin vê as abas Crias e Instituições; a escola vê os usuários da própria instituição. */
+function UsersEntry() {
+  const { hasFullAccess, adminProfile } = usePermissions()
+  return hasFullAccess || adminProfile?.is_super_admin ? <UsersPage /> : <AdminPage />
 }
 
 export default function App() {

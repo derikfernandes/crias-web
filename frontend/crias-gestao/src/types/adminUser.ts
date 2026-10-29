@@ -20,6 +20,12 @@ export type NavPermission = (typeof NAV_PERMISSIONS)[number]
 export interface AdminUser {
   id: string
   email: string
+  /** Nome do usuário (1.1.1.b). Opcional. */
+  name?: string
+  /** Telefone do usuário (1.1.1.b). Opcional. */
+  phone_number?: string
+  /** Qual dos dois vale para a senha quando há telefone e e-mail (ver lib/loginRule.ts). */
+  login_identifier?: 'phone' | 'email'
   active: boolean
   is_super_admin: boolean
   /**

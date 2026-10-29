@@ -1,6 +1,7 @@
 import Horizon from '../components/Horizon'
 import EdgeFade from '../components/EdgeFade'
 import LogoutDialog from '../components/LogoutDialog'
+import FullscreenButton from '../components/FullscreenButton'
 import { aplicarTema, temaAtual, type Tema } from '../lib/tema'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -469,13 +470,27 @@ export default function ChatLayout() {
       ? Number.parseInt(viewActivityRaw, 10)
       : null
 
+  // 1.1.1.b: ao abrir uma trilha (ou uma atividade dela), as outras recolhem, só a aberta fica expandida e o
+  // menu rola até ela ficar o mais perto possível do topo. A pessoa pode expandir as outras depois.
+  const openedTrailRef = useRef<string | null>(null)
   useEffect(() => {
-    if (activeTrailId) {
-      setExpanded((prev) =>
-        prev[activeTrailId] ? prev : { ...prev, [activeTrailId]: true },
-      )
+    if (!activeTrailId) {
+      openedTrailRef.current = null
+      return
     }
-  }, [activeTrailId])
+    if (openedTrailRef.current !== activeTrailId) {
+      openedTrailRef.current = activeTrailId
+      setExpanded({ [activeTrailId]: true })
+    } else {
+      setExpanded((prev) => (prev[activeTrailId] ? prev : { ...prev, [activeTrailId]: true }))
+    }
+    const id = window.requestAnimationFrame(() => {
+      const nav = document.querySelector('.v1-0-sidebar__nav') as HTMLElement | null
+      const item = nav?.querySelector(`[data-trail-row="${CSS.escape(activeTrailId)}"]`) as HTMLElement | null
+      if (nav && item) nav.scrollTo({ top: Math.max(0, item.offsetTop - nav.offsetTop - 8), behavior: 'smooth' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [activeTrailId, sidebarOpen])
 
   // Layout effect: listener ativo antes do layout effect do player que despacha.
   useLayoutEffect(() => {
@@ -634,7 +649,9 @@ export default function ChatLayout() {
     ? trailNames[activeTrailId] || activeTrailId || 'Trilha'
     : onMonitoria
       ? 'Monitoria'
-      : ''
+      : location.pathname === '/painel'
+        ? 'Painel'
+        : ''
   const totalStepsTop =
     activeTrailId && stageTotals[activeTrailId] > 0
       ? stageTotals[activeTrailId]
@@ -803,6 +820,7 @@ export default function ChatLayout() {
                   return (
                     <li
                       key={row.id}
+                      data-trail-row={row.trail_id}
                       className={`v1-0-trailrow${active ? ' is-active' : ''}`}
                     >
                       {active ? <TabCurves /> : null}
@@ -902,7 +920,7 @@ export default function ChatLayout() {
                   Aluno
                 </button>
                 <a href="/" aria-pressed="false">
-                  Gestão
+                  Educação
                 </a>
               </div>
             ) : null}
@@ -911,6 +929,10 @@ export default function ChatLayout() {
                 type="button"
                 className="v1-0-profile"
                 aria-label={`Abrir perfil de ${firstName}`}
+                onClick={() => {
+                  navigate('/perfil')
+                  if (isNarrow) setSidebarOpen(false)
+                }}
               >
                 <span className="v1-0-avatar" aria-hidden>
                   {(firstName || 'A').charAt(0).toUpperCase()}
@@ -1007,6 +1029,7 @@ export default function ChatLayout() {
               </span>
             ) : null}
           </div>
+          <FullscreenButton />
         </header>
         <div className="v1-0-content" inert={mainInert || undefined}>
           <Outlet

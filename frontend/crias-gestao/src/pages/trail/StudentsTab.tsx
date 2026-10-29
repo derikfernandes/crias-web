@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Banner,
@@ -11,7 +11,9 @@ import {
   type SortState,
 } from '../../design/gx/ui'
 import { fmtDate, STATUS_LABEL, statusPillClass, studentCode } from '../../lib/gestaoFormat'
-import { downloadText, parseYesNo, pick, readTable, toCsv } from '../../lib/tableFiles'
+import { BulkPanel } from '../../components/BulkPanel'
+import { planTrailStudents, plural } from '../../lib/bulkActions'
+import { downloadText, toCsv } from '../../lib/tableFiles'
 import { isLinkActive, moveStudentsPosition } from '../../lib/trailOps'
 import type { ActivityDraft } from '../../lib/trailActivities'
 import type { Student } from '../../types/student'
@@ -29,8 +31,11 @@ export type StudentChanges = Map<string, boolean>
 
 type Mode = 'add' | 'remove'
 
+const BASE_COLUMNS = ['ID Trilha', 'Trilha', 'ID Aluno', 'Nome (visualização)', 'Telefone (visualização)', 'Ativo (sim / não)']
+
 export function StudentsTab({
   trailId,
+  trailName,
   students,
   links,
   activities,
@@ -41,6 +46,7 @@ export function StudentsTab({
   busy,
 }: {
   trailId: string
+  trailName: string
   students: Student[]
   links: StudentTrail[]
   activities: ActivityDraft[]
@@ -48,8 +54,8 @@ export function StudentsTab({
   /** Trocas pendentes (aluno -> ativo?). O Salvar do título aplica tudo. */
   changes: StudentChanges
   onChanges: (next: StudentChanges) => void
-  /** Importação em massa: aplica na hora, depois da confirmação. */
-  onApplyMass: (changes: StudentChanges) => Promise<void>
+  /** Ativar ou inativar em massa: aplica na hora, depois da confirmação em linha. */
+  onApplyMass: (changes: StudentChanges) => Promise<{ created: number; activated: number; deactivated: number }>
   busy: boolean
 }) {
   const byStudent = useMemo(() => new Map(links.map((l) => [l.student_id, l])), [links])
@@ -81,60 +87,6 @@ export function StudentsTab({
     if (want === saved) next.delete(s.id)
     else next.set(s.id, want)
     onChanges(next)
-  }
-
-  /* Planilha em massa */
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [massPending, setMassPending] = useState<StudentChanges | null>(null)
-  function download() {
-    const sorted = [...students].sort((a, b) => {
-      const aa = isLinkActive(byStudent.get(a.id)) ? 1 : 0
-      const bb = isLinkActive(byStudent.get(b.id)) ? 1 : 0
-      return aa - bb || (a.name || '').localeCompare(b.name || '', 'pt-BR')
-    })
-    downloadText(
-      `alunos-trilha-${trailId}.csv`,
-      toCsv(
-        ['nome', 'código', 'telefone', 'ativo'],
-        sorted.map((s) => [
-          s.name,
-          String(studentCode(s.id) ?? ''),
-          s.phone_number,
-          isLinkActive(byStudent.get(s.id)) ? 'sim' : 'não',
-        ]),
-      ),
-    )
-  }
-  async function loadMass(file: File | null) {
-    setMassPending(null)
-    if (!file) return
-    setError(null)
-    try {
-      const rows = await readTable(file)
-      const byCode = new Map(students.map((s) => [String(studentCode(s.id) ?? ''), s]))
-      const byPhone = new Map(students.map((s) => [s.phone_number.replace(/\D/g, ''), s]))
-      const next: StudentChanges = new Map()
-      let unknown = 0
-      for (const row of rows) {
-        const active = parseYesNo(pick(row, 'ativo', 'ativa'))
-        if (active === null) continue
-        const code = pick(row, 'código', 'codigo').replace(/\D/g, '').replace(/^0+/, '')
-        const phone = pick(row, 'telefone', 'celular').replace(/\D/g, '')
-        const s = (code && byCode.get(code)) || (phone && byPhone.get(phone)) || null
-        if (!s) {
-          unknown += 1
-          continue
-        }
-        if (active !== isLinkActive(byStudent.get(s.id))) next.set(s.id, active)
-      }
-      if (next.size === 0) {
-        setNotice(unknown > 0 ? `Nenhuma alteração. ${unknown} linha(s) sem aluno correspondente.` : 'Nenhuma alteração na planilha.')
-        return
-      }
-      setMassPending(next)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao ler a planilha.')
-    }
   }
 
   /* Tabela de alunos da trilha */
@@ -198,11 +150,11 @@ export function StudentsTab({
               type="button"
               role="switch"
               aria-checked={bulk}
-              aria-label="Alterar posição em lote"
+              aria-label="Alterar posição em massa"
               className="gx-switchkey"
               onClick={() => setBulk((v) => !v)}
             />
-            <span>Alterar posição em lote</span>
+            <span>Alterar posição em massa</span>
           </span>
           <button type="button" className="gx-btn gx-btn--primary" onClick={() => setPanel((v) => !v)}>
             {panel ? 'Fechar' : 'Adicionar ou remover'}
@@ -214,59 +166,57 @@ export function StudentsTab({
 
       {panel ? (
         <div className="gx-card" style={{ gap: 14, padding: 16 }}>
-          <div className="gx-callout">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <button type="button" className="gx-btn" onClick={download}>
-                Baixar base de alunos ativos e inativos
-              </button>
-              <label className="gx-btn gx-btn--primary" style={{ position: 'relative' }}>
-                Importar em massa
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  aria-label="Importar alunos em massa"
-                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
-                  onChange={(e) => void loadMass(e.target.files?.[0] ?? null)}
-                />
-              </label>
-            </div>
-            <p className="gx-muted">
-              Planilha com inativos primeiro e ativos depois: nome, código, telefone, ativo (sim / não). Altere a
-              coluna ativo e importe o arquivo.
-            </p>
-            {massPending ? (
-              <div className="gx-inlinebar" role="alertdialog">
-                <strong style={{ fontSize: 14 }}>Tem certeza que deseja alterar os alunos da trilha em lote?</strong>
-                <span className="gx-muted">{massPending.size} aluno(s) mudam de situação.</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    className="gx-btn"
-                    onClick={() => {
-                      setMassPending(null)
-                      if (fileRef.current) fileRef.current.value = ''
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="gx-btn gx-btn--primary"
-                    disabled={busy}
-                    onClick={() => {
-                      const toApply = massPending
-                      setMassPending(null)
-                      if (fileRef.current) fileRef.current.value = ''
-                      void onApplyMass(toApply)
-                    }}
-                  >
-                    Alterar
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
+          <BulkPanel
+            title="Ativar ou inativar alunos em massa"
+            subtitle="Ative ou inative vários alunos da trilha de uma vez com uma planilha"
+            columns={BASE_COLUMNS}
+            note='A planilha base vem toda preenchida, com os inativos primeiro. Só a coluna "ativo" é lida; o aluno é achado pelo ID Aluno. O progresso de quem é inativado fica guardado.'
+            baseLabel="Baixar planilha base"
+            disabled={busy}
+            onDownload={() => {
+              const sorted = [...students].sort((a, b) => {
+                const aa = isLinkActive(byStudent.get(a.id)) ? 1 : 0
+                const bb = isLinkActive(byStudent.get(b.id)) ? 1 : 0
+                return aa - bb || (a.name || '').localeCompare(b.name || '', 'pt-BR')
+              })
+              downloadText(
+                `base-alunos-trilha-${trailId}.csv`,
+                toCsv(
+                  BASE_COLUMNS,
+                  sorted.map((s) => [trailId, trailName, s.id, s.name, s.phone_number, isLinkActive(byStudent.get(s.id)) ? 'sim' : 'não']),
+                ),
+              )
+            }}
+            plan={(rows) => {
+              const p = planTrailStudents(rows, {
+                trailId,
+                students,
+                isActive: (id) => isLinkActive(byStudent.get(id)),
+              })
+              return {
+                data: p,
+                preview: {
+                  confirmTitle: 'Ativar ou inativar em massa?',
+                  confirmText: `${plural(p.activate, 'aluno será ativado', 'alunos serão ativados')}, ${p.inactivate} ${
+                    p.inactivate === 1 ? 'inativado' : 'inativados'
+                  } e ${p.unchanged} ${p.unchanged === 1 ? 'fica' : 'ficam'} como ${p.unchanged === 1 ? 'está' : 'estão'}.`,
+                  actionable: p.changes.size,
+                  issues: p.issues,
+                },
+              }
+            }}
+            apply={async (p) => {
+              const r = await onApplyMass(p.changes)
+              return {
+                summary: `${r.created + r.activated} ${r.created + r.activated === 1 ? 'ativado' : 'ativados'}, ${r.deactivated} ${
+                  r.deactivated === 1 ? 'inativado' : 'inativados'
+                }, ${p.unchanged} sem mudança.`,
+              }
+            }}
+            actionLabel="Atualizar"
+            confirmLabel="Confirmar"
+            defaultOpen
+          />
           <nav role="tablist" aria-label="Adicionar ou remover" className="gx-tabs" style={{ marginTop: 0 }}>
             <button role="tab" type="button" className="gx-tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>
               Adicionar alunos

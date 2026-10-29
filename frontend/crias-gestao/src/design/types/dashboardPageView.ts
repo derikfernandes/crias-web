@@ -1,11 +1,11 @@
 export const DASHBOARD_STUDENT_COLUMNS = [
   { key: 'phone', label: 'Telefone' },
-  { key: 'released', label: 'Tópicos liberados' },
-  { key: 'done', label: 'Tópicos feitos' },
-  { key: 'completionPct', label: '% conclusão (tópicos)' },
-  { key: 'lessonsReleased', label: 'Aulas liberadas' },
-  { key: 'lessonsDone', label: 'Aulas realizadas' },
-  { key: 'lessonsCompletionPct', label: '% conclusão (aulas)' },
+  { key: 'lessonsReleased', label: 'Atividades liberadas' },
+  { key: 'lessonsDone', label: 'Atividades feitas' },
+  { key: 'lessonsCompletionPct', label: '% conclusão (atividades)' },
+  { key: 'released', label: 'Etapas liberadas' },
+  { key: 'done', label: 'Etapas feitas' },
+  { key: 'completionPct', label: '% conclusão (etapas)' },
   { key: 'correct', label: 'Acertos' },
   { key: 'wrong', label: 'Erros' },
   { key: 'accuracyPct', label: '% de acerto' },
@@ -75,6 +75,8 @@ export type DashboardSummaryView = {
   completionLoading?: boolean
   /** Evita flash 0 em Alunos/Trilhas antes do doc de métricas. */
   countsLoading?: boolean
+  /** Alunos inativos do escopo (aparece embaixo de Alunos ativos). */
+  inactiveStudents?: number
 }
 
 export type DashboardStudentsChartBucket = {

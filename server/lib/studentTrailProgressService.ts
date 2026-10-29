@@ -526,6 +526,47 @@ function digitsOnly(raw: string): string {
   return raw.replace(/\D/g, '')
 }
 
+/**
+ * Canais de login do aluno (decisão dérik, PR #34):
+ * - só telefone → telefone (+ ID do doc)
+ * - só e-mail → e-mail (+ ID)
+ * - telefone e e-mail → os dois (+ ID)
+ * `login_identifier` é só preferência de UI/default; NÃO bloqueia o outro canal.
+ */
+export function loginChannelsForStudent(data: {
+  phone_number?: unknown
+  email?: unknown
+}): Array<'phone' | 'email'> {
+  const phone =
+    typeof data.phone_number === 'string'
+      ? data.phone_number.replace(/\D/g, '')
+      : typeof data.phone_number === 'number'
+        ? String(data.phone_number).replace(/\D/g, '')
+        : ''
+  const email =
+    typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const out: Array<'phone' | 'email'> = []
+  if (phone.length >= 8) out.push('phone')
+  if (email.includes('@')) out.push('email')
+  return out
+}
+
+/** O texto digitado pode autenticar este aluno? (senha é checada à parte.) */
+export function studentAcceptsTypedLogin(
+  data: { phone_number?: unknown; email?: unknown },
+  loginRaw: string,
+  studentId: string,
+): boolean {
+  const typed = loginRaw.trim()
+  if (!typed) return false
+  if (typed === studentId) return true
+  const channels = loginChannelsForStudent(data)
+  if (loginLooksLikeEmail(typed)) return channels.includes('email')
+  const phone = digitsOnly(typed)
+  if (phone.length >= 8) return channels.includes('phone')
+  return false
+}
+
 async function institutionNameFor(
   db: Firestore,
   institutionsCollection: string,
@@ -758,14 +799,15 @@ export async function identifyStudent(
       }
     }
     const doc = snap.docs[0]
+    const legacyCandidate: StudentCandidate = {
+      id: doc.id,
+      data: (doc.data() ?? {}) as Record<string, unknown>,
+      institution_id: institutionFilter,
+    }
     return finishIdentifyCandidate(
       db,
       institutionsCollection,
-      {
-        id: doc.id,
-        data: (doc.data() ?? {}) as Record<string, unknown>,
-        institution_id: institutionFilter,
-      },
+      legacyCandidate,
       password,
     )
   }
@@ -774,6 +816,7 @@ export async function identifyStudent(
   if (institutionFilter) {
     candidates = candidates.filter((c) => c.institution_id === institutionFilter)
   }
+  // Dual login: quem tem telefone e e-mail autentica pelos dois; login_identifier não filtra.
 
   if (candidates.length === 0) {
     return {

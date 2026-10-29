@@ -65,6 +65,11 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                           {row.trailLabel}
                         </Link>
                         {row.inactiveHint ? <div className="gx-muted" style={{ fontSize: 12 }}>inativa</div> : null}
+                        {row.pending ? (
+                          <div style={{ fontSize: 12, fontWeight: 700, color: row.pending === 'unlink' ? 'var(--v-err)' : 'var(--v-gink)' }}>
+                            {row.pending === 'unlink' ? 'Será desvinculada ao salvar' : row.pending === 'new' ? 'Será vinculada ao salvar' : 'Alteração pendente'}
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         {row.isEditing ? (
@@ -102,19 +107,19 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                           {row.isEditing ? (
                             <>
                               <button type="button" className="gx-btn gx-btn--primary gx-btn--sm" disabled={p.editBusy} onClick={() => p.onSaveTrailPosition(row.id)}>
-                                {p.editBusy ? 'Salvando…' : 'Salvar'}
+                                Aplicar
                               </button>
                               <button type="button" className="gx-btn gx-btn--sm" disabled={p.editBusy} onClick={p.onCancelEditTrail}>
                                 Cancelar
                               </button>
                             </>
-                          ) : (
-                            <button type="button" className="gx-btn gx-btn--sm" disabled={p.editBusy} onClick={() => p.onStartEditTrail(row.id)}>
+                          ) : row.pending === 'new' ? null : (
+                            <button type="button" className="gx-btn gx-btn--sm" disabled={p.editBusy || row.pending === 'unlink'} onClick={() => p.onStartEditTrail(row.id)}>
                               Editar
                             </button>
                           )}
-                          <button type="button" className="gx-btn gx-btn--sm" style={{ color: 'var(--v-err)' }} disabled={p.editBusy} onClick={() => p.onUnlinkTrail(row.id)}>
-                            Desvincular
+                          <button type="button" className="gx-btn gx-btn--sm gx-btn--danger-line" disabled={p.editBusy} onClick={() => p.onUnlinkTrail(row.id)}>
+                            {row.pending === 'unlink' ? 'Manter' : row.pending === 'new' ? 'Remover' : 'Desvincular'}
                           </button>
                         </div>
                       </td>
@@ -157,7 +162,7 @@ export function StudentDetailPageView(props: StudentDetailPageViewProps) {
                 </select>
               </label>
               <button type="submit" className="gx-btn gx-btn--primary" disabled={p.linkBusy || !p.linkTrailId || p.loadingInstitutionTrails || p.linkableTrails.length === 0}>
-                {p.linkBusy ? 'Vinculando…' : 'Vincular trilha'}
+                Vincular trilha
               </button>
             </form>
           )

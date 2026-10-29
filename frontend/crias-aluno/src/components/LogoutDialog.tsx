@@ -1,61 +1,19 @@
-import { useEffect, useRef } from 'react'
+import ConfirmModal from './ConfirmModal'
 
-/**
- * Janela de saída (v1.0, seção 7). Nunca window.confirm.
- * Fundo coberto com blur, janela de até 400px. Clicar fora ou Esc cancela.
- */
+/** Janela de saída (1.1.1.b): "Tem certeza que deseja sair da conta?". Nunca window.confirm. */
 type Props = {
   onCancel: () => void
   onConfirm: () => void
 }
 
 export default function LogoutDialog({ onCancel, onConfirm }: Props) {
-  const cancelRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    cancelRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onCancel()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel])
-
   return (
-    <div className="v1-0-modal" onClick={onCancel}>
-      <div
-        className="v1-0-modal__box"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="v1-0-logout-title"
-        aria-describedby="v1-0-logout-desc"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="v1-0-modal__text">
-          <h2 id="v1-0-logout-title" className="v1-0-modal__title">
-            Sair da conta?
-          </h2>
-          <p id="v1-0-logout-desc" className="v1-0-modal__desc">
-            Seu progresso fica salvo.
-          </p>
-        </div>
-        <div className="v1-0-modal__actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="v1-0-btn-soft"
-            onClick={onCancel}
-          >
-            Cancelar
-          </button>
-          <button type="button" className="v1-0-btn" onClick={onConfirm}>
-            Sair
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmModal
+      title="Tem certeza que deseja sair da conta?"
+      text="Seu progresso fica salvo."
+      confirmLabel="Sair"
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
   )
 }

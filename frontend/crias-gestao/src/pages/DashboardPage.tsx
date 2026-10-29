@@ -234,15 +234,15 @@ function lessonTopicColumn(topicNumber: number, lessonNumber: number): string {
   return `A${lessonNumber}.T${topicNumber}`
 }
 
-function lessonTopicColumnLabel(
+/** Rótulo de coluna do histórico: "Atividade N · Etapa K - nome" (1.1.1.b, F). */
+function activityStageLabel(
   trailId: string,
   topicNumber: number,
   lessonNumber: number,
   stageByKey: Map<string, TrailStage>,
 ): string {
-  const code = lessonTopicColumn(topicNumber, lessonNumber)
-  const stageTitle = stageByKey.get(`${trailId}|${topicNumber}`)?.title?.trim()
-  return stageTitle ? `${code} - ${stageTitle}` : code
+  const title = stageByKey.get(`${trailId}|${topicNumber}`)?.title?.trim()
+  return `Atividade ${lessonNumber} · Etapa ${topicNumber}${title ? ` - ${title}` : ''}`
 }
 
 const FIRESTORE_IN_LIMIT = 30
@@ -365,7 +365,7 @@ function forceWorksheetCellString(
   worksheet[ref] = { t: 's', v: value }
 }
 
-const CORRESPONDENCE_HEADERS = ['Código', 'Tópico da aula', 'Enunciado'] as const
+const CORRESPONDENCE_HEADERS = ['Código', 'Etapa da atividade', 'Enunciado'] as const
 
 function buildTrailCorrespondenceRows(
   trailId: string,
@@ -519,14 +519,14 @@ function appendLessonsProgressSheet(
     deselectedStages,
     deselectedQuestions,
   )
-  const lessonHeaders = lessonNumbers.map((n) => `A${n}`)
+  const lessonHeaders = lessonNumbers.map((n) => `Atividade ${n}`)
   const headers = [
     'Nome',
     'Telefone',
     ...lessonHeaders,
-    'Qtd aulas',
-    'Qtd realizadas',
-    '% aulas',
+    'Atividades liberadas',
+    'Atividades feitas',
+    '% conclusão (atividades)',
   ]
 
   const sortedStudents = [...students].sort((a, b) =>
@@ -2781,8 +2781,12 @@ export function DashboardPage() {
       avgAccuracyLoading: !metricsReady || gate.avgAccuracyLoading,
       completionLoading,
       countsLoading,
+      inactiveStudents: students.filter(
+        (st) => !st.active && activeInstitutionIds.includes(st.institution_id),
+      ).length,
     }
   }, [
+    students,
     filteredStudentRows,
     activeTrails,
     dataScopeKey,
@@ -3470,14 +3474,17 @@ export function DashboardPage() {
       const fixedHeaders = [
         'Nome',
         'Telefone',
-        'Tópicos liberados',
-        'Tópicos feitos',
-        '% conclusão',
+        'Atividades liberadas',
+        'Atividades feitas',
+        '% conclusão (atividades)',
+        'Etapas liberadas',
+        'Etapas feitas',
+        '% conclusão (etapas)',
       ]
       const headers = [
         ...fixedHeaders,
         ...answerColumns.map((p) =>
-          lessonTopicColumnLabel(trail.id, p.stage, p.question, stageByKey),
+          activityStageLabel(trail.id, p.stage, p.question, stageByKey),
         ),
       ]
 
@@ -3491,9 +3498,19 @@ export function DashboardPage() {
           trail.id,
           exportDoneByStudent,
         )
+        const lessons = computeLessonMetricsForTrails(
+          [trail.id],
+          questionsByTrail,
+          exportDoneByStudent.get(student.id) ?? new Set<string>(),
+          deselectedStages,
+          deselectedQuestions,
+        )
         const row: (string | number)[] = [
           student.name || student.id,
           student.phone_number || '',
+          lessons.lessonsReleased,
+          lessons.lessonsDone,
+          formatPctExport(lessons.lessonsCompletionPct),
           metrics.released,
           metrics.done,
           formatPctExport(metrics.completionPct),
@@ -3575,7 +3592,7 @@ export function DashboardPage() {
       const headers = [
         'Trilha',
         'Matéria',
-        'Tópico / Aula',
+        'Atividade · Etapa',
         'Título',
         'Enunciado',
         'Gabarito',
@@ -3587,7 +3604,7 @@ export function DashboardPage() {
       const data = rows.map((p) => [
         p.trailName,
         p.subject,
-        lessonTopicColumnLabel(
+        activityStageLabel(
           p.trailId,
           p.stageNumber,
           p.questionNumber,
@@ -3618,7 +3635,7 @@ export function DashboardPage() {
       })
 
       const workbook = xlsx.utils.book_new()
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'Aulas')
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Atividades')
       const correspondencePositions =
         allQuestionColumnsByTrail.get(trail.id) ?? []
       if (correspondencePositions.length > 0) {
@@ -3632,7 +3649,7 @@ export function DashboardPage() {
         )
       }
       const trailSlug = slugFileName(trail.name || trail.id)
-      xlsx.writeFile(workbook, `aulas-acertos-erros-${trailSlug}.xlsx`)
+      xlsx.writeFile(workbook, `atividades-acertos-erros-${trailSlug}.xlsx`)
     } catch (err) {
       setExportError(
         err instanceof Error ? err.message : 'Erro ao gerar planilha.',
@@ -3707,7 +3724,7 @@ export function DashboardPage() {
 
   const questionPickerItems = availableQuestions.map((n) => ({
     id: String(n),
-    label: `Aula ${n}`,
+    label: `Atividade ${n}`,
   }))
   const questionPickerSelectedIds = availableQuestions
     .filter((n) => !deselectedQuestions.has(n))
@@ -3719,9 +3736,9 @@ export function DashboardPage() {
 
   const stagePickerItems = availableStages.map((s) => ({
     id: s.key,
-    label: `${s.trailName} · Tópico ${s.stageNumber}${
-      s.title ? `: ${s.title}` : ''
-    } (${s.stageType})`,
+    label: `${s.trailName} · Etapa ${s.stageNumber}${
+      s.title ? ` - ${s.title}` : ''
+    } (${s.stageType === 'exercise' ? 'Exercício' : 'Conteúdo'})`,
   }))
   const stagePickerSelectedIds = availableStages
     .map((s) => s.key)

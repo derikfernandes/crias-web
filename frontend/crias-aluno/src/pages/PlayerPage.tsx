@@ -4756,7 +4756,7 @@ export default function PlayerPage() {
           : `Você concluiu ${trailHeading}.`}
       </span>
       <Link to="/" className="v1-0-btn">
-        Voltar para o início
+        Voltar para página inicial
       </Link>
     </div>
   ) : null

@@ -1,3 +1,4 @@
+import FullscreenButton from '../components/FullscreenButton'
 import {
   startTransition,
   useCallback,
@@ -7,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { GestaoProvider } from '../contexts/GestaoContext'
+import { UnsavedProvider, useGuardedNavigate } from '../contexts/UnsavedContext'
 import { useAuth } from '../hooks/useAuth'
 import { useGestao } from '../hooks/useGestao'
 import { usePermissions } from '../hooks/usePermissions'
@@ -23,6 +25,7 @@ import {
 } from '../lib/gestaoNav'
 import {
   BootSymbol,
+  ConfirmDialog,
   FilterPopover,
   Horizon,
   Icon,
@@ -33,59 +36,6 @@ const MOBILE_QUERY = '(max-width: 768px)'
 
 function isMobile(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
-}
-
-/** O item selecionado abre para o conteúdo: curvas de encaixe (1.1.23). */
-function Curves() {
-  return (
-    <>
-      <span className="gx-nav__tabfill" aria-hidden="true" />
-      <svg
-        aria-hidden="true"
-        className="gx-nav__curve gx-nav__curve--up"
-        width="24"
-        height="23.5"
-        viewBox="0 0 24 23.5"
-      >
-        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0H25V23.5Z" fill="var(--v-bg)" />
-        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0" fill="none" stroke="var(--v-line)" strokeWidth="1" />
-      </svg>
-      <svg
-        aria-hidden="true"
-        className="gx-nav__curve gx-nav__curve--down"
-        width="24"
-        height="23.5"
-        viewBox="0 0 24 23.5"
-      >
-        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5H25V0Z" fill="var(--v-bg)" />
-        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5" fill="none" stroke="var(--v-line)" strokeWidth="1" />
-      </svg>
-    </>
-  )
-}
-
-function NavLink({
-  item,
-  on,
-  onGo,
-}: {
-  item: GxNavLink
-  on: boolean
-  onGo: () => void
-}) {
-  return (
-    <div className={on ? 'gx-nav__item gx-nav__item--on' : 'gx-nav__item'}>
-      <Link
-        to={item.path}
-        className={on ? 'gx-nav__btn gx-nav__btn--on' : 'gx-nav__btn'}
-        aria-current={on ? 'page' : undefined}
-        onClick={onGo}
-      >
-        {item.label}
-      </Link>
-      {on ? <Curves /> : null}
-    </div>
-  )
 }
 
 /**
@@ -99,12 +49,12 @@ function Shell({ children }: { children: ReactNode }) {
   const { isSuper, institutions, selectedIds, setSelectedIds, institutionsLoading, myInstitutionId, institutionName } =
     useGestao()
   const location = useLocation()
-  const navigate = useNavigate()
+  const guardedNavigate = useGuardedNavigate()
   const authed = Boolean(user)
   // Enquanto o Auth resolve, não mostrar menu de visitante (Entrar / só doc).
   const authSettling = authLoading || (authed && permissionsLoading)
   const mainRef = useRef<HTMLElement>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile())
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       return window.localStorage.getItem('crias-theme') === 'dark' ? 'dark' : 'light'
@@ -191,112 +141,220 @@ function Shell({ children }: { children: ReactNode }) {
   const loadingBoot =
     authLoading || (authed && (permissionsLoading || institutionsLoading))
   const email = user?.email ?? ''
+  const [dropdown, setDropdown] = useState<string | null>(null)
+  useEffect(() => setDropdown(null), [location.pathname])
+
+  const themeButton = (
+    <button
+      type="button"
+      className="gx-iconbtn"
+      aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
+      title={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
+      onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+    >
+      {theme === 'light' ? (
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        </svg>
+      ) : (
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      )}
+    </button>
+  )
+  const logoutButton = (
+    <button type="button" className="gx-iconbtn" aria-label="Sair" title="Sair" onClick={() => setLogoutOpen(true)}>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M14 8l4 4-4 4M18 12H9.5" />
+      </svg>
+    </button>
+  )
+  const avatarLink = (
+    <Link to="/perfil" className="gx-me__avatar" aria-label="Abrir perfil" title={email} onClick={closeOnMobile}>
+      {(email.charAt(0) || 'U').toUpperCase()}
+    </Link>
+  )
+  const switchGroup = (
+    <div className="gx-switch gx-switch--top" role="group" aria-label="Alternar entre educação e aluno">
+      <button type="button" className="is-on" aria-pressed="true">
+        Educação
+      </button>
+      <a
+        href="/aluno/"
+        aria-pressed="false"
+        onClick={() => {
+          try {
+            window.localStorage.setItem('crias:acesso-gestao', '1')
+          } catch {
+            // sem armazenamento: o seletor do aluno só não aparece
+          }
+        }}
+      >
+        Aluno
+      </a>
+    </div>
+  )
+
+  const scopeFilter =
+    showScopeFilter && isSuper && institutions.length > 0 ? (
+      <FilterPopover
+        label="Filtrar instituições"
+        options={institutions.map((i) => ({ id: i.id, name: i.name || i.id }))}
+        selected={selectedIds}
+        onChange={(next) => {
+          // Mínimo 1: ignora limpar/desmarcar o último.
+          if (next.size === 0) return
+          // Transição: checkmark otimista no popover; dados em baixa prioridade.
+          startTransition(() => {
+            setSelectedIds(next)
+          })
+        }}
+        exclusiveOnLabel
+        minSelected={1}
+        emptyText="Nenhuma instituição encontrada."
+      />
+    ) : showScopeFilter && !isSuper && myInstitutionId ? (
+      <div className="gx-schooltag">
+        <span data-fade="1">{institutionName(myInstitutionId)}</span>
+      </div>
+    ) : null
+
+  const [logoutOpen, setLogoutOpen] = useState(false)
 
   return (
-    <div className="gx-root gx-frame">
+    <div className="gx-root gx-frame gx-frame--top">
       {loadingBoot ? <BootSymbol /> : null}
+      <header className="gx-tb" data-topbar="1">
+        <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
+          <img className="gx-brand__light" src="/crias-logo-educacao.svg" alt="Crias Educação" />
+          <img className="gx-brand__dark" src="/crias-logo-educacao-branco.svg" alt="Crias Educação" />
+        </Link>
+        {authed && !authSettling ? (
+          <nav className="gx-tbnav" aria-label="Navegação principal">
+            {entries.map((e) =>
+              e.type === 'link' ? (
+                <Link
+                  key={e.section}
+                  to={e.path}
+                  className={section === e.section ? 'gx-pill gx-pill--on' : 'gx-pill'}
+                  aria-current={section === e.section ? 'page' : undefined}
+                >
+                  {e.label}
+                </Link>
+              ) : (
+                <div key={e.id} className="gx-dd">
+                  <button
+                    type="button"
+                    className={dropdown === e.id || e.children.some((c) => c.type === 'link' && c.section === section) ? 'gx-pill gx-pill--on' : 'gx-pill'}
+                    aria-haspopup="menu"
+                    aria-expanded={dropdown === e.id}
+                    onClick={() => setDropdown((d) => (d === e.id ? null : e.id))}
+                  >
+                    {e.label}
+                    <Icon name="chev-down" size={14} />
+                  </button>
+                  {dropdown === e.id ? (
+                    <>
+                      <div className="gx-dd__scrim" onClick={() => setDropdown(null)} />
+                      <div role="menu" className="gx-dd__menu">
+                        {e.children.map((c) =>
+                          c.type === 'head' ? (
+                            <p key={`h-${c.label}`} className="gx-dd__head" role="presentation">
+                              {c.label}
+                            </p>
+                          ) : (
+                            <Link
+                              key={c.section}
+                              to={c.path}
+                              role="menuitem"
+                              className={section === c.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'}
+                            >
+                              {c.label}
+                            </Link>
+                          ),
+                        )}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              ),
+            )}
+          </nav>
+        ) : null}
+        <span className="gx-tb__spacer" aria-hidden="true" />
+        {authed && !authSettling ? (
+          <div className="gx-tb__right">
+            <div className="gx-tb__filter">{scopeFilter}</div>
+            {switchGroup}
+            <FullscreenButton />
+            {themeButton}
+            {avatarLink}
+            {logoutButton}
+          </div>
+        ) : null}
+        <button type="button" className="gx-iconbtn gx-tb__burger" aria-label="Abrir menu" onClick={() => setSidebarOpen(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h10" />
+          </svg>
+        </button>
+      </header>
+
       {sidebarOpen ? (
-        <aside className="gx-side" aria-label="Navegação principal">
-          <span className="gx-side__line" aria-hidden="true" />
-          <div className="gx-side__bg" aria-hidden="true" />
-          <div className="gx-side__head">
-            <Link to="/" className="gx-brand" aria-label="Ir para o início da gestão" onClick={closeOnMobile}>
-              <img className="gx-brand__light" src="/crias-logo-gestao.svg" alt="Crias Gestão" />
-              <img className="gx-brand__dark" src="/crias-logo-gestao-branco.svg" alt="Crias Gestão" />
+        <aside className="gx-drawer" aria-label="Navegação principal">
+          <div className="gx-drawer__head">
+            <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
+              <img className="gx-brand__light" src="/crias-logo-educacao.svg" alt="Crias Educação" />
+              <img className="gx-brand__dark" src="/crias-logo-educacao-branco.svg" alt="Crias Educação" />
             </Link>
             <button type="button" className="gx-iconbtn" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="16" rx="3" />
                 <path d="M9 4v16" />
               </svg>
             </button>
           </div>
-          <nav className="gx-nav" data-navfade="1">
-            <div className="gx-nav__inner">
-              {authSettling ? (
-                <p className="gx-muted" style={{ padding: '8px 10px', margin: 0, fontSize: 13 }}>
-                  Carregando…
-                </p>
-              ) : authed ? (
-                entries.map((e) =>
-                  e.type === 'link' ? (
-                    <NavLink key={e.section} item={e} on={section === e.section} onGo={closeOnMobile} />
-                  ) : (
-                    <div key={e.id}>
-                      <p className="gx-nav__group">
-                        <span>{e.label}</span>
-                        <span aria-hidden="true" />
-                      </p>
-                      {e.children.map((c) =>
-                        c.type === 'head' ? (
-                          <p key={`h-${c.label}`} className="gx-nav__head" role="presentation">
-                            {c.label}
-                          </p>
-                        ) : (
-                          <NavLink key={c.section} item={c} on={section === c.section} onGo={closeOnMobile} />
-                        ),
-                      )}
-                    </div>
-                  ),
-                )
-              ) : (
-                <>
-                  <NavLink item={{ type: 'link', section: 'doc', label: 'API e documentação', path: '/doc', permission: 'doc' }} on={section === 'doc'} onGo={closeOnMobile} />
-                  <NavLink item={{ type: 'link', section: 'home', label: 'Entrar', path: '/login', permission: 'home' }} on={false} onGo={closeOnMobile} />
-                </>
-              )}
-            </div>
+          <nav className="gx-drawer__nav">
+            {authed && !authSettling ? (
+              entries.map((e) =>
+                e.type === 'link' ? (
+                  <Link key={e.section} to={e.path} className={section === e.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'} onClick={closeOnMobile}>
+                    {e.label}
+                  </Link>
+                ) : (
+                  <div key={e.id}>
+                    <p className="gx-dd__head">{e.label}</p>
+                    {e.children.map((c) =>
+                      c.type === 'head' ? (
+                        <p key={`h-${c.label}`} className="gx-dd__head gx-dd__head--sub" role="presentation">
+                          {c.label}
+                        </p>
+                      ) : (
+                        <Link key={c.section} to={c.path} className={section === c.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'} onClick={closeOnMobile}>
+                          {c.label}
+                        </Link>
+                      ),
+                    )}
+                  </div>
+                ),
+              )
+            ) : (
+              <Link to="/doc" className="gx-dd__item" onClick={closeOnMobile}>
+                API e documentação
+              </Link>
+            )}
           </nav>
           {authed && !authSettling ? (
-            <div className="gx-side__foot">
-              <div className="gx-switch" role="group" aria-label="Alternar entre gestão e aluno">
-                <button type="button" className="is-on" aria-pressed="true">
-                  Gestão
-                </button>
-                <a
-                  href="/aluno/"
-                  aria-pressed="false"
-                  onClick={() => {
-                    try {
-                      window.localStorage.setItem('crias:acesso-gestao', '1')
-                    } catch {
-                      // sem armazenamento: o seletor do aluno só não aparece
-                    }
-                  }}
-                >
-                  Aluno
-                </a>
-              </div>
-              <div className="gx-me">
-                <span className="gx-me__who" title={email}>
-                  <span className="gx-me__avatar">{(email.charAt(0) || 'U').toUpperCase()}</span>
-                  <span className="gx-me__mail" data-fade="1">
-                    {email || 'Usuário'}
-                  </span>
+            <div className="gx-drawer__foot">
+              {switchGroup}
+              <div className="gx-drawer__row">
+                {avatarLink}
+                <span data-fade="1" className="gx-me__mail">
+                  {email || 'Usuário'}
                 </span>
-                <button
-                  type="button"
-                  className="gx-iconbtn"
-                  aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-                  title={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-                  onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-                >
-                  {theme === 'light' ? (
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-                    </svg>
-                  ) : (
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="4" />
-                      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-                    </svg>
-                  )}
-                </button>
-                <button type="button" className="gx-iconbtn" aria-label="Sair" title="Sair" onClick={() => void signOut()}>
-                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M14 8l4 4-4 4M18 12H9.5" />
-                  </svg>
-                </button>
+                {themeButton}
+                {logoutButton}
               </div>
             </div>
           ) : null}
@@ -307,67 +365,37 @@ function Shell({ children }: { children: ReactNode }) {
         <Horizon mode={homeMode ? 'home' : 'soft'} />
         <span className="gx-veil gx-veil--top" aria-hidden="true" />
         <span className="gx-veil gx-veil--bottom" aria-hidden="true" />
-        {!sidebarOpen ? (
-          <button type="button" className="gx-openmenu" aria-label="Abrir menu" onClick={() => setSidebarOpen(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="16" rx="3" />
-              <path d="M9 4v16" />
-            </svg>
-          </button>
-        ) : null}
         <main className="gx-main" data-main="1" ref={mainRef}>
           <div className="gx-wrap">
             <div className="gx-topbar">
               {canBack ? (
-                <button type="button" className="gx-btn" onClick={() => navigate(-1)}>
-                  <Icon name="back" />
+                <button type="button" className="gx-backbtn" onClick={() => guardedNavigate(-1)}>
+                  <Icon name="back" size={14} />
                   Voltar
                 </button>
               ) : null}
               <span className="gx-topbar__spacer" aria-hidden="true" />
-              {showScopeFilter && isSuper && institutions.length > 0 ? (
-                <FilterPopover
-                  label="Filtrar instituições"
-                  options={institutions.map((i) => ({ id: i.id, name: i.name || i.id }))}
-                  selected={selectedIds}
-                  onChange={(next) => {
-                    // Mínimo 1: ignora limpar/desmarcar o último.
-                    if (next.size === 0) return
-                    // Transição: checkmark otimista no popover; dados em baixa prioridade.
-                    startTransition(() => {
-                      setSelectedIds(next)
-                    })
-                  }}
-                  exclusiveOnLabel
-                  minSelected={1}
-                  emptyText="Nenhuma instituição encontrada."
-                />
-              ) : null}
-              {showScopeFilter && !isSuper && myInstitutionId ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: 36,
-                    minWidth: 0,
-                    maxWidth: 'min(360px, calc(100vw - 140px))',
-                    padding: '0 16px',
-                    borderRadius: 999,
-                    border: '1px solid rgba(0,190,133,.28)',
-                    background: 'var(--v-gsoft)',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: 'var(--v-gink)',
-                  }}
-                >
-                  <span data-fade="1">{institutionName(myInstitutionId)}</span>
-                </div>
-              ) : null}
+              <div className="gx-topbar__filter">{scopeFilter}</div>
+              <span className="gx-topbar__fs">
+                <FullscreenButton />
+              </span>
             </div>
             {children}
           </div>
         </main>
       </div>
+
+      <ConfirmDialog
+        open={logoutOpen}
+        title="Tem certeza que deseja sair da conta?"
+        text="Suas alterações salvas continuam guardadas."
+        confirmLabel="Sair"
+        onCancel={() => setLogoutOpen(false)}
+        onConfirm={() => {
+          setLogoutOpen(false)
+          void signOut()
+        }}
+      />
     </div>
   )
 }
@@ -375,7 +403,9 @@ function Shell({ children }: { children: ReactNode }) {
 export function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <GestaoProvider>
-      <Shell>{children}</Shell>
+      <UnsavedProvider>
+        <Shell>{children}</Shell>
+      </UnsavedProvider>
     </GestaoProvider>
   )
 }

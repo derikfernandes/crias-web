@@ -1,35 +1,763 @@
 # Interface Crias: regras e orientações
 
-Este arquivo guarda as regras da interface. Cada regra inviolável definida na revisão entra aqui.
+Regras de interface do Crias Aluno e do Crias Educação (antes Crias Gestão). Para o pacote 1.1.1.b, a seção "Pacote 1.1.1.b: regras consolidadas" é a fonte única. As seções seguintes ficam como histórico e detalhe.
 
 ## Versões
 
-| Versão | Arquivos no projeto | Antes chamada |
+| Versão | Arquivos no projeto | Situação |
 | --- | --- | --- |
-| **v1.1 (atual, fechada em 16/10/2026)** | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | v7 |
-| v1.0 (travada) | `Crias Aluno v1.0.dc.html`, `Crias Painel v1.0.dc.html` | v1.0 |
-| Histórico | pasta `historico/` | v2 a v5 e telas antigas |
+| **1.1.1.b (atual, 25/10/2026)** | `Crias Aluno v1.1.1b.dc.html`, `Crias Gestao v1.1.1b.dc.html` | Pacote de melhorias, exportado sozinho. O Claude Code junta com o 1.1.1.a para formar a v1.1.1 |
+| 1.1.1.a | (correções, ver "Correções v1.1.1.a") | Aplicado sobre a v1.1 |
+| v1.1 (fechada em 16/10/2026) | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | Base oficial, intacta |
+| v1.0 (travada) | `Crias Aluno v1.0.dc.html`, `Crias Painel v1.0.dc.html` | Base anterior |
+| Histórico | pasta `historico/` | Versões e telas antigas |
 
-No repositório os arquivos não levam o sufixo de versão. As seções abaixo numeram as regras pela versão (1.1.x e 1.0.x).
+No repositório os arquivos não levam o sufixo de versão (`Crias Aluno.dc.html`, `Crias Gestao.dc.html`). O arquivo da Educação continua com o nome `Crias Gestao` e a pasta do app continua `frontend/crias-gestao`; só o nome exibido e o logo mudaram.
 
 ## Como aplicar este pacote
 
-O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-web`, branch `main`. Copie as pastas por cima da raiz e faça o commit.
+O pacote (`export/repo/`) espelha a raiz do repositório `thiagocrias/crias-web`, branch `main`. Copie por cima da raiz e faça o commit. O passo a passo para o Claude Code está em `PROMPT-CLAUDE-CODE.md`.
 
 | Caminho no pacote | O que é |
 | --- | --- |
 | `CLAUDE.md` | Regras do projeto para o Claude Code |
-| `frontend/crias-aluno/design/LEIA-ME.md` | Guia da pasta de design |
-| `frontend/crias-aluno/design/INTERFACE.md` | Este arquivo. Regras de interface e de front-end |
-| `frontend/crias-aluno/design/DECISOES.md` | O que foi feito e o que falta decidir |
-| `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html` | Crias Aluno (v1.1). Precisa de `support.js` e `assets/` na mesma pasta |
-| `frontend/crias-aluno/design/prototipo/Crias Gestao.dc.html` | Crias Gestão (v1.1), ligado ao Crias Aluno pelo seletor Aluno/Gestão |
-| `frontend/crias-aluno/design/prototipo/Crias Aluno offline.html`, `Crias Gestao offline.html` | Os mesmos protótipos em arquivo único: abrem com dois cliques, sem internet, com as imagens dentro, e apontam um para o outro |
-| `frontend/crias-aluno/design/design-system/` | Tokens (`styles.css`), guia (`readme.md`) e logotipos |
+| `PROMPT-CLAUDE-CODE.md` | Texto para colar no Claude Code |
+| `frontend/crias-aluno/design/INTERFACE.md` | Este arquivo |
+| `frontend/crias-aluno/design/LEIA-ME.md`, `DECISOES.md` | Guia da pasta e decisões |
+| `frontend/crias-aluno/design/prototipo/Crias Aluno.dc.html`, `Crias Gestao.dc.html` | Protótipos 1.1.1.b (precisam de `support.js`, `crias-monitor.js` e `assets/` na mesma pasta) |
+| `frontend/crias-aluno/design/prototipo/* offline.html` | Os mesmos protótipos em arquivo único, sem internet |
+| `frontend/crias-aluno/design/design-system/` | Tokens, guia e logotipos (inclui `crias-logo-educacao.svg` e `-branco`) |
 
-Ao subir, apague do repositório o arquivo antigo `frontend/crias-aluno/design/prototipo/Crias Aluno (offline).html` (substituído pelos dois arquivos offline) e `frontend/crias-aluno/design/ATUALIZACAO-DESIGN-SYSTEM.md` (histórico da revisão anterior, guardado no projeto de design).
+Ao subir, apague do repositório `prototipo/assets/crias-logo-gestao.svg` e `crias-logo-gestao-branco.svg` (substituídos pelos arquivos `crias-logo-educacao`).
 
-O código dos apps (`frontend/crias-aluno/src` e `frontend/crias-gestao/src`) não vem no pacote. A v1.1 é aplicada sobre ele pelo Claude Code, seguindo este arquivo.
+## Pacote 1.1.1.b: regras consolidadas (leia primeiro)
+
+Vale sobre todas as seções abaixo onde houver diferença. Cada regra aqui está aplicada nos protótipos 1.1.1.b; quando o protótipo e o texto divergirem, avise antes de escolher.
+
+### A. Identidade
+
+- **Nomes:** Crias Aluno e Crias Educação. Logo da Educação: "Crias | Educação", arquivo `crias-logo-educacao.svg` (claro) e `crias-logo-educacao-branco.svg` (escuro), 150×22 px. Nunca texto no lugar do logo.
+- **Cores:** ação principal verde `#00be85` com texto e ícone brancos (hover `#00a974`, pressionado `#00925f`). Texto verde sobre fundo claro: `--v-gink` (`#00744f`). Erro: texto `--v-err`, fundo `--v-errSoft`, contorno de ação destrutiva `#d9534a`. Amarelo `#ffd500` só no botão neutro dos pop-ups, na barra de progresso e em marcações pontuais. Bege só em destaques, campos e balões.
+- **Tipografia:** títulos em Outfit 600; texto, campos e botões em Manrope. Títulos de página 28px (24px no celular); títulos de cartão 19px; subtítulos de cartão 16px.
+- **Cantos:** campos 12px, cartões 16px, pop-ups 20px, botões e etiquetas em pílula.
+- **Texto:** português do Brasil, sem travessão. "Etapa", nunca "passo" nem "bloco". Dado ausente: "N/A", exceto nos resumos recolhidos da Nova trilha, onde campo vazio fica em branco. Texto que não cabe esmaece no fim (sem reticências).
+
+### B. Componentes padrão
+
+**Botões (Educação, 36px, 13px, pílula)**
+
+| Tipo | Visual | Onde |
+| --- | --- | --- |
+| Principal | Verde sólido, texto branco, 700 | Salvar, Criar trilha, + Nova instituição, + Adicionar aluno, + Atividade |
+| Secundário | Branco, contorno bege `--v-line` 1px, texto `--v-ink`, 600 | Cancelar, Anterior, Próxima, Baixar planilha, Carregar planilha |
+| Abrir / navegação de linha | Branco, contorno verde 1.5px, texto `--v-ink`, 700 | Abrir, Dados / Trilhas / Alunos no cartão da instituição, Gerar / Salvar senha |
+| Destrutivo de linha | Branco, contorno `#d9534a` 1.5px, texto `--v-err`, 700 | Excluir, Desvincular |
+| Editar no título | Lápis 18px, sem caixa; com texto "Editar" em verde 700 quando for o único acesso à edição | Cadastro da trilha, atividade, Usuários, Permissões, blocos recolhidos da Nova trilha |
+| Contador − / + | Sempre redondo 36px, contorno bege `--v-line`, fundo branco, sinal 18px `--v-ink` (nunca verde) | Número de conteúdos, exercícios, alternativas e atividades |
+| Seta de recolher | Redonda, contorno bege, fundo branco, seta `--v-t2`; 34px nos painéis, 26 a 28px nas linhas | Painéis de ação em massa, Adicionar com IA, linhas de atividade, Menor/Maior acerto |
+
+Botão principal bloqueado: fundo `--v-soft2`, texto `--v-t3`, sem halo; libera ao editar e volta a bloquear depois de salvo.
+
+No Crias Aluno os botões seguem o tamanho de toque do app: 46px nas ações da página, 54px na entrada, 44px nos pop-ups.
+
+**Voltar:** único em toda a Educação, sempre no topo à esquerda da área de conteúdo, na linha do filtro de instituições. Manrope 12px, 400 (sem negrito), cinza `--v-t3`, seta de 14px com traço 1.8; hover `--v-t2`. Volta para a tela anterior (histórico). No Aluno, o Voltar das telas de entrada segue o mesmo desenho (13px).
+
+**Cabeçalho fixo e esmaecimento:** todo conteúdo começa 36px abaixo do subtítulo. Parado no topo, não há esmaecimento. Ao rolar, a faixa abaixo do cabeçalho cresce até 72px (metade cor sólida do fundo, metade degradê). A mesma regra vale no Painel do aluno, abaixo dos filtros por trilha.
+
+**Abas segmentadas:** trilho `--v-soft`, aba marcada branca com sombra leve, 32px de altura. Trocar as abas Alunos / Exercícios de Dados nunca move a tela. **Toda página, aba ou etapa aberta começa do topo**, sem exceção (inclusive Prévia → Adicionar alunos na Nova trilha).
+
+**Tabelas:** linha de títulos com a altura do texto (inclusive no celular); nome ocupa o espaço livre; IDs e ações à direita; rolagem horizontal esmaece na borda com conteúdo.
+
+### C. Confirmações
+
+Há três padrões. Nenhum outro.
+
+**1. Pop-up de confirmação** (fundo da página esmaecido e desfocado; cartão 420px, cantos 20px, 24px de respiro; título Outfit 22px; texto 15px; dois botões de 38px dividindo a largura).
+
+| Situação | Título | Texto | Botões (neutro / ação) |
+| --- | --- | --- | --- |
+| Salvar edição no topo | Tem certeza que deseja salvar? | Essa ação não pode ser desfeita. | Continuar editando / Salvar |
+| Cancelar edição no topo | Tem certeza que deseja cancelar a edição? | Essa ação não pode ser desfeita. | Continuar editando / Cancelar edição (destrutivo) |
+| Sair com alteração não salva | Tem certeza que deseja sair? | | Continuar editando / Salvar; abaixo, Sair sem salvar (destrutivo, largura total) |
+| Alterar cadastro | Tem certeza que deseja alterar o cadastro? | Essa ação não pode ser desfeita. | Continuar editando / Alterar |
+| Desativar trilha | Tem certeza que deseja desativar a trilha? | Os alunos deixam de ver a trilha até ela ser ativada de novo. Conteúdo, gabarito e progresso continuam salvos. | Cancelar / Desativar trilha (destrutivo) |
+| Senhas: gerar | Tem certeza que deseja gerar nova senha para (nome)? / gerar senhas para N alunos sem senha? | Consequência em uma frase | Cancelar / Gerar nova senha ou Gerar senhas |
+| Sair da conta (Aluno e Educação) | Tem certeza que deseja sair da conta? | Aluno: "Seu progresso fica salvo." Educação: "Suas alterações salvas continuam guardadas." | Cancelar / Sair |
+
+Cores dos botões do pop-up: **neutro** branco com contorno amarelo `#ffd500` 1.5px; **ação** verde sólido com texto branco; **destrutivo** branco com contorno `#d9534a` e texto vermelho.
+
+**2. Exclusão com DELETAR** (mesmo cartão): título "Tem certeza que deseja excluir (o quê)?", texto "Essa ação não pode ser desfeita.", caixa vermelho-claro com "Envie DELETAR para excluir." e o campo. Botões: Cancelar (neutro, amarelo) e Excluir em vermelho sólido, que só ativa com DELETAR digitado (sem diferença de maiúsculas). Vale para excluir trilha, instituição, aluno, usuário e atividade.
+
+**3. Confirmação em linha** (ações em massa): faixa bege logo abaixo do painel, com o título em negrito e a contagem do que vai acontecer em uma frase ("N alunos serão…, M ficam como estão."). Botões de 36px: Cancelar (secundário) e a ação em verde claro com contorno verde vivo (Cadastrar, Confirmar, Alterar senhas) ou, para remover, vermelho claro com contorno vermelho (Remover). Depois de aplicar: mensagem "Planilha aplicada: …" com o resultado.
+
+**Sem confirmação:** ativar a trilha (o switch liga direto; só desativar confirma); navegar entre abas sem alteração pendente; voltar da Prévia para a Configuração na Nova trilha; salvar cada atividade no botão Salvar da própria atividade.
+
+### D. Ações em massa (planilhas)
+
+Regras comuns: painel recolhível com título, seta bege e uma linha de orientação; sequência sempre **Baixar planilha (modelo ou base) → Carregar planilha → botão da ação → confirmação em linha com contagem → "Planilha aplicada: …"**. Importar sempre adiciona (nunca apaga o que não está na planilha). Só as colunas indicadas são lidas; as demais são ignoradas.
+
+| Onde | Ação | Planilha | Colunas lidas | Confirmação |
+| --- | --- | --- | --- | --- |
+| Alunos / Instituição | Cadastrar alunos em massa | Modelo (ID da instituição já vem preenchido) | Nome, Telefone | "Cadastrar alunos em massa?" N serão cadastrados; telefones já cadastrados ficam de fora |
+| Alunos | Editar alunos em massa | Base com os dados atuais | Campos preenchidos; em branco não muda | Confirmação em linha com contagem |
+| Alunos / Instituição | Remover alunos em massa | Base: ID Instituição, ID Aluno, Nome, Telefone, Remover (sim / não) | Remover | "Remover alunos em massa?" (botão vermelho claro) |
+| Trilha > Alunos | Ativar ou inativar em massa | Base da trilha | Só a coluna "ativo" | "Ativar ou inativar em massa?" N ativados, M inativados, K ficam como estão |
+| Trilha > Conteúdo | Adicionar atividades em massa | Modelo de atividades | Colunas do modelo | Adicionar atividades |
+| Trilha > Gabarito | Alterar gabarito em massa | Base: ID Trilha, Trilha, Atividade, Exercício, Gabarito, Anular (sim / não) | Só "gabarito" e "anular" | "Alterar gabarito em massa?" N alterados, M anulados, K ficam como estão |
+| Senhas | Alterar senhas em massa | Base com os alunos | Só senhas preenchidas | "Alterar senhas em massa?" + "Essa ação não pode ser desfeita." |
+| Usuários | Adicionar / Remover usuários em massa | Modelo / base, com a seleção de instituição no formato do botão "Baixar planilha modelo" | Colunas do modelo | Confirmação em linha com contagem |
+
+Vocabulário: sempre "em massa" (nunca "em lote"); alunos são **ativados ou inativados** na trilha; a trilha é **ativada ou desativada**.
+
+### E. Salvar, cancelar e sair
+
+- Qualquer edição de página mostra **Cancelar** e **Salvar** no topo, na linha do título. Salvar pede o pop-up "Tem certeza que deseja salvar?"; Cancelar pede "Tem certeza que deseja cancelar a edição?".
+- Salvamentos intermediários (cada atividade) não pedem pop-up; o Salvar da atividade começa bege e libera ao editar.
+- Sair da página (menu, Voltar, outra aba) com alteração pendente abre "Tem certeza que deseja sair?".
+- Usuários e Permissões: só edita depois de "Editar" (lápis com texto, ao lado do título). Super admin edita a seleção de menus dos perfis direto; Instituição (Admin) só visualiza.
+- Cadastro (Educação e Aluno, qualquer perfil): nome obrigatório e e-mail ou telefone; sem os dois, "Informe o nome e o e-mail ou o telefone."
+
+### F. Educação, por página
+
+- **Topo:** o logo começa alinhado ao Voltar e ao conteúdo da página (mesma margem esquerda); o menu acompanha. Logo, menu (Início, Dados, Trilhas, Alunos, Configurações), filtro de instituições (Super admin) ou nome da escola (Instituição), tema, avatar e sair. Abaixo de 860px o filtro desce para a linha do Voltar.
+- **Configurações:** Usuários (Senhas, Usuários) e Sistema (Prompts, API e documentação). Senhas e Prompts só para Master.
+- **Dados:** filtros fixos em uma linha, divididos em duas colunas: Filtrar trilhas e Pesquisar nome ou telefone do aluno. Cartões: Conclusão das atividades (com "Filtro por % de conclusão" no espaço livre abaixo das barras, encostado na base do cartão; a linha "Até" fica alinhada à linha "Concluiu" de Situação dos alunos; o filtro vale para a página toda), Situação dos alunos, Uso do monitor, Alunos por atividade concluída, **Desempenho** (Menor acerto e Maior acerto), tabela Alunos / Exercícios.
+- **Dados > Alunos:** exportação com os seletores **Atividades** ("Atividade N - nome") e **Etapas** ("Atividade N · Etapa K - nome"), e colunas "Atividades liberadas", "Atividades feitas", "% conclusão (atividades)", "Etapas liberadas", "Etapas feitas", "% conclusão (etapas)". Não existem mais "aulas" nem "tópicos".
+- **Dados, abas Alunos / Exercícios:** trocar de aba só troca a tabela; todos os cartões acima (resumo, Conclusão das atividades, Situação dos alunos, Uso do monitor, Alunos por atividade concluída, Desempenho) ficam iguais.
+- **Dados > Exercícios:** clicar em qualquer ponto da linha abre ou fecha o enunciado logo abaixo. O nome da trilha não abre outra página.
+- **Alunos (tabela):** colunas Nome, ID Aluno, Trilha atual, Atividade, Etapa, **Status** (Não iniciada, Em andamento, Concluída), Telefone, Escolaridade, Nível pedagógico, Criado em, Atualizado em, Ativo.
+- **Trilha aberta:** abas Configuração, Conteúdo, Alunos, Gabarito à esquerda, 36px abaixo do subtítulo; Trilha ativa à direita na mesma linha. Em Conteúdo: acima das atividades, o rótulo **NOVAS ATIVIDADES** (mesmo padrão de "ATIVIDADES") e, numa linha, dois painéis recolhíveis com seta bege, nesta ordem: **Adicionar atividades em massa** e **Adicionar atividades com Inteligência Artificial** (com "Gerar prévia" à esquerda da seta, bloqueado até preencher Habilidades / Conteúdos). Recolher não apaga o que foi preenchido; ao expandir, volta como estava. Na coluna de atividades fica só "+ Atividade" (verde), alinhado à direita.
+- **Trilha nova nasce ativa** (switch ligado), na criação e depois de salva. Ativar não pede confirmação; desativar pede.
+- **Nova trilha:** etapas 1 Configuração, 2 Prévia, 3 Adicionar alunos (opcional). Topo: Cancelar e Criar trilha → Cancelar e Continuar → Cancelar e Salvar trilha. Configuração em três blocos (Cadastro, Estrutura, Criar com IA) com índice lateral na web; sem índice no celular. Recolhimento pela rolagem: um bloco recolhe quando a pessoa passou por ele inteiro e ele saiu da tela, tendo a linha que separa os blocos como marco; Criar com IA também recolhe ao sair inteiro pela base. Bloco recolhido mostra o resumo e o lápis colado ao título. No resumo de Criar com IA, cada item é uma linha só que esmaece no fim (Habilidades; Orientações com as tags depois, separadas por vírgula; Arquivos separados por vírgula), sem caixa. Sem texto de orientação abaixo do índice lateral.
+- **Prévia (Nova trilha):** no topo, a Configuração exatamente como os blocos recolhidos da etapa 1 (mesmos títulos 01/02/03 e mesmos resumos), em três colunas iguais: Cadastro, Estrutura e Criar com IA, com linha fina abaixo. Em telas menores, duas colunas; no celular, uma. Depois, as atividades **idênticas à aba Conteúdo** da trilha criada (coluna de atividades com a mesma largura, atividade aberta e "Como o aluno vê"); a única diferença é que os botões "+ Atividade", "+ Adicionar em massa" e "+ Criar com IA" não aparecem. Sem Trilha ativa.
+- **Perfil:** Cadastro à esquerda; Suporte numa coluna à direita (desce no celular).
+
+### G. Aluno, por página
+
+- **Menu:** Acompanhamento (Painel, "Ver seus dados de estudo"; Monitoria, "Conversar com seu monitor") e Trilhas.
+- **Painel:** dashboard com filtro por trilha. Progresso, Desempenho (com Mais erros e Mais acertos no formato de Menor/Maior acerto da Educação) e Uso do monitor, cada um numa linha inteira. Barra do monitor embaixo: enviar leva à Monitoria e a pergunta entra lá como mensagem do aluno, com o carregamento no topo e a resposta abaixo.
+- **Trilha:** o carregamento aparece uma vez e some quando o conteúdo aparece, no mesmo instante; atividades anteriores só carregam quando o aluno rola para cima.
+
+### H. Celular (Educação)
+
+- Voltar e filtro/nome da instituição sempre abaixo do botão de menu.
+- Dados: cartões um abaixo do outro; gráfico de barras rola dentro do cartão.
+- Trilha aberta: Salvar na linha do título; Trilha ativa; as quatro abas numa linha; os dois painéis de adicionar um abaixo do outro; "+ Atividade" à direita; lista de atividades na largura útil.
+- Nova trilha: sem índice lateral; "Como o aluno vê" centralizado.
+- Toques de 44px, exceto as setas de ordenação das tabelas.
+
+### I. Pontos para validação
+
+1. **Pedidos de 25/10 ainda não aplicados** (aguardam nova rodada): botão Excluir ao lado de "Aluno ativo"; trilha que já nasce ativa e configuração só para visualização depois de criada (exceto Cadastro); setas de recolher nos blocos abertos da Configuração; novo texto do pop-up de criar trilha ("Tem certeza que deseja criar a trilha? A configuração de estrutura não poderá ser alterada depois." / Continuar editando / Salvar); "Criar atividades" e prévia com atividades recolhidas ao criar com IA numa trilha existente; Editar ao lado do título da tabela em Usuários.
+2. **Excluir em Usuários:** já pede DELETAR, mas o botão só fica ativo depois de "Editar". Liberar sem o modo de edição?
+
+## Histórico do pacote 1.1.1.b
+
+As entradas abaixo registram a ordem em que as decisões foram tomadas. Onde divergirem da seção consolidada, vale a consolidada.
+
+## Melhorias v1.1.1.b (em andamento, desde 20/10/2026)
+
+Pacote de melhorias no Crias Aluno e no Crias Gestão. Junto com o 1.1.1.a, forma a v1.1.1. Itens numerados como 1.1.1.b.N.
+
+**1.1.1.b.1 Carregamento da Gestão sem texto** (22/10/2026)
+- Ao abrir o Crias Gestão, o carregamento mostra só o símbolo pulsando no centro (1.1.38). O texto "Carregando…" no topo, à esquerda, ao lado do menu, saiu.
+
+**1.1.1.b.2 Menu lateral fica aberto na web** (22/10/2026)
+- Na versão web do Aluno e da Gestão, escolher uma opção do menu lateral não fecha o menu. Ele só fecha pelo botão de recolher. No celular, o menu em tela cheia continua fechando ao escolher.
+
+**1.1.1.b.3 Carregamento da página Dados** (22/10/2026)
+- Depois do símbolo pulsando, enquanto os dados não estiverem completos, a página mostra só o título e o subtítulo ("Dados" / "Informações de uso dos alunos."). Nada abaixo deles aparece, nem números zerados nem a barra de filtros.
+- No centro da área livre: o texto "Aguarde, carregando informações…", abaixo dele uma barra de 6px (trilho `--v-line`, preenchimento em degradê do amarelo #ffd500 para o verde #00be85, largura máxima 360px) e o percentual (13px, 700).
+- O percentual avança em partes proporcionais às etapas reais do carregamento (ex.: cada consulta concluída soma sua fatia) e pode parar em alguns valores no caminho. Só chega a 100% quando todos os dados estiverem prontos; então a página mostra o conteúdo. A animação da barra dura 0,35s por avanço.
+- No protótipo: 9, 21, 34, (pausa), 47, 58, 66, (pausa), 78, 89, 94, 100.
+
+**1.1.1.b.4 Gráficos da página Dados** (22/10/2026)
+- "Situação dos alunos" passa a ser um gráfico de pizza (168px), com a legenda ao lado: bolinha da cor, nome, número e percentual. Cores: Não iniciou `--v-keyEdge`, Em andamento #ffd500, Concluiu #00be85.
+- Primeira linha: "Conclusão das atividades" e "Situação dos alunos", lado a lado (empilham em tela estreita).
+- "Alunos por atividade concluída" fica sozinho na linha de baixo, num único box com a largura toda. Cada barra tem 34px, com 14px de espaço entre elas; acima, o número de alunos; abaixo, só o número da atividade (1, 2, 3…), sem texto, para não sobrepor. Quando as barras não cabem, o box rola na horizontal e esmaece na borda que ainda tem conteúdo (1.1.25).
+
+**1.1.1.b.5 Barra fixa de filtros da página Dados** (22/10/2026)
+- Na mesma linha de "Filtrar trilhas", à direita: a etiqueta "Aluno" (pílula, mesmo estilo da etiqueta com o nome da instituição, 40px de altura) e o campo de busca com o texto "Nome ou telefone…", que ocupa o resto da linha.
+- Ao digitar, aparece uma etiqueta dentro do campo, à direita, com o total de alunos encontrados ("12 alunos", "1 aluno").
+- A busca vale para a página toda (números, gráficos e tabela), como o filtro de trilhas. Telefone é comparado só pelos dígitos.
+
+**1.1.1.b.6 Linha de exportação da tabela de alunos** (22/10/2026)
+- O "Filtrar alunos" e o botão "Exportar histórico" saíram. No lugar, uma linha única: "Exportação" à esquerda (texto, 1.1.1.b.10); botões "Aulas", "Tópicos" e "Colunas" (36px, pílula, com a contagem selecionada, ex.: "12/15"); e, à direita, o botão verde "Exportar planilha" (texto verde escuro, 1.1.39).
+- Cada botão abre uma lista com busca, "Selecionar tudo", "Limpar tudo" e caixas de marcar, no padrão dos filtros da Gestão.
+  - Aulas: quais aulas da trilha entram na planilha.
+  - Tópicos: quais tópicos da trilha entram na planilha.
+  - Colunas: Telefone, Tópicos liberados, Tópicos feitos, % conclusão (tópicos), Aulas liberadas, Aulas realizadas, % conclusão (aulas), Acertos, Erros, % de acerto.
+- Exportar planilha gera o arquivo com os alunos filtrados na barra fixa e as aulas, tópicos e colunas marcados. Sem nenhuma aula ou coluna marcada, avisa "Selecione ao menos uma aula e uma coluna para exportar."
+- CONFLITO: a exportação por aulas, tópicos e colunas e o percentual real do carregamento dependem de API. A camada visual segue esta regra; os dados vêm do backend.
+
+**1.1.1.b.7 Busca de aluno e contagem** (22/10/2026)
+- Substitui parte do 1.1.1.b.5: a etiqueta "Aluno" saiu. A busca é um campo único, do mesmo tamanho e estilo do "Filtrar trilhas" (metade da linha cada), com o texto "Pesquisar aluno".
+- A etiqueta de resultado conta todos os alunos encontrados, ativos e inativos, porque a tabela mostra os dois. Quando houver inativos no resultado, ela mostra também os ativos, para bater com o número "Alunos ativos": "16 alunos (15 ativos)". O telefone é comparado pelos dígitos em qualquer posição (ex.: "31" encontra o DDD 31 e finais com 31).
+
+**1.1.1.b.8 Pizza com valores ao passar o mouse** (22/10/2026)
+- Em "Situação dos alunos", passar o mouse sobre uma fatia (ou sobre a linha da legenda) destaca essa fatia, esmaece as outras (45%) e mostra um balão no centro da fatia com o nome, o número de alunos e o percentual. A linha da legenda correspondente ganha fundo `--v-soft`. Fatias separadas por um traço de 2px na cor do cartão.
+
+**1.1.1.b.9 Oportunidades mais leves** (22/10/2026)
+- Cada coluna mostra só os 3 primeiros, com 22px entre eles.
+- Na linha do título, à direita, um link "Ver mais" (verde escuro, 13px, 700, com seta). Em "Menor acerto", abre a aba Exercícios ordenada por % de acerto do menor para o maior. Em "Maior acerto", ordenada do maior para o menor. A página rola até as abas.
+
+**1.1.1.b.10 Tabela de alunos da página Dados** (22/10/2026)
+- A aba Alunos é sempre a aberta ao entrar na página.
+- Itens por página: 50, 100, 300, 500 e 1000. Padrão: 50.
+- Linha de exportação: "Exportação" passa a ser só texto (13px, 700, verde escuro `--v-gink`), sem etiqueta. Em Colunas, "Nome" é o primeiro item, acima de Telefone.
+
+**1.1.1.b.11 Paginação: Anterior e Próxima** (22/10/2026)
+- Em toda lista paginada do Crias Gestão, "Anterior" fica ativo sempre que existe página antes da atual e "Próxima" sempre que existe página depois. Nenhuma outra condição desativa os botões (antes, as trilhas do Início da Instituição e as listas de Trilhas e Alunos desativavam os dois quando havia até 10 itens, mesmo com 5 por página).
+- A quantidade de itens por página de cada lista não mudou.
+
+**1.1.1.b.12 Busca e alunos inativos (página Dados)** (22/10/2026)
+- "Pesquisar aluno" usa a mesma formatação de "Filtrar trilhas": 14px, peso 600, cor do texto principal (também no texto de exemplo), ícone à esquerda em `--v-t3`.
+- Substitui a contagem de 1.1.1.b.7: a etiqueta da busca mostra só o total encontrado ("16 alunos"). O card "Alunos ativos" ganha, abaixo do número, uma linha pequena (12px, 600, `--v-t3`) com os inativos: "1 inativo", "3 inativos".
+
+**1.1.1.b.13 Cadastro da nova trilha** (22/10/2026)
+- Nome, Matéria e Descrição são obrigatórios e levam asterisco (`--v-err`). Saiu o "(opcional)" de Matéria e Descrição, também na trilha já criada (Salvar só ativa com os três preenchidos).
+- O botão "Gerar prévia" fica sempre no topo, à direita do título. Desativado (fundo `--v-soft2`, sem brilho) até Nome, Matéria e Descrição estarem preenchidos; aí fica verde, clicável e com o halo.
+- Objetivo entra no box Cadastro, abaixo de Descrição, como "Objetivo (opcional)". Começa sem nenhum marcado; clicar no marcado desmarca. O box Objetivo separado sai da nova trilha; os passos passam a ser 1 Cadastro, 2 Estrutura, 3 Habilidades, 4 Orientações, 5 Arquivos. Na trilha já criada, o box Objetivo continua como está.
+- Opções de objetivo no padrão dos botões secundários: pílula de 36px, 13px, peso 600, borda `--v-line`, fundo `--v-raise`. Marcada: fundo `--v-gsoft`, borda verde a 45%, texto `--v-gink`, peso 700. Campo "Outro objetivo" na mesma altura e forma, verde quando preenchido. Quebram linha naturalmente, sem quebra fixa.
+
+**1.1.1.b.14 Estrutura e feedback imediato** (22/10/2026)
+- "Número de atividades" sai de Estrutura (vai para 1.1.1.b.15).
+- Ordem: Profundidade (Baixa, Média, Alta, Personalizado), depois o box de quantidades, depois os blocos e a legenda.
+- Box de quantidades em duas linhas: 1ª, só Conteúdos; 2ª, Exercícios, Múltipla escolha e o switch "Feedback imediato" (à direita). A etiqueta fixa "Feedback imediato" saiu.
+- Feedback imediato vem ligado por padrão. Ligado, cada exercício ganha logo depois um bloco de feedback, que é uma etapa de conteúdo a mais e sempre acompanha o seu exercício. Cor: azul claro do Crias (#88cde7, sombra #5aa9c8). Na legenda: "feedback". Exercício e feedback aparecem colados (3px), com cantos internos de 4px.
+- No Personalizado, a seta para a esquerda fica no bloco de exercício e a seta para a direita no bloco de feedback. Arrastar ou mover leva os dois juntos. Conteúdo sozinho mantém as duas setas. Com o feedback desligado, o exercício volta a ter as duas.
+- Contagem: o total de etapas inclui os feedbacks. Profundidade mostra "3 + 1 + 1", "5 + 2 + 2", "8 + 3 + 3" (conteúdos + exercícios + feedbacks); sem feedback, "3 + 1". Na geração, cada feedback vira uma etapa "Feedback do exercício N", logo após o exercício, e a prévia mostra o bloco azul.
+- Backend: guardar `feedback_imediato` (booleano, padrão verdadeiro) na configuração; a geração insere uma etapa de conteúdo de feedback após cada exercício e conta essas etapas no total.
+
+**1.1.1.b.15 Geração por IA** (22/10/2026)
+- Acima de Habilidades, uma linha de título no padrão do título da página (texto + linha fina), menor: "Geração por IA", Outfit 19px, peso 600, verde escuro `--v-lab` (#00593d; no escuro #5fe3b5), linha a 25%. Na ponta direita da linha, "Número de atividades" com − e +. Padrão: 1.
+- Textos de apoio "Envie as habilidades ou conteúdos em texto…" (Habilidades) e "Os conteúdos são gerados por padrão pela sequência abaixo…" (Orientações) no mesmo formato de "Número de atividades": 14px, peso 600, cor do texto principal.
+- A sequência "Contextualização > Introdução > …" em verde escuro `--v-lab`: número, texto e setas.
+- Texto digitado nos campos de Habilidades e Orientações: 13px na web (`--g-area`); no celular continua 16px (F-regras, sem zoom).
+
+**1.1.1.b.16 Ajustes da nova trilha** (22/10/2026)
+- Sem os cartões "Configuração / Prévia" no topo da nova trilha. Eles só aparecem depois que a prévia é gerada, para voltar à Configuração.
+- Os 5 passos vêm abertos por padrão.
+- Estrutura: sem o título "Profundidade". Opções renomeadas: Simples (3 + 1), Padrão (5 + 2), Completa (8 + 3). Padrão vem marcada.
+- Saem as etiquetas "IA" (Habilidades, Orientações, Arquivos) e "opcional".
+- Botões − e + de "Número de atividades" com contorno verde #00be85 e sinal `--v-gink`.
+- Abaixo de "Geração por IA": "Defina quantas atividades e preencha pelo menos um dos blocos." (14px, `--v-t2`).
+- Cadastro: 20px entre os campos; Objetivo com 8px a mais acima e 10px entre as opções. O rótulo fica só "Objetivo". "Outro objetivo" com o mesmo texto das opções (13px na web, 16px no celular), largura até 240px e o texto de exemplo "Escreva outro objetivo".
+- Sem a etiqueta "padrão" ao lado de Estrutura.
+- Quantidades: os rótulos Conteúdos e Exercícios têm largura fixa (104px), para os botões − das duas linhas começarem no mesmo ponto.
+- Número de atividades: campo sem as setas do navegador, número centralizado.
+- Orientações: 12px a mais entre a sequência e o campo de texto.
+
+**1.1.1.b.17 Nova trilha: sem círculo nas setas** (22/10/2026)
+- Em Orientações e Arquivos, saiu o círculo vazio que aparecia ao lado das setas (sobra da etiqueta retirada em 1.1.1.b.16).
+
+**1.1.1.b.18 Trilha aberta: Habilidades e Arquivos na Configuração** (22/10/2026)
+- Na Configuração da trilha já criada, entram dois boxes no padrão da nova trilha, sempre com a etiqueta "Somente visualização": Habilidades, acima de Orientações (texto usado na geração, 13px, fundo `--v-soft`), e Arquivos, abaixo de Orientações (nome de cada documento em pílula, com ícone de arquivo). Sem dado: "N/A".
+
+**1.1.1.b.19 Adicionar atividades com inteligência artificial (trilha aberta)** (22/10/2026)
+- Habilidades, Orientações e Arquivos com o mesmo formato de "Número de atividades": 14px, peso 600, cor do texto principal. Saiu o "(opcional)".
+- Botões − e + com contorno verde #00be85 e sinal `--v-gink`, como na nova trilha.
+- À esquerda, na linha do número de atividades, a etiqueta "Defina quantas atividades e preencha pelo menos um dos blocos." (pílula `--v-gsoft`, 12px, 700, `--v-gink`). O número fica à direita.
+- "Gerar prévia" ativa com pelo menos um bloco preenchido (Habilidades, Orientações ou um arquivo).
+- Texto digitado nos campos: 13px na web (`--g-area`).
+
+**1.1.1.b.20 Títulos das etapas e alternativas** (22/10/2026)
+- Título padrão de cada etapa gerada:
+  - Conteúdo: "Conteúdo X de Y". X é a posição entre os blocos de conteúdo da atividade e Y o total de conteúdos. Exercícios e feedbacks não entram nessa conta.
+  - Exercício: "Exercício X de Y", contando só exercícios.
+  - Feedback: só "Feedback", sem número.
+  - Ex.: Padrão com feedback = Conteúdo 1 de 5 … Conteúdo 5 de 5, Exercício 1 de 2, Feedback, Exercício 2 de 2, Feedback. O título do conteúdo pode ser editado depois.
+- Na aba Conteúdo, cada exercício lista as alternativas (A, B, C…), na quantidade definida em "Múltipla escolha" da Estrutura. A alternativa do gabarito fica verde com a etiqueta "Gabarito" e acompanha o gabarito escolhido. O enunciado padrão não cita letra nem quantidade de alternativas (antes dizia "quatro alternativas" e "letra B" fixos, mesmo com outro gabarito).
+- Feedback: etiqueta azul (#e2f3fa, texto #1d5f78). O mesmo vale na prévia de "Adicionar atividades com IA".
+
+**1.1.1.b.21 Busca de alunos** (22/10/2026)
+- Campo "Pesquisar nome ou número do aluno" ao lado do filtro de alunos em: página Alunos, aba Alunos da trilha e página Dados (troca o texto de 1.1.1.b.12). Mesmo formato do "Filtrar trilhas", com a etiqueta do total encontrado dentro do campo, à direita.
+- Encontra pelo nome (parte do texto), pelo telefone (dígitos em qualquer posição, mínimo 2) ou pelo código do aluno (número exato, sem zeros à esquerda).
+
+**1.1.1.b.22 Adicionar ou remover alunos: marcar todos** (22/10/2026)
+- Ao lado do texto de apoio, à direita: "Marcar todos" (verde) e "Desmarcar todos". Valem para a lista da aba aberta (Adicionar ou Remover). Como os outros ajustes, só salvam no botão Salvar do topo.
+
+**1.1.1.b.23 Base de alunos da trilha e Atualizar em massa** (22/10/2026)
+- Regra para o backend e o frontend (Claude Code), em "Ativar ou inativar em massa" da aba Alunos da trilha:
+  1. "Baixar base de alunos ativos e inativos" gera uma planilha com todos os alunos da instituição, uma linha por aluno, inativos primeiro e depois ativos, com as colunas nesta ordem: **código**, **nome**, **telefone**, **ativo**.
+  2. A coluna **ativo** vale "sim" ou "não" e vem da situação real do aluno nesta trilha no momento do download (vínculo aluno x trilha ativo no banco). Não é calculada por progresso nem por última interação.
+  3. O botão "Importar em massa" passa a se chamar **"Atualizar em massa"**.
+  4. Ao enviar o arquivo, o sistema identifica cada aluno pelo **código** e compara a coluna ativo com a situação atual:
+     - igual: não muda nada;
+     - "sim" e hoje inativo: ativa o aluno na trilha;
+     - "não" e hoje ativo: inativa o aluno na trilha (o progresso fica guardado).
+  5. Nome e telefone da planilha não alteram o cadastro; servem só para conferência. Código inexistente, código repetido ou valor de ativo diferente de sim/não: a linha é ignorada e listada no aviso final.
+  6. Antes de aplicar, confirmação com o resumo: "Atualizar a trilha em massa? X alunos serão ativados, Y inativados e Z ficam como estão." Depois: "Base atualizada: X ativados, Y inativados, Z sem mudança."
+- CONFLITO: a comparação e a atualização dependem de API. A camada visual segue esta regra.
+
+**1.1.1.b.24 Aba Conteúdo da trilha aberta** (22/10/2026)
+- Títulos dos boxes: "Adicionar com inteligência artificial" (sem a etiqueta IA) e "Adicionar em lote".
+- Em Atividades da trilha, o botão passa a ser "+ Adicionar", e a lista numerada começa 10px mais abaixo do título.
+- Box Habilidades da Configuração (somente visualização) no mesmo padrão do campo da nova trilha: campo de 5 linhas, borda verde, 13px, somente leitura. Em todos esses campos (Habilidades e Orientações, na nova trilha e na trilha aberta), texto maior que o campo mostra a barra de rolagem fina (`--v-line`).
+
+**1.1.1.b.25 Título das etapas de conteúdo** (22/10/2026)
+- Substitui o padrão de conteúdo de 1.1.1.b.20: "Etapa X de Y" (X e Y contando só os blocos de conteúdo). Exercício continua "Exercício X de Y" e feedback, "Feedback".
+
+**1.1.1.b.26 Adicionar ou remover alunos em lista única** (22/10/2026)
+- Saem as abas "Adicionar alunos" e "Remover alunos". Todos os alunos da instituição ficam numa lista única, cada um com o switch Ativo/Inativo nesta trilha.
+- No topo, filtro em três opções com contagem: Todos, Ativos, Inativos (situação salva no momento). "Marcar todos" e "Desmarcar todos" valem para a lista filtrada.
+
+**1.1.1.b.27 Crias Aluno no celular: Início e barra de mensagem** (22/10/2026)
+- O bloco do Início (símbolo, saudação e trilhas) sobe cerca de 28px, para o centro visual ficar um pouco acima do meio da tela: respiro inferior do Início no celular de 24px para 80px (`--r-home-pb`).
+- Barra de mensagem no celular com 22px até a base (antes 10px), `--r-comp-pb`; com área segura maior, vale a área segura. Vale também na conversa da trilha e no Painel.
+
+**1.1.1.b.28 Menu do aluno: trilhas recolhidas ao abrir** (22/10/2026)
+- No Crias Aluno, toda vez que o menu lateral é aberto (botão de abrir menu, na web ou no celular), todas as trilhas da lista aparecem recolhidas. Enquanto o menu continua aberto, a trilha que o aluno abriu fica aberta; ao fechar e abrir o menu de novo, volta tudo recolhido. Na primeira carga da web, com o menu já aberto, também começa recolhido.
+
+**1.1.1.b.29 Painel do aluno: integração com o banco (orientação para o Claude Code)** (22/10/2026)
+- Problema atual no app: clicar em "Painel" no menu do Crias Aluno faz logout. Verificar e corrigir antes de qualquer ajuste visual:
+  1. A rota do Painel deve ficar dentro da área autenticada do aluno, com a mesma sessão/token das outras páginas. Conferir se a rota existe no roteador, se o guard de autenticação aceita o perfil aluno e se a chamada de dados não devolve 401/403 que dispare o logout automático. Erro ao carregar dados do Painel nunca desloga: mostra o estado de erro da página.
+  2. O Painel não pode ser só a página visual. Precisa de um endpoint de leitura dos dados individuais do aluno logado, com o id do aluno tirado da sessão no servidor (nunca de parâmetro enviado pelo cliente). Um aluno nunca vê dados de outro.
+  3. Dados que o endpoint devolve, no formato já desenhado no protótipo (INTERFACE.md 1.1.8): trilhas liberadas e, por trilha, atividade atual / total, % de conclusão, acertos, erros, % de acerto, últimas interações e exercícios com mais erro. Vocabulário do banco: trails > question > stage.
+  4. O monitor da conversa do Painel ("Pergunte ao monitor sobre o seu desempenho…") deve receber esses mesmos dados como contexto, só do aluno logado, para responder sobre progresso e desempenho reais (ex.: "em qual atividade estou?", "onde mais errei?"). Sem dados: o monitor diz que ainda não há informações suficientes.
+  5. Estados: carregando (símbolo, 1.1.38), vazio ("Nenhuma trilha liberada para você.") e erro, como no protótipo.
+- CONFLITO: rota, autenticação, endpoint e contexto do monitor são lógica/API. Fora do escopo visual, mas obrigatórios para o Painel funcionar.
+
+**1.1.1.b.30 Seletor Aluno/Gestão: quem vê e o que abre** (22/10/2026)
+- O seletor "Aluno / Gestão" no rodapé do menu só aparece para contas com acesso à Gestão (perfis Super admin ou Instituição). Conta só de aluno nunca vê o seletor, nem o espaço dele. Hoje o app mostra o seletor para alunos: corrigir lendo o perfil da sessão, não um valor fixo.
+- Ao trocar de Gestão para Aluno, abre o Crias Aluno da mesma conta logada na Gestão (mesmo usuário e sessão), nunca outra conta de aluno que esteja salva no navegador. Ao voltar de Aluno para Gestão, abre a Gestão dessa mesma conta. Se houver sessões de contas diferentes no mesmo navegador, o seletor sempre segue a conta da página em que ele foi clicado.
+- No protótipo, o tweak acessoPainel continua simulando quem tem acesso; o padrão passa a ser desligado (aluno comum).
+
+**1.1.1.b.31 Salvar na trilha aberta** (22/10/2026)
+- Configuração: o único bloco editável é o Cadastro (lápis, depois Cancelar / Salvar no próprio box; o botão passa de "Salvar trilha" para "Salvar"). Estrutura, Habilidades, Orientações e Arquivos ficam em "Somente visualização" em qualquer trilha já criada, ativa ou não. Nessa aba, o botão do topo não aparece.
+- Objetivo entra no Cadastro, como na nova trilha, e é editado junto com Nome, Matéria e Descrição (mesmo lápis, mesmo Salvar). Clicar no objetivo marcado desmarca. O box Objetivo separado sai da trilha aberta.
+- Conteúdo, Alunos e Gabarito seguem a mesma regra:
+  - Qualquer alteração (texto ou título de etapa, gabarito, liberar/bloquear atividade, adicionar atividade, adicionar em lote ou com IA, excluir atividade, ativar/inativar aluno, marcar gabarito) não é gravada na hora. O botão "Salvar" do topo fica verde e pisca (halo) e, ao lado esquerdo, aparece "Cancelar" (pílula de 36px, fundo claro `--v-raise`, borda `--v-line`).
+  - Só grava ao clicar em Salvar. Cancelar desfaz tudo desde o último salvamento.
+  - Na aba Conteúdo os campos das etapas ficam sempre editáveis (saem o lápis e o Cancelar/Salvar do box da atividade). As alterações de várias atividades se acumulam até o Salvar do topo.
+- Sair com alteração não salva (trocar de aba, Voltar, menu lateral ou qualquer link) abre a confirmação no padrão das janelas do Crias: "Você não salvou as alterações, deseja sair mesmo assim?", com "Sair sem salvar" (claro) e "Salvar alterações" (verde). Clicar fora fecha e mantém na página. Sair sem salvar descarta e segue; Salvar alterações grava e segue.
+
+**1.1.1.b.32 Dados: cabeçalho da tabela de alunos em duas linhas** (23/10/2026)
+- "Atividades liberadas" e "Atividades feitas" quebram em duas linhas no cabeçalho ("Atividades" / "liberadas", "Atividades" / "feitas"), com as setas de ordenação ao lado, para estreitar essas colunas. As demais colunas seguem em uma linha, centralizadas na vertical do cabeçalho.
+
+**1.1.1.b.33 Gestão: trilha, gabarito, dados e planilhas** (23/10/2026)
+
+*Trilha aberta*
+- Abrir uma trilha (lista, Início, Voltar de etapas) leva direto para a aba **Conteúdo**, com "Adicionar com inteligência artificial" e "Adicionar em lote" sempre recolhidos. "Adicionar em lote" passou a recolher como o bloco de IA.
+- **Desativar trilha:** o botão "Trilha ativa" do Cadastro funciona sem entrar em edição. Desligar abre a confirmação "Desativar a trilha?" (Cancelar / Desativar trilha); os alunos deixam de ver a trilha e conteúdo, gabarito e progresso continuam salvos. Ligar de novo ativa direto. O resto da Configuração continua como está (Estrutura, Geração por IA e Arquivos seguem somente visualização).
+- **Alunos:** filtro só com **Ativos** e **Inativos** (saiu "Todos"; abre em Ativos). "Ativar ou desativar em massa" abre o bloco "Ativar ou desativar alunos", idêntico ao "Remover alunos" (título, subtítulo, Colunas, Baixar planilha base com alunos, Enviar planilha, botão de ação que só ativa com arquivo, nome do arquivo). Ao enviar, pede confirmação com o resumo (ativados, desativados, sem mudança) e só então aplica.
+- **Gabarito:** colunas Atividade #, Exercício #, Atividade, Título, Gabarito, % de acerto, Respostas, Acertos, Erros. Gabarito editável (seleção N/A, A a F conforme o número de alternativas), com etiqueta "Faltando" ou "Anulado". Botões "Alterar em massa" e "Exportar histórico" (CSV com todas as colunas). "Alterar em massa" abre "Alterar gabarito", com a mesma lógica de "Ativar ou desativar alunos": baixa a base, envia a planilha, confirma e só então altera.
+
+*Numeração de exercício (toda a aplicação)*
+- Etapa é a posição do bloco dentro da atividade (conteúdo, exercício ou feedback). Exercício é numerado à parte: 1, 2, 3, conforme a quantidade de exercícios da atividade, **nunca** pelo número da etapa. Ex.: estrutura Padrão (5 conteúdos + 2 exercícios + 2 feedbacks) tem Exercício 1 na etapa 6 e Exercício 2 na etapa 8.
+- Vale em Conteúdo ("Exercício 1 de 2"), Gabarito, Dados > Exercícios, planilhas e exportações. Chave do gabarito: trilha + atividade # + exercício #.
+- **Dados > Exercícios:** uma linha por exercício (não por atividade), com as colunas Trilha, **Atividade #**, **Exercício #**, Título, % de acerto, Respostas, Acertos, Erros, Gabarito.
+
+*Nova trilha (refletido na Configuração da trilha aberta)*
+- Etapas de criação: 1 Cadastro, 2 Estrutura, **3 Geração por IA**. Dentro da 3, os blocos são **A Habilidades / Conteúdos**, **B Orientações** e **C Arquivos**, com marcador de letra em quadrado arredondado com contorno verde (diferente do círculo numerado das etapas 1 a 3).
+- Geração por IA, à direita: Número de atividades e, abaixo, **Nível** (Básico verde, Intermediário amarelo, Avançado azul), seleção única em etiqueta com a cor do nível. Padrão: Intermediário.
+- O subtítulo de A, B e C usa a mesma etiqueta verde de "Adicionar com inteligência artificial" (fundo verde claro, texto verde escuro, 13px, 700).
+- A: "Habilidades / Conteúdos *", obrigatório. Etiqueta em duas linhas: "Habilidades ou conteúdos usados para gerar as atividades." / "Você pode enviar os códigos das habilidades da BNCC." Sem esse campo, "Gerar prévia" fica desativado.
+- B: etiqueta "Os conteúdos são gerados por padrão pela sequência abaixo." / "Você pode enviar orientações específicas ou selecionar as tags abaixo." Sequência padrão em azul (#e2f3fa, texto e números #1d5f78). Abaixo do campo, 8 tags de seleção múltipla (azul quando marcadas): Exemplos do cotidiano, Linguagem acessível, Situações-problema, Explicação passo a passo, Retomar pré-requisitos, Erros comuns, Conexão entre disciplinas, Pensamento crítico. As tags marcadas entram na Configuração de geração ("Tags de orientação").
+- C: etiqueta "Documentos de texto ou PDF que apoiam a geração das atividades."
+- "* obrigatório" no canto inferior direito do Cadastro (quando editável) e do bloco B, com asterisco e palavra no mesmo vermelho de erro (var(--v-err)), 13px.
+- Tipografia da criação revista sem exagero: títulos das etapas 18px, blocos A a C 16px, rótulos de campo 14px, rótulos de Estrutura 15px, opções de Objetivo 14px, etiquetas 13px. Botões seguem 36px/13px.
+- Na trilha aberta, a mesma estrutura aparece em somente visualização: Geração por IA com número de atividades, Nível, A, B (sequência, orientações e tags marcadas) e C.
+
+*Planilhas modelo (regra geral para o Claude Code)*
+- Formatos aceitos: CSV ou XLSX, primeira linha com os nomes das colunas exatamente como abaixo (sem acento obrigatório na leitura, sem diferenciar maiúsculas). Linhas vazias são ignoradas. Toda planilha mostra antes, na tela, a lista "Colunas".
+- Fluxo comum: baixar a base ou o modelo, enviar a planilha (o botão de ação só ativa com arquivo escolhido e mostra o nome do arquivo), confirmar e aplicar. Linhas com erro não param a importação: são listadas com o motivo e o resto é aplicado.
+- **Cadastrar alunos** (Alunos): nome, celular, senha (opcional), trilha (opcional). Sempre adiciona; celular já existente na instituição é erro da linha.
+- **Remover alunos** (Alunos): nome, celular, remover (sim / não). A base traz todos os alunos com "não". Só "sim" remove, após digitar DELETAR.
+- **Ativar ou desativar alunos** (aba Alunos da trilha): código, nome, celular, ativo (sim / não). A base traz todos os alunos da instituição, inativos primeiro, com a situação atual na trilha. Igual à base não muda; diferente é atualizado. Confirmação com resumo antes de aplicar.
+- **Alterar gabarito** (aba Gabarito): atividade, exercício, gabarito, anular (sim / não). Atividade e exercício são os **números** (ex.: 3 e 1), sem "#". A base traz todos os exercícios da trilha com o gabarito atual e "não". A chave é atividade + exercício. Gabarito aceita A a F dentro do número de alternativas (vazio mantém o atual). Anular "sim" tira o exercício do cálculo de acerto; "não" reativa. Confirmação com resumo (alterados, anulados, sem mudança) antes de aplicar.
+- **Adicionar em lote** (aba Conteúdo): mantém a planilha modelo atual, sem lista de colunas na tela. Regra: **sempre adiciona** atividades novas no topo, **nunca sobrescreve** nem altera atividades existentes.
+- **Alterar senhas em massa** (Senhas): nome, celular, escola, trilha (opcional), senha (opcional). Senha vazia gera automaticamente.
+- **Exportações** (Exportar histórico, Exportar planilha, Exportar CSV): CSV com as colunas da tabela exatamente como na tela, todas as linhas que passam pelos filtros, sem paginação.
+
+**1.1.1.b.34 Gestão: Geração por IA unificada, alunos, gabarito e conteúdo** (23/10/2026). Vale sobre o 1.1.1.b.33 onde houver diferença.
+- **Geração por IA** (nova trilha, Configuração da trilha aberta e "Adicionar com inteligência artificial" na aba Conteúdo) tem exatamente o mesmo conteúdo, textos, exemplos e tags:
+  - Abaixo do título: "Os conteúdos são gerados por padrão pela sequência abaixo." com a sequência em azul (Contextualização > Introdução > Exemplos > Desenvolvimento > Conclusão). Saiu "Quantas atividades gerar, em que nível e a partir de quê."
+  - Na nova trilha, à direita do título: etiqueta "opcional" e as setas de recolher.
+  - Blocos: **A Número de atividades**, **B Nível**, **C Habilidades / Conteúdos**, **D Orientações**, **E Arquivos**, um abaixo do outro, todos no mesmo padrão (letra em quadrado arredondado com contorno verde, título 17px). Em A e B o controle fica logo ao lado do título.
+  - Nível: Básico, Intermediário, Avançado. A etiqueta mantém sempre o fundo e o texto do estado não selecionado (fundo claro, ponto na cor do nível: verde, amarelo, azul). Selecionada, muda só o contorno (2px na cor do nível).
+  - C: etiqueta em uma linha "Habilidades e conteúdos para geração das atividades. Você pode enviar os códigos da BNCC." e, abaixo do campo, à direita, "* obrigatório". Sem C preenchido, "Gerar prévia" não ativa (também em Adicionar com IA).
+  - D: etiqueta "Você pode enviar orientações específicas ou selecionar as tags abaixo." e as tags (seleção múltipla): Exemplos do cotidiano, Linguagem simples, Termos técnicos, Explicação passo a passo, Situações-problema, Retomar pré-requisitos, Erros comuns, Pensamento crítico.
+  - Tipografia da página da trilha harmonizada: títulos de etapa 19px, blocos 17px, rótulos e textos de apoio 15px, etiquetas, tags e sequência 14px, botões 36px/13px.
+- **Conteúdo:** todo exercício mostra sempre as alternativas (A a F conforme a Estrutura), editáveis, com a marcação "Gabarito" na correta, além da seleção do gabarito. Nunca exibir exercício só com o gabarito.
+- **Alunos da trilha, Adicionar ou remover:** no topo, "Filtrar alunos" e a pesquisa por nome ou número. Abaixo, uma tabela única com todos os alunos da instituição: Nome, Número e Situação (Ativo ou Inativo) ordenáveis, e a coluna **Alterar** com o switch. Saíram as abas Ativos e Inativos.
+- **Gabarito:** a tabela é igual à de Dados > Exercícios, com as colunas Atividade, Exercício, Título (mesmo nome de Exercícios, "Exercício de …", com a seta para ver o enunciado e as alternativas) e Gabarito. Depois de Título só existe Gabarito: seleção na ordem A, B, C, D, N/A e o botão Anular (Reativar quando anulado). Ordena por Atividade, Título e Gabarito; Exercício não é ordenável.
+- **Dados > Exercícios:** colunas sem "#" (Atividade, Exercício) e sem ordenação por Exercício.
+
+**1.1.1.b.35 Gestão: ajustes de criação, confirmações e gabarito; Aluno: primeiro acesso e recuperar senha** (23/10/2026). Vale sobre 1.1.1.b.33 e 1.1.1.b.34 onde houver diferença.
+
+*Gestão*
+- Geração por IA (nova trilha, Configuração e Adicionar com IA, sempre iguais): saiu a explicação "Os conteúdos são gerados por padrão pela sequência abaixo." e a sequência numerada. D Orientações: "Você pode enviar orientações específicas e/ou selecionar as tags abaixo."
+- Nível Intermediário usa o amarelo vivo do Crias (#ffd500) no ponto e no contorno de seleção.
+- Confirmação de saída sem salvar: "Tem certeza que deseja sair sem salvar?", botões "Sair sem salvar" (só contorno amarelo #ffd500) e "Salvar alterações" (só contorno verde #00be85), ambos com fundo do cartão e texto escuro.
+- Alunos da trilha (Adicionar ou remover): ao lado das ações, caixas "Só ativos" e "Só inativos" (uma desmarca a outra). As ações passam a "Ativar todos" e "Inativar todos".
+- Gabarito: botão "Anular" só com contorno vermelho e texto vermelho; "Reativar" só com contorno verde. Etiqueta "Anulado" (e "Faltando") com fundo vermelho claro e texto vermelho, centralizada entre a seleção do gabarito e o botão.
+- Cadastrar alunos (Instituição e Alunos): ao enviar, confirmação "Deseja cadastrar os alunos na instituição?" com Cancelar / Cadastrar (verde).
+- Remover alunos: confirmação "Deseja remover os alunos da instituição?" com Cancelar / Remover (vermelho). Substitui o DELETAR neste fluxo.
+
+*Aluno: entrada*
+- **Primeiro acesso:** no primeiro login do usuário, sempre, depois de Entrar a mesma caixa da entrada vira "Primeiro acesso / Crie uma nova senha para continuar." com Nova senha, Confirmar senha (mínimo 6 caracteres, iguais) e "Salvar e entrar". Ao salvar, a nova senha é gravada no banco e o usuário segue para o Início. Erros: "A senha precisa ter pelo menos 6 caracteres." e "As senhas não conferem."
+- **Recuperar senha:** botão de texto abaixo de Entrar. Abre, na mesma caixa, "Recuperar senha / Informe o telefone cadastrado." com o campo Telefone e Enviar (Voltar retorna). Depois de enviar: "Você receberá a senha em até 1 dia útil no seu telefone." e "Voltar para entrar". O pedido vai para a Gestão/backend; a senha é enviada por mensagem ao telefone. Erro: "Informe um telefone válido."
+- Protótipo: tweak "primeiroAcesso" (padrão ligado) simula o primeiro login.
+- **CONFLITO (backend, Claude Code):** como saber que é o primeiro acesso. Regra: o usuário (aluno e login da Gestão) ganha o campo `must_change_password` (booleano), `true` ao ser criado (cadastro manual, planilha "Cadastrar alunos", senha gerada automaticamente) e sempre que a senha é redefinida pela Gestão (Senhas, Alterar senhas em massa) ou pelo Recuperar senha. A resposta do login devolve esse campo; se `true`, o front mostra a etapa "Primeiro acesso" em vez de entrar. O endpoint de troca recebe a nova senha, grava o hash, põe `must_change_password = false` e registra `password_changed_at`. Não usar contagem de logins nem data de último acesso para isso. Recuperar senha cria um pedido (`password_reset_requests`: telefone, data, situação) para envio em até 1 dia útil.
+
+**1.1.1.b.36 Gestão: geração opcional, botões e confirmações; Aluno: conversa, carregamento e Monitoria** (23/10/2026). Vale sobre as regras anteriores onde houver diferença.
+
+*Gestão*
+- **Geração por IA é opcional.** Com Nome, Matéria e Descrição preenchidos, "Gerar prévia" já ativa (prévia em branco com uma atividade). Habilidades / Conteúdos é obrigatório **só para gerar com IA**: basta preencher Habilidades para gerar com IA; Orientações, tags e Arquivos são sempre opcionais. Se o professor preencher Orientações, tags ou Arquivos sem Habilidades, "Gerar prévia" não ativa até preencher Habilidades. Em "Adicionar com IA" (aba Conteúdo) Habilidades é sempre obrigatório.
+- Subtítulo da nova trilha: "Crie uma trilha de atividades com conteúdos e exercícios em poucos passos." (texto definido pelo usuário).
+- **Prompt de geração (Claude Code / backend):** o sistema monta o prompt com o prompt fixo "Criar trilha com IA" + Configuração de geração. Além de habilidades / conteúdos, orientações e arquivos, entram obrigatoriamente: **nível de dificuldade** (Básico, Intermediário ou Avançado) e as **tags de orientação** selecionadas, junto às orientações. Vale para a nova trilha e para "Adicionar com IA".
+- **Botões verdes:** texto e ícone brancos em toda a Gestão (substitui o verde escuro da 1.1.39).
+- **Confirmação em linha (padrão único para ações em massa por planilha):** caixa abaixo dos botões, com a primeira frase em negrito ("Alterar gabarito em massa?") e o resto em texto normal, sempre com a contagem do que muda e do que fica igual. Botões Cancelar e confirmar; confirmar em verde claro (var(--v-gsoft)) com contorno verde vivo (#00be85) e texto verde escuro. Vale para: Cadastrar alunos ("Cadastrar alunos em massa?"), Remover alunos ("Remover alunos em massa?", botão Remover em vermelho claro com contorno e texto vermelhos), Ativar ou desativar alunos, Alterar gabarito e Alterar senhas em massa. Aparece em Alunos, na Instituição e na criação de instituição. Substitui as janelas de confirmação desses fluxos.
+
+*Perfis (Claude Code)*
+- O perfil **aluno** é só aluno: entra no Crias Aluno e não vê o seletor Aluno/Gestão. O perfil de **gestão** entra no Crias Gestão e pode abrir o próprio Crias Aluno como demonstração (seletor Aluno/Gestão no menu), com os seus dados de demonstração. Nunca dar acesso à Gestão a partir de um login de aluno.
+
+*Aluno: conversa (envio de mensagem)*
+- Ao enviar, a pergunta do aluno sobe até o topo da área de conversa (16px de respiro) e o carregamento do monitor aparece logo abaixo dela. Abaixo fica um espaço reservado para a resposta, para a pergunta poder subir mesmo quando a conversa é curta.
+- A resposta aparece em digitação, de cima para baixo, **sem rolar a tela**. Quem rola é o aluno. Não há descida automática durante ou depois da resposta.
+- Quando a resposta chega, a tela fica exatamente na mesma posição (pergunta no topo, resposta abaixo). Se a resposta for maior que o espaço visível, o aluno rola; ao terminar a digitação aparece a seta de descer.
+- O espaço reservado some quando o aluno toca Continuar, troca de trilha ou de tela. Continuar e respostas de exercício seguem o comportamento de antes (descem para o fim).
+- Vale nas trilhas e na Monitoria.
+
+*Aluno: abertura e carregamento da trilha*
+- Abrir uma trilha (card, menu, nome da trilha) leva sempre para o **fim** da conversa, já fixo na posição, sem subir e descer: a conversa só aparece depois de posicionada e as mensagens que já existiam entram sem animação.
+- **Carregamento de 5 em 5 atividades.** Ao abrir, carregam a atividade atual e as 4 anteriores. Ao rolar até o topo, se houver atividades anteriores não carregadas, aparece no lugar da seta de subir o símbolo do Crias pulsando com "Carregando mensagens". Ao carregar, o bloco anterior (mais 5) entra acima sem mover o que o aluno está vendo, o aviso some e aparece a seta de subir.
+- Se o conteúdo da atividade atual ainda não veio (inclusive na primeira atividade de uma trilha nova), o mesmo aviso aparece no lugar da seta de descer até carregar.
+- Clicar numa atividade antiga ainda não carregada (menu) mostra o aviso no topo, carrega até ela e então vai para ela.
+- **"Trilha indisponível" só aparece quando a API confirma** que a trilha não existe ou não está liberada para o aluno. Enquanto o conteúdo não chegou, sempre "Carregando mensagens".
+
+*Aluno: Monitoria (fim do Painel)*
+- O item "Painel" sai do menu. Fica só **Monitoria** ("Conversar com seu monitor"), e a Monitoria passa a ser exatamente o que era o Painel: perfil, filtros por trilha, progresso, desempenho, erros, dúvidas e a conversa com o monitor.
+- Texto do convite: "Quer tirar alguma dúvida? Pergunte aqui embaixo." Barra: "Pergunte ao seu monitor…".
+- **A barra do Início envia a pergunta para a Monitoria:** abre a Monitoria e a pergunta entra na conversa de lá.
+- Exceção de rolagem só deste menu: **sempre abre no topo**. Trocar o filtro de trilha também volta ao topo. Ao conversar, a pergunta sobe e a resposta segue a regra de envio acima.
+- **Conceito (Claude Code):** dentro de cada trilha o monitor fala da trilha, como antes. Fora das trilhas (Monitoria) o monitor fala do desempenho do aluno (com os dados individuais) **e** tira dúvidas sobre as matérias. O contexto enviado ao monitor da Monitoria inclui os dados do aluno logado do filtro atual.
+- **CONFLITO (backend):** na versão publicada, abrir o antigo Painel levava ao logout. Provável falta de rota/endpoint para os dados individuais do aluno. Os dados existem no banco (progresso por trilha e atividade, acertos e erros por exercício, perguntas ao monitor) e devem ser expostos num endpoint autenticado do próprio aluno (só os dados dele), usado pela Monitoria. A rota da Monitoria não pode exigir perfil de gestão.
+
+**1.1.1.b.37 Ajustes de texto e conversa da trilha** (23/10/2026)
+- Gestão, Objetivo: o campo "Escreva outro objetivo" usa a mesma tipografia das opções (texto escuro, mesmo peso) e tem o dobro da largura (até 480px).
+- Gestão, Orientações (nova trilha, Configuração e Adicionar com IA): "Você pode enviar orientações específicas e/ou selecionar uma ou mais tags abaixo."
+- Gestão, Alunos da trilha: switch "Alterar estágio em lote" e botão "Exportar base".
+- Aluno, conversa da trilha:
+  - Separador entre atividades: no início de cada atividade, "Atividade X - Título da atividade" em verde escuro (var(--v-lab)), 13px, 700, com a linha fina ao lado até a borda (mesmo padrão dos rótulos do menu), com respiro de 12px acima e 26px abaixo.
+  - Rótulo acima de cada mensagem da trilha: nome da **atividade** (não da trilha) seguido de "- Etapa X de Y" (conteúdos, contados só entre conteúdos), "- Exercício X de Y" (exercícios, contados só entre exercícios) ou "- Feedback". A etiqueta amarela do exercício mostra "Exercício X de Y". Mensagens do monitor seguem "Monitor".
+  - Topo: só "Atividade X de Y" (saiu a etapa). Acompanha a atividade que está na tela ao rolar e muda ao avançar de atividade.
+- Protótipo: trilha "Revisão de matemática" com 15 atividades concluídas para testar o carregamento de 5 em 5.
+
+**1.1.1.b.38 Entrada, perfil, conversa e acessos separados** (23/10/2026). Vale sobre as regras anteriores onde houver diferença.
+
+*Aluno: entrada*
+- Abaixo de "Recuperar senha", o link "Solicitar demonstração" (mesmo estilo). Abre a caixa no mesmo formato: título "Solicitar demonstração", campos Nome, Telefone, E-mail, Organização e Cargo, botão "Enviar" e "Voltar". Nome, Telefone e E-mail são obrigatórios (asterisco em var(--v-err)). E-mail validado por expressão regular (`/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[a-z]{2,}$/i`). Erros: "Preencha nome, telefone e e-mail.", "Informe um telefone válido.", "Informe um e-mail válido.".
+- Confirmação: título "Solicitar demonstração", mensagem "Você receberá um contato por telefone em poucos dias." e botão "Voltar para página inicial" (volta para a entrada).
+- Recuperar senha: saiu o subtítulo "Informe o telefone cadastrado.".
+- Campo Telefone (Recuperar senha e Solicitar demonstração): máscara "(  )      -    " ao fundo, em tom de apoio; ao digitar, os números preenchem a máscara ("(11) 90000-0001", até 11 dígitos, algarismos tabulares).
+- Primeiro acesso: abaixo de "Salvar e entrar", o texto "Voltar para página de login", alinhado à direita, 14px, 600, verde #00875e, sublinhado só no hover (texto, não botão).
+- CONFLITO: o envio da solicitação de demonstração depende de API (endpoint público). A camada visual segue esta regra.
+
+*Aluno: perfil*
+- Em todo o Crias Aluno, tocar no nome do perfil no rodapé do menu abre a página **Perfil**: topo "Perfil", e o mesmo bloco de nome e telefone da Monitoria (avatar, nome, telefone e lápis para editar). Abaixo, o botão verde "Suporte" (pílula 46px, texto e ícone brancos), que abre https://wa.me/553197520152 em nova aba.
+
+*Aluno: conversa da trilha*
+- Topo: "Atividade X de Y - Nome da atividade".
+- Rótulo das mensagens de conteúdo: só "Etapa X de Y". Feedback: "Feedback". Exercício sem rótulo e sem texto acima: vem direto o box do exercício. A etiqueta "Exercício X de Y" dentro do box passa para o azul do Crias (fundo #e2f3fa, texto #1d5f78; no escuro #0f2a36 e #8fd3ec).
+- Número da atividade também quando concluída (menu e Monitoria): o círculo mostra o número, com fundo verde #00be85 e número branco. Saiu o ✓.
+- **Carregamento:** "Carregando mensagens" sempre no topo, no lugar da seta de subir: o símbolo do Crias solto (28px, sem caixa), centralizado no mesmo ponto da seta, e o texto abaixo dele (13px, 600, texto de apoio). Vale para todos os casos (atividades anteriores, atividade atual ainda não carregada, abrir trilha nova).
+- **Avanço de mensagens (mesmo mecanismo em tudo):** ao tocar Continuar ou responder o exercício, os três pontos de carregando sobem até o topo da conversa (16px de respiro). A mensagem nova aparece no lugar deles, de cima para baixo, sem rolar a tela. Se for maior que a área visível, aparece a seta de descer e o aluno rola; se for menor, o espaço abaixo continua. Na próxima mensagem, sobe de novo. Na conversa com o monitor (trilha e Monitoria) quem sobe é a pergunta do aluno, como em 1.1.1.b.36. Substitui a descida automática ao fim do Continuar e do exercício.
+
+*Aluno: Monitoria*
+- A seta de descer aparece desde a abertura (a Monitoria abre no topo) e fica até o aluno rolar; depois segue a regra normal. Vale também ao trocar o filtro de trilha.
+- Trocar o filtro de trilha sempre leva a conversa ao topo, mesmo com a conversa no fim ou rolando.
+- Números dos indicadores (progresso, desempenho, monitor) alinhados pela base: quando um rótulo ocupa duas linhas e outro uma, todos os números ficam na mesma linha, abaixo do rótulo mais baixo.
+
+*Gestão: Dados*
+- Subtítulo da página: "Informações sobre o progresso dos alunos".
+- Uso do monitor: saiu o subtítulo "X monitores · X mensagens".
+
+*Acessos separados*
+- Saiu o seletor "Aluno / Gestão" do menu, no Aluno e na Gestão. Aluno e Gestão são acessos diferentes, cada um com o seu login. Substitui 1.1.1.b.30 e o trecho de perfis de 1.1.1.b.36. O tweak acessoPainel saiu do protótipo.
+
+**1.1.1.b.39 Envio por e-mail, perfil, conversa e carregamento da trilha** (23/10/2026). Vale sobre 1.1.1.b.38 onde houver diferença.
+
+*Aluno: entrada*
+- Enviar em "Recuperar senha" e em "Solicitar demonstração" manda as informações para contato@crias.org. Assunto: "Recuperar senha" ou "Solicitar demonstração". Corpo: só o nome do campo e a resposta, uma linha por campo ("Nome: Ana Souza"); campo opcional vazio vai como N/A. No protótipo abre o e-mail pronto (mailto). CONFLITO: no app, o envio deve ser feito pelo backend para contato@crias.org.
+- "Voltar para página inicial" (confirmação da demonstração) leva para https://www.crias.org, na mesma aba.
+
+*Aluno: conversa da trilha*
+- O separador entre atividades passa a ser só a linha fina (verde escuro, 25%), sem texto. O nome da atividade fica só no topo: "Atividade X de Y - Nome da atividade", sem negrito, em verde escuro (var(--v-lab)). Ao mudar de atividade (rolando ou avançando), o texto do topo dá uma piscada sutil (opacidade até 45%, 650ms).
+- Exercício é um bloco como os outros: símbolo do Crias ao lado, título "Exercício X de Y" acima do box (mesmo estilo de "Etapa X de Y") e o box logo abaixo. Saiu a etiqueta com o número dentro do box.
+
+*Aluno: abertura e carregamento da trilha (refina 1.1.1.b.36)*
+- Ordem de carregamento: sempre da atividade mais recente para a primeira. As anteriores entram acima conforme o aluno sobe.
+- Regra de posição: o ponto de partida é sempre o topo da área visível. A mensagem onde o aluno parou fica no topo (16px de respiro); o que veio antes fica acima, para rolar.
+  - Abrir a trilha (card, menu, nome): atividade em andamento ou nova, carregam a atual e as 4 anteriores e a última mensagem fica no topo. Trilha concluída: vai direto para o fim, com a última mensagem na base da tela.
+  - Clicar numa atividade já feita (menu): carrega ela e as 5 seguintes, com o começo dela no topo. Rolando para baixo, as próximas 5 entram sem aviso, antes de chegar ao fim. Rolando até o topo, as 5 anteriores entram acima com "Carregando mensagens" (350ms), sem mover o que está na tela.
+  - Clicar na atividade em andamento: a última mensagem no topo.
+- Posicionamento imediato, sem rolagem animada nem subir e descer: a conversa só aparece já posicionada. Continuar ou enviar estando numa atividade antiga carrega até a atual e segue o mecanismo de 1.1.1.b.38.
+
+*Aluno: Monitoria*
+- Saiu a seta de descer fixa ao abrir: segue a regra normal (aparece só ao rolar).
+- Saiu do topo o nome e o telefone. A edição fica só na página Perfil.
+
+*Aluno: Perfil*
+- Duas seções com o rótulo do menu (caixa alta, 11px, verde escuro, linha fina ao lado): **Cadastro** e **Suporte**.
+- Cadastro já abre editável: Nome e Telefone (campos 46px, rótulo acima) e "Salvar" na mesma linha. Salvar só fica verde e clicável quando algo mudou.
+- Suporte, numa linha: ícone do WhatsApp com "+55 (31) 9752-0152" (abre https://wa.me/553197520152), ícone de e-mail com "contato@crias.org" (mailto) e, à direita, o botão verde "Falar com suporte" (abre o WhatsApp). No celular os itens quebram linha.
+
+*Gestão: Dados*
+- Subtítulo com ponto final: "Informações sobre o progresso dos alunos.".
+
+_Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno v1.1.1b.dc.html` e `Crias Gestao v1.1.1b.dc.html`._
+
+**1.1.1.b.40 Ordem das atividades, envio automático, rolagem e perfil** (23/10/2026). Vale sobre 1.1.1.b.39 onde houver diferença.
+
+*Aluno: menu*
+- (Revertido) A lista de atividades de cada trilha no menu continua da 1 para a última.
+
+*Aluno: entrada (envio automático, Claude Code)*
+- "Recuperar senha" e "Solicitar demonstração" enviam o e-mail automaticamente, sem ação do usuário (o protótipo não abre mais o mailto). Para a pessoa aparece só a confirmação que já existia.
+- Backend: endpoint público (sem login) por formulário, com validação no servidor (telefone com 10 ou 11 dígitos; e-mail pela mesma expressão regular), limite de envios por IP e envio por e-mail transacional para **contato@crias.org**. Assunto: "Recuperar senha" ou "Solicitar demonstração". Corpo: uma linha por campo, "Campo: resposta" (Telefone; ou Nome, Telefone, E-mail, Organização, Cargo), opcional vazio como N/A. A confirmação só aparece com resposta de sucesso da API; com falha, erro "Não foi possível enviar. Tente novamente.".
+
+*Aluno: conversa da trilha*
+- "Atividade concluída / Continue para a próxima atividade" vira só uma etiqueta: pílula verde clara (var(--v-gsoft), borda verde a 35%), círculo verde com ✓ branco e o texto "Atividade concluída" (Outfit 14px, 600, verde escuro), alinhada ao texto das mensagens.
+- Setas de subir e descer vão até o fim de verdade: se houver atividades não carregadas, a seta carrega o próximo bloco de 5 e continua sozinha até o primeiro (ou último) ponto possível, sem parar na transição. Rolar à mão a partir do ponto de transição também carrega de novo. Com tudo carregado, a rolagem é normal. Rolar com a roda ou o dedo cancela a ida automática.
+
+*Aluno: Perfil*
+- Cadastro: Nome na primeira linha (largura toda). Na segunda: Telefone (190px), E-mail (ocupa o espaço livre) e, à direita, "Cancelar" e "Salvar" (46px), sempre visíveis. No celular quebram linha. E-mail vem em branco por padrão e é validado ao salvar.
+- Padrão de edição: Cancelar e Salvar ficam apagados até haver alteração; ao digitar, Cancelar fica ativo e Salvar fica verde. Cancelar volta aos dados salvos.
+- Suporte: telefone "+55 (31) 99752-0152", com o mesmo link do botão (https://wa.me/553197520152). E-mail abre o mailto. Botão: "Falar com o suporte".
+
+**1.1.1.b.41 Prévia em lista com Resumo** (26/10/2026)
+
+*Gestão: Nova trilha, aba Prévia, e Adicionar atividades com IA*
+- A prévia passa a ser uma lista de atividades (número, nome, "X conteúdos · Y exercícios · ≈ N min") com um cartão Resumo à direita. Ao abrir uma atividade aparecem os blocos B1, B2... coloridos por tipo (Conteúdo verde, Exercício amarelo, Feedback azul, Conclusão verde escuro). Até 6 atividades; "+ N atividades" mostra o restante.
+- Resumo: nome da trilha, matéria e objetivo; atividades, exercícios no total e minutos por atividade; linhas Conteúdos, Exercícios, Alternativas por exercício, Feedback instantâneo e Bloco conclusivo (uma por linha). Não há "Liberação".
+- Tempo aproximado, calculado só no frontend: 1 min por bloco de conteúdo, feedback ou conclusão e 2 min por exercício.
+- Os botões continuam no topo: Continuar leva a Adicionar alunos e Salvar trilha fica no topo (sem botão no Resumo). Em Adicionar atividades com IA, Cancelar e Adicionar atividades seguem no topo e a atividade aberta mantém o detalhe das etapas abaixo dos blocos. O editor de atividades da Prévia continua abaixo da lista; abrir uma linha seleciona a atividade nele.
+
+**1.1.1.b.42 Ajustes da prévia** (26/10/2026)
+- Etapa conclusiva vem ligada por padrão na Configuração da trilha.
+- Na prévia, o bloco de conclusão usa a mesma cor da Configuração (bege #e9e1c6, texto #4a4030) e tem o mesmo tamanho dos outros blocos.
+- Nova trilha e Adicionar atividades com IA: ao abrir uma atividade aparecem os blocos e o conteúdo de cada etapa (incluindo feedback e conclusão), igual à prévia de trilhas já criadas. À direita de cada linha fica só a seta de abrir e recolher. Todas as atividades começam recolhidas.
+
+**1.1.1.b.43 Salvar na Prévia** (26/10/2026)
+- Na Prévia da nova trilha, o botão do topo passa de "Continuar" para "Salvar trilha" e salva direto. A etapa "Adicionar alunos" também fica com contorno verde: a pessoa escolhe salvar agora ou ir adicionar alunos antes.
+
+**1.1.1.b.44 Topo da Gestão entre 920 e 1000px** (26/10/2026)
+- Até 1000px de largura o filtro de instituições fica só com ícone e o espaço entre os itens do topo cai para 6px, para o botão Sair não ser cortado.
+
+## Gestão 1.1.1.b (antes Redesign, aprovada em 24/10/2026)
+
+Aprovada como Gestão 1.1.1.b: `Crias Gestao v1.1.1b.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.
+
+- **Menu no topo** (web), como no rascunho R: logo, Início, Dados, Trilhas, Alunos e Configurações (lista com Usuários e Sistema). Mais espaço entre o logo e o menu. Todos os itens com fundo bege (#f7f5ec); o selecionado ganha contorno verde #00be85. À direita: etiqueta da escola (perfil Instituição) ou "Filtrar instituições" (Super admin), ambos em bege, depois tema, perfil e sair. No celular, menu em tela cheia e a etiqueta/filtro na linha do Voltar, como hoje. Conteúdo até 1280px; sai a regra dos 203px.
+- **Cartões:** como na v1.1 oficial (sem sombra).
+- **Padrão de filtros (toda a Gestão):** barra única em pílula com o rótulo "FILTROS" à esquerda (com respiro da borda), linha fina e, em seguida, os filtros e a pesquisa quando houver. Vale para Início, Trilhas, Alunos, Dados, Senhas e as abas Alunos e Gabarito da trilha.
+- **Dados:** grade do rascunho R3. Indicadores como na oficial, mais **Média de perguntas ao monitor** (perguntas ÷ alunos ativos, com "X perguntas totais" embaixo, no padrão do "X inativos"). Conclusão das atividades, Situação dos alunos e Uso do monitor na mesma linha. Menor acerto e Maior acerto em dois cartões limpos, sem barra; título "Trilha · Atividade X · Exercício Y" e seta para baixo para ver o enunciado. Alunos e Exercícios: abas, Exportação, Aulas, Tópicos, Colunas e Exportar planilha numa linha só; tabela como na oficial.
+- **Trilha aberta (R2):** abas Configuração, Conteúdo, Alunos e Gabarito no topo, à direita do título. Em Conteúdo, três colunas com títulos no mesmo padrão e alinhados (caixa alta, 11px, verde): "ATIVIDADES", "ATIVIDADE X DE Y" e "COMO O ALUNO VÊ". Abaixo de Atividades: "+ Atividade", "Adicionar em lote" e "Adicionar com IA" (os dois últimos abrem o painel acima das colunas). A prévia mostra o conteúdo resumido de cada etapa e as alternativas (uma por linha), com rolagem.
+- **Nova trilha:** índice à esquerda (Cadastro, Estrutura, Geração por IA com "opcional" embaixo). Seções com mais espaço entre si. Recolhidas, mostram um resumo limpo: Cadastro (nome, matéria, descrição, objetivo); Estrutura (conteúdos, exercícios, alternativas por exercício, feedback imediato Sim/Não, etapa conclusiva Sim/Não); Geração por IA (número de atividades, nível da atividade, habilidades, orientações com as tags embaixo, arquivos).
+- **Estrutura:** sai a linha "Cada atividade"; entram os blocos de reorganização manual sob o título "Reorganize", bem menores que na oficial, com a legenda da oficial. O exercício leva o feedback junto; a etapa conclusiva, quando ligada, fica fixa no fim. Switch **Etapa conclusiva** ao lado de Feedback imediato (backend: `conc`, booleano, padrão falso).
+- **Geração por IA:** em Número de atividades e Nível da atividade (antes "Nível"), os controles ficam alinhados à direita. Habilidades, Orientações e Arquivos sem botões de recolher; só a seção inteira recolhe.
+- **Como o aluno vê:** com rolagem, na nova trilha e na trilha aberta.
+
+### Revisão 2 do Redesign (24/10/2026)
+
+- **Voltar:** só texto com a seta, sem contorno, alinhado à esquerda com o título, em toda a Gestão.
+- **Dados:** indicador "Perguntas ao monitor" com a média (perguntas ÷ alunos ativos) e "média" pequeno ao lado; embaixo, "X totais". Barra de filtros em duas partes: à esquerda, Filtrar trilhas e Pesquisar aluno, um embaixo do outro; à direita, "% DE CONCLUSÃO" (mesmo rótulo de Filtros, com a linha fina) e duas faixas, De e Até, que filtram tudo abaixo (recurso da v0). Exercícios abrem ordenados por trilha (A a Z), atividade e exercício.
+- **Início (Super admin):** etiqueta "ID" da instituição antes do tipo (Escola privada etc.). Trilhas: filtro "Filtrar matérias" na barra de filtros.
+- **Usuários (antes Permissões):** o menu e a página Usuários do Início seguem o mesmo padrão: Perfis (Super admin acessa tudo; Instituição só visualiza; Básico vem com Alunos), "Adicionar usuários em massa" e "Remover usuários em massa" (recolhidos), barra de filtros com "Pesquisar nome, número ou e-mail" e "Adicionar usuário" no fim da linha. No Super admin, a importação pede a instituição numa lista das ativas.
+- **Ações em massa (padrão):** cartão com título "… em massa", subtítulo e o botão Editar/Recolher; começa recolhido. Dentro: Colunas, Baixar planilha, Enviar planilha, botão de ação, nome do arquivo ("Nenhum arquivo selecionado") e a confirmação em linha com contagem.
+- **Colunas das planilhas em massa** (valem para o CSV exportado, para o modelo baixado e para a leitura do arquivo enviado, nesta ordem; o Claude Code e o backend devem gravar e validar exatamente assim):
+  - Cadastrar alunos em massa: ID Instituição, Nome, celular, e-mail (opcional), senha (opcional), trilha (opcional).
+  - Editar alunos em massa: ID Instituição, Código aluno, Nome, celular, e-mail (opcional), escolaridade, nível pedagógico. A linha é encontrada pelo Código aluno; os demais campos substituem os atuais.
+  - Remover alunos em massa: ID Instituição, Código aluno, Nome, celular, remover (sim / não).
+  - Alterar senhas em massa: ID Instituição, Código aluno, Nome, celular, senha. Senha vazia gera automaticamente (texto no mesmo estilo de "Nenhum arquivo selecionado").
+  - Adicionar usuários em massa: ID, Nome, E-mail, Telefone, Perfil, Senha (opcional).
+  - Remover usuários em massa: ID, Nome, E-mail, remover (sim / não).
+- **Alunos:** "+ Adicionar aluno" no fim da linha do título (abre o cadastro em branco). Na barra de filtros, "Pesquisar nome, número ou código" vem primeiro. Cadastro do aluno: Nome, Telefone, E-mail (opcional), Senha, Escolaridade (lista) e Nível pedagógico; sai o campo Instituição. Salvar fica no topo, como na trilha; aluno novo só salva com nome e telefone. E-mail só no cadastro, não na tabela.
+- **Salvar (toda a Gestão):** todo Salvar abre "Tem certeza que deseja salvar?" com "Essa ação não pode ser desfeita." e os botões Continuar editando (contorno amarelo) e Salvar (verde, texto branco).
+- **Sair sem salvar (toda a Gestão):** Continuar editando (contorno amarelo) e Salvar (contorno verde) na primeira linha; Sair sem salvar (contorno vermelho) embaixo. Vale também para a nova trilha (cadastro preenchido ou prévia gerada). Saindo sem salvar, a nova trilha é descartada e começa do zero na próxima vez. Na prévia, "Cancelar" ao lado de "Salvar trilha".
+- **Nova trilha:** o índice (1, 2, 3) acompanha a rolagem e a seção que fica para trás recolhe sozinha. Texto do índice: "Preencha o cadastro, revise a estrutura e defina as informações para gerar por IA (opcional)." Objetivo: "Escreva outro" ocupa o resto da linha. Estrutura: subtítulo mais perto do título; "Reorganize" com "opcional" e o texto em duas linhas; setas e arrastar sempre disponíveis (ao mover, a estrutura vira Personalizada), setas menores; total "X etapas por atividade" em etiqueta branca com contorno verde. Geração por IA: subtítulos de Habilidades, Orientações e Arquivos no padrão da Estrutura, em verde escuro. Resumo recolhido: habilidades e orientações em até 3 linhas, esmaecendo para baixo; tags em azul; arquivos um embaixo do outro.
+- **Trilha aberta:** subtítulo com a matéria. Linha do título com Salvar até o fim da página; abas na linha de baixo, à direita. Botões: "Nova atividade" e "Adicionar em lote" (meia largura cada) e "Adicionar com inteligência artificial" (linha inteira). Nas atividades, só o cadeado (liberada ou bloqueada). Configuração de geração em três grupos com título em azul escuro: Cadastro, Estrutura e Geração por IA.
+
+### Revisão 3 do Redesign (24/10/2026)
+
+Vale sobre a Revisão 2 onde houver diferença.
+
+- **Pesquisa de aluno (Dados, Alunos na trilha, Adicionar ou remover):** "Pesquisar nome ou telefone do aluno". A busca é por início: cada letra digitada mantém só quem começa exatamente com o que foi digitado (sem diferenciar acentos e maiúsculas). Só números: o telefone precisa começar com os dígitos (com ou sem 55). Na trilha, a pesquisa vem antes dos filtros.
+- **Trilhas (lista):** Filtrar trilhas primeiro; Filtrar matérias no mesmo padrão (lista com pesquisa, Selecionar tudo, Limpar tudo e etiqueta "Todas" ou "X de Y"). Tabela: Nome (ocupa todo o espaço livre e quebra em linhas se precisar), Matéria, Criada em, Ativa e Abrir (contorno verde), tudo à direita. Sai a coluna Instituição.
+- **Nova trilha:** "Escreva outro" termina na mesma linha vertical da última etiqueta da linha de cima. A seção de baixo só recolhe quando a pessoa rola para cima e o título da seção de cima chega ao topo: topo de Cadastro recolhe Estrutura; topo de Estrutura recolhe Criar com IA. Índice: "· Preencha o cadastro. · Valide a estrutura. · Defina informações para criar com inteligência artificial." "Geração por IA" passa a "Criar com IA" (índice e título). Resumo recolhido: Habilidades e Orientações em caixa branca com contorno bege, altura de 4 linhas e rolagem. Subtítulos: "Crie atividades baseadas na descrição das habilidades e conteúdos. / É possível enviar os códigos da BNCC para geração das atividades." e "Anexe documentos de texto ou PDF para embasar a criação das atividades." Caixa de arquivos: "Envie os documentos aqui / DOCX, TXT ou PDF"; o botão abre o seletor de arquivos do computador (vários arquivos).
+- **Prévia (Configuração de geração):** Nome, Estrutura, Descrição, Habilidades, Orientações, Tags e Arquivos ocupam dois blocos; texto que não cabe rola para a direita e esmaece no fim. Texto abaixo do celular: "Etapas na ordem em que o aluno recebe."
+- **Trilha aberta:** coluna Atividades mais larga (430px) com "Nova atividade", "Adicionar em lote" e "Adicionar com IA" do mesmo tamanho numa linha; a coluna do meio reduz. Atividades novas começam bloqueadas.
+- **Saída:** título "Tem certeza que deseja sair?". Salvar dentro dessa janela salva direto, sem a segunda confirmação; "Tem certeza que deseja salvar?" só aparece no Salvar da tela de edição.
+- **Alunos na trilha:** abas "Cadastrados" e "Adicionar ou remover" (sai o botão Voltar). Em Cadastrados, "Alterar estágio em lote" e "Exportar base" ficam abaixo dos filtros. Em Adicionar ou remover, o botão "Adicionar ou remover em massa" fica abaixo dos filtros.
+- **Ações em massa:** cabeçalho inteiro clicável, com seta redonda de contorno verde (abrir e recolher) no lugar de Editar.
+- **Colunas (substituem a Revisão 2):**
+  - Cadastrar alunos em massa: ID Instituição, Nome, Telefone, E-mail, Senha (opcional). Nota: "Código gerado automaticamente."
+  - Editar alunos em massa: ID Instituição, ID Aluno, Nome, Telefone, E-mail, Escolaridade, Nível pedagógico (todos opcionais). Nota: "Campos em branco não são editados."
+  - Remover alunos em massa: ID Instituição, ID Aluno, Nome (visualização), Telefone (visualização), Remover (sim / não). Nota: "Remoção a partir do código do aluno."
+  - Alterar senhas em massa: ID Instituição, ID Aluno, Nome (visualização), Telefone (visualização), Senha. O CSV exportado vem com a senha em branco. Nota: "Somente senhas preenchidas serão alteradas."
+  - Adicionar usuários em massa: ID Instituição, Nome, Telefone, E-mail, Perfil, Senha (opcional).
+  - Remover usuários em massa: ID Instituição, Nome (visualização), Telefone (visualização), E-mail, Remover (sim / não). Nota: "Remoção a partir do e-mail do usuário."
+  - Colunas de visualização vêm preenchidas no CSV exportado para conferência e são ignoradas na leitura.
+- **Vocabulário:** "Telefone" em toda a Gestão (sai celular e número). "ID Aluno" no lugar de "Código aluno".
+
+### Revisão 4 do Redesign (24/10/2026)
+
+Vale sobre as revisões anteriores onde houver diferença.
+
+- **Pesquisa:** volta a regra anterior em toda a Gestão: encontra o texto em qualquer parte do nome, e telefone ou ID a partir de 2 dígitos (como em Usuários).
+- **Salvar e Cancelar no topo (regra geral):** toda página com dados editáveis (trilha, aluno, Alunos, Usuários, Senhas, Instituição, Prompts) mostra Cancelar e Salvar no topo, na linha do título, assim que algo muda, inclusive depois de ações em massa ou salvamentos intermediários. Salvar pede "Tem certeza que deseja salvar?". Cancelar pede "Tem certeza que deseja cancelar a edição? / Essa ação não pode ser desfeita." com Continuar editando (contorno amarelo) e Cancelar edição (contorno vermelho). Sair da página com alteração abre "Tem certeza que deseja sair?". Ações internas da página (salvar a linha, confirmar a importação) seguem como estão; o topo é o salvamento final.
+- **Usuários (Configurações e Início do Super admin, idênticos; o Super admin mantém as abas Crias e Instituições):** a página abre só para leitura, com "Editar" no topo. "Adicionar usuário" abre só a linha nova em edição, com Salvar e Cancelar na linha (Cancelar da linha só desfaz, sem confirmação). Perfis: Super admin acessa tudo, Instituição só visualiza; Básico vem com Alunos marcado. O Super admin tem "+ Adicionar perfil", que abre uma linha com o nome do perfil e as permissões; o nome tem 170px e todas as linhas ficam alinhadas.
+- **Parênteses nas planilhas (regra geral):** o que aparece entre parênteses na etiqueta da coluna vai igual no cabeçalho da planilha baixada: (obrigatório), (opcional), (visualização), (sim / não), (Admin / Básico). Na leitura, o sistema ignora o parêntese e lê só o nome da coluna.
+- **Colunas (substituem as anteriores):**
+  - Cadastrar alunos em massa: ID Instituição (obrigatório), Nome (obrigatório), Telefone (obrigatório), E-mail (opcional), Senha (opcional). A planilha modelo já vem com o ID da instituição.
+  - Editar alunos em massa: a planilha base vem com todos os dados atuais dos alunos.
+  - Adicionar usuários em massa: ID Instituição (obrigatório, já vem na planilha modelo), Nome, Telefone, E-mail, Perfil (Admin / Básico), Senha (opcional).
+  - Adicionar ou remover alunos da trilha em massa: ID Trilha, Trilha, ID Aluno, Nome (visualização), Telefone (visualização), Ativo (sim / não). A planilha base vem toda preenchida.
+- **Alunos (tabela):** "Filtrar por ID" (antes "Filtrar por código"); Ativo vem depois de Criado em; sai a coluna Status.
+- **Aluno:** novo aluno tem o mesmo cadastro e a seção Trilhas vinculadas. Na edição, mexer numa trilha vinculada (atividade, etapa, vincular ou desvincular) não salva na linha: só o Salvar do topo grava.
+- **Trilha aberta, Conteúdo:** "+ Atividade", "Adicionar em lote" e "Adicionar com IA" menores, numa linha; a largura da coluna acompanha os três botões. Cada atividade tem "Salvar" (contorno verde) ao lado de Excluir, como salvamento intermediário; o Salvar do topo continua obrigatório. "Adicionar com IA" usa os mesmos blocos e textos de "Criar com IA" da nova trilha.
+- **Alunos na trilha:** abas Cadastrados e Adicionar ou remover em largura total, acima dos filtros (como Alunos e Exercícios em Dados), sem caixa extra. "Adicionar ou remover alunos da trilha em massa" é um cartão com seta para abrir e recolher. "Ver ativos", "Ver inativos", "Ativar todos" e "Inativar todos" na mesma linha.
+- **Senhas (tabela):** coluna E-mail depois de Telefone. Nome ocupa todo o espaço livre; ID Aluno, Telefone, E-mail, Senha e Ação ficam à direita.
+
+### Revisão 5 (24/10/2026, fechamento da 1.1.1.b)
+
+- **Perfil (Gestão):** o avatar abre a página Perfil no mesmo padrão do Crias Aluno: Cadastro (Nome, Telefone, E-mail, Cancelar e Salvar) e Suporte (WhatsApp, e-mail e "Falar com o suporte").
+- **Regra de cadastro (Gestão e Aluno, qualquer perfil):** Nome é obrigatório e é preciso ter e-mail ou telefone; com um dos dois já dá para salvar.
+- **Nova trilha:** sai o recolhimento automático pela rolagem. O "Editar/Recolher" das seções vira a seta redonda de contorno verde (padrão das ações em massa). O índice continua acompanhando a rolagem.
+- **Usuários:** a seleção de Instituição em Adicionar e em Remover usuários em massa usa o formato do botão "Baixar planilha modelo". Na tabela, Nome ocupa todo o espaço livre; E-mail, Telefone, Perfil, Senha e ações ficam à direita.
+- **Alternativas (Gestão e Aluno):** uma por linha; quando o texto não cabe, só aquela alternativa ganha linhas, sem esmaecer.
+- **Trilha ativa:** o switch fica no topo, ao lado das abas (Configuração, Conteúdo, Alunos, Gabarito). Trilha nova é criada inativa. Ao ativar: "Confirma a ativação da trilha?" / "Ao ativar a trilha as configurações de estrutura não podem ser editadas." com Cancelar (contorno amarelo) e Ativar trilha (contorno verde).
+- **Conteúdo:** "Nova atividade", "Adicionar em lote" e "Adicionar com IA" ficam logo abaixo das abas, com a mesma largura delas, divididos em partes iguais, fundo branco e contorno. O botão aberto fica em verde claro; recolhido, volta ao contorno. A seta dos painéis segue a seta redonda verde. O Salvar de cada atividade começa bege (bloqueado), libera ao editar e volta ao bege depois de salvo; Excluir fica à direita.
+- **Alunos na trilha:** aba "Ativar ou inativar" (antes "Adicionar ou remover"), sem cabeçalho fixo na tabela. Colunas: Nome (todo o espaço), ID Aluno, Situação e Alterar à direita.
+- **Gabarito:** "Ver faltando" e "Ver anulados". Colunas da planilha: ID Trilha, Trilha, Atividade, Exercício, Gabarito, Anular (sim / não). Nota: "Somente as alterações na coluna "gabarito" ou "anular" são registradas." Na tabela, Gabarito vai para a direita e Título ocupa o espaço livre.
+- **Alunos (tabela):** coluna Nome três vezes mais larga (aceita rolagem horizontal); Ativo é a última coluna de dados; Abrir com contorno verde.
+
+### Revisão 6 (24/10/2026)
+
+*Aluno*
+- **Painel e Monitoria voltam a ser itens separados** (substitui o trecho "Monitoria (fim do Painel)" de 1.1.1.b.36). Menu, grupo Acompanhamento: **Painel** ("Ver seus dados de estudo") e **Monitoria** ("Conversar com seu monitor").
+- **Painel em dashboard:** sem formato de conversa. Filtro por trilha no topo e cartões com título (Outfit 19px): Progresso (largura total), Desempenho, Uso do monitor, Exercícios com erro e Principais dúvidas. Os números ficam em blocos bege; uma linha curta de apoio abaixo do título.
+- **Barra do monitor no Painel:** continua embaixo. Ao enviar, o aluno vai direto para a Monitoria e a pergunta entra como se tivesse sido feita lá: histórico acima, mensagem do aluno, carregamento no topo e resposta abaixo (mesmo mecanismo da conversa). As perguntas do Início também vão para a Monitoria.
+- **Cadastro (Perfil):** mesma regra da Gestão. Nome obrigatório e e-mail ou telefone; sem os dois: "Informe o nome e o e-mail ou o telefone."
+
+*Educação (antes Gestão)*
+- **Nome e logo:** "Crias | Gestão" passa a **"Crias | Educação"**. Arquivos `crias-logo-educacao.svg` e `crias-logo-educacao-branco.svg` (150×22 px) no protótipo e no design system; substituem `crias-logo-gestao*` em todos os pontos.
+- **Senhas, Prompts e API:** voltaram a abrir (a página Perfil tinha uma tag sem fechamento que escondia as páginas seguintes).
+- **Perfil:** Cadastro como estava, à esquerda (até 780px); Suporte numa coluna à direita, com 64px de respiro. No celular, Suporte vai para baixo.
+- **Voltar:** um único padrão em todas as páginas: 12px, 600, cinza `--v-t3`, seta de 14px; hover `--v-t2`.
+- **Esmaecimento dos cabeçalhos fixos:** ao rolar, a faixa de esmaecimento abaixo do cabeçalho cresce de 36px para 72px (18px sólidos e 54px de degradê). Parado no topo, o conteúdo continua 36px abaixo do subtítulo, sem esmaecer.
+- **Setas de recolher:** todas com contorno bege (`--v-line`), fundo branco e seta `--v-t2` (substitui o contorno verde da revisão 5).
+- **Dados:** filtros voltam a duas linhas (Filtrar trilhas e Pesquisar nome ou telefone do aluno), fixos no topo. O filtro de % de conclusão vai para dentro de Conclusão das atividades, abaixo das barras, com a linha fina verde e o rótulo "Filtro por % de conclusão"; filtrado, vale para a página toda. Novo cartão **Desempenho** (mesmo título de Uso do monitor) com Menor acerto e Maior acerto. Trocar entre as abas Alunos e Exercícios mantém as abas no mesmo ponto da tela.
+- **Perfis (Usuários):** Super admin edita a seleção de menus dos perfis direto; Instituição (Admin) só visualiza.
+- **Trilha aberta:** abas alinhadas à esquerda, 36px abaixo do subtítulo; Trilha ativa na mesma linha, à direita. "+ Atividade" (verde, texto branco), "+ Em lote" e "+ Criar com IA" (branco, contorno bege) ficam abaixo da lista de atividades, numa linha, no tamanho do texto; a largura dessa linha define a da coluna de atividades, e a coluna do meio ganha o resto.
+- **Nova trilha, recolhimento pela rolagem** (substitui a revisão 5): um bloco só recolhe quando a pessoa passou por todo ele (a linha de baixo do bloco entrou na tela) e depois ele saiu inteiro da tela, tendo a linha que separa os blocos como marco: para cima, passando o cabeçalho fixo, ou para baixo, saindo pela base. Vale para Cadastro, Estrutura e Criar com IA e para cada vez que um bloco é reaberto para edição. Ao recolher um bloco acima, a tela não pula.
+- **Criar com IA recolhido:** campos vazios ficam em branco (sem N/A). Arquivos em caixa: vazio ou um arquivo, uma linha; vários, uma caixa por arquivo, uma abaixo da outra.
+
+*Educação no celular*
+- Voltar e o filtro ou nome da instituição ficam sempre abaixo do botão de menu, nunca na mesma linha.
+- Nova trilha: sem o índice lateral (vai direto para 1, 2 e 3); "Gerar prévia" no fim do formulário; "Como o aluno vê" centralizado. O mesmo vale para o celular da trilha aberta.
+- Dados: Conclusão das atividades, Situação dos alunos e Uso do monitor um abaixo do outro. Alunos por atividade concluída rola na horizontal dentro do cartão.
+- Tabelas: a linha de títulos das colunas tem a altura do texto, como as outras linhas (as setas de ordenação não usam a área de toque de 44px).
+- Trilha aberta: Salvar na linha do título; abaixo, Trilha ativa; depois as quatro abas numa linha; depois "+ Atividade", "+ Em lote" e "+ Criar com IA" numa linha; depois a lista de atividades, com o nome e o cadeado ocupando toda a largura útil da página.
+- Toda troca de página ou de aba começa do topo.
+
+### Revisão 7 (25/10/2026)
+
+*Aluno*
+- **Painel:** Progresso, Desempenho e Uso do monitor, cada um numa linha inteira. Saem Principais dúvidas e Exercícios com erro. Dentro de Desempenho entram **Mais erros** e **Mais acertos** no mesmo formato de Menor e Maior acerto da Educação (atividade, seta redonda bege e % em etiqueta); a seta abre os acertos, os erros e os exercícios errados da atividade (sua resposta e resposta certa).
+- **Painel, esmaecimento:** a mesma regra dos cabeçalhos fixos da Educação. Parado no topo, sem esmaecer; ao rolar, a faixa abaixo dos filtros cresce até 72px (metade sólida, metade degradê).
+- **Carregamento de trilhas longas:** depois que o carregamento aparece e o conteúdo é liberado, ele não volta a aparecer no mesmo ponto (sem piscar). O carregamento de atividades anteriores só começa quando o aluno rola para cima.
+- **Voltar (entrada):** mesmo padrão do Voltar da Educação: sem negrito, cinza, com seta.
+
+*Educação*
+- **Voltar:** sem negrito (400) em toda a aplicação, seta de traço fino.
+- **Usuários:** "Editar" em texto verde com o ícone de lápis, ao lado do título.
+- **Trilha aberta:** "+ Atividade", "+ Adicionar em massa" e "+ Criar com IA" no topo da coluna de atividades (abaixo do rótulo Atividades), numa linha; a largura da linha define a coluna de atividades e o título da atividade cresce junto; a coluna do meio diminui na mesma proporção.
+
+*Nova trilha*
+- **Três etapas no topo:** 1 Configuração, 2 Prévia, 3 Adicionar alunos (opcional). Prévia e Adicionar alunos só abrem depois de criar a trilha.
+- **Botões no topo:** Cancelar e **Criar trilha** (antes "Gerar prévia", que saiu do índice lateral e do fim do formulário no celular). Na Prévia, Cancelar e **Continuar** (vai para Adicionar alunos). Em Adicionar alunos, Cancelar e **Salvar trilha**.
+- **Prévia:** só mostra a trilha gerada. Sem "+ Atividade", "+ Adicionar em massa" e "+ Criar com IA".
+- **Adicionar alunos:** a mesma interface de ativar ou inativar alunos da trilha aberta, já aberta em "Ativar ou inativar". O que for marcado é salvo junto com a trilha.
+- **Voltar para Configuração estando na Prévia:** sem confirmação. A Prévia volta a ficar inativa e é preciso tocar em Criar trilha de novo.
+- **Cabeçalhos dos blocos (Cadastro, Estrutura, Criar com IA):** saem as setas. Com o bloco recolhido, aparece o ícone de lápis colado ao título; tocar no título ou no lápis abre o bloco.
+- **Recolhimento de Criar com IA:** além da regra geral, recolhe quando a pessoa sobe e o bloco sai inteiro pela base da tela (cruzando a linha de baixo de Estrutura), mesmo sem ter rolado até o fim dele.
+- **Índice lateral:** "Defina as informações para criar com inteligência artificial."
+
+
+### Revisão 8 (25/10/2026)
+
+*Geral*
+- **Logo Crias | Educação:** o fim de "Educação" alinha com o fim de "Voltar" (letra "r"). O deslocamento é medido na abertura (fim do desenho do logo e fim do texto Voltar) e aplicado ao recuo do topo; em telas estreitas o logo para a 8px da borda.
+- **Favicon e título da aba:** mesmo símbolo do Aluno (`assets/crias-simbolo-luz.svg`), título "Crias | Educação".
+- **Salvar no topo:** qualquer alteração de informação na página faz aparecer Cancelar e Salvar no topo, inclusive senha gerada, senha alterada, senhas geradas em massa, campos do cadastro da instituição e ações em massa. Cancelar desfaz tudo, inclusive as senhas.
+
+*Nova trilha*
+- **Etapas do topo (Configuração, Prévia, Adicionar alunos):** sem os números 1, 2 e 3. Texto à esquerda e seta verde (#00be85) à direita em Configuração e Prévia, só para indicar continuidade (a seta não é botão).
+- **Troca de etapa:** sempre abre no topo da página.
+- **Índice lateral (Cadastro, Estrutura, Criar com IA):** fixo na posição inicial, não se move com a rolagem.
+- **Prévia:** Criar com IA ocupa a metade direita; Cadastro e Estrutura dividem a metade esquerda. Até 1180px, Cadastro e Estrutura lado a lado e Criar com IA embaixo, na largura toda.
+
+*Dados*
+- À direita, na linha do subtítulo: "Atualizado às HH:MM" e o botão **Atualizar** (pílula, contorno verde). Atualizar recarrega os dados e renova o horário.
+
+*Configurações: Usuários*
+- **Colunas:** E-mail com no mínimo 300px e a maior parte da largura livre; Nome com no mínimo 240px. A tabela rola na horizontal quando precisar.
+- **Editar:** sai do topo da página e fica ao lado do título da tabela Usuários.
+- **Gerar senha:** a nova senha aparece na hora (visível) e o Salvar do topo aparece para confirmar. Na edição manual, o botão da linha passa a "Aplicar".
+
+*Configurações: Senhas*
+- Mesma regra: gerar ou alterar senha mostra a senha nova e pede Salvar no topo.
+
+*Instituição*
+- Título do bloco: **Cadastro da instituição** (antes "Nome da escola"), com lápis ao lado para liberar a edição. Saem Salvar e Cancelar do bloco; vale o Salvar do topo.
+- Cadastrar, editar ou remover alunos em massa: depois de confirmar, a mensagem ganha à direita o botão de texto **Ver em alunos**, que abre Alunos filtrado pela instituição.
+
+*Revisão 8, complemento (25/10/2026)*
+- **Nova trilha:** com os obrigatórios do Cadastro preenchidos, a etapa Prévia também fica clicável e faz o mesmo que Criar trilha (cria e abre a Prévia). Adicionar alunos continua liberado só depois da Prévia. No celular as etapas ficam empilhadas e a seta aponta para baixo.
+- **Favicon oficial:** `crias-simbolo-luz.svg` no Aluno e na Gestão, título da aba "Crias | Educação" na Gestão.
+- **Protótipo:** tweak "tablet" (desligado, retrato 820×1180, paisagem 1180×820) no Aluno e na Gestão, para revisar o layout em tablet. Só no protótipo.
+
+### Revisão 9: ajustes de tablet (25/10/2026)
+
+*Gestão*
+- **Nova trilha:** quando a Prévia é liberada, ela ganha o mesmo contorno verde da Configuração.
+- **Adicionar atividades com IA (trilha aberta):** o botão Gerar prévia sai do cartão e fica ao lado de Trilha ativa, na linha das abas. Só aparece com o cartão aberto e só libera com Habilidades preenchido.
+- **Como o aluno vê:** quando cai para a linha de baixo (Conteúdo e Prévia), fica alinhado à direita.
+- **Cancelar na nova trilha:** abre só "Tem certeza que deseja sair?" (Continuar editando, Salvar e sair, Sair sem salvar). Saiu a confirmação extra de cancelar.
+- **Logo no topo:** nunca fica mais perto da borda que o início do Voltar. Quando o alinhamento pelo fim não cabe (tablet e telas menores), o início do logo alinha com o início do Voltar.
+- **Filtrar instituições no topo (tablet paisagem, até 1180px):** volta a mostrar o texto, com largura igual a Alunos + Configurações (217px); o texto esmaece se não couber. Abaixo de 920px fica só o ícone.
+- **Nome da escola no topo (Instituição):** ocupa o espaço livre até 16px de Configurações; se não couber, esmaece no fim.
+- **Formatação verde do filtro e da etiqueta da escola** (fundo verde claro, contorno verde, texto verde escuro) em todos os lugares: topo e linha do Voltar.
+- **Tela cheia:** ver Aluno.
+
+*Aluno*
+- **Trilha concluída:** botão "Voltar para página inicial".
+- **Menu acompanha a trilha aberta:** ao abrir uma trilha ou clicar numa atividade de qualquer trilha, as outras recolhem, só a trilha aberta fica expandida e o menu rola até ela ficar o mais perto possível do topo. A pessoa pode expandir outras depois. No celular, ao reabrir o menu, a trilha aberta volta expandida e no topo. Vale na web, no tablet e no celular.
+- **Fechar menu no celular:** o X foi trocado pelo mesmo ícone de painel lateral da web (Aluno e Gestão).
+- **Botão atualizar do protótipo:** saiu. No lugar fica o botão de tela cheia.
+- **Tela cheia (Aluno e Gestão):** botão redondo com o ícone "open in full" (Material Symbols) no canto superior direito (Aluno: no lugar do atualizar; Gestão: antes do tema no topo, e no canto superior direito no celular). Usa a tela cheia do navegador; navegar não sai do modo. No modo, o botão vira um X que sai da tela cheia. O botão só aparece quando o navegador permite (computador, Android e iPad). No iPhone o Safari não permite tela cheia de páginas, então o botão não aparece.
+
+## Correções v1.1.1.a (17/10/2026)
+
+Pacote de correções aplicado no app (`correcoes-bugs-frontend-v1.1.1`) e refletido nos protótipos. Junto com o 1.1.1.b, forma a v1.1.1. Vale sobre as regras anteriores onde houver diferença.
+
+**1.1.39 Texto verde escuro nos botões verdes da Gestão**
+- No Crias Gestão, botões com fundo verde #00be85 usam texto e ícone verde escuro #001c0e (`--v-onGreen`), em vez de branco. Vale para o botão principal (36px), o botão primário das páginas e a letra marcada no Gabarito. Hover e pressionado mudam só o fundo.
+- As marcas pequenas de concluído (círculo de 18px com ✓) continuam com ✓ branco.
+- O Crias Aluno não muda: Continuar, Enviar e Entrar seguem com texto branco.
+
+**1.1.40 Rolagem da conversa (Aluno)**
+- Roda do mouse: soma até 100px ao alvo por evento, limitado a 400px da posição atual; a conversa segue o alvo com 20% da distância por quadro.
+- Toque: o conteúdo acompanha o dedo (1:1), limitado a 280px por quadro.
+
+**1.1.41 Continuar e abertura da trilha (Aluno)**
+- O Continuar fica acima da barra de mensagem (z-index) e o primeiro toque ao abrir a trilha não se perde (a sincronização ao focar a janela é silenciosa e não trava o botão).
+- Ao apertar Continuar, os três pontos de carregando aparecem na hora.
+- A trilha abre sempre no fim da conversa, sem ancorar no título da aula longa.
+- Alternativas do exercício: sempre uma por linha, em qualquer largura.
 
 ## Base v1.1: fechamento (16/10/2026)
 
@@ -79,6 +807,12 @@ A entrada do Crias Aluno usa o cabeçalho e o rodapé do site crias.org (pacote 
 - Rodapé do site: LinkedIn e Instagram à esquerda, "© Crias Tecnologia LTDA · 48.188.712/0001-02" à direita (Barlow 13px). **Fundo branco** no claro (preto no escuro, cor do fundo da página), linha fina em cima.
 - A malha 3D fica só entre o cabeçalho e o rodapé, nunca por baixo deles.
 - A página continua sem rolar quando cabe; se a tela for baixa, rola a entrada inteira (cabeçalho fixo).
+- **Medidas exatas do cabeçalho** (17/10/2026, pacote "[CRIAS] Atualização Site (2)"). O protótipo já segue estes valores; o app deve ficar igual:
+  - Barra: altura 64px + 1px de linha embaixo. Container com `max-width: 1240px` **incluindo** o padding (`box-sizing: border-box`), `margin: 0 auto`, padding lateral `clamp(20px, 5vw, 40px)`, flex com `align-items: center`, `justify-content: space-between`, `gap: 20px`.
+  - Logo: altura 25px, largura automática, `display: block`; o link da logo com `line-height: 0` (sem isso a logo desce alguns px).
+  - Botão de tema: 40×40, padding 0, borda 1px, ícone 18×18 com traço 1.5.
+  - Posições de conferência: em janela de 1440px a logo começa em x = 140 (top 19,5px) e a borda direita do botão de tema fica em x = 1300 (top 12px). Em janela de 986px: logo em x = 40, botão termina em x = 946.
+  - Causas comuns de diferença no app: container em `content-box` (fica 80px mais largo); valores convertidos para rem com raiz diferente de 16px; padding ou margem do layout pai somados ao cabeçalho; `line-height` herdado no link da logo; logo com outro arquivo ou `height` em rem/em; barra de rolagem da página reduzindo a largura; zoom ou `transform` em algum elemento acima.
 
 **1.1.38 Carregamento com o símbolo do Crias** (16/10/2026)
 
@@ -100,7 +834,6 @@ Vale para todo carregamento com o símbolo: abertura do Crias Aluno e do Crias G
 
 ## Orientações para o backend (Cursor), v1.1 (fechamento)
 
-21. **Acerto na Gestão (owner 25/10/2026):** em Início, Dados, warm, menor/maior acerto e % por aluno, quando o gabarito for letra **A–D**, a resposta **1–4** conta como acerto (**1=A, 2=B, 3=C, 4=D**). Se o gabarito for **numérico**, não aplica esse alias (letra ≠ dígito). Continuam fora do denominador: atividades **anuladas**, células **sem gabarito**, cliques de UI (Continuar / 0) e **texto longo** / enunciado colado contra alternativa. Agregado = correct/tried (ponderado); multi-instituição soma numerador e denominador.
 19. **Padrão de senha (toda a aplicação):** senha sempre mascarada (••••••••) com botão de olho para mostrar; depois, botão editar (libera digitação), copiar para a área de transferência e o botão **Gerar** (gera nova senha). Em edição, o botão vira **Salvar**. Estados possíveis: com senha ou "Sem senha" (não existe "legado"). Vale em Senhas, Permissões > Usuários e Usuários (Crias e Instituições).
 20. **Menu Sistema** (Prompts, API e documentação) aparece só para Super admin.
 
@@ -295,8 +1028,8 @@ A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositóri
 
 - Destaques só com dados que já existem, em barras finas (3 a 4px, trilho `--v-soft2`/`--v-line`):
   - Início, card da instituição, "Uso dos alunos": barra acima de cada número, proporcional ao total de alunos da instituição (Em andamento e Ativos em degradê amarelo para verde, Concluíram em verde, Não iniciaram em cinza).
-  - Dados: "Conclusão média" (% de atividades concluídas; tooltip no "?") com barra em degradê e "Acerto médio" com barra verde, abaixo do número. Contagens (alunos, trilhas) ficam sem barra.
-  - Dados, tabela Alunos: "% de conclusão" e "% de acerto" no mesmo padrão: número em negrito e barra fina em degradê amarelo para verde. Sem dado de conclusão: "N/A". Sem exercícios tentados no acerto: "sem exercícios" (não travessão).
+  - Dados: "Conclusão média" com barra em degradê e "Acerto médio" com barra verde, abaixo do número. Contagens (alunos, trilhas) ficam sem barra.
+  - Dados, tabela Alunos: "% de conclusão" e "% de acerto" no mesmo padrão: número em negrito e barra fina em degradê amarelo para verde. Sem dado: "N/A".
   - Dados, "Exercícios com menor/maior acerto": barra por exercício na cor da etiqueta (verde a partir de 70%, amarelo de 50 a 69%, vermelho abaixo de 50%). Nome esmaece no fim.
 - Seletores (todos os `select`): seta própria (chevron 16px, `#5b6b60`) a 14px da borda direita, texto com 42px de respiro à direita, sem a seta nativa do navegador.
 - Base da área de conteúdo: esmaecimento de 56px na cor do fundo, acima do conteúdo, começando na altura do topo do avatar do rodapé do menu. O conteúdo tem 72px de respiro no fim para não ficar sob o esmaecimento.
@@ -498,7 +1231,7 @@ Exemplo: "Matemática básica" é a trilha. "Atividade 2 de 5" é a segunda ativ
 
 ## Regras invioláveis
 
-0. No painel, a conclusão (Dados, indicadores e gráficos) é medida por **atividade**, nunca por etapa. Na Gestão (Início e Dados), o rótulo "Conclusão média" significa **% de atividades concluídas** (tooltip igual); o valor canônico é `avg_completion` do cache de métricas, não `avg_lesson_completion` (etapa/aula).
+0. No painel, a conclusão (Dados, indicadores e gráficos) é medida por **atividade**, nunca por etapa.
 
 
 1. Fundo branco. Bege (`#fcfbf6`, `#f7f5ec`, `#fefdfa`) só em destaques, campos e balões. O menu lateral usa #fdfcf9 no claro (1.1.22).

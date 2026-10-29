@@ -1,51 +1,55 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  askMaria,
-  fetchStudentPanel,
-  isAuthError,
-  updateOwnProfile,
-  type StudentPanel,
-} from '../lib/api'
+import { fetchStudentPanel, isAuthError, type StudentPanel } from '../lib/api'
 import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
 import { toUserFacingError } from '../lib/networkError'
-import { clearSession, getSession, setSession } from '../lib/session'
-import { ArrowUpIcon, BotMessage, TypingRow, UserBubble } from '../components/ConversationParts'
+import { clearSession, getSession } from '../lib/session'
+import { ArrowUpIcon } from '../components/ConversationParts'
 import { autoGrow } from '../lib/autoGrow'
 
 const NA = 'N/A'
-const STATE_LABEL = { done: 'Feita', current: 'Em andamento', released: 'Liberada', blocked: 'Bloqueada' } as const
 
 function pctText(v: number | null): string {
-  return v === null ? NA : `${String(v).replace('.', ',')}%`
+  return v === null ? NA : `${String(Math.round(v)).replace('.', ',')}%`
 }
 
 function Bar({ value, tone }: { value: number | null; tone?: 'grad' | 'ok' }) {
   return (
     <span className={tone === 'ok' ? 'v1-1-bar v1-1-bar--ok' : 'v1-1-bar'} aria-hidden="true">
-      <span style={{ width: `${value ?? 0}%` }} />
+      <span style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }} />
     </span>
   )
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="v1-1-card">{children}</div>
+function StatBox({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="v1-2-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
 }
 
-/** Painel do aluno (1.1.8): só os dados do aluno logado, em formato de conversa com o monitor. */
+type ActivityRow = {
+  key: string
+  trailId: string
+  trailName: string
+  number: number
+  title: string
+  correct: number
+  wrong: number
+  pct: number
+}
+
+/** Painel do aluno (1.1.1.b, Revisão 6 e 7): dashboard com filtro por trilha, só os dados do aluno logado. */
 export default function PainelPage() {
   const navigate = useNavigate()
   const session = getSession()!
   const [panel, setPanel] = useState<StudentPanel | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<string>('all')
-  const [editing, setEditing] = useState(false)
-  const [name, setName] = useState(session.name)
-  const [phone, setPhone] = useState(session.phone_number)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [open, setOpen] = useState<Set<string>>(new Set())
   const [draft, setDraft] = useState('')
-  const [chat, setChat] = useState<Array<{ id: string; role: 'student' | 'monitor'; text: string }>>([])
-  const [sending, setSending] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const load = useCallback(async () => {
@@ -66,106 +70,126 @@ export default function PainelPage() {
     void load()
   }, [load])
 
-  async function saveProfile() {
-    setSaveError(null)
-    try {
-      await updateOwnProfile(session.student_id, { name: name.trim(), phone_number: phone.replace(/\D/g, '') })
-      setSession({ ...session, name: name.trim(), phone_number: phone.replace(/\D/g, '') })
-      setEditing(false)
-      void load()
-    } catch (err) {
-      setSaveError(toUserFacingError(err, 'Não foi possível salvar as alterações.'))
-    }
-  }
-
-  async function ask(e?: FormEvent) {
+  /** Enviar leva à Monitoria: a pergunta entra lá como mensagem do aluno e o monitor responde. */
+  function ask(e?: FormEvent) {
     e?.preventDefault()
     const message = draft.trim()
-    if (!message || sending) return
-    setDraft('')
-    autoGrow(inputRef.current)
-    setSending(true)
-    setChat((c) => [...c, { id: `u${Date.now()}`, role: 'student', text: message }])
+    if (!message) return
     try {
-      const context = panel
-        ? `Dados do aluno: acertos ${panel.performance.correct}, erros ${panel.performance.wrong}, trilhas ${panel.trails.map((t) => `${t.name} (${t.done} de ${t.released} atividades)`).join('; ')}.`
-        : ''
-      const r = await askMaria({
-        student_id: session.student_id,
-        trail_id: MARIA_AGENT_TRAIL_ID,
-        message: context ? `${message}\n\n${context}` : message,
-        stage_number: 1,
-        question_number: 1,
-      })
-      setChat((c) => [...c, { id: `m${Date.now()}`, role: 'monitor', text: r.reply }])
-    } catch (err) {
-      setChat((c) => [...c, { id: `e${Date.now()}`, role: 'monitor', text: toUserFacingError(err, 'Não foi possível falar com o monitor.') }])
-    } finally {
-      setSending(false)
+      sessionStorage.setItem(`crias:maria-draft:${MARIA_AGENT_TRAIL_ID}`, message)
+    } catch {
+      /* sem armazenamento: a pergunta fica no campo da Monitoria */
     }
+    navigate('/monitoria')
   }
 
-  const trails = panel ? (filter === 'all' ? panel.trails : panel.trails.filter((t) => t.trail_id === filter)) : []
-  const perfTrails = panel ? (filter === 'all' ? panel.performance.by_trail : panel.performance.by_trail.filter((t) => t.trail_id === filter)) : []
-  const sel = panel?.trails.find((t) => t.trail_id === filter) ?? null
-  const perf = panel
-    ? filter === 'all'
-      ? panel.performance
-      : (() => {
-          const t = panel.performance.by_trail.find((x) => x.trail_id === filter)
-          const c = t?.correct ?? 0
-          const w = t?.wrong ?? 0
-          return { ...panel.performance, correct: c, wrong: w, pct: c + w > 0 ? Math.round((c / (c + w)) * 1000) / 10 : null }
-        })()
-    : null
-  const errors = panel ? panel.errors.filter((e) => filter === 'all' || panel.trails.find((t) => t.trail_id === filter)?.name === e.trail) : []
-  const doubts = panel ? panel.doubts.filter((d) => filter === 'all' || d.trail_id === filter) : []
-  const initial = (name.trim().charAt(0) || 'A').toUpperCase()
+  const trails = useMemo(
+    () => (panel ? (filter === 'all' ? panel.trails : panel.trails.filter((t) => t.trail_id === filter)) : []),
+    [panel, filter],
+  )
+  const released = trails.reduce((n, t) => n + t.released, 0)
+  const done = trails.reduce((n, t) => n + t.done, 0)
+  const concl = released > 0 ? (done / released) * 100 : null
+
+  const perf = useMemo(() => {
+    if (!panel) return { correct: 0, wrong: 0, pct: null as number | null }
+    const list = panel.performance.by_trail.filter((t) => filter === 'all' || t.trail_id === filter)
+    const c = list.reduce((n, t) => n + t.correct, 0)
+    const w = list.reduce((n, t) => n + t.wrong, 0)
+    return { correct: c, wrong: w, pct: c + w > 0 ? (c / (c + w)) * 100 : null }
+  }, [panel, filter])
+
+  const activities = useMemo<ActivityRow[]>(() => {
+    if (!panel) return []
+    const names = new Map(panel.trails.map((t) => [t.trail_id, t.name]))
+    const titles = new Map(panel.trails.flatMap((t) => t.activities.map((a) => [`${t.trail_id}|${a.number}`, a.title] as const)))
+    return panel.performance.by_activity
+      .filter((a) => filter === 'all' || a.trail_id === filter)
+      .map((a) => ({
+        key: `${a.trail_id}|${a.number}`,
+        trailId: a.trail_id,
+        trailName: names.get(a.trail_id) ?? a.trail_id,
+        number: a.number,
+        title: titles.get(`${a.trail_id}|${a.number}`) ?? `Atividade ${a.number}`,
+        correct: a.correct,
+        wrong: a.wrong,
+        pct: a.correct + a.wrong > 0 ? (a.correct / (a.correct + a.wrong)) * 100 : 0,
+      }))
+  }, [panel, filter])
+
+  const moreWrong = [...activities].filter((a) => a.wrong > 0).sort((a, b) => a.pct - b.pct || b.wrong - a.wrong).slice(0, 3)
+  const moreRight = [...activities].filter((a) => a.correct > 0).sort((a, b) => b.pct - a.pct || b.correct - a.correct).slice(0, 3)
+
+  function toggle(key: string) {
+    setOpen((s) => {
+      const n = new Set(s)
+      if (n.has(key)) n.delete(key)
+      else n.add(key)
+      return n
+    })
+  }
+
+  function ActivityList({ title, list, tone }: { title: string; list: ActivityRow[]; tone: 'err' | 'ok' }) {
+    return (
+      <div className="v1-2-rank">
+        <h4>{title}</h4>
+        {list.length === 0 ? <p className="v1-2-muted">{NA}</p> : null}
+        {list.map((a) => {
+          const k = `${tone}|${a.key}`
+          const isOpen = open.has(k)
+          const wrongs = panel?.errors.filter((e) => e.trail_id === a.trailId && e.activity === a.number) ?? []
+          return (
+            <div key={k} className="v1-2-rank__item">
+              <div className="v1-2-rank__row">
+                <span data-fade="1" title={`${a.trailName} · Atividade ${a.number} · ${a.title}`}>
+                  {a.trailName} · Atividade {a.number} · {a.title}
+                </span>
+                <button type="button" className="v1-2-chev" aria-expanded={isOpen} aria-label={isOpen ? 'Fechar detalhes' : 'Abrir detalhes'} onClick={() => toggle(k)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d={isOpen ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
+                  </svg>
+                </button>
+                <span className={tone === 'err' ? 'v1-2-tag v1-2-tag--err' : 'v1-2-tag v1-2-tag--ok'}>{pctText(tone === 'err' ? 100 - a.pct : a.pct)}</span>
+              </div>
+              {isOpen ? (
+                <div className="v1-2-rank__more">
+                  <p>
+                    Acertos: <strong>{a.correct}</strong> · Erros: <strong>{a.wrong}</strong>
+                  </p>
+                  {wrongs.length === 0 ? <p className="v1-2-muted">Nenhum exercício errado nesta atividade.</p> : null}
+                  {wrongs.map((e, i) => (
+                    <div key={i} className="v1-1-err">
+                      <small>Etapa {e.step}</small>
+                      <p>{e.statement || NA}</p>
+                      <span>
+                        Sua resposta: {e.answer || NA} · Resposta certa: {e.correct || NA}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <section className="v1-0-conv" aria-label="Painel">
-      <header className="v1-1-panelhead">
-        <span className="v1-1-panelhead__avatar">{initial}</span>
-        {editing ? (
-          <div className="v1-1-panelhead__edit">
-            <input aria-label="Nome" value={name} onChange={(e) => setName(e.target.value)} />
-            <input aria-label="Telefone" value={phone} placeholder={NA} onChange={(e) => setPhone(e.target.value)} />
-            <button type="button" className="v1-0-btn" onClick={() => void saveProfile()}>
-              Salvar alterações
-            </button>
-            <button type="button" className="v1-0-btn-soft" onClick={() => { setEditing(false); setName(session.name); setPhone(session.phone_number) }}>
-              Cancelar
-            </button>
-            {saveError ? <span role="alert">{saveError}</span> : null}
-          </div>
-        ) : (
-          <div className="v1-1-panelhead__id">
-            <strong data-fade="1">{name || NA}</strong>
-            <span>{phone || NA}</span>
-          </div>
-        )}
-        {!editing ? (
-          <button type="button" className="v1-0-iconbtn" aria-label="Editar nome e telefone" title="Editar" onClick={() => setEditing(true)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 20h4L19 9l-4-4L4 16v4z" />
-              <path d="M13.5 6.5l4 4" />
-            </svg>
+      <div className="v1-2-pills" role="group" aria-label="Filtrar por trilha">
+        <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+          Todas as trilhas
+        </button>
+        {panel?.trails.map((t) => (
+          <button key={t.trail_id} type="button" aria-pressed={filter === t.trail_id} onClick={() => setFilter(t.trail_id)}>
+            {t.name}
           </button>
-        ) : null}
-        <div className="v1-1-pills" role="group" aria-label="Filtrar por trilha">
-          <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
-            Todas as trilhas
-          </button>
-          {panel?.trails.map((t) => (
-            <button key={t.trail_id} type="button" aria-pressed={filter === t.trail_id} onClick={() => setFilter(t.trail_id)}>
-              {t.name}
-            </button>
-          ))}
-        </div>
-      </header>
+        ))}
+      </div>
 
-      <div className="v1-0-thread" data-thread="1">
-        <div className="v1-0-thread__col">
+      <div className="v1-0-thread v1-2-scroll" data-thread="1">
+        <div className="v1-2-cards">
           {error ? (
             <div className="v1-0-errbox" role="alert">
               <p>{error}</p>
@@ -180,124 +204,83 @@ export default function PainelPage() {
             </div>
           ) : (
             <>
-              <BotMessage label="Monitor" monitor>
-                <p>Progresso</p>
-                <Card>
-                  {sel ? (
-                    <ul className="v1-1-list">
-                      {sel.activities.map((a) => (
-                        <li key={a.number}>
-                          <span>{a.title}</span>
-                          <em>{STATE_LABEL[a.state]}</em>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    trails.map((t) => (
+              <article className="v1-2-card" aria-label="Progresso">
+                <h3>Progresso</h3>
+                <div className="v1-2-stats">
+                  <StatBox label="Atividades liberadas" value={released} />
+                  <StatBox label="Atividades feitas" value={done} />
+                  <StatBox label="% de conclusão" value={pctText(concl)} />
+                </div>
+                <Bar value={concl} />
+                {trails.map((t) => (
+                  <div key={t.trail_id} className="v1-2-trailrow">
+                    <div>
+                      <strong data-fade="1">{t.name}</strong>
+                      <span>
+                        {t.done} de {t.released} atividades
+                      </span>
+                    </div>
+                    <Bar value={t.pct} />
+                  </div>
+                ))}
+              </article>
+
+              <article className="v1-2-card" aria-label="Desempenho">
+                <h3>Desempenho</h3>
+                <p className="v1-2-muted">
+                  {perf.correct + perf.wrong > 0
+                    ? `Nos exercícios, você acertou ${perf.correct} de ${perf.correct + perf.wrong} respostas.`
+                    : 'Você ainda não respondeu exercícios.'}
+                </p>
+                <div className="v1-2-stats">
+                  <StatBox label="Acertos" value={perf.correct} />
+                  <StatBox label="Erros" value={perf.wrong} />
+                  <StatBox label="% de acerto" value={pctText(perf.pct)} />
+                </div>
+                <Bar value={perf.pct} tone="ok" />
+                <p className="v1-2-legend">
+                  <span className="v1-2-dot v1-2-dot--ok" /> Acertos <span className="v1-2-dot v1-2-dot--err" /> Erros
+                </p>
+                <div className="v1-2-ranks">
+                  <ActivityList title="Mais erros" list={moreWrong} tone="err" />
+                  <ActivityList title="Mais acertos" list={moreRight} tone="ok" />
+                </div>
+              </article>
+
+              <article className="v1-2-card" aria-label="Uso do monitor">
+                <h3>Uso do monitor</h3>
+                <div className="v1-2-stats">
+                  <StatBox label="Perguntas feitas" value={panel.monitor.questions} />
+                  <StatBox label="Dias com conversa" value={panel.monitor.days} />
+                  <StatBox label="Última conversa" value={panel.monitor.last ? new Date(panel.monitor.last).toLocaleDateString('pt-BR') : NA} />
+                </div>
+                {filter === 'all' ? (
+                  <>
+                    {panel.monitor.by_trail.map((t) => (
                       <div key={t.trail_id} className="v1-1-row">
                         <span>{t.name}</span>
-                        <strong>{t.done} de {t.released} atividades</strong>
-                        <Bar value={t.pct} />
+                        <strong>{t.questions}</strong>
                       </div>
-                    ))
-                  )}
-                  <div className="v1-1-row">
-                    <span>Conclusão</span>
-                    <strong>{pctText(sel ? sel.pct : trails.length ? Math.round((trails.reduce((n, t) => n + t.done, 0) / Math.max(1, trails.reduce((n, t) => n + t.released, 0))) * 1000) / 10 : null)}</strong>
-                  </div>
-                </Card>
-              </BotMessage>
-
-              <BotMessage label="Monitor" monitor>
-                <p>Desempenho</p>
-                <Card>
-                  <div className="v1-1-row">
-                    <span>Acertos {perf?.correct ?? 0} · Erros {perf?.wrong ?? 0}</span>
-                    <strong>{pctText(perf?.pct ?? null)} de acerto</strong>
-                  </div>
-                  <Bar value={perf?.pct ?? null} tone="ok" />
-                  {filter === 'all'
-                    ? perfTrails.map((t) => (
-                        <div key={t.trail_id} className="v1-1-row">
-                          <span>{t.name}</span>
-                          <strong>{t.correct} certos, {t.wrong} errados</strong>
-                        </div>
-                      ))
-                    : panel.performance.by_activity
-                        .filter((a) => a.trail_id === filter)
-                        .map((a) => (
-                          <div key={a.number} className="v1-1-row">
-                            <span>Atividade {a.number}</span>
-                            <strong>{a.correct} certos, {a.wrong} errados</strong>
-                          </div>
-                        ))}
-                </Card>
-              </BotMessage>
-
-              <BotMessage label="Monitor" monitor>
-                <p>Principais erros</p>
-                <Card>
-                  {errors.length === 0 ? <span>Nenhum erro por enquanto.</span> : null}
-                  {errors.map((e, i) => (
-                    <div key={i} className="v1-1-err">
-                      <small>{e.trail} · Atividade {e.activity} · Etapa {e.step}</small>
-                      <p>{e.statement || NA}</p>
-                      <span>Sua resposta: {e.answer || NA} · Resposta certa: {e.correct || NA}</span>
+                    ))}
+                    <div className="v1-1-row">
+                      <span>Monitoria (fora das trilhas)</span>
+                      <strong>{panel.monitor.outside}</strong>
                     </div>
-                  ))}
-                </Card>
-              </BotMessage>
-
-              <BotMessage label="Monitor" monitor>
-                <p>Uso do monitor</p>
-                <Card>
-                  <div className="v1-1-row"><span>Perguntas feitas</span><strong>{panel.monitor.questions}</strong></div>
-                  <div className="v1-1-row"><span>Dias com conversa</span><strong>{panel.monitor.days}</strong></div>
-                  <div className="v1-1-row">
-                    <span>Última conversa</span>
-                    <strong>{panel.monitor.last ? new Date(panel.monitor.last).toLocaleDateString('pt-BR') : NA}</strong>
-                  </div>
-                  {filter === 'all' ? (
-                    <>
-                      {panel.monitor.by_trail.map((t) => (
-                        <div key={t.trail_id} className="v1-1-row"><span>{t.name}</span><strong>{t.questions}</strong></div>
-                      ))}
-                      <div className="v1-1-row"><span>Monitoria (fora das trilhas)</span><strong>{panel.monitor.outside}</strong></div>
-                    </>
-                  ) : null}
-                </Card>
-              </BotMessage>
-
-              <BotMessage label="Monitor" monitor live={chat.length === 0 && !sending}>
-                <p>Principais dúvidas</p>
-                <Card>
-                  {doubts.length === 0 ? <span>Nenhuma dúvida registrada.</span> : null}
-                  {doubts.map((d) => (
-                    <div key={`${d.trail_id}-${d.activity}`} className="v1-1-err">
-                      <small>{d.name}{d.activity ? ` · Atividade ${d.activity}` : ''} · {d.count} {d.count === 1 ? 'pergunta' : 'perguntas'}</small>
-                      <p className="v1-1-quote">{d.last_question || NA}</p>
-                    </div>
-                  ))}
-                </Card>
-              </BotMessage>
-
-              {chat.map((m, i) =>
-                m.role === 'student' ? (
-                  <UserBubble key={m.id}>{m.text}</UserBubble>
+                  </>
                 ) : (
-                  <BotMessage key={m.id} label="Monitor" monitor live={i === chat.length - 1 && !sending}>
-                    <p>{m.text}</p>
-                  </BotMessage>
-                ),
-              )}
-              {sending ? <TypingRow monitor /> : null}
+                  <div className="v1-1-row">
+                    <span>{panel.trails.find((t) => t.trail_id === filter)?.name}</span>
+                    <strong>{panel.monitor.by_trail.find((t) => t.trail_id === filter)?.questions ?? 0}</strong>
+                  </div>
+                )}
+              </article>
             </>
           )}
         </div>
       </div>
 
       <div className="v1-0-dock">
-        <form className="v1-0-dock__col" onSubmit={(e) => void ask(e)}>
+        <form className="v1-0-dock__col" onSubmit={ask}>
           <div className="v1-0-dock__row">
             <div className="v1-0-composer">
               <textarea
@@ -307,10 +290,18 @@ export default function PainelPage() {
                 value={draft}
                 placeholder="Pergunte ao monitor sobre o seu desempenho…"
                 aria-label="Pergunte ao monitor sobre o seu desempenho"
-                onChange={(e) => { setDraft(e.target.value); autoGrow(inputRef.current) }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask() } }}
+                onChange={(e) => {
+                  setDraft(e.target.value)
+                  autoGrow(inputRef.current)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    ask()
+                  }
+                }}
               />
-              <button type="submit" className="v1-0-sendbtn" aria-label="Enviar pergunta ao monitor" disabled={sending || !draft.trim()}>
+              <button type="submit" className="v1-0-sendbtn" aria-label="Enviar pergunta ao monitor" disabled={!draft.trim()}>
                 <ArrowUpIcon />
               </button>
             </div>

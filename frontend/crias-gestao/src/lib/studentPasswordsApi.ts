@@ -161,7 +161,7 @@ export async function bulkGenerateStudentPasswords(opts: {
     }),
   })
   if (!res.ok) {
-    let message = `Falha ao gerar senhas em lote (HTTP ${res.status}).`
+    let message = `Falha ao gerar senhas em massa (HTTP ${res.status}).`
     try {
       const body = (await res.json()) as { error?: string }
       if (body?.error) message = body.error

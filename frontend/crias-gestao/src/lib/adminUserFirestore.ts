@@ -44,7 +44,12 @@ export function snapshotToAdminUser(
     email:
       typeof data.email === 'string'
         ? normalizeAdminEmail(data.email)
-        : normalizeAdminEmail(d.id.replace(/_/g, '.')),
+        : d.id.startsWith('tel_')
+          ? ''
+          : normalizeAdminEmail(d.id.replace(/_/g, '.')),
+    ...(typeof data.name === 'string' && data.name ? { name: data.name } : {}),
+    ...(typeof data.phone_number === 'string' && data.phone_number ? { phone_number: data.phone_number } : {}),
+    ...(data.login_identifier === 'phone' || data.login_identifier === 'email' ? { login_identifier: data.login_identifier } : {}),
     active: data.active !== false,
     is_super_admin: Boolean(data.is_super_admin),
     is_master: Boolean(data.is_master),

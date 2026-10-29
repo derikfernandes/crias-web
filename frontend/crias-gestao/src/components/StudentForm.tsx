@@ -13,7 +13,9 @@ import {
   assertSchoolGrade,
   assertStudentName,
 } from '../lib/studentFieldValidation'
-import { Banner, DeletarDialog, Switch } from '../design/gx/ui'
+import { Banner, DeletarDialog, HeadActions, Switch } from '../design/gx/ui'
+import { EditBar } from './EditBar'
+import { useUnsavedChanges } from '../contexts/UnsavedContext'
 import type { Student } from '../types/student'
 
 type Props = {
@@ -21,6 +23,10 @@ type Props = {
   docId?: string
   /** Dados atuais (modo edição); o pai mantém o listener do Firestore. */
   initial?: Student
+  /** Mudanças pendentes de fora do cadastro (trilhas vinculadas): entram no mesmo Salvar e Cancelar do topo. */
+  extraDirty?: boolean
+  extraSave?: () => Promise<void>
+  extraCancel?: () => void
 }
 
 const FUNDAMENTAL_GRADES = [
@@ -49,7 +55,7 @@ function normalizeSchoolLevel(v: string): Student['school_level'] {
   return v
 }
 
-export function StudentForm({ docId, initial }: Props) {
+export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel }: Props) {
   const navigate = useNavigate()
   const isEdit = Boolean(docId)
 
@@ -60,6 +66,7 @@ export function StudentForm({ docId, initial }: Props) {
   const [institution_id, setInstitutionId] = useState('')
   const [name, setName] = useState('')
   const [phone_number, setPhoneNumber] = useState('')
+  const [email, setEmail] = useState('')
   const [school_level, setSchoolLevel] = useState<Student['school_level']>(
     'fundamental',
   )
@@ -82,6 +89,7 @@ export function StudentForm({ docId, initial }: Props) {
     if (!isEdit) {
       setName('')
       setPhoneNumber('')
+      setEmail('')
       setInstitutionId('')
       setSchoolLevel('fundamental')
       setSchoolGrade(FUNDAMENTAL_GRADES[0])
@@ -95,6 +103,7 @@ export function StudentForm({ docId, initial }: Props) {
     setInstitutionId(initial.institution_id)
     setName(initial.name)
     setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
+    setEmail(initial.email ?? '')
     setSchoolLevel(normalizeSchoolLevel(initial.school_level))
     setSchoolGrade(initial.school_grade)
     setStudentLevel(initial.student_level)
@@ -115,82 +124,122 @@ export function StudentForm({ docId, initial }: Props) {
     }
   }, [gradesForLevel, school_grade])
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-
+  /** Valida e grava. Lança erro com a mensagem se algo estiver errado (o pop-up de sair mostra o texto). */
+  async function persist(): Promise<void> {
+    if (isEdit && !formDirty) {
+      await extraSave?.()
+      return
+    }
     const instId = institution_id.trim()
     const trimmedName = name.trim()
     const trimmedPhone = sanitizePhoneNumber(phone_number).trim()
     const normalizedLevel = normalizeSchoolLevel(String(school_level))
     const normalizedStudentLevel = student_level
 
-    if (!instId && !isEdit) {
-      setFormError('Informe a instituição (vínculo obrigatório).')
-      return
-    }
+    if (!instId && !isEdit) throw new Error('Informe a instituição (vínculo obrigatório).')
     const nameErr = assertStudentName(trimmedName)
-    if (nameErr) {
-      setFormError(nameErr)
-      return
-    }
-    const phoneErr = assertCanonicalBrPhone(trimmedPhone)
-    if (phoneErr) {
-      setFormError(phoneErr)
-      return
-    }
+    if (nameErr) throw new Error(nameErr)
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!trimmedPhone && !trimmedEmail) throw new Error('Informe o nome e o e-mail ou o telefone.')
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) throw new Error('E-mail inválido.')
+    const phoneErr = trimmedPhone ? assertCanonicalBrPhone(trimmedPhone) : null
+    if (phoneErr) throw new Error(phoneErr)
     if (normalizedLevel !== 'fundamental' && normalizedLevel !== 'médio') {
-      setFormError('school_level deve ser "fundamental" ou "médio".')
-      return
+      throw new Error('school_level deve ser "fundamental" ou "médio".')
     }
     const gradeErr = assertSchoolGrade(school_grade)
-    if (gradeErr) {
-      setFormError(gradeErr)
-      return
-    }
-    if (![1, 2, 3].includes(normalizedStudentLevel)) {
-      setFormError('student_level deve ser 1, 2 ou 3.')
-      return
-    }
+    if (gradeErr) throw new Error(gradeErr)
+    if (![1, 2, 3].includes(normalizedStudentLevel)) throw new Error('student_level deve ser 1, 2 ou 3.')
     const trimmedPassword = password.trim()
     if (!isEdit && trimmedPassword.length < 6) {
-      setFormError('Defina uma senha de acesso (mín. 6 caracteres) para o aluno.')
-      return
+      throw new Error('Defina uma senha de acesso (mín. 6 caracteres) para o aluno.')
     }
     if (isEdit && trimmedPassword && trimmedPassword.length < 6) {
-      setFormError('Nova senha deve ter pelo menos 6 caracteres.')
-      return
+      throw new Error('Nova senha deve ter pelo menos 6 caracteres.')
     }
 
+    const formData = {
+      institution_id: instId,
+      name: trimmedName,
+      phone_number: trimmedPhone,
+      email: trimmedEmail,
+      // Dual login (dérik): com telefone e e-mail, os dois autenticam; sem rádio exclusivo.
+      // Limpa login_identifier legado para não sugerir canal único.
+      login_identifier: undefined,
+      school_level: normalizedLevel,
+      school_grade,
+      student_level: normalizedStudentLevel,
+      active,
+    }
+    if (docId) {
+      await updateStudent(docId, formData)
+      if (trimmedPassword) {
+        await updateStudentPassword(docId, trimmedPassword)
+        setPassword('')
+      }
+      await extraSave?.()
+    } else {
+      const newId = await createStudentSequential(formData)
+      if (newId) {
+        await updateStudentPassword(newId, trimmedPassword)
+        navigate(studentPath(newId))
+      }
+    }
+  }
+
+  async function handleSubmit(e?: FormEvent) {
+    e?.preventDefault()
     setSaving(true)
     setFormError(null)
     try {
-      const formData = {
-        institution_id: instId,
-        name: trimmedName,
-        phone_number: trimmedPhone,
-        school_level: normalizedLevel,
-        school_grade,
-        student_level: normalizedStudentLevel,
-        active,
-      }
-      if (docId) {
-        await updateStudent(docId, formData)
-        if (trimmedPassword) {
-          await updateStudentPassword(docId, trimmedPassword)
-        }
-      } else {
-        const newId = await createStudentSequential(formData)
-        if (newId) {
-          await updateStudentPassword(newId, trimmedPassword)
-          navigate(studentPath(newId))
-        }
-      }
+      await persist()
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  /** Há alteração a confirmar: campos diferentes do cadastro salvo (ou preenchidos, no aluno novo). */
+  const formDirty = isEdit
+    ? Boolean(initial) &&
+      (name.trim() !== initial!.name ||
+        phone_number !== sanitizePhoneNumber(initial!.phone_number) ||
+        email.trim().toLowerCase() !== (initial!.email ?? '').toLowerCase() ||
+        normalizeSchoolLevel(String(school_level)) !== normalizeSchoolLevel(initial!.school_level) ||
+        school_grade !== initial!.school_grade ||
+        student_level !== initial!.student_level ||
+        active !== initial!.active ||
+        password.trim() !== '')
+    : Boolean(name.trim() || phone_number || email.trim() || institution_id || password)
+  const dirty = formDirty || Boolean(extraDirty)
+
+  function cancelEdit() {
+    extraCancel?.()
+    setFormError(null)
+    if (isEdit && initial) {
+      setInstitutionId(initial.institution_id)
+      setName(initial.name)
+      setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
+      setEmail(initial.email ?? '')
+      setSchoolLevel(normalizeSchoolLevel(initial.school_level))
+      setSchoolGrade(initial.school_grade)
+      setStudentLevel(initial.student_level)
+      setActive(initial.active)
+    } else {
+      setName('')
+      setPhoneNumber('')
+      setEmail('')
+      setInstitutionId('')
+      setSchoolLevel('fundamental')
+      setSchoolGrade(FUNDAMENTAL_GRADES[0])
+      setStudentLevel(2)
+      setActive(true)
+    }
+    setPassword('')
+  }
+
+  useUnsavedChanges(dirty && !saving, persist)
 
   async function handleDelete() {
     if (!docId || !initial) return
@@ -210,21 +259,40 @@ export function StudentForm({ docId, initial }: Props) {
   const instName = institutions.find((i) => i.id === institution_id)?.name || institution_id
   return (
     <>
+      <HeadActions>
+        <EditBar dirty={dirty} busy={saving} onSave={() => handleSubmit()} onCancel={cancelEdit} />
+      </HeadActions>
       <section className="gx-card" aria-label="Cadastro">
         <div className="gx-card__head">
           <h2>{isEdit ? 'Cadastro' : 'Dados do aluno'}</h2>
-          {isEdit ? <Switch checked={active} label="Aluno ativo" onChange={setActive} /> : null}
+          {isEdit ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+              <Switch checked={active} label="Aluno ativo" onChange={setActive} />
+              <button type="button" className="gx-btn gx-btn--danger-line" onClick={() => setDelOpen(true)} disabled={saving}>
+                Excluir
+              </button>
+            </span>
+          ) : null}
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="gx-grid">
             <label className="gx-field">
-              <span>Nome</span>
+              <span>Nome (obrigatório)</span>
               <input className="gx-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: João da Silva" autoComplete="name" />
             </label>
             <label className="gx-field">
-              <span>Telefone</span>
+              <span>Telefone (obrigatório, ou e-mail)</span>
               <input className="gx-input" type="text" value={phone_number} onChange={(e) => setPhoneNumber(sanitizePhoneNumber(e.target.value))} placeholder="DDD + número" autoComplete="tel" />
             </label>
+            <label className="gx-field">
+              <span>E-mail (obrigatório, ou telefone)</span>
+              <input className="gx-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@exemplo.com" autoComplete="email" />
+            </label>
+            {phone_number && email.trim() ? (
+              <p className="gx-field" style={{ margin: 0, color: 'var(--v-muted, #5a6b63)', fontSize: 13 }}>
+                Com telefone e e-mail, os dois valem para entrar (mesma senha).
+              </p>
+            ) : null}
             <label className="gx-field">
               <span>Senha de acesso{isEdit ? ' (deixe em branco para manter)' : ''}</span>
               <input
@@ -282,16 +350,6 @@ export function StudentForm({ docId, initial }: Props) {
             </label>
           </div>
           {formError ? <Banner>{formError}</Banner> : null}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="submit" className="gx-btn gx-btn--primary" disabled={saving}>
-              {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Incluir aluno'}
-            </button>
-            {isEdit ? (
-              <button type="button" className="gx-btn" style={{ color: 'var(--v-err)' }} onClick={() => setDelOpen(true)} disabled={saving}>
-                Excluir aluno
-              </button>
-            ) : null}
-          </div>
         </form>
       </section>
       <DeletarDialog

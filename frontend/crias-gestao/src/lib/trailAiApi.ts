@@ -1,4 +1,4 @@
-import type { GenerationConfig } from './trailConfig'
+import { rolesFromConfig, type GenerationConfig } from './trailConfig'
 import { emptyStep, type ActivityDraft, type StepDraft } from './trailActivities'
 
 /**
@@ -60,6 +60,13 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
+const ROLE_WORD = { c: 'conteúdo', e: 'exercício', f: 'feedback', k: 'conclusão' } as const
+
+/** Etapas por atividade já com feedback (depois de cada exercício) e conclusão (no fim). */
+function generationRoles(cfg: GenerationConfig) {
+  return rolesFromConfig({ order: cfg.order, feedback: cfg.feedback, conclusive: cfg.conclusive })
+}
+
 /** Variáveis do prompt (INTERFACE.md 1.1.9): chave sem colchetes. */
 export function promptVariables(cfg: GenerationConfig): Record<string, string> {
   const na = (v: string | number) => {
@@ -73,7 +80,7 @@ export function promptVariables(cfg: GenerationConfig): Record<string, string> {
     objetivo: na(cfg.objective),
     conteudos: na(cfg.contents),
     exercicios: na(cfg.exercises),
-    ordem: na(cfg.order.map((s) => (s === 'c' ? 'conteúdo' : 'exercício')).join(', ')),
+    ordem: na(generationRoles(cfg).map((r) => ROLE_WORD[r]).join(', ')),
     atividades: na(cfg.activities),
     alternativas: na(cfg.options),
     habilidades: na(cfg.skills),
@@ -116,7 +123,9 @@ export async function generateActivitiesWithAi(
     body: JSON.stringify({
       mode: input.mode,
       variables: promptVariables(input.config),
-      structure: input.config.order.map((s) => (s === 'c' ? 'content' : 'exercise')),
+      // Feedback e conclusão seguem como etapas de conteúdo; o prompt de geração trata a etapa logo após o
+      // exercício como feedback e a final como conclusiva.
+      structure: generationRoles(input.config).map((r) => (r === 'e' ? 'exercise' : 'content')),
       existing_titles: input.existingTitles ?? [],
       files,
     }),

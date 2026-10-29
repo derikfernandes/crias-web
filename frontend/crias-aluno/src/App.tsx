@@ -1,3 +1,4 @@
+import PerfilPage from './pages/PerfilPage'
 import PainelPage from './pages/PainelPage'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { getSession } from './lib/session'
@@ -33,6 +34,7 @@ export default function App() {
       >
         <Route index element={<TrailsPage />} />
         <Route path="painel" element={<PainelPage />} />
+        <Route path="perfil" element={<PerfilPage />} />
         <Route path="monitoria" element={<MonitoriaPage />} />
         {/* Maria foi aposentada: o tutor se chama monitor. Links antigos continuam funcionando. */}
         <Route path="maria" element={<Navigate to="/monitoria" replace />} />

@@ -17,6 +17,9 @@ export function rowFromUser(u: AdminUser): UserRowModel {
     isNew: false,
     draft: {
       email: u.email,
+      name: u.name ?? '',
+      phone: u.phone_number ?? '',
+      loginIdentifier: u.login_identifier,
       profile: profileOf(u),
       institutionIds: u.institution_ids,
       active: u.active,
@@ -36,6 +39,8 @@ export function UsersTable({
   institutionOptions,
   showInstitution,
   canEdit,
+  edits,
+  onChangeDraft,
   onSave,
   onDelete,
   onDiscardNew,
@@ -45,18 +50,25 @@ export function UsersTable({
   /** Aba Instituições: instituição do usuário. */
   institutionOptions?: Option[]
   showInstitution?: boolean
+  /** Modo de edição ligado (botão Editar ao lado do título). Só aí os campos e o Excluir liberam. */
   canEdit: boolean
+  /** Alterações pendentes das linhas já salvas (id -> valores). Quem grava é o Salvar do topo. */
+  edits: Map<string, UserDraft>
+  onChangeDraft: (row: UserRowModel, draft: UserDraft) => void
+  /** Só para usuário novo: Salvar da própria linha. */
   onSave: (row: UserRowModel, draft: UserDraft) => Promise<void>
   onDelete: (row: UserRowModel) => Promise<void>
   onDiscardNew: (row: UserRowModel) => void
 }) {
   return (
     <ScrollX>
-      <table className="gx-table" style={{ minWidth: showInstitution ? 900 : 720 }}>
+      <table className="gx-table" style={{ minWidth: showInstitution ? 1180 : 1000 }}>
         <thead>
           <tr>
             {showInstitution ? <th>Instituição</th> : null}
-            <th>E-mail</th>
+            <th style={{ minWidth: 240 }}>Nome</th>
+            <th style={{ minWidth: 300 }}>E-mail</th>
+            <th>Telefone</th>
             <th>Perfil</th>
             <th>Senha</th>
             <th />
@@ -71,6 +83,8 @@ export function UsersTable({
               institutionOptions={institutionOptions}
               showInstitution={showInstitution}
               canEdit={canEdit}
+              edit={edits.get(r.id)}
+              onChangeDraft={onChangeDraft}
               onSave={onSave}
               onDelete={onDelete}
               onDiscardNew={onDiscardNew}
@@ -78,7 +92,7 @@ export function UsersTable({
           ))}
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={showInstitution ? 5 : 4} className="gx-table__empty">
+              <td colSpan={showInstitution ? 7 : 6} className="gx-table__empty">
                 Nenhum usuário.
               </td>
             </tr>
@@ -95,6 +109,8 @@ function Row({
   institutionOptions,
   showInstitution,
   canEdit,
+  edit,
+  onChangeDraft,
   onSave,
   onDelete,
   onDiscardNew,
@@ -104,22 +120,31 @@ function Row({
   institutionOptions?: Option[]
   showInstitution?: boolean
   canEdit: boolean
+  edit?: UserDraft
+  onChangeDraft: (row: UserRowModel, draft: UserDraft) => void
   onSave: (row: UserRowModel, draft: UserDraft) => Promise<void>
   onDelete: (row: UserRowModel) => Promise<void>
   onDiscardNew: (row: UserRowModel) => void
 }) {
-  const [draft, setDraft] = useState(row.draft)
+  // Linha nova: rascunho local, com Salvar e Cancelar na linha. Linha salva: o rascunho vem do pai.
+  const [localDraft, setLocalDraft] = useState(row.draft)
+  const draft = row.isNew ? localDraft : (edit ?? row.draft)
+  const setDraft = (fn: (d: UserDraft) => UserDraft) => {
+    const next = fn(draft)
+    if (row.isNew) setLocalDraft(next)
+    else onChangeDraft(row, next)
+  }
   const [busy, setBusy] = useState(false)
   const [delOpen, setDelOpen] = useState(false)
   const [resetMsg, setResetMsg] = useState<string | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => setDraft(row.draft), [row.draft])
+  useEffect(() => setLocalDraft(row.draft), [row.draft])
 
-  const changed = JSON.stringify(draft) !== JSON.stringify(row.draft)
   const valid = draftValid(draft, Boolean(showInstitution))
   const set = (patch: Partial<UserDraft>) => setDraft((d) => ({ ...d, ...patch }))
-  const field = { className: 'gx-input', style: { height: 36 }, disabled: !canEdit || busy }
+  const editable = row.isNew || canEdit
+  const field = { className: 'gx-input', style: { height: 36 }, disabled: !editable || busy }
 
   async function save() {
     setBusy(true)
@@ -161,18 +186,52 @@ function Row({
       <td>
         <input
           {...field}
+          aria-label="Nome"
+          placeholder="Nome"
+          style={{ ...field.style, minWidth: 220 }}
+          value={draft.name ?? ''}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+      </td>
+      <td>
+        <input
+          {...field}
           style={{ ...field.style, minWidth: 250, color: 'var(--v-ink)', fontWeight: 600, opacity: 1 }}
           className={`${field.className} gx-user-email`}
           type="email"
           aria-label="E-mail"
           placeholder="E-mail"
           value={draft.email}
-          disabled={!canEdit || busy || !row.isNew}
+          disabled={!editable || busy || !row.isNew}
           onChange={(e) => set({ email: e.target.value })}
         />
       </td>
       <td>
-        <select className="gx-select" style={{ height: 36, minWidth: 140 }} aria-label="Perfil" value={draft.profile} disabled={!canEdit || busy} onChange={(e) => set({ profile: e.target.value as UserDraft['profile'] })}>
+        <input
+          {...field}
+          aria-label="Telefone"
+          placeholder="Telefone"
+          style={{ ...field.style, minWidth: 160 }}
+          value={draft.phone ?? ''}
+          onChange={(e) => set({ phone: e.target.value })}
+        />
+        {draft.email.trim() && (draft.phone ?? '').replace(/\D/g, '') ? (
+          <select
+            className="gx-select"
+            style={{ height: 32, marginTop: 6, fontSize: 12 }}
+            aria-label="Entrar com (vale para a senha)"
+            title="Entrar com (vale para a senha)"
+            value={draft.loginIdentifier ?? 'phone'}
+            disabled={!editable || busy}
+            onChange={(e) => set({ loginIdentifier: e.target.value as 'phone' | 'email' })}
+          >
+            <option value="phone">Entra com telefone</option>
+            <option value="email">Entra com e-mail</option>
+          </select>
+        ) : null}
+      </td>
+      <td>
+        <select className="gx-select" style={{ height: 36, minWidth: 140 }} aria-label="Perfil" value={draft.profile} disabled={!editable || busy} onChange={(e) => set({ profile: e.target.value as UserDraft['profile'] })}>
           {profileOptions.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -185,7 +244,7 @@ function Row({
           <span className="gx-muted">Definida pelo e-mail de acesso</span>
         ) : (
           <>
-            <button type="button" className="gx-btn gx-btn--sm" disabled={!canEdit || busy} onClick={() => setResetOpen(true)}>
+            <button type="button" className="gx-btn gx-btn--sm" disabled={busy || !draft.email.trim()} onClick={() => setResetOpen(true)}>
               Redefinir senha
             </button>
             {resetMsg ? <span className="gx-muted" role="status" style={{ marginLeft: 8 }}>{resetMsg}</span> : null}
@@ -195,8 +254,8 @@ function Row({
       <td style={{ textAlign: 'right' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, alignItems: 'center' }}>
           {error ? <span style={{ color: 'var(--v-err)', fontSize: 12 }}>{error}</span> : null}
-          {changed || row.isNew ? (
-            <button type="button" className="gx-btn gx-btn--primary gx-btn--sm" disabled={!valid || !changed && !row.isNew || busy} onClick={() => void save()}>
+          {row.isNew ? (
+            <button type="button" className="gx-btn gx-btn--primary gx-btn--sm" disabled={!valid || busy} onClick={() => void save()}>
               Salvar
             </button>
           ) : null}
@@ -204,11 +263,11 @@ function Row({
             <button type="button" className="gx-btn gx-btn--sm" onClick={() => onDiscardNew(row)}>
               Cancelar
             </button>
-          ) : canEdit ? (
-            <button type="button" className="gx-btn gx-btn--icon gx-btn--ghost" aria-label={`Excluir ${draft.email}`} title="Excluir" onClick={() => setDelOpen(true)}>
+          ) : (
+            <button type="button" className="gx-btn gx-btn--icon gx-btn--ghost" aria-label={`Excluir ${draft.email || draft.phone}`} title="Excluir" onClick={() => setDelOpen(true)}>
               <Icon name="trash" />
             </button>
-          ) : null}
+          )}
         </div>
         <DeletarDialog
           open={delOpen}

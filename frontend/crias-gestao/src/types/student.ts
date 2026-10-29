@@ -5,6 +5,10 @@ export interface Student {
   institution_id: string
   name: string
   phone_number: string
+  /** E-mail do aluno (1.1.1.b). Com telefone e e-mail, os dois autenticam. */
+  email?: string
+  /** Preferência legada/UI; não bloqueia o outro canal (ver lib/loginRule.ts). */
+  login_identifier?: 'phone' | 'email'
   school_level: 'fundamental' | 'médio' | string
   school_grade: string
   /** Nível pedagógico atual: 1, 2 (default), 3. */

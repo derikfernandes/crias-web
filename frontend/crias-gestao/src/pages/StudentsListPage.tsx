@@ -161,7 +161,7 @@ export function StudentsListPage() {
       {students.error ? (
         <Banner onRetry={students.retry}>Não foi possível carregar os dados. Tente atualizar a página.</Banner>
       ) : null}
-      <BulkBlocks institution={single} students={students.rows} trails={trails.rows} />
+      <BulkBlocks institution={single} students={students.rows} />
       <section className="gx-card gx-card--alunos" aria-label="Alunos" style={{ padding: 0, gap: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '24px 24px 20px' }}>
           <div style={{ flex: '1 1 240px', minWidth: 0 }}>
@@ -181,7 +181,7 @@ export function StudentsListPage() {
             <FilterPopover
               variant="field"
               align="left"
-              label="Filtrar por código"
+              label="Filtrar por ID"
               options={codeOptions}
               selected={codeSel}
               onChange={(n) => {
@@ -196,34 +196,32 @@ export function StudentsListPage() {
             <thead>
               <tr>
                 {head('Nome', 'name')}
-                {head('Código', 'code', true)}
-                {head('Trilha', 'trail')}
-                {head('Etapa', 'stage', true)}
+                {head('ID Aluno', 'code', true)}
+                {head('Trilha atual', 'trail')}
                 {head('Atividade', 'question', true)}
+                {head('Etapa', 'stage', true)}
                 {head('Status', 'status')}
                 {head('Telefone', 'phone')}
                 {head('Escolaridade', 'level')}
-                {head('Nível', 'ped')}
+                {head('Nível pedagógico', 'ped')}
+                {head('Criado em', 'created')}
+                {head('Atualizado em', 'updated')}
                 {head('Ativo', 'active')}
-                {head('Criado', 'created')}
-                {head('Atualizado', 'updated')}
-                <th data-col="open">Abrir</th>
+                <th data-col="open" aria-label="Abrir" />
               </tr>
             </thead>
             <tbody>
               {pager.slice.map((l) => (
                 <tr key={l.student.id}>
                   <td data-col="name">
-                    <Link to={`/alunos/${l.student.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }} data-fade="1">
-                      {l.student.name || l.student.id}
-                    </Link>
+                    <strong data-fade="1">{l.student.name || l.student.id}</strong>
                   </td>
                   <td className="num" data-col="code">{na(l.code)}</td>
                   <td data-col="trail">
                     <span data-fade="1">{l.trail}</span>
                   </td>
-                  <td className="num" data-col="stage">{na(l.stage)}</td>
                   <td className="num" data-col="question">{na(l.question)}</td>
+                  <td className="num" data-col="stage">{na(l.stage)}</td>
                   <td data-col="status">
                     <span className={statusPillClass(l.status)}>{l.status ? STATUS_LABEL[l.status] : 'N/A'}</span>
                   </td>
@@ -234,13 +232,13 @@ export function StudentsListPage() {
                     </span>
                   </td>
                   <td data-col="ped">{na(PED[l.student.student_level])}</td>
+                  <td data-col="created">{fmtDate(l.student.created_at)}</td>
+                  <td data-col="updated">{fmtDate(l.student.updated_at)}</td>
                   <td data-col="active">
                     <span className={activePillClass(l.student.active)}>{l.student.active ? 'Sim' : 'Não'}</span>
                   </td>
-                  <td data-col="created">{fmtDate(l.student.created_at)}</td>
-                  <td data-col="updated">{fmtDate(l.student.updated_at)}</td>
                   <td data-col="open">
-                    <Link to={`/alunos/${l.student.id}`} className="gx-btn gx-btn--sm">
+                    <Link to={`/alunos/${l.student.id}`} className="gx-btn gx-btn--sm gx-btn--open">
                       Abrir
                     </Link>
                   </td>

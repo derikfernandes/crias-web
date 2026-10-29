@@ -80,6 +80,7 @@
 
 - Regras consolidadas e orientações para o backend em INTERFACE.md (1.1.35, 1.1.36 e "Orientações para o backend (Cursor), v1.1").
 - Trilha: abas Configuração, Conteúdo, Alunos, Gabarito. Nova trilha: só Configuração (passos 1 a 6) e Prévia; geração sempre por prompt fixo do sistema + Configuração de geração.
+- Prévia (nova trilha e Adicionar atividades com IA): lista de atividades recolhidas com seta, blocos e conteúdo das etapas ao abrir, e Resumo à direita (Feedback instantâneo e Bloco conclusivo, uma linha cada). Tempo aproximado só no frontend: 1 min por bloco de conteúdo, feedback ou conclusão, 2 min por exercício. Etapa conclusiva ligada por padrão. Na Prévia da nova trilha o botão do topo é "Salvar trilha" e Adicionar alunos fica com contorno verde (INTERFACE.md 1.1.1.b.41 a 44).
 - Importar planilha sempre adiciona. Remoções e exclusões pedem DELETAR.
 - Botões 36px/13px; todo conteúdo começa em 203px (alinhado ao item selecionado do menu); esmaecimento com 18px de respiro.
 

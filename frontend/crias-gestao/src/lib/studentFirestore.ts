@@ -49,6 +49,8 @@ export function snapshotToStudent(
         : typeof data.phone_number === 'number'
           ? String(data.phone_number).replace(/\D/g, '')
           : '',
+    ...(typeof data.email === 'string' && data.email.trim() ? { email: data.email.trim() } : {}),
+    ...(data.login_identifier === 'phone' || data.login_identifier === 'email' ? { login_identifier: data.login_identifier } : {}),
     school_level:
       typeof data.school_level === 'string' ? data.school_level : 'fundamental',
     school_grade:
@@ -79,6 +81,10 @@ export type StudentFormData = {
   institution_id: string
   name: string
   phone_number: string
+  /** Opcional. Cadastro exige telefone OU e-mail. */
+  email?: string
+  /** Só com telefone e e-mail: qual vale para a senha (lib/loginRule.ts). */
+  login_identifier?: 'phone' | 'email'
   school_level: Student['school_level']
   school_grade: string
   student_level: 1 | 2 | 3
@@ -94,6 +100,8 @@ export async function updateStudent(
     institution_id: data.institution_id,
     name: data.name,
     phone_number: data.phone_number,
+    email: (data.email ?? '').trim().toLowerCase(),
+    login_identifier: data.login_identifier ?? null,
     school_level: data.school_level,
     school_grade: data.school_grade,
     student_level: data.student_level,
@@ -137,6 +145,8 @@ export async function createStudentSequential(
       institution_id: data.institution_id,
       name: data.name,
       phone_number: data.phone_number,
+      ...(data.email?.trim() ? { email: data.email.trim().toLowerCase() } : {}),
+      ...(data.login_identifier ? { login_identifier: data.login_identifier } : {}),
       school_level: data.school_level,
       school_grade: data.school_grade,
       student_level: data.student_level,

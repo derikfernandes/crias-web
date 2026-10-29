@@ -21,10 +21,14 @@ export async function readTable(file: File): Promise<Row[]> {
   })
 }
 
-/** Valor de uma coluna ignorando maiúsculas, acentos e espaços do cabeçalho. */
+/**
+ * Valor de uma coluna ignorando maiúsculas, acentos, espaços e o que vem entre parênteses no cabeçalho
+ * (1.1.1.b: "Nome (obrigatório)" é lido como "Nome").
+ */
 export function pick(row: Row, ...names: string[]): string {
   const norm = (s: string) =>
     s
+      .replace(/\([^)]*\)/g, '')
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]/gi, '')

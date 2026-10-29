@@ -23,7 +23,7 @@ Causa e regra nova em `docs/REGRA-EXERCICIOS.md`. Resumo:
 | 1.2.5.12 Painel sem "Sua semana" | Já era assim no app |
 
 ## Ainda não aplicado
-- 1.2.5.8, .9, .10, .11: geração única de mensagem (caixa de espera no lugar final que vira a mensagem, ícone fixo, esmaecimento de 0,5s com subida de 6px, respiro de 0,9s entre mensagens), resposta do aluno subindo ao topo do exercício com o monitor carregando abaixo, rolagem com a resposta presa ao topo.
+- 1.2.5.8 a .11: espera do conteúdo (símbolo + três pontos) e entrada com esmaecimento de 0,5s aplicadas, sem espera artificial (ver `docs/ORIENTACOES-CURSOR-1.2.5.md`). Falta: resposta do aluno subindo ao topo do exercício e rolagem com a resposta presa ao topo.
 - 1.2.5.7: "Continuar" travado em "Aguarde…" no fechamento até a caixa final do monitor, feedback do exercício corrigido pelo monitor em destaque (o feedback segue como bloco de conteúdo, como na 1.2.5.12), tocar num segmento feito para rolar até a etapa.
 - 1.2.5.5: rótulo "NOVA ATIVIDADE" na linha entre atividades; caixa "Trilha concluída" com estatísticas da trilha.
 - 1.2.5.6: constância no Painel (o pacote já a retirou na 1.2.5.12).

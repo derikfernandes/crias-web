@@ -92,8 +92,13 @@ export function BotMessage({
  */
 export function TypingRow({ monitor = false }: { monitor?: boolean }) {
   if (!monitor) {
+    // Espera do conteúdo (1.2.5.11): símbolo do Crias pulsando e três pontos ao lado, no lugar final da mensagem.
+    // Dura exatamente o tempo da API; a mensagem entra no retorno, sem espera artificial.
     return (
-      <div className="v1-0-typing" role="status" aria-live="polite" aria-label="Aguarde">
+      <div className="v1-0-typing v125-wait" role="status" aria-live="polite" aria-label="Aguarde">
+        <span className="v1-0-typing__sym">
+          <CriasSymbol size={38} />
+        </span>
         <span className="v1-0-typing__dots" aria-hidden="true">
           <span />
           <span />

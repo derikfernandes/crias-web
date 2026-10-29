@@ -4284,6 +4284,19 @@ export default function PlayerPage() {
     !exerciseDone &&
     options.length > 0
   const exerciseComposerOpen = optionsVisible
+  /**
+   * Resposta do exercício (1.2.5.9): ao enviar, o cartão com a resposta sobe ao topo e a espera entra logo abaixo;
+   * a tela não se move depois disso (o feedback entra no lugar da espera). Se a resposta couber, a tela fica como está.
+   */
+  useEffect(() => {
+    if (exercisePhase !== 'submitting') return
+    const thread = v1_0ThreadRef.current
+    const card = thread?.querySelector<HTMLElement>('.chat-exercise')
+    if (!thread || !card) return
+    const delta = card.getBoundingClientRect().top - thread.getBoundingClientRect().top
+    if (delta > 0) thread.scrollTo({ top: thread.scrollTop + delta - 8, behavior: 'smooth' })
+  }, [exercisePhase, v1_0ThreadRef])
+
   const highlightOptionKey = pendingOptionKey || selectedOptionKey
   const exerciseSubmitting = exercisePhase === 'submitting'
 

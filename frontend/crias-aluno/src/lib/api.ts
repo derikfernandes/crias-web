@@ -1,4 +1,5 @@
 import { toUserFacingError } from './networkError'
+import { parseExerciseContent } from './exerciseParse'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
   /\/$/,
@@ -131,6 +132,25 @@ export type NextContentOk = {
    * Stage `ai`: pending = geração em andamento (poll); ready = texto ok.
    */
   ai_status?: 'ready' | 'pending' | 'not_applicable'
+}
+
+/**
+ * Rede de segurança do exercício: se o servidor não mandou alternativas, separa enunciado, alternativas e
+ * gabarito do próprio texto (mesma regra do servidor, exerciseParse.ts). Nunca devolve o gabarito ao aluno.
+ */
+export function ensureExerciseOptions<T extends NextContentOk | NextContentStatus>(body: T): T {
+  if (!body || (body as NextContentOk).status !== 'ok') return body
+  const c = body as NextContentOk
+  if (c.stage_type !== 'exercise') return body
+  const parsed = parseExerciseContent(c.content)
+  const hasOptions = Array.isArray(c.options) && c.options.length > 0
+  if (hasOptions) return body
+  if (parsed.options.length < 2) return body
+  return {
+    ...c,
+    content: parsed.statement || c.content,
+    options: parsed.options.map((o) => ({ key: o.key, text: `${o.key}) ${o.text}` })),
+  } as T
 }
 
 /** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */
@@ -500,7 +520,7 @@ export async function fetchNextContent(
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível carregar a aula.')
   }
-  return body as NextContentOk | NextContentStatus
+  return ensureExerciseOptions(body as NextContentOk | NextContentStatus)
 }
 
 export async function fetchTrailHistoryPage(

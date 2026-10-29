@@ -5,15 +5,9 @@
  * `correct_option` no gabarito desta base costuma ser "1"|"2"|"3" (índice 1-based).
  */
 
+import { extractAnswerKey, parseExerciseContent } from './exerciseParse'
+
 export type ExerciseOption = { key: string; text: string }
-
-/** Linha de opção: A) / A. / A: / (A) / (A) texto */
-const LETTERED_OPTION_LINE =
-  /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+(.+?)\s*$/
-
-/** Linha de opção numerada: 1) / 1. / 1: / (1) texto */
-const NUMBERED_OPTION_LINE =
-  /^\s*\(?(\d{1,2})\)?\s*[\)\.\:]\s+(.+?)\s*$/
 
 function sanitizeOptionText(v: unknown): string | null {
   if (typeof v !== 'string') return null
@@ -54,102 +48,85 @@ export function coerceStructuredOptions(raw: unknown): ExerciseOption[] | null {
 }
 
 /**
- * Extrai alternativas lettered do texto da questão.
- * Aceita: "A) foo", "A. bar", "A: baz", "(A) qux".
+ * Extrai alternativas lettered do texto da questão (separação única em exerciseParse.ts):
+ * a partir da linha "A)" (também "A.", "A:", "(A)", "a)") já é alternativa; o que está acima é enunciado.
  */
 export function parseLetteredChoicesFromContent(
   content: string | null | undefined,
 ): ExerciseOption[] | null {
-  if (typeof content !== 'string' || !content.trim()) return null
-
-  const found: ExerciseOption[] = []
-  const seen = new Set<string>()
-
-  for (const line of content.split(/\r?\n/)) {
-    const m = line.match(LETTERED_OPTION_LINE)
-    if (!m) continue
-    const key = m[1].toUpperCase()
-    const body = m[2].trim()
-    if (!body || seen.has(key)) continue
-    seen.add(key)
-    found.push({ key, text: `${key}) ${body}` })
-  }
-
-  if (found.length < 2) return null
-
-  // Exige sequência a partir de A (evita falso positivo no enunciado).
-  for (let i = 0; i < found.length; i++) {
-    const expected = String.fromCharCode(65 + i) // A, B, C...
-    if (found[i].key !== expected) return null
-  }
-
-  return found
+  const parsed = parseExerciseContent(content)
+  if (parsed.style !== 'letter') return null
+  return parsed.options.map((o) => ({ key: o.key, text: `${o.key}) ${o.text}` }))
 }
 
 /**
- * Extrai alternativas numeradas do texto da questão (ex.: t62).
- * Aceita: "1) foo", "1. bar", "1: baz", "(1) qux".
+ * Extrai alternativas numeradas do texto da questão (ex.: t62): "1) foo", "1. bar", "(1) qux".
  */
 export function parseNumberedChoicesFromContent(
   content: string | null | undefined,
 ): ExerciseOption[] | null {
-  if (typeof content !== 'string' || !content.trim()) return null
-
-  const found: ExerciseOption[] = []
-  const seen = new Set<string>()
-
-  for (const line of content.split(/\r?\n/)) {
-    const m = line.match(NUMBERED_OPTION_LINE)
-    if (!m) continue
-    const key = String(Number(m[1]))
-    const body = m[2].trim()
-    if (!body || seen.has(key)) continue
-    // Evita capturar "A) …" como numerado (letra já tratada no outro parser).
-    if (!/^\d+$/.test(key) || Number(key) < 1) continue
-    seen.add(key)
-    found.push({ key, text: `${key}) ${body}` })
-  }
-
-  if (found.length < 2) return null
-
-  // Exige sequência a partir de 1 (evita falso positivo no enunciado).
-  for (let i = 0; i < found.length; i++) {
-    if (found[i].key !== String(i + 1)) return null
-  }
-
-  return found
+  const parsed = parseExerciseContent(content)
+  if (parsed.style !== 'number') return null
+  return parsed.options.map((o) => ({ key: o.key, text: `${o.key}) ${o.text}` }))
 }
 
 /**
- * Remove linhas de opções (lettered ou numeradas) do enunciado quando há botões.
- * Evita duplicar "(A) …" / "1) …" como texto estático + botão.
+ * Enunciado sem o bloco de alternativas e sem a linha de gabarito (os botões mostram as alternativas e o
+ * gabarito só fica no sistema). Linhas como "I." e "II." do enunciado nunca são removidas.
  */
 export function stripLetteredChoicesFromContent(
   content: string | null | undefined,
 ): string | null {
   if (typeof content !== 'string') return null
-  const kept: string[] = []
-  for (const line of content.split(/\r?\n/)) {
-    if (LETTERED_OPTION_LINE.test(line) || NUMBERED_OPTION_LINE.test(line)) {
-      continue
-    }
-    kept.push(line)
-  }
-  const out = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  const out = parseExerciseContent(content).statement
   return out.length ? out : null
 }
 
-/** Prefere options do doc; se vazias, parseia A/B/C ou 1/2/3 do content. */
+/** Prefere options do doc; se vazias, separa A/B/C ou 1/2/3 do content. */
 export function resolveExerciseOptions(
   optionsRaw: unknown,
   content: string | null | undefined,
 ): ExerciseOption[] | null {
   const structured = coerceStructuredOptions(optionsRaw)
   if (structured) return structured
-  return (
-    parseLetteredChoicesFromContent(content) ??
-    parseNumberedChoicesFromContent(content)
-  )
+  const parsed = parseExerciseContent(content)
+  if (parsed.options.length < 2) return null
+  return parsed.options.map((o) => ({ key: o.key, text: `${o.key}) ${o.text}` }))
+}
+
+/** Gabarito escrito dentro do próprio conteúdo do exercício, abaixo das alternativas ("Gabarito: B"). */
+export function answerKeyFromExerciseContent(content: string | null | undefined): string | null {
+  return parseExerciseContent(content).answerKey
+}
+
+export type CorrectKeySource = 'correct_option' | 'exercise_content' | 'next_content' | 'feedback' | null
+
+/**
+ * Gabarito único do exercício, para pontuar a tentativa E para o feedback usar a mesma letra.
+ * Ordem: (1) correct_option gravado (a Gestão edita e anula por ele), (2) gabarito escrito no conteúdo do
+ * exercício, (3) "A resposta é X" na etapa seguinte (feedback da escola), (4) o texto do feedback gerado.
+ * `conflict` guarda as demais fontes quando elas discordam da escolhida, para auditoria.
+ */
+export function resolveCorrectKey(input: {
+  correctOption?: string | null
+  exerciseContent?: string | null
+  nextContent?: string | null
+  feedbackText?: string | null
+}): { key: string | null; source: CorrectKeySource; conflict: Array<{ source: string; key: string }> } {
+  const fromDb = typeof input.correctOption === 'string' && input.correctOption.trim() ? input.correctOption.trim() : null
+  const candidates: Array<{ source: Exclude<CorrectKeySource, null>; key: string | null }> = [
+    { source: 'correct_option', key: fromDb },
+    { source: 'exercise_content', key: answerKeyFromExerciseContent(input.exerciseContent) },
+    { source: 'next_content', key: extractAnswerKey(input.nextContent, { allowBare: true }) },
+    { source: 'feedback', key: extractAnswerKey(input.feedbackText) },
+  ]
+  const chosen = candidates.find((c) => c.key)
+  if (!chosen?.key) return { key: null, source: null, conflict: [] }
+  const norm = normalizeAnswerForCompare(chosen.key)
+  const conflict = candidates
+    .filter((c) => c.key && c.source !== chosen.source && normalizeAnswerForCompare(c.key) !== norm)
+    .map((c) => ({ source: c.source, key: c.key as string }))
+  return { key: chosen.key, source: chosen.source, conflict }
 }
 
 /**

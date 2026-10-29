@@ -3,6 +3,8 @@
  * Submissão usa sempre a `key` (ex.: "A") — alinhado a `correct_option` no motor.
  */
 
+import { parseExerciseContent } from './exerciseParse'
+
 export type TrilhaOption = {
   key: string
   label: string
@@ -85,81 +87,19 @@ function parseSingleOptionLine(line: string): TrilhaOption | null {
   return null
 }
 
-function isConsecutiveLetterKeys(opts: TrilhaOption[]): boolean {
-  for (let i = 0; i < opts.length; i++) {
-    if (opts[i]!.key !== String.fromCodePoint(65 + i)) return false
-  }
-  return true
-}
-
-function isConsecutiveNumberKeys(opts: TrilhaOption[]): boolean {
-  for (let i = 0; i < opts.length; i++) {
-    if (opts[i]!.key !== String(i + 1)) return false
-  }
-  return true
-}
-
 /**
- * Extrai A)/B)/C)… ou 1)/2)/3)… do enunciado quando `options` estruturado está vazio.
- * Suporta linhas e texto inline ("A) Lado B) Diagonal C) Ângulo").
+ * Extrai as alternativas do enunciado (parser único, exerciseParse.ts): a partir de "A)" já é alternativa;
+ * "I." e "II." do enunciado nunca viram alternativa.
  */
 export function parseMcqFromContent(text: string): TrilhaOption[] | null {
-  const trimmed = text.trim()
-  if (!trimmed) return null
-
-  const lineHits: TrilhaOption[] = []
-  for (const rawLine of trimmed.split(/\n+/)) {
-    const line = rawLine.trim()
-    if (!line) continue
-    const parsed = parseSingleOptionLine(line)
-    if (parsed) lineHits.push(parsed)
-  }
-  if (lineHits.length >= 2) {
-    const keys = new Set(lineHits.map((o) => o.key))
-    if (
-      keys.size === lineHits.length &&
-      (isConsecutiveLetterKeys(lineHits) || isConsecutiveNumberKeys(lineHits))
-    ) {
-      return lineHits
-    }
-  }
-
-  const inline: TrilhaOption[] = []
-  const re =
-    /(?:^|[\s\n])([A-Da-d])\s*[\)\.\:\-–—]\s*([\s\S]*?)(?=(?:\s+[A-Da-d]\s*[\)\.\:\-–—])|$)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(trimmed)) !== null) {
-    const key = m[1]!.toUpperCase()
-    const body = m[2]!.trim().replace(/\s+/g, ' ')
-    if (!body) continue
-    inline.push({ key, label: optionLabel(key, body) })
-  }
-  if (inline.length >= 2) {
-    const keys = new Set(inline.map((o) => o.key))
-    if (keys.size === inline.length && isConsecutiveLetterKeys(inline)) {
-      return inline
-    }
-  }
-  return null
+  const parsed = parseExerciseContent(text)
+  if (parsed.options.length < 2) return null
+  return parsed.options.map((o) => ({ key: o.key, label: optionLabel(o.key, o.text) }))
 }
 
-/** Remove o bloco de alternativas do enunciado quando foram parseadas do texto. */
-export function stripMcqFromContent(
-  text: string,
-  options: TrilhaOption[],
-): string {
-  let out = text
-  for (const opt of options) {
-    const key = escapeRegExp(opt.key)
-    out = out.replace(
-      new RegExp(
-        `(?:^|[\\s\\n])${key}\\s*[\\)\\.\:\\-–—]\\s*[^\\n]*`,
-        'gi',
-      ),
-      ' ',
-    )
-  }
-  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+/** Enunciado sem o bloco de alternativas (e sem a linha de gabarito). */
+export function stripMcqFromContent(text: string, _options?: TrilhaOption[]): string {
+  return parseExerciseContent(text).statement
 }
 
 /**
@@ -168,18 +108,20 @@ export function stripMcqFromContent(
 export function resolveExerciseOptions(
   content: string | null | undefined,
   structured: unknown,
-): { options: TrilhaOption[] | null; displayBody: string } {
+): { options: TrilhaOption[] | null; displayBody: string; answerKey: string | null } {
   const body = (content ?? '').trim()
+  const answerKey = parseExerciseContent(body).answerKey
   const fromStruct = normalizeOptions(structured)
   if (fromStruct) {
-    return { options: fromStruct, displayBody: body }
+    return { options: fromStruct, displayBody: stripMcqFromContent(body) || body, answerKey }
   }
   const fromText = parseMcqFromContent(body)
   if (fromText) {
     return {
       options: fromText,
-      displayBody: stripMcqFromContent(body, fromText) || body,
+      displayBody: stripMcqFromContent(body) || body,
+      answerKey,
     }
   }
-  return { options: null, displayBody: body }
+  return { options: null, displayBody: body, answerKey }
 }

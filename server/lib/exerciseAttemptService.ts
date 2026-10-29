@@ -6,8 +6,7 @@ import type {
 import { FieldValue } from 'firebase-admin/firestore'
 
 import type { ExerciseAttemptCreatePayload } from './exerciseAttemptValidation'
-import { answersMatch, resolveExerciseOptions } from './exerciseOptions'
-import { extractCorrectLetterFromText } from './trail-ai/blocoSubjectGuard'
+import { answersMatch, resolveCorrectKey, resolveExerciseOptions } from './exerciseOptions'
 import { studentTrailDocId } from './studentTrailService'
 
 export type ExerciseAttemptRuntime = {
@@ -337,27 +336,22 @@ export async function createExerciseAttemptWithQuestionLookup(
     const attempt_number = maxAttempt + 1
     const studentAnswer = data.student_answer.trim()
 
-    // Gabarito: campo correct_option, ou inferência da letra no BLOCO/base
-    // da etapa seguinte (ex.: stage 11 sem correct_option mas "letra A" no 12).
-    let resolvedCorrect = q.correct_option ?? null
-    if (!resolvedCorrect) {
-      const hasOptions = Boolean(
-        resolveExerciseOptions(questionRaw.options, qContent),
-      )
-      if (hasOptions) {
-        if (nextQSnap.exists) {
-          const nextData = (nextQSnap.data() ?? {}) as Record<string, unknown>
-          const nextContent =
-            typeof nextData.content === 'string' ? nextData.content : ''
-          const letter = extractCorrectLetterFromText(nextContent)
-          if (letter) resolvedCorrect = letter
-        }
-        if (!resolvedCorrect && typeof data.feedback === 'string') {
-          const letter = extractCorrectLetterFromText(data.feedback)
-          if (letter) resolvedCorrect = letter
-        }
-      }
+    // Gabarito único (mesma regra do feedback): correct_option gravado, depois o gabarito escrito no
+    // exercício, depois "A resposta é X" da etapa seguinte e, por último, o texto do feedback.
+    // Só inferimos de texto quando o exercício tem alternativas.
+    let nextContent = ''
+    if (nextQSnap.exists) {
+      const nextData = (nextQSnap.data() ?? {}) as Record<string, unknown>
+      nextContent = typeof nextData.content === 'string' ? nextData.content : ''
     }
+    const hasOptions = Boolean(resolveExerciseOptions(questionRaw.options, qContent))
+    const resolved = resolveCorrectKey({
+      correctOption: q.correct_option,
+      exerciseContent: hasOptions ? qContent : null,
+      nextContent: hasOptions ? nextContent : null,
+      feedbackText: hasOptions && typeof data.feedback === 'string' ? data.feedback : null,
+    })
+    const resolvedCorrect = resolved.key
 
     // Sem gabarito: registra tentativa unscored (não 500).
     const correct_option = resolvedCorrect ?? ''
@@ -375,6 +369,8 @@ export async function createExerciseAttemptWithQuestionLookup(
       question_number: data.question_number,
       student_answer: studentAnswer,
       correct_option,
+      gabarito_source: resolved.source,
+      ...(resolved.conflict.length > 0 ? { gabarito_conflict: resolved.conflict } : {}),
       is_correct,
       score,
       feedback: data.feedback ?? null,

@@ -5,6 +5,8 @@
 
 import { createHash } from 'node:crypto'
 
+import { extractAnswerKey } from '../exerciseParse'
+
 /** Detecta stage AI pedagógico de feedback (BLOCO RESPOSTA / FINAL). */
 export function isBlocoRespostaPrompt(
   prompt: string | null | undefined,
@@ -37,21 +39,17 @@ export function contentFingerprint(parts: Array<string | null | undefined>): str
   return createHash('sha256').update(joined).digest('hex').slice(0, 32)
 }
 
-/** Extrai "letra B" / "alternativa A" do texto do BLOCO ou content base. */
+/**
+ * Gabarito escrito no texto do BLOCO/feedback ou do conteúdo base: "A resposta é A", "A resposta correta é a
+ * letra B", "Gabarito: C"... Só vale afirmação explícita; "a alternativa A está errada" não é gabarito.
+ * Devolve sempre a letra (número vira letra: 2 = B).
+ */
 export function extractCorrectLetterFromText(
   text: string | null | undefined,
 ): string | null {
-  if (typeof text !== 'string' || !text.trim()) return null
-  const patterns = [
-    /resposta\s+correta\s+[eé]\s+a\s+letra\s*([A-Za-z])/i,
-    /letra\s*([A-Za-z])\b/i,
-    /alternativa\s*([A-Za-z])\b/i,
-  ]
-  for (const re of patterns) {
-    const m = text.match(re)
-    if (m?.[1]) return m[1].toUpperCase()
-  }
-  return null
+  const key = extractAnswerKey(text, { allowBare: true })
+  if (!key) return null
+  return /^\d+$/.test(key) ? String.fromCharCode(64 + Number(key)) : key
 }
 
 /**

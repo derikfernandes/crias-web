@@ -18,6 +18,7 @@
     "check:design-boundaries": "node --test scripts/check-design-boundaries.mjs",
     "preview": "npm run preview -w crias-gestao",
     "audit:trilha-integrity": "node scripts/audit-trilha-integrity.js",
+    "audit:exercises": "npx --yes tsx scripts/audit-exercises.mjs",
     "passwords:generate": "node scripts/generate-student-passwords.mjs",
     "prompts:seed": "npx --yes tsx scripts/seed-ai-prompts.mjs"
   },

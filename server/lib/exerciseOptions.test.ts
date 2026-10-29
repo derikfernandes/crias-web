@@ -6,6 +6,7 @@ import {
   normalizeAnswerForCompare,
   parseLetteredChoicesFromContent,
   parseNumberedChoicesFromContent,
+  resolveCorrectKey,
   resolveExerciseOptions,
   stripLetteredChoicesFromContent,
 } from './exerciseOptions'
@@ -164,5 +165,45 @@ describe('normalizeAnswerForCompare / answersMatch', () => {
     expect(answersMatch('B', '2')).toBe(true)
     expect(answersMatch('A', '2')).toBe(false)
     expect(answersMatch('3', 'C')).toBe(true)
+  })
+})
+
+const MANCHETES = `Compare as duas manchetes:
+
+I. "Prefeitura reforma escola após três anos de espera"
+II. "Prefeitura entrega reforma da escola"
+
+Qual efeito de sentido provoca na manchete I?
+A) Destaca a demora.
+B) Torna a manchete neutra.
+C) Elogia a prefeitura.`
+
+describe('exercício com "I." e "II." no enunciado (bug t68)', () => {
+  it('acha as alternativas A, B e C', () => {
+    expect(resolveExerciseOptions(null, MANCHETES)?.map((o) => o.key)).toEqual(['A', 'B', 'C'])
+  })
+  it('o enunciado mantém I. e II. e perde só as alternativas', () => {
+    const out = stripLetteredChoicesFromContent(MANCHETES) ?? ''
+    expect(out).toContain('I. "Prefeitura reforma escola')
+    expect(out).toContain('II. "Prefeitura entrega')
+    expect(out).not.toContain('Destaca a demora')
+  })
+})
+
+describe('resolveCorrectKey', () => {
+  it('correct_option gravado vence, e o conflito fica registrado', () => {
+    const r = resolveCorrectKey({ correctOption: 'A', nextContent: 'A resposta correta é B.' })
+    expect(r).toEqual({ key: 'A', source: 'correct_option', conflict: [{ source: 'next_content', key: 'B' }] })
+  })
+  it('sem correct_option, lê o gabarito do exercício, depois da etapa seguinte, depois do feedback', () => {
+    expect(resolveCorrectKey({ exerciseContent: 'P?\nA) x\nB) y\nGabarito: B' }).source).toBe('exercise_content')
+    expect(resolveCorrectKey({ exerciseContent: 'P?\nA) x\nB) y', nextContent: 'A resposta é A' })).toMatchObject({ key: 'A', source: 'next_content' })
+    expect(resolveCorrectKey({ feedbackText: 'Quase! A resposta correta é a letra C.' })).toMatchObject({ key: 'C', source: 'feedback' })
+  })
+  it('número e letra são o mesmo gabarito (2 = B): não é conflito', () => {
+    expect(resolveCorrectKey({ correctOption: '2', nextContent: 'A resposta é B' }).conflict).toEqual([])
+  })
+  it('menção solta a uma letra não vira gabarito', () => {
+    expect(resolveCorrectKey({ nextContent: 'Veja a letra B do exemplo e a alternativa A, que está errada.' }).key).toBeNull()
   })
 })

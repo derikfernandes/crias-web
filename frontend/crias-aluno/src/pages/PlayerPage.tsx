@@ -41,6 +41,7 @@ import {
   UserBubble,
 } from '../components/ConversationParts'
 import { autoGrow, isMobileViewport } from '../lib/autoGrow'
+import { parseExerciseContent } from '../lib/exerciseParse'
 import { useThreadScroll } from '../lib/useThreadScroll'
 import { activityProgressPct } from '../lib/trailProgressLabel'
 import {
@@ -184,16 +185,12 @@ function isTrailStepMessage(m: ChatMessage): boolean {
 
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
-/** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
+/**
+ * Enunciado sem o bloco de alternativas e sem a linha de gabarito (os botões mostram as alternativas).
+ * Só sai o que vem a partir de "A)"; "I." e "II." do enunciado ficam (parser único, exerciseParse.ts).
+ */
 function stripOptionLines(text: string): string {
-  // Alinhado ao server: A) / A. / A: / (A) texto
-  const re = /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+.+\s*$/
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !re.test(line))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  return parseExerciseContent(text).statement
 }
 
 /** Badge A–D + texto sem prefixo `A)` (proto). */

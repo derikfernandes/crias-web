@@ -2,7 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 
 // Personagem do monitor do Crias.
 // <crias-monitor estado="carregando|pulo|parado|estatico|sequencia|pulo-demo" avatar zoom="olhos" fundo="escuro|claro" velocidade="1" giro="true" snapshot hero>
-// pulo vai sozinho para parado. estatico desenha um quadro e para (com snapshot vira imagem e libera o WebGL).
+// pulo vai sozinho para parado. entrada: carregando, pulo e parado; depois de um tempo parado, recomeça. estatico desenha um quadro e para (com snapshot vira imagem e libera o WebGL).
 const COR = { luz: '#b4e2f6', corpo: '#82cbec', fundo: '#3f9fd0', manchas: ['#cadea5', '#a7edcb', '#bfe3b4'], nuvem: '#ffffff', anel: '#ffd500', olho: '#030504' };
 const PI = Math.PI, TAU = PI * 2;
 const PULO = 1.3, ORBITA = 1.5;
@@ -112,7 +112,7 @@ class CriasMonitor extends HTMLElement {
   showImg(src) { let img = this.querySelector('img[data-still]'); if (!img) { img = document.createElement('img'); img.setAttribute('data-still', ''); img.alt = ''; img.setAttribute('aria-hidden', 'true'); img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block'; this.appendChild(img); } img.src = src; }
   stillMount() {
     const go = () => { if (!this.isConnected) return; if (this.clientWidth < 3) { setTimeout(go, 400); return; } const k = this.stillKey(); if (STILL[k]) { this.showImg(STILL[k]); return; }
-      STILL_Q = STILL_Q.then(() => new Promise((res) => { if (STILL[k]) { this.showImg(STILL[k]); res(); return; } this._sb = true; this.reduced = true; this.build(); this.mode = 'estatico'; this.snap = pose('estatico', 0, 0); this.cur = this.snap; this.mt = 0; this.bl = 0; this.t = 0; this.spin = 0; this.phi = 0; this.vis = true; this.sized = true; this.lastResize = 0; this.step(0); STILL[k] = this.renderer.domElement.toDataURL('image/png'); this.showImg(STILL[k]); this.release(); res(); })); };
+      STILL_Q = STILL_Q.then(() => new Promise((res) => { if (!this.isConnected) { res(); return; } if (STILL[k]) { this.showImg(STILL[k]); res(); return; } try { this._sb = true; this.reduced = true; this.build(); this.mode = 'estatico'; this.snap = pose('estatico', 0, 0); this.cur = this.snap; this.mt = 0; this.bl = 0; this.t = 0; this.spin = 0; this.phi = 0; this.vis = true; this.sized = true; this.lastResize = 0; this.step(0); STILL[k] = this.renderer.domElement.toDataURL('image/png'); this.showImg(STILL[k]); this.release(); } catch (err) { this.release(); this._sb = false; setTimeout(go, 800); } res(); })).catch(() => {}); };
     requestAnimationFrame(go);
   }
   disconnectedCallback() { cancelAnimationFrame(this.raf); this.ro && this.ro.disconnect(); this.io && this.io.disconnect(); this.release(); this._on = false; }
@@ -127,11 +127,13 @@ class CriasMonitor extends HTMLElement {
   applyEstado(first) {
     const e = this.reduced ? 'parado' : this.estado;
     this.seq = SEQS[e] || null; this.seqT = 0; this.seqI = -1;
+    this.ent = e === 'entrada';
+    if (this.ent) { this.setMode('carregando', true); return; }
     if (!this.seq) this.setMode(e, first);
   }
   setMode(m, instant) {
     if (!pose(m, 0, 0)) m = 'parado';
-    this.snap = Object.assign({}, this.cur); { const g0 = pose(m, 0, this.t || 0, this.phi || 0).sp, dd = this.snap.sp - g0; this.snap.sp = g0 + (((dd % TAU) + TAU + PI) % TAU - PI); }
+    this.snap = Object.assign({}, this.cur); { const P0 = pose(m, 0, this.t || 0, this.phi || 0), g0 = P0.sp, dd = this.snap.sp - g0; this.snap.sp = g0 + (((dd % TAU) + TAU + PI) % TAU - PI); this.off = {}; KEYS.forEach((k) => { this.off[k] = this.snap[k] - P0[k]; }); }
     this.mode = m; this.mt = 0; this.bl = instant ? 0 : (BLEND[m] || 0.5); this.last = performance.now(); this.frozen = false; this.dirty = true;
     this.dispatchEvent(new CustomEvent('fase', { detail: m, bubbles: true }));
     if (this.hasAttribute('hero')) window.dispatchEvent(new CustomEvent('crias-monitor-fase', { detail: m }));
@@ -197,13 +199,15 @@ class CriasMonitor extends HTMLElement {
       while (i < this.seq.length - 1 && lt >= this.seq[i][1]) { lt -= this.seq[i][1]; i++; }
       if (i !== this.seqI) { this.seqI = i; this.setMode(this.seq[i][0], false); }
     }
+    if (this.ent && this.mode === 'carregando' && this.mt >= 2.4) this.setMode('pulo', false);
+    if (this.ent && this.mode === 'parado' && this.mt >= 4.2) this.setMode('carregando', false);
     if (this.mode === 'pulo' && !this.seq && this.mt >= PULO) this.setMode('parado', false);
     const still = this.mode === 'estatico';
     if (still && this.frozen && !this.dirty) return;
     this.mt += d; if (!still) this.t += d;
     const om = this.mode === 'carregando' ? -TAU / ORBITA : this.mode === 'pulo' ? -TAU / ORBITA * Math.exp(-1.2 * this.mt) : 0; this.phi = this.mode === 'carregando' && vel === 1 ? clockPhi() : (this.phi || 0) + d * om;
     const tg = pose(this.mode, this.mt, this.t, this.phi), e = this.bl > 0 ? ease(Math.min(1, this.mt / this.bl)) : 1, c = {};
-    KEYS.forEach((k) => { c[k] = this.snap[k] + (tg[k] - this.snap[k]) * e; });
+    KEYS.forEach((k) => { c[k] = this.off && this.bl > 0 ? tg[k] + this.off[k] * (1 - e) : this.snap[k] + (tg[k] - this.snap[k]) * e; });
     this.cur = c;
     this.root.position.set(c.x, c.y, 0); this.root.scale.set(c.s * c.sx, c.s * c.sy, c.s * c.sx); this.root.rotation.z = c.tilt;
     this.ringBase.rotation.x = c.bx; this.ringSpin.rotation.y = c.sp; this.ringTilt.rotation.set(c.tx, 0, c.tz);

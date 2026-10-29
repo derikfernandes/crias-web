@@ -49,23 +49,30 @@ export function BotMessage({
     <div className="v1-0-msg v1-0-msg--bot">
       <span className="v1-0-msg__sym">
         {monitor ? (
-          <MonitorAvatar size={32} live={live} />
+          <MonitorAvatar size={38} live={live} />
         ) : (
-          <CriasSymbol size={32} animated={animatedSymbol} />
+          <CriasSymbol size={38} animated={animatedSymbol} />
         )}
       </span>
       <div className="v1-0-msg__body">
         <span className="v1-0-msg__labelrow">
           <span className="v1-0-msg__symsm">
             {monitor ? (
-              <MonitorAvatar size={22} live={live} />
+              <MonitorAvatar size={33} live={live} />
             ) : (
-              <CriasSymbol size={22} animated={animatedSymbol} />
+              <CriasSymbol size={33} animated={animatedSymbol} />
             )}
           </span>
-          <span className="v1-0-msg__label" data-fade="1" id={labelId}>
-            {label}
-          </span>
+          {monitor ? (
+            <span className="v1-0-msg__label" data-fade="1" id={labelId}>
+              {label}
+            </span>
+          ) : (
+            // Bloco de conteúdo sem título (1.2.5.9): só o símbolo do Crias e o texto.
+            <span className="v1-0-msg__label v125-sr" data-fade="1" id={labelId}>
+              {label}
+            </span>
+          )}
           {feedback ? (
             <span className={`v1-0-badge v1-0-badge--${feedback}`}>
               {feedback === 'ok' ? 'Acertou' : 'Quase'}
@@ -85,8 +92,13 @@ export function BotMessage({
  */
 export function TypingRow({ monitor = false }: { monitor?: boolean }) {
   if (!monitor) {
+    // Espera do conteúdo (1.2.5.11): símbolo do Crias pulsando e três pontos ao lado, no lugar final da mensagem.
+    // Dura exatamente o tempo da API; a mensagem entra no retorno, sem espera artificial.
     return (
-      <div className="v1-0-typing" role="status" aria-live="polite" aria-label="Aguarde">
+      <div className="v1-0-typing v125-wait" role="status" aria-live="polite" aria-label="Aguarde">
+        <span className="v1-0-typing__sym">
+          <CriasSymbol size={38} />
+        </span>
         <span className="v1-0-typing__dots" aria-hidden="true">
           <span />
           <span />
@@ -98,12 +110,12 @@ export function TypingRow({ monitor = false }: { monitor?: boolean }) {
   return (
     <div className="v1-0-msg v1-0-msg--bot" role="status" aria-live="polite" aria-label="O monitor está digitando">
       <span className="v1-0-msg__sym">
-        <MonitorAvatar size={32} loading />
+        <MonitorAvatar size={38} loading />
       </span>
       <div className="v1-0-msg__body">
         <span className="v1-0-msg__labelrow">
           <span className="v1-0-msg__symsm">
-            <MonitorAvatar size={22} loading />
+            <MonitorAvatar size={33} loading />
           </span>
           <span className="v1-0-msg__label">Monitor</span>
         </span>

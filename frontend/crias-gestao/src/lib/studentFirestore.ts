@@ -51,6 +51,9 @@ export function snapshotToStudent(
           : '',
     ...(typeof data.email === 'string' && data.email.trim() ? { email: data.email.trim() } : {}),
     ...(data.login_identifier === 'phone' || data.login_identifier === 'email' ? { login_identifier: data.login_identifier } : {}),
+    ...(typeof data.turma === 'string' && data.turma.trim()
+      ? { turma: data.turma.trim().slice(0, 64) }
+      : {}),
     school_level:
       typeof data.school_level === 'string' ? data.school_level : 'fundamental',
     school_grade:
@@ -85,6 +88,8 @@ export type StudentFormData = {
   email?: string
   /** Só com telefone e e-mail: qual vale para a senha (lib/loginRule.ts). */
   login_identifier?: 'phone' | 'email'
+  /** Tag/agrupamento opcional. String vazia limpa o campo. */
+  turma?: string
   school_level: Student['school_level']
   school_grade: string
   student_level: 1 | 2 | 3
@@ -102,6 +107,7 @@ export async function updateStudent(
     phone_number: data.phone_number,
     email: (data.email ?? '').trim().toLowerCase(),
     login_identifier: data.login_identifier ?? null,
+    turma: (data.turma ?? '').trim().slice(0, 64),
     school_level: data.school_level,
     school_grade: data.school_grade,
     student_level: data.student_level,
@@ -141,12 +147,14 @@ export async function createStudentSequential(
       )
     }
 
+    const turma = (data.turma ?? '').trim().slice(0, 64)
     tx.set(studentRef, {
       institution_id: data.institution_id,
       name: data.name,
       phone_number: data.phone_number,
       ...(data.email?.trim() ? { email: data.email.trim().toLowerCase() } : {}),
       ...(data.login_identifier ? { login_identifier: data.login_identifier } : {}),
+      ...(turma ? { turma } : {}),
       school_level: data.school_level,
       school_grade: data.school_grade,
       student_level: data.student_level,

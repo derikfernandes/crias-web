@@ -6,10 +6,10 @@ Regras de interface do Crias Aluno e do Crias Educação (antes Crias Gestão). 
 
 | Versão | Arquivos no projeto | Situação |
 | --- | --- | --- |
-| **1.1.1.b (atual, 25/10/2026)** | `Crias Aluno v1.1.1b.dc.html`, `Crias Gestao v1.1.1b.dc.html` | Pacote de melhorias, exportado sozinho. O Claude Code junta com o 1.1.1.a para formar a v1.1.1 |
+| **1.1.1.b (atual, 25/10/2026)** | `Crias Aluno.dc.html`, `Crias Gestao.dc.html` | Pacote de melhorias, exportado sozinho. O Claude Code junta com o 1.1.1.a para formar a v1.1.1 |
 | 1.1.1.a | (correções, ver "Correções v1.1.1.a") | Aplicado sobre a v1.1 |
-| v1.1 (fechada em 16/10/2026) | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | Base oficial, intacta |
-| v1.0 (travada) | `Crias Aluno v1.0.dc.html`, `Crias Painel v1.0.dc.html` | Base anterior |
+| v1.1 (fechada em 16/10/2026) | `Crias Aluno.dc.html`, `Crias Gestao.dc.html` | Base oficial, intacta |
+| v1.0 (travada) | `Crias Aluno.dc.html`, `Crias Painel.dc.html` | Base anterior |
 | Histórico | pasta `historico/` | Versões e telas antigas |
 
 No repositório os arquivos não levam o sufixo de versão (`Crias Aluno.dc.html`, `Crias Gestao.dc.html`). O arquivo da Educação continua com o nome `Crias Gestao` e a pasta do app continua `frontend/crias-gestao`; só o nome exibido e o logo mudaram.
@@ -507,7 +507,7 @@ Pacote de melhorias no Crias Aluno e no Crias Gestão. Junto com o 1.1.1.a, form
 *Gestão: Dados*
 - Subtítulo com ponto final: "Informações sobre o progresso dos alunos.".
 
-_Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno v1.1.1b.dc.html` e `Crias Gestao v1.1.1b.dc.html`._
+_Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno.dc.html` e `Crias Gestao.dc.html`._
 
 **1.1.1.b.40 Ordem das atividades, envio automático, rolagem e perfil** (23/10/2026). Vale sobre 1.1.1.b.39 onde houver diferença.
 
@@ -548,7 +548,7 @@ _Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno v1.1.1b.dc.html` e `Crias Ges
 
 ## Gestão 1.1.1.b (antes Redesign, aprovada em 24/10/2026)
 
-Aprovada como Gestão 1.1.1.b: `Crias Gestao v1.1.1b.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.
+Aprovada como Gestão 1.1.1.b: `Crias Gestao.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.
 
 - **Menu no topo** (web), como no rascunho R: logo, Início, Dados, Trilhas, Alunos e Configurações (lista com Usuários e Sistema). Mais espaço entre o logo e o menu. Todos os itens com fundo bege (#f7f5ec); o selecionado ganha contorno verde #00be85. À direita: etiqueta da escola (perfil Instituição) ou "Filtrar instituições" (Super admin), ambos em bege, depois tema, perfil e sair. No celular, menu em tela cheia e a etiqueta/filtro na linha do Voltar, como hoje. Conteúdo até 1280px; sai a regra dos 203px.
 - **Cartões:** como na v1.1 oficial (sem sombra).
@@ -761,7 +761,7 @@ Pacote de correções aplicado no app (`correcoes-bugs-frontend-v1.1.1`) e refle
 
 ## Base v1.1: fechamento (16/10/2026)
 
-Regras 1.1.27 a 1.1.38, acrescentadas no fechamento da v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). Valem sobre as regras 1.1.1 a 1.1.26 onde houver diferença.
+Regras 1.1.27 a 1.1.38, acrescentadas no fechamento da v1.1 (`Crias Aluno.dc.html` e `Crias Gestao.dc.html`). Valem sobre as regras 1.1.1 a 1.1.26 onde houver diferença.
 
 **1.1.27 Gestão no celular** (15/10/2026)
 
@@ -944,7 +944,7 @@ Vale sobre 1.1.29 a 1.1.34 onde houver diferença.
 
 ## Base v1.1: primeira parte (15/10/2026)
 
-A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositório `crias-redesign/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`) parte da v1.0 e vale sobre ela onde houver diferença.
+A v1.1 (`Crias Aluno.dc.html` e `Crias Gestao.dc.html`; no repositório `crias-redesign/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`) parte da v1.0 e vale sobre ela onde houver diferença.
 
 **1.1.1 Menu lateral sempre aberto na web**
 
@@ -1010,7 +1010,7 @@ A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositóri
 
 **1.1.11 Nomes: Crias Aluno e Crias Gestão**
 
-- O produto de administração passa a se chamar **Crias Gestão** (antes Crias Painel). Arquivo: `Crias Gestao v1.1.dc.html` (no repositório `Crias Gestao.dc.html`).
+- O produto de administração passa a se chamar **Crias Gestão** (antes Crias Painel). Arquivo: `Crias Gestao.dc.html` (no repositório `Crias Gestao.dc.html`).
 - Seletor do menu (só para quem tem acesso à gestão): no Crias Aluno mostra "Aluno | Gestão"; no Crias Gestão mostra "Gestão | Aluno" (a área atual vem primeiro e fica marcada). Quem é só aluno não vê.
 - "Painel" passa a ser só a página individual de dados dentro do Crias Aluno (1.1.8).
 - Cabeçalho do menu da Gestão: o wordmark em arquivo, uma barra vertical em verde #00be85 (2px, 22px de altura) e "Gestão" (Manrope 14px, 600, `--v-t2`), no mesmo desenho da assinatura "Crias | Tecnologia educacional". Sai a etiqueta verde "Painel".
@@ -1148,7 +1148,7 @@ Revisão completa feita nos dois produtos antes da trava:
 
 ## Base v1.0 travada
 
-A v1.0 do aluno (`Crias Aluno v1.0.dc.html`, no repositório `crias-redesign/prototipo/Crias Aluno.dc.html`) e o painel v1.0 (`Crias Painel v1.0.dc.html`, no repositório `.../Crias Painel.dc.html`) são a base de identidade visual. Esta seção vale sobre as regras antigas abaixo. Mudanças só a pedido.
+A v1.0 do aluno (`Crias Aluno.dc.html`, no repositório `crias-redesign/prototipo/Crias Aluno.dc.html`) e o painel v1.0 (`Crias Painel.dc.html`, no repositório `.../Crias Painel.dc.html`) são a base de identidade visual. Esta seção vale sobre as regras antigas abaixo. Mudanças só a pedido.
 
 **Substitui nas regras antigas**
 
@@ -1412,3 +1412,77 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 - Revisão 3: hierarquia trilha > atividade > etapa. Menu com seta abrir/recolher e lista de atividades. Histórico por atividade. Trilha Frações removida do exemplo; Matemática básica com 5 atividades e Leitura e interpretação com 3.
 - Revisão 2b: esfumaçado centralizado na tela inicial. Símbolo removido do menu lateral.
 - Revisão 2: Maria vira "Parceiro de estudos". Tela inicial em estilo Gemini, com até 3 trilhas e barra de pergunta.
+
+## v1.2.1 (27/10/2026)
+
+**1.2.1.1 Monitor no Início do aluno.** O símbolo do Crias acima da saudação dá lugar ao personagem do monitor (`crias-monitor.js`), com 128px (o dobro dos 64px do símbolo). Margem de -12px em cima e embaixo: a saudação desce só parte do espaço ganho e a composição continua centralizada. Movimento em uma única sequência, a 60% da velocidade: carregando (anel orbitando, cerca de 4s), pulo suave e parado com pulso leve por cerca de 7s; depois recomeça. Estado novo `entrada` no componente. Com movimento reduzido, fica parado. O símbolo do Crias continua na entrada e na trilha concluída.
+
+
+## Pacote 1.2.5 (28/10/2026)
+
+Arquivo: `Crias Aluno.dc.html` (cópia da v1.2; a v1.2 segue intacta). Só o que foi pedido mudou; carregamento e fixação das mensagens no topo seguem como definidos.
+
+**1.2.5.1 Início com retomada.** A trilha de acesso mais recente (sem esse dado, a primeira não concluída) vira o cartão principal: "CONTINUE DE ONDE PAROU" ("COMECE POR AQUI" em trilha nova), nome, barra, "Atividade X de Y · [etapa atual]", "AGORA" com a atividade e o botão Continuar/Começar. As demais trilhas em linhas compactas com nome, "Atividade X de Y" e seta verde. O cartão entra primeiro e as linhas 0,2s depois.
+
+**1.2.5.2 Mapa da atividade.** Régua abaixo do título, na largura da conversa, no lugar dos pontos. Um segmento por etapa, nas cores da Gestão: conteúdo #00be85, exercício #ffd500, feedback #88cde7, conclusão #e9e1c6 (sempre a última). Feita: cor cheia; atual: cor cheia pulsando; à frente: contorno na cor do tipo. Rótulo: conteúdo "Etapa N de T" (T = total de etapas da atividade), exercício "Exercício N", "Feedback", "Conclusão". À direita, "cerca de N min" restantes, regra do frontend igual à da Gestão: 1 min por conteúdo, feedback e conclusão; 2 min por exercício. Tocar num segmento feito mostra o rótulo e rola até a etapa. Celular: sem o tempo. Título das mensagens da trilha: nome da atividade.
+
+**1.2.5.3 Mensagem do monitor em destaque (só na sequência da atividade).** Fundo azul muito claro (#f3f9fc, borda #e3f1f7; no escuro azul a 7%), sem o rótulo "Monitor". O personagem fica à esquerda, com 52px (altura de duas linhas), e mantém a sequência carregando, pulo e parado só na última mensagem. Texto longo desce em parágrafos; o personagem não se move de lugar. Trechos grifados (marca-texto amarelo) são tocáveis. Regra: sempre 2 trechos de ajuda + 1 trecho de continuar grifado; frases e fechamentos variam (conjunto fixo do frontend, sem repetir o anterior). Só a última oferta fica ativa. A carga mostra a caixa com o monitor carregando e duas linhas de espera. A conversa livre com o monitor (digitada pelo aluno ou na Monitoria) segue discreta, como antes.
+
+**1.2.5.4 O monitor corrige o exercício.** O feedback usa o mesmo destaque: primeiro parágrafo com a correção (pode passar de duas linhas) e, em novo parágrafo espaçado, o gancho com 2 trechos + continuar.
+
+**1.2.5.5 Fechamento da atividade.** Depois da conclusão, cartão "Atividade concluída" com o nome da atividade, etapas, "X de Y exercícios certos" com barra de percentual embaixo, tempo de estudo e "PRÓXIMA". Continuar com halo enquanto o cartão é a última mensagem. A linha entre atividades ganha mais respiro e o rótulo "NOVA ATIVIDADE" à esquerda, no padrão dos rótulos do menu. Na última atividade da trilha segue a tela de trilha concluída.
+
+**1.2.5.6 Constância no Painel.** Cartão "Sua semana" no topo do Painel, de segunda a domingo, com hoje pulsando em amarelo. Segue o filtro de trilha.
+
+**1.2.5.7 Revisão (28/10/2026), vale sobre 1.2.5.2 a 1.2.5.5.**
+- **Topo da conversa:** nome da trilha e "Atividade X de Y" (sem o nome da atividade).
+- **Régua:** à esquerda, o nome da atividade (esmaece no fim); à direita, "cerca de N min". A etapa atual fica só com a cor cheia, sem piscar; ao avançar, a cor preenche na hora, sem transição.
+- **Título das mensagens da trilha:** "Etapa X de Y" no conteúdo (Y conta todas as etapas, exercícios incluídos), "Exercício Z de W" no exercício e "Conclusão" na conclusão. Mensagens do monitor em destaque não têm título.
+- **Quando o monitor sugere ações (2 ajudas + continuar):** só (1) na primeira etapa de cada atividade e (2) no fim da atividade, logo abaixo do fechamento "Atividade concluída". Nas demais etapas não aparece.
+- **Feedback do exercício:** sempre o monitor em destaque: correção e, em novo parágrafo, um convite com 1 ação de dúvida ou explicação + continuar (diferente do convite da primeira etapa, que tem 2 ajudas). Frases variam sem repetir a anterior.
+- **Continuar no fechamento:** fica travado (Aguarde…) de "Atividade concluída" até a mensagem do monitor chegar; o halo só começa depois dela.
+- **Régua ao avançar:** muda no toque em Continuar, sem esperar a mensagem carregar.
+- **Cores do topo:** nome da atividade na régua em verde (#00744f; no escuro #5fe3b5), Outfit 15px 600; "Atividade X de Y" no topo em preto (cor do texto).
+- **Dúvida respondida na trilha:** segue como está (resposta + sugestões).
+- **Fechamento:** sem caixa; o mesmo conteúdo sobre o fundo branco, seguido do monitor em destaque com sugestões e continuar ("siga para a próxima atividade").
+- **Caixa do monitor:** na mesma largura da barra de mensagem e das mídias (sem avançar para a coluna do ícone).
+- **Ícones nas mensagens:** monitor e símbolo do Crias com 38px na web (antes 32) e 33px no celular (antes 22).
+- **Monitoria:** a primeira mensagem, na primeira abertura, traz as sugestões (tirar uma dúvida, explicar de outro jeito, fazer um exercício); as respostas seguem discretas, como antes.
+- **Exemplo sem conclusão:** a trilha Leitura e interpretação não tem etapa de conclusão, para avaliar a sequência feedback, "Atividade concluída" e monitor.
+
+**1.2.5.8 Carregamento, fechamento automático e topo (28/10/2026), vale sobre 1.2.5.7.**
+- **Carregamento da etapa (ao abrir a atividade e a cada Continuar):** no lugar onde a mensagem vai entrar, o símbolo do Crias pulsando à esquerda, o título já visível ("Etapa X de Y", "Exercício Z de W", "Conclusão") e os três pontos embaixo, no mesmo padrão do monitor (personagem + caixa + linhas de espera). Ao abrir a atividade, o carregamento fica no topo, alinhado à conversa; saiu o "Carregando mensagens" centralizado (ele segue só ao carregar mensagens antigas rolando para cima).
+- **Entrada da mensagem:** sem piscar. O título e o ícone ficam no lugar e só o conteúdo entra em esmaecimento rápido e fluido (0,5s, sobe 6px). O monitor entra depois que a mensagem terminou de aparecer (0,6s), com o mesmo esmaecimento; a caixa de espera do monitor vira a mensagem sem trocar de lugar.
+- **Fechamento automático:** quando a última etapa da atividade é gerada (conclusão ou, sem conclusão, o feedback do último exercício), "Atividade concluída" e a caixa final do monitor entram em sequência, sem novo Continuar. O feedback do último exercício traz só a correção (o convite vem na caixa final). Continuar fica em "Aguarde…" até a caixa final chegar.
+- **Rolagem:** o carregamento começa no topo da tela. Se a resposta passar da altura da tela, ela fica presa no topo e a tela não rola sozinha; o aluno rola para baixo. Se couber, a tela fica como está.
+- **Monitoria com histórico:** a Monitoria sempre mostra o histórico das conversas anteriores acima. A mensagem com sugestões entra só na primeira abertura, abaixo do histórico.
+- **Topo:** só o nome da trilha (na Monitoria, "Conversar com seu monitor" em preto).
+- **Régua:** nome da atividade em preto (Outfit 15px 600). "Atividade X de Y" com o estilo do antigo "cerca de N min" (13px, cor de apoio), que saiu. Em teste: abaixo da régua, alinhado à direita (padrão); o tweak "posicaoAtividade" põe ao lado do título.
+
+**1.2.5.9 Etapa abaixo da régua, exercício e resposta (28/10/2026), vale sobre 1.2.5.8.**
+- **Sem título nas mensagens de conteúdo:** o bloco de conteúdo mostra só o símbolo do Crias e o texto. O carregamento é o símbolo com os três pontos ao lado, no lugar onde a mensagem vai entrar (também ao abrir a atividade, abaixo da régua, sem flutuar sobre ela).
+- **Linha abaixo da régua:** "Etapa X de Y" à esquerda (total de blocos da atividade) e "Atividade X de Y" à direita. No exercício e no feedback dele, vira "Exercício Z de W" (total de exercícios). Saiu o tweak "posicaoAtividade".
+- **Exercício:** sem símbolo e sem título. Etiqueta amarela "Responda" acima do enunciado, dentro do cartão.
+- **Entrada:** o texto da etapa entra com o mesmo esmaecimento do monitor, inclusive ao abrir a atividade. Na 1ª etapa, a etapa carrega primeiro e o monitor entra em seguida, sozinho, sem Continuar (com nova tentativa se a tela ainda estiver carregando).
+- **Resposta do exercício:** ao enviar, a resposta do aluno sobe para o topo, à direita, e logo abaixo entra a caixa de espera do monitor. A tela não se move depois disso: a correção aparece nas alternativas e o feedback entra no lugar da caixa, com esmaecimento. Alternativas ficam travadas durante a espera.
+
+**1.2.5.10 Entrada única de mensagem e fechamento (28/10/2026), vale sobre 1.2.5.9.**
+- **Entrada de mensagem, em todo o app:** o padrão é o do monitor automático. O carregamento entra com esmaecimento (0,5s, sobe 6px) e a mensagem entra no mesmo lugar com o mesmo esmaecimento. Vale para etapas, feedback, convites, respostas a perguntas (Monitoria e trilha) e fechamentos. Saiu o efeito de digitação. As respostas do monitor ficam sempre na caixa do monitor.
+- **Fim da atividade:** depois do último bloco vem sempre a caixa "Atividade concluída" e só então o monitor. Se o último bloco é conclusão: conteúdo, caixa, monitor. Se é exercício: resposta do aluno, caixa e o monitor com a correção e o convite na mesma mensagem.
+- **Fim da trilha:** igual ao fim da atividade, com a caixa "Trilha concluída" (atividades, exercícios certos e tempo da trilha, sem "Próxima"). O monitor fecha com convite e "volte para a página inicial". Saiu o cartão antigo de trilha concluída.
+- **Início (web), em teste:** a barra de pergunta ao monitor fica embaixo, na mesma posição da conversa (padrão). O tweak "barraInicio" volta a barra para o conteúdo.
+
+**1.2.5.11 Geração de mensagem única, check de conclusão e Início (28/10/2026), vale sobre 1.2.5.10.**
+- **Padrão de geração (todo o app):** é o do monitor na 1ª etapa. A mensagem nasce no lugar final como caixa de espera (conteúdo: símbolo do Crias pulsando com três pontos ao lado; monitor: personagem carregando com linhas de espera), com esmaecimento de entrada (0,5s, sobe 6px). Quando chega, a mesma caixa vira a mensagem: o ícone não muda de lugar e só o texto entra com o mesmo esmaecimento. Vale para conteúdo, exercício, feedback, convites, respostas do monitor (trilha e Monitoria) e fechamentos.
+- **Respiro:** entre uma mensagem pronta e a próxima espera há 0,9s (conteúdo e depois monitor; caixa de conclusão e depois monitor, 1,6s). Tempos de espera: conteúdo 0,9s, monitor 1,3s.
+- **Ao abrir a atividade:** a espera fica exatamente onde a mensagem vai ficar (com a linha separadora acima, quando houver).
+- **Atividade concluída e Trilha concluída:** no lugar do símbolo do Crias, um check verde (#00be85) num círculo verde claro. O círculo surge e o V é desenhado de uma vez, depois fica fixo.
+- **Régua:** "Etapa X de Y" (ou "Exercício Z de W") em negrito; "Atividade X de Y" sem mudança.
+- **Trilha concluída:** o Continuar vira "Início" (leva à página inicial) e fica assim mesmo se o aluno seguir conversando com o monitor.
+
+**1.2.5.12 Feedback como bloco de conteúdo e Painel (28/10/2026), vale sobre 1.2.5.11.**
+- **Feedback do exercício:** volta a ser um bloco de conteúdo (símbolo do Crias, etiqueta "Acertou" ou "Quase" e a correção), com a mesma geração de qualquer bloco de conteúdo: espera do símbolo com três pontos no lugar final, texto entra com esmaecimento. Sem convite do monitor no meio da atividade.
+- **Fim da atividade e da trilha:** o último bloco (conclusão ou feedback) entra como conteúdo; depois vem a caixa "Atividade concluída" (ou "Trilha concluída") e, por fim, o monitor com o fechamento.
+- **Painel:** saiu o cartão "Sua semana".
+
+**Checar com o backend:** se o banco capta o tempo de estudo por atividade (sem ele, o cartão usa a estimativa da régua) e as datas de estudo por dia (etapa concluída, resposta ou mensagem; fuso America/Sao_Paulo). Sem data confiável, o cartão "Sua semana" não aparece.

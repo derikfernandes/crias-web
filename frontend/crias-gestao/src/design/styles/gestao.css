@@ -736,6 +736,8 @@ html {
   padding: 8px 10px;
   font-size: 13px;
 }
+.gx-table--alunos th[data-col='turma'],
+.gx-table--alunos td[data-col='turma'] { min-width: 72px; max-width: 120px; }
 .gx-table--alunos th[data-col='ped'],
 .gx-table--alunos td[data-col='ped'] { min-width: 72px; max-width: 96px; }
 .gx-table--alunos th[data-col='active'],

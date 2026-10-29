@@ -63,6 +63,8 @@ export type StudentPanel = {
     phone: string
     email: string
     login_identifier: 'phone' | 'email' | null
+    /** Tag/agrupamento opcional (Gestão). Vazio se não preenchido. */
+    turma: string
   }
   trails: PanelTrail[]
   performance: PanelPerformance
@@ -258,6 +260,7 @@ export function composeStudentPanel(input: PanelInput): StudentPanel {
       phone: str(input.student.phone_number),
       email: str(input.student.email).trim().toLowerCase(),
       login_identifier,
+      turma: str(input.student.turma).trim(),
     },
     trails,
     performance: {

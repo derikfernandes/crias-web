@@ -67,6 +67,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
   const [name, setName] = useState('')
   const [phone_number, setPhoneNumber] = useState('')
   const [email, setEmail] = useState('')
+  const [turma, setTurma] = useState('')
   const [school_level, setSchoolLevel] = useState<Student['school_level']>(
     'fundamental',
   )
@@ -90,6 +91,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       setName('')
       setPhoneNumber('')
       setEmail('')
+      setTurma('')
       setInstitutionId('')
       setSchoolLevel('fundamental')
       setSchoolGrade(FUNDAMENTAL_GRADES[0])
@@ -104,6 +106,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
     setName(initial.name)
     setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
     setEmail(initial.email ?? '')
+    setTurma(initial.turma ?? '')
     setSchoolLevel(normalizeSchoolLevel(initial.school_level))
     setSchoolGrade(initial.school_grade)
     setStudentLevel(initial.student_level)
@@ -166,6 +169,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       // Dual login (dérik): com telefone e e-mail, os dois autenticam; sem rádio exclusivo.
       // Limpa login_identifier legado para não sugerir canal único.
       login_identifier: undefined,
+      turma: turma.trim().slice(0, 64),
       school_level: normalizedLevel,
       school_grade,
       student_level: normalizedStudentLevel,
@@ -206,12 +210,13 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       (name.trim() !== initial!.name ||
         phone_number !== sanitizePhoneNumber(initial!.phone_number) ||
         email.trim().toLowerCase() !== (initial!.email ?? '').toLowerCase() ||
+        turma.trim() !== (initial!.turma ?? '').trim() ||
         normalizeSchoolLevel(String(school_level)) !== normalizeSchoolLevel(initial!.school_level) ||
         school_grade !== initial!.school_grade ||
         student_level !== initial!.student_level ||
         active !== initial!.active ||
         password.trim() !== '')
-    : Boolean(name.trim() || phone_number || email.trim() || institution_id || password)
+    : Boolean(name.trim() || phone_number || email.trim() || turma.trim() || institution_id || password)
   const dirty = formDirty || Boolean(extraDirty)
 
   function cancelEdit() {
@@ -222,6 +227,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       setName(initial.name)
       setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
       setEmail(initial.email ?? '')
+      setTurma(initial.turma ?? '')
       setSchoolLevel(normalizeSchoolLevel(initial.school_level))
       setSchoolGrade(initial.school_grade)
       setStudentLevel(initial.student_level)
@@ -230,6 +236,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       setName('')
       setPhoneNumber('')
       setEmail('')
+      setTurma('')
       setInstitutionId('')
       setSchoolLevel('fundamental')
       setSchoolGrade(FUNDAMENTAL_GRADES[0])
@@ -293,6 +300,17 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
                 Com telefone e e-mail, os dois valem para entrar (mesma senha).
               </p>
             ) : null}
+            <label className="gx-field">
+              <span>Turma</span>
+              <input
+                className="gx-input"
+                type="text"
+                value={turma}
+                onChange={(e) => setTurma(e.target.value.slice(0, 64))}
+                placeholder="Opcional"
+                autoComplete="off"
+              />
+            </label>
             <label className="gx-field">
               <span>Senha de acesso{isEdit ? ' (deixe em branco para manter)' : ''}</span>
               <input

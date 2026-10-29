@@ -1,4 +1,5 @@
 import { toUserFacingError } from './networkError'
+import { parseExerciseContent } from './exerciseParse'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
   /\/$/,
@@ -133,6 +134,25 @@ export type NextContentOk = {
   ai_status?: 'ready' | 'pending' | 'not_applicable'
 }
 
+/**
+ * Rede de segurança do exercício: se o servidor não mandou alternativas, separa enunciado, alternativas e
+ * gabarito do próprio texto (mesma regra do servidor, exerciseParse.ts). Nunca devolve o gabarito ao aluno.
+ */
+export function ensureExerciseOptions<T extends NextContentOk | NextContentStatus>(body: T): T {
+  if (!body || (body as NextContentOk).status !== 'ok') return body
+  const c = body as NextContentOk
+  if (c.stage_type !== 'exercise') return body
+  const parsed = parseExerciseContent(c.content)
+  const hasOptions = Array.isArray(c.options) && c.options.length > 0
+  if (hasOptions) return body
+  if (parsed.options.length < 2) return body
+  return {
+    ...c,
+    content: parsed.statement || c.content,
+    options: parsed.options.map((o) => ({ key: o.key, text: `${o.key}) ${o.text}` })),
+  } as T
+}
+
 /** Normaliza options do next-content para botões clicáveis (key = resposta enviada). */
 export function normalizeExerciseOptions(
   raw: NextContentOk['options'],
@@ -150,10 +170,13 @@ export function normalizeExerciseOptions(
         continue
       }
       const numbered = s.match(/^\(?(\d{1,2})\)?\s*[\)\.\:]/)
-      out.push({
-        key: numbered ? String(Number(numbered[1])) : s,
-        text: s,
-      })
+      if (numbered) {
+        out.push({ key: String(Number(numbered[1])), text: s })
+        continue
+      }
+      // Sem marcador: a chave é a letra da posição, nunca o texto inteiro.
+      const key = String.fromCharCode(65 + out.length)
+      out.push({ key, text: `${key}) ${s}` })
       continue
     }
     if (item && typeof item === 'object') {
@@ -357,19 +380,37 @@ export async function listStudentTrails(
   return Array.isArray(body) ? (body as StudentTrailRow[]) : []
 }
 
-/** Totais de etapas por trilha (sidebar Maria — progresso). */
-export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
+export type TrailStageInfo = { stage_number: number; stage_type: string; title: string }
+
+/** Etapas de cada trilha (número, tipo e título): régua da atividade e totais de etapas. */
+export async function fetchTrailStages(): Promise<Record<string, TrailStageInfo[]>> {
   const url = new URL(`${API_BASE}/trail_stages`, window.location.origin)
   url.searchParams.set('simple', '1')
   const res = await fetchWithTimeout(url.pathname + url.search)
   const body = await parseJson(res)
   if (!res.ok || !Array.isArray(body)) return {}
-  const map: Record<string, number> = {}
-  for (const row of body as Array<{ trail_id?: string; stage_number?: number }>) {
+  const map: Record<string, TrailStageInfo[]> = {}
+  for (const row of body as Array<{ trail_id?: string; stage_number?: number; stage_type?: string; title?: string; active?: boolean }>) {
     const tid = row.trail_id
-    if (!tid) continue
+    if (!tid || row.active === false) continue
     const n = typeof row.stage_number === 'number' ? row.stage_number : 0
-    map[tid] = Math.max(map[tid] ?? 0, n)
+    if (n < 1) continue
+    ;(map[tid] ??= []).push({
+      stage_number: n,
+      stage_type: typeof row.stage_type === 'string' ? row.stage_type : 'fixed',
+      title: typeof row.title === 'string' ? row.title : '',
+    })
+  }
+  for (const list of Object.values(map)) list.sort((x, y) => x.stage_number - y.stage_number)
+  return map
+}
+
+/** Totais de etapas por trilha (progresso). */
+export async function fetchTrailStageTotals(): Promise<Record<string, number>> {
+  const stages = await fetchTrailStages()
+  const map: Record<string, number> = {}
+  for (const [tid, list] of Object.entries(stages)) {
+    map[tid] = list.reduce((m, s) => Math.max(m, s.stage_number), 0)
   }
   return map
 }
@@ -500,7 +541,7 @@ export async function fetchNextContent(
   if (!res.ok) {
     throwHttpError(res, body, 'Não foi possível carregar a aula.')
   }
-  return body as NextContentOk | NextContentStatus
+  return ensureExerciseOptions(body as NextContentOk | NextContentStatus)
 }
 
 export async function fetchTrailHistoryPage(
@@ -716,7 +757,15 @@ export type PanelTrail = {
   activities: PanelActivity[]
 }
 export type StudentPanel = {
-  student: { id: string; name: string; phone: string; email: string; login_identifier: 'phone' | 'email' | null }
+  student: {
+    id: string
+    name: string
+    phone: string
+    email: string
+    login_identifier: 'phone' | 'email' | null
+    /** Opcional (Gestão). App aluno não exibe. */
+    turma?: string
+  }
   trails: PanelTrail[]
   performance: {
     correct: number

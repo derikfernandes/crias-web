@@ -1,7 +1,7 @@
 import type { Firestore } from 'firebase-admin/firestore'
 
 import { createConversationLog } from '../conversationLogService'
-import { normalizeAnswerForCompare, resolveExerciseOptions } from '../exerciseOptions'
+import { normalizeAnswerForCompare, resolveCorrectKey, resolveExerciseOptions } from '../exerciseOptions'
 import { getStudentTrailPosition } from '../studentTrailService'
 import { trailStageQuestionDocId } from '../trailStageQuestionService'
 import {
@@ -13,7 +13,6 @@ import {
   blocoMismatchesSubject,
   contentFingerprint,
   enrichBlocoContent,
-  extractCorrectLetterFromText,
   filterContextForBloco,
   isBlocoRespostaPrompt,
 } from './blocoSubjectGuard'
@@ -266,13 +265,14 @@ async function loadCellMeta(
       prevCorrect = prev.correct_option
       prevTitle = prev.title
       subjectSource = prev.content
-      const letter =
-        extractCorrectLetterFromText(baseContent) ||
-        (prev.correct_option
-          ? /^\d+$/.test(prev.correct_option)
-            ? String.fromCharCode(64 + Number(prev.correct_option))
-            : prev.correct_option.toUpperCase()
-          : null)
+      // Mesma regra do pontuador (resolveCorrectKey): feedback e acerto/erro nunca discordam.
+      const letter = keyToLetter(
+        resolveCorrectKey({
+          correctOption: prev.correct_option,
+          exerciseContent: prev.content,
+          nextContent: baseContent,
+        }).key,
+      )
       enrichedContent = enrichBlocoContent({
         blocoContent: baseContent,
         exerciseContent: prev.content,
@@ -729,6 +729,12 @@ export function buildAttemptContentSection(input: {
   return lines.join('\n')
 }
 
+/** "B" ou "2" vira a letra "B". */
+function keyToLetter(key: string | null): string | null {
+  if (!key) return null
+  return /^\d+$/.test(key) ? String.fromCharCode(64 + Number(key)) : key.toUpperCase()
+}
+
 function feedbackTimeoutMs(env: NodeJS.ProcessEnv): number {
   const raw = env.TRAIL_AI_FEEDBACK_TIMEOUT_MS
   const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN
@@ -845,7 +851,14 @@ export async function generateExerciseAttemptFeedback(
         typeof exerciseData?.correct_option === 'string'
           ? exerciseData.correct_option
           : null,
-      correctLetter: extractCorrectLetterFromText(meta.baseContent),
+      correctLetter: keyToLetter(
+        resolveCorrectKey({
+          correctOption:
+            typeof exerciseData?.correct_option === 'string' ? exerciseData.correct_option : null,
+          exerciseContent,
+          nextContent: meta.baseContent,
+        }).key,
+      ),
     })
     subjectSource = exerciseContent
   }

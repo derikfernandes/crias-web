@@ -170,7 +170,7 @@ http
     if (p === '/trails') return send(res, 200, Object.entries(TRAILS).map(([id, t]) => ({ id, name: t.name, subject: t.name })))
     if (p === '/trail_stages') {
       const rows = []
-      for (const [id, t] of Object.entries(TRAILS)) for (let s = 1; s <= t.stages; s++) rows.push({ trail_id: id, stage_number: s })
+      for (const [id, t] of Object.entries(TRAILS)) for (let s = 1; s <= t.stages; s++) rows.push({ trail_id: id, stage_number: s, stage_type: s === 3 ? 'exercise' : s === 4 ? 'ai' : 'fixed', title: s === 4 ? 'Feedback' : s === t.stages && s > 4 ? 'Conclusão' : `Etapa ${s}` })
       return send(res, 200, rows)
     }
     if (p === '/trail_stage_questions') {

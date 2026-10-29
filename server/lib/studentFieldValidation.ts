@@ -91,3 +91,31 @@ export function assertCanonicalBrPhone(digits: string): string | null {
   }
   return 'Telefone inválido. Com DDI 55 use 12 dígitos (fixo) ou 13 (móvel).'
 }
+
+/** Tamanho máximo do tag de turma (agrupamento livre na Gestão). */
+export const TURMA_MAX_LEN = 64
+
+/**
+ * Normaliza `turma` (opcional). Vazio / null / undefined → string vazia.
+ * Não exige valor; só corta espaços e limita o tamanho.
+ */
+export function normalizeTurma(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v !== 'string') return ''
+  return v.trim().slice(0, TURMA_MAX_LEN)
+}
+
+/**
+ * Valida payload de turma no POST/PUT. Ausente ou vazio = ok.
+ * Se vier preenchida e passar do limite após trim, erro.
+ */
+export function assertTurma(v: unknown): string | null {
+  if (v === undefined || v === null) return null
+  if (typeof v !== 'string') return 'Campo "turma" inválido.'
+  const t = v.trim()
+  if (!t) return null
+  if (t.length > TURMA_MAX_LEN) {
+    return `Campo "turma" deve ter no máximo ${TURMA_MAX_LEN} caracteres.`
+  }
+  return null
+}

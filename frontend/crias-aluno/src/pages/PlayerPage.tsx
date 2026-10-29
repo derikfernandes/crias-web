@@ -27,10 +27,11 @@ import {
   normalizeExerciseOptions,
   submitExerciseAttempt,
   type ExerciseOption,
+  type TrailActivity,
+  type TrailStageInfo,
   type NextContentOk,
   type NextContentStatus,
 } from '../lib/api'
-import CriasSymbol from '../components/CriasSymbol'
 import {
   ArrowRightIcon,
   ArrowUpIcon,
@@ -41,6 +42,11 @@ import {
   UserBubble,
 } from '../components/ConversationParts'
 import { autoGrow, isMobileViewport } from '../lib/autoGrow'
+import { parseExerciseContent } from '../lib/exerciseParse'
+import { stageRoles } from '../lib/stageRoles'
+import ActivityDoneCard from '../components/ActivityDoneCard'
+import MonitorHighlight from '../components/MonitorHighlight'
+import { pickOffer } from '../lib/monitorOffers'
 import { useThreadScroll } from '../lib/useThreadScroll'
 import { activityProgressPct } from '../lib/trailProgressLabel'
 import {
@@ -184,16 +190,12 @@ function isTrailStepMessage(m: ChatMessage): boolean {
 
 type BusyReason = 'maria' | 'trail' | 'exercise' | null
 
-/** Remove linhas de opções lettered do enunciado (botões já mostram as opções). */
+/**
+ * Enunciado sem o bloco de alternativas e sem a linha de gabarito (os botões mostram as alternativas).
+ * Só sai o que vem a partir de "A)"; "I." e "II." do enunciado ficam (parser único, exerciseParse.ts).
+ */
 function stripOptionLines(text: string): string {
-  // Alinhado ao server: A) / A. / A: / (A) texto
-  const re = /^\s*\(?([A-Za-z])\)?\s*[\)\.\:]\s+.+\s*$/
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !re.test(line))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  return parseExerciseContent(text).statement
 }
 
 /** Badge A–D + texto sem prefixo `A)` (proto). */
@@ -629,7 +631,7 @@ function contentToAssistantText(
   }
 
   const parts: string[] = []
-  if (title) parts.push(title)
+  // Conteúdo sem título (1.2.5.9): a etapa aparece na régua, não na mensagem.
   if (body) parts.push(body)
   // Preserva markdown inline (_em_ / **bold**) para o renderer.
   return parts.join('\n\n') || 'Conteúdo da etapa.'
@@ -751,11 +753,13 @@ export default function PlayerPage() {
   const { trailId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { trailNames, questionTotals, stageTotals, viewActivity } =
+  const { trailNames, questionTotals, stageTotals, stageInfos, activities, viewActivity } =
     useOutletContext<{
       trailNames?: Record<string, string>
       questionTotals?: Record<string, number>
       stageTotals?: Record<string, number>
+      stageInfos?: Record<string, TrailStageInfo[]>
+      activities?: Record<string, TrailActivity[]>
       /** v1.0: atividade passada sendo vista (?atividade=N). */
       viewActivity?: number | null
     }>()
@@ -4280,6 +4284,19 @@ export default function PlayerPage() {
     !exerciseDone &&
     options.length > 0
   const exerciseComposerOpen = optionsVisible
+  /**
+   * Resposta do exercício (1.2.5.9): ao enviar, o cartão com a resposta sobe ao topo e a espera entra logo abaixo;
+   * a tela não se move depois disso (o feedback entra no lugar da espera). Se a resposta couber, a tela fica como está.
+   */
+  useEffect(() => {
+    if (exercisePhase !== 'submitting') return
+    const thread = v1_0ThreadRef.current
+    const card = thread?.querySelector<HTMLElement>('.chat-exercise')
+    if (!thread || !card) return
+    const delta = card.getBoundingClientRect().top - thread.getBoundingClientRect().top
+    if (delta > 0) thread.scrollTo({ top: thread.scrollTop + delta - 8, behavior: 'smooth' })
+  }, [exercisePhase, v1_0ThreadRef])
+
   const highlightOptionKey = pendingOptionKey || selectedOptionKey
   const exerciseSubmitting = exercisePhase === 'submitting'
 
@@ -4748,7 +4765,11 @@ export default function PlayerPage() {
       data-current-step="true"
       data-trail-completed="true"
     >
-      <CriasSymbol size={64} />
+      <span className="v125-check" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
+        </svg>
+      </span>
       <span className="v1-0-done__title">Trilha concluída</span>
       <span className="v1-0-done__text">
         {totalActivitiesHere > 0
@@ -4756,7 +4777,7 @@ export default function PlayerPage() {
           : `Você concluiu ${trailHeading}.`}
       </span>
       <Link to="/" className="v1-0-btn">
-        Voltar para página inicial
+        Início
       </Link>
     </div>
   ) : null
@@ -4765,6 +4786,7 @@ export default function PlayerPage() {
    * v1.0: no última etapa de uma atividade que tem próxima, a conversa mostra
    * "Atividade concluída". Gerada aqui, no cliente. Continuar abre a próxima atividade.
    */
+  const activityNames = activities?.[trailId] ?? []
   const activityDoneShown =
     !trailShellUnavailable &&
     historyReady &&
@@ -4774,6 +4796,19 @@ export default function PlayerPage() {
     content.stage_number >= totalStepsHere &&
     content.question_number < totalActivitiesHere &&
     (content.stage_type !== 'exercise' || exerciseDone)
+
+  /**
+   * Monitor em destaque (1.2.5.7): só (1) na primeira etapa de cada atividade e (2) no fim da atividade,
+   * abaixo do fechamento. Nas demais etapas não aparece. Só a última oferta fica ativa.
+   */
+  const monitorOfferParts =
+    !trailShellUnavailable && historyReady && content?.status === 'ok' && !trailDone && !busy
+      ? activityDoneShown
+        ? pickOffer('last', content.question_number)
+        : content.stage_number === 1 && content.stage_type !== 'exercise'
+          ? pickOffer('first', content.question_number)
+          : null
+      : null
 
   /** v1.0, seção 10: cartão do exercício. Depois de enviar, marca a certa e a errada. */
   const exerciseMark =
@@ -4785,7 +4820,7 @@ export default function PlayerPage() {
         aria-busy={exerciseSubmitting || exerciseResyncLock || undefined}
         data-exercise-phase={exerciseResyncLock ? 'resyncing' : exercisePhase}
       >
-        <span className="v1-0-ex__tag">Exercício</span>
+        <span className="v1-0-ex__tag">Responda</span>
         {exercisePromptParts.length > 0 ? (
           <div className="v1-0-ex__prompt chat-exercise__prompt">
             {exercisePromptParts.map((part) => renderMessagePart(part))}
@@ -5147,10 +5182,27 @@ export default function PlayerPage() {
           {lessonCardSlot >= chatMessages.length ? lessonCardNode : null}
           {exerciseCardAt >= chatMessages.length ? exerciseCard : null}
 
-          {activityDoneShown ? (
-            <BotMessage label="Atividade concluída" animatedSymbol={!showTypingBubble}>
-              <p>Continue para a próxima atividade.</p>
-            </BotMessage>
+          {activityDoneShown && content?.status === 'ok' ? (
+            <ActivityDoneCard
+              name={activityNames.find((a) => a.number === content.question_number)?.title ?? ''}
+              nextName={activityNames.find((a) => a.number === content.question_number + 1)?.title ?? ''}
+              roles={stageRoles(stageInfos?.[trailId] ?? [])}
+              studentId={session.student_id}
+              trailId={trailId}
+              number={content.question_number}
+            />
+          ) : null}
+
+          {monitorOfferParts ? (
+            <MonitorHighlight
+              parts={monitorOfferParts}
+              disabled={busy}
+              onAsk={(q) => void doMaria(q)}
+              onGo={() => {
+                markContinueHaloDone(session.student_id, trailId)
+                void doAdvance()
+              }}
+            />
           ) : null}
 
           {showTypingBubble ? <TypingRow monitor={busyReason === 'maria'} /> : null}
@@ -5329,6 +5381,11 @@ export default function PlayerPage() {
                         >
                           {composerPrimaryAction.label || 'Continuar'}
                           <ArrowRightIcon />
+                        </button>
+                      ) : trailDone && !composerHasText ? (
+                        // Trilha concluída: o Continuar vira "Início" (sem ícone), mesmo se o aluno seguir conversando (1.2.5.11).
+                        <button type="button" className="v1-0-continue" onClick={() => navigate('/')}>
+                          Início
                         </button>
                       ) : (
                         <button

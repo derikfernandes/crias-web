@@ -102,7 +102,8 @@ export function stepFromRow(
     title: '',
     content: resolved.displayBody,
     options: padded,
-    correct: correctToLetter(row.correct_option),
+    // Gabarito: o gravado; sem ele, o que estiver escrito abaixo das alternativas ("Gabarito: B").
+    correct: correctToLetter(row.correct_option) || correctToLetter(resolved.answerKey),
   }
 }
 
@@ -331,7 +332,7 @@ export function parseActivitySheet(
         })
         bad = true
       }
-      const correct = correctToLetter(get(`Gabarito ${n}`))
+      const correct = correctToLetter(get(`Gabarito ${n}`)) || correctToLetter(parsed.answerKey)
       if (get(`Gabarito ${n}`) && (!correct || correct.charCodeAt(0) - 65 >= optionCount)) {
         errors.push({ row: rowNumber, field: `Gabarito ${n}`, message: 'Gabarito fora das alternativas.' })
         bad = true

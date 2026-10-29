@@ -156,7 +156,7 @@ export function BootSymbol() {
     <div className="gx-boot" role="status" aria-label="Carregando">
       <span className="gx-boot__wrap">
         {loaded ? <span className="gx-boot__glow" /> : null}
-        <img ref={ref} src="/crias-symbol-192.png" alt="" decoding="sync" onLoad={() => setLoaded(true)} />
+        <img ref={ref} src={`${import.meta.env.BASE_URL}crias-symbol-192.png`} alt="" decoding="sync" onLoad={() => setLoaded(true)} />
       </span>
     </div>
   )

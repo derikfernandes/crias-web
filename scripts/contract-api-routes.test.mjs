@@ -23,6 +23,7 @@ const EXPECTED_API_FILES = [
   'exercise_attempts.ts',
   'dashboard_summary.ts',
   'trilha_auth.ts',
+  'unified_login.ts',
 ]
 
 /** Pares source → destination que sistemas externos e o admin dependem. */
@@ -76,6 +77,10 @@ const CRITICAL_REWRITES = [
     destination: '/api/trilha_auth',
   },
   {
+    source: '/unified_login',
+    destination: '/api/unified_login',
+  },
+  {
     source: '/student/by-phone/:phone([0-9]+)',
     destination: '/api/student?phone_number=:phone',
   },
@@ -110,33 +115,45 @@ test('vercel.json aponta o build para dist na raiz (espelho da gestão)', () => 
   assert.equal(vercel.buildCommand, 'npm run build')
 })
 
-test('vercel.json serve SPA do aluno em /aluno sem roubar /api', () => {
+test('vercel.json: aluno na raiz, gestão em /gestao, /aluno redireciona', () => {
   const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'))
   const sources = vercel.rewrites.map((r) => r.source)
 
-  assert.ok(sources.includes('/aluno'))
-  assert.ok(sources.includes('/aluno/'))
+  assert.ok(sources.includes('/gestao'))
+  assert.ok(sources.includes('/gestao/'))
   assert.ok(
-    sources.includes('/aluno/((?!assets/).*)'),
-    'rewrite do aluno deve excluir /aluno/assets/*',
+    sources.includes('/gestao/((?!assets/).*)'),
+    'rewrite da gestão deve excluir /gestao/assets/*',
   )
 
   const catchAll = vercel.rewrites.find((r) =>
     String(r.source).includes('?!api'),
   )
-  assert.ok(catchAll, 'catch-all do admin deve excluir /api e /aluno')
+  assert.ok(catchAll, 'catch-all do aluno deve excluir /api e /gestao')
   assert.equal(catchAll.destination, '/index.html')
-  assert.match(String(catchAll.source), /aluno/)
+  assert.match(String(catchAll.source), /gestao/)
 
   const last = vercel.rewrites[vercel.rewrites.length - 1]
   assert.equal(last.destination, '/index.html')
+
+  const redirects = vercel.redirects ?? []
+  assert.ok(
+    redirects.some((r) => r.source === '/aluno' && r.destination === '/'),
+    '/aluno deve redirecionar para /',
+  )
+  assert.ok(
+    redirects.some(
+      (r) => r.source === '/aluno/:path*' && r.destination === '/:path*',
+    ),
+    '/aluno/:path* deve redirecionar para /:path*',
+  )
 })
 
-test('build raiz copia crias-aluno para dist/aluno', () => {
+test('build raiz monta aluno na raiz e gestão em dist/gestao', () => {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   assert.match(pkg.scripts.build, /crias-aluno/)
-  assert.match(pkg.scripts.build, /copy-aluno-dist\.mjs/)
-  assert.equal(existsSync(join(root, 'scripts/copy-aluno-dist.mjs')), true)
+  assert.match(pkg.scripts.build, /assemble-dist\.mjs/)
+  assert.equal(existsSync(join(root, 'scripts/assemble-dist.mjs')), true)
 })
 
 test('handlers de API exportam default (contrato Vercel)', () => {

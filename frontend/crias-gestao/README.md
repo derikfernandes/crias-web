@@ -1,6 +1,6 @@
 # Crias Trilha — admin (React + TypeScript + Vite)
 
-**Produção (Vercel):** a gestão pública está em [https://crias-web.vercel.app/gestao/](https://crias-web.vercel.app/gestao/). Variáveis `VITE_*`: arquivo `.env` nesta pasta em desenvolvimento, ou **Settings → Environment Variables** no projeto Vercel (o fluxo não depende de `localhost` em produção).
+**Produção (Vercel):** a gestão pública está em [https://www.crias.ai/gestao/](https://www.crias.ai/gestao/) (também em `crias-web.vercel.app/gestao/`). A raiz `crias.ai` é o login unificado do aluno. Variáveis `VITE_*`: arquivo `.env` nesta pasta em desenvolvimento, ou **Settings → Environment Variables** no projeto Vercel.
 
 ## API REST (CRUD de Instituições)
 As rotas REST ficam disponíveis no mesmo domínio, por exemplo:

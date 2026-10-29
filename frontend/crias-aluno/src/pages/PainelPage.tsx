@@ -57,7 +57,9 @@ export default function PainelPage() {
       setPanel(await fetchStudentPanel(session.student_id))
       setError(null)
     } catch (err) {
-      if (isAuthError(err)) {
+      // O player não envia Bearer; 401/403 do painel não devem deslogar.
+      // Só limpa sessão se a sessão local já sumiu.
+      if (isAuthError(err) && !getSession()) {
         clearSession('auth')
         navigate('/login', { replace: true, state: { reason: 'auth' } })
         return

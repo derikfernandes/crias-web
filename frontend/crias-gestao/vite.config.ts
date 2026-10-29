@@ -39,6 +39,8 @@ const mockDir = fileURLToPath(new URL('./dev/mock-firebase/', import.meta.url))
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Gestão em /gestao/; a raiz (crias.ai) é o login unificado do aluno.
+  base: '/gestao/',
   resolve: mock
     ? {
         alias: {

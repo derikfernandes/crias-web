@@ -9,7 +9,8 @@ const tipApi = (process.env.CRIAS_TIP_API || 'http://localhost:3000').replace(
 
 export default defineConfig({
   plugins: [react()],
-  base: '/aluno/',
+  // Entrada única em crias.ai (raiz). /aluno redireciona para /.
+  base: '/',
   server: {
     port: 5174,
     proxy: {
@@ -22,6 +23,7 @@ export default defineConfig({
       '/trail_stage_questions': { target: tipApi, changeOrigin: true },
       '/conversation_logs': { target: tipApi, changeOrigin: true },
       '/exercise_attempts': { target: tipApi, changeOrigin: true },
+      '/unified_login': { target: tipApi, changeOrigin: true },
       '/api': { target: tipApi, changeOrigin: true },
     },
   },

@@ -7,10 +7,20 @@ import {
 } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
+  ensureFirebaseForStudentEmail,
+  fetchUnifiedRoles,
   identifyStudent,
   type IdentifyInstitutionChoice,
   type IdentifyOkResponse,
 } from '../lib/api'
+import {
+  getCurrentGestaoUser,
+  getFirebaseIdToken,
+  looksLikeEmail,
+  markGestaoAccess,
+  resolveUnifiedDestination,
+  tryGestaoSignIn,
+} from '../lib/gestaoAuth'
 import {
   isRetryableSystemError,
   toUserFacingError,
@@ -80,6 +90,48 @@ export default function LoginPage() {
   canRetryRef.current = canRetry
 
   useEffect(() => bindVisualViewport(), [])
+
+  /**
+   * Firebase já autenticado sem sessão de aluno: resolve papéis e encaminha.
+   */
+  useEffect(() => {
+    if (existing) return
+    let cancelled = false
+    void (async () => {
+      const user = await getCurrentGestaoUser()
+      if (cancelled || !user) return
+      const token = await getFirebaseIdToken()
+      if (cancelled || !token) return
+      try {
+        const roles = await fetchUnifiedRoles({ idToken: token })
+        if (cancelled) return
+        if (roles.status === 'needs_institution') {
+          setInstitutions(roles.institutions)
+          setSelectedInstitution(roles.institutions[0]?.institution_id ?? '')
+          setError('Escolha a escola para continuar.')
+          return
+        }
+        if (roles.student) applySession(roles.student)
+        if (roles.roles.gestao) markGestaoAccess()
+        const dest = resolveUnifiedDestination(
+          roles.roles,
+          resolvePostLoginPath(loginState),
+        )
+        if (dest.kind === 'aluno') {
+          navigate(dest.path, { replace: true })
+          return
+        }
+        if (dest.kind === 'gestao') {
+          window.location.replace('/gestao/')
+        }
+      } catch {
+        /* deixa o formulário de login */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [existing, navigate, loginState])
 
   /**
    * C3-R9 N01: após o soft-KB abrir (vv resize), reancora o campo focado
@@ -162,37 +214,127 @@ export default function LoginPage() {
     return <Navigate to={resolvePostLoginPath(loginState)} replace />
   }
 
+  function goAfterRoles(roles: {
+    student: boolean
+    gestao: boolean
+  }) {
+    if (roles.gestao) markGestaoAccess()
+    const dest = resolveUnifiedDestination(
+      roles,
+      resolvePostLoginPath(loginState),
+    )
+    if (dest.kind === 'aluno') {
+      navigate(dest.path, { replace: true })
+      return
+    }
+    if (dest.kind === 'gestao') {
+      window.location.assign('/gestao/')
+      return
+    }
+    setError('Não foi possível entrar. Confira os dados.')
+    setLoading(false)
+  }
+
   async function onSubmit(e?: FormEvent) {
     e?.preventDefault()
     if (offline) return
     setError(null)
     setCanRetry(false)
     setLoading(true)
+    const trimmed = login.trim()
+    const institutionId = selectedInstitution || undefined
+
     try {
-      const result = await identifyStudent({
-        login: login.trim(),
-        password,
-        institution_id: selectedInstitution || undefined,
-      })
-      if (result.status === 'needs_institution') {
-        setInstitutions(result.institutions)
-        setSelectedInstitution(result.institutions[0]?.institution_id ?? '')
-        setError('Escolha a escola para continuar.')
+      // Telefone / id do aluno: fluxo clássico (hash 6 chars). Não passa pelo Firebase.
+      if (!looksLikeEmail(trimmed)) {
+        const result = await identifyStudent({
+          login: trimmed,
+          password,
+          institution_id: institutionId,
+        })
+        if (result.status === 'needs_institution') {
+          setInstitutions(result.institutions)
+          setSelectedInstitution(result.institutions[0]?.institution_id ?? '')
+          setError('Escolha a escola para continuar.')
+          setLoading(false)
+          return
+        }
+        applySession(result)
+        navigate(resolvePostLoginPath(loginState), { replace: true })
         return
       }
-      applySession(result)
-      navigate(resolvePostLoginPath(loginState), { replace: true })
+
+      // E-mail: senha canônica = Firebase (Educação).
+      const firebaseOk = await tryGestaoSignIn(trimmed, password)
+      if (firebaseOk) {
+        const token = await getFirebaseIdToken()
+        if (!token) {
+          setError('Não foi possível entrar. Confira os dados.')
+          setLoading(false)
+          return
+        }
+        const roles = await fetchUnifiedRoles({
+          idToken: token,
+          institution_id: institutionId,
+        })
+        if (roles.status === 'needs_institution') {
+          setInstitutions(roles.institutions)
+          setSelectedInstitution(roles.institutions[0]?.institution_id ?? '')
+          setError('Escolha a escola para continuar.')
+          setLoading(false)
+          return
+        }
+        if (roles.student) applySession(roles.student)
+        goAfterRoles(roles.roles)
+        return
+      }
+
+      // Firebase falhou: migração pontual — aluno só-e-mail ainda no hash,
+      // sem user Auth. Se Auth já existe, ensure_firebase recusa (senha Educação).
+      const migrated = await ensureFirebaseForStudentEmail({
+        email: trimmed,
+        password,
+        institution_id: institutionId,
+      })
+      if (migrated.status === 'needs_institution') {
+        setInstitutions(migrated.institutions)
+        setSelectedInstitution(migrated.institutions[0]?.institution_id ?? '')
+        setError('Escolha a escola para continuar.')
+        setLoading(false)
+        return
+      }
+      applySession(migrated.student)
+      const signed = await tryGestaoSignIn(trimmed, password)
+      if (!signed) {
+        // Conta criada mas sign-in falhou: ainda entra como aluno nesta sessão.
+        goAfterRoles({ student: true, gestao: false })
+        return
+      }
+      const token = await getFirebaseIdToken()
+      if (token) {
+        try {
+          const roles = await fetchUnifiedRoles({
+            idToken: token,
+            institution_id: institutionId,
+          })
+          if (roles.status === 'ok') {
+            if (roles.student) applySession(roles.student)
+            goAfterRoles(roles.roles)
+            return
+          }
+        } catch {
+          /* cai no destino só aluno */
+        }
+      }
+      goAfterRoles({ student: true, gestao: false })
     } catch (err) {
       const retryable = isRetryableSystemError(err)
-      // v1.0, seção 6: falha de credenciais usa o texto do desenho. Erro de rede mantém a
-      // mensagem própria, porque ali o aluno precisa saber que pode tentar de novo.
       setError(
         retryable
           ? toUserFacingError(err, 'Não foi possível entrar.')
           : 'Não foi possível entrar. Confira os dados.',
       )
       setCanRetry(retryable)
-    } finally {
       setLoading(false)
     }
   }

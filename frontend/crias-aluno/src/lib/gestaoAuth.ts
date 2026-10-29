@@ -1,5 +1,5 @@
 /**
- * Auth Firebase da Educação (Gestão), usado no login unificado da raiz.
+ * Auth Firebase da Educação + helpers do login unificado por e-mail.
  * O SDK só carrega quando o login parece e-mail (ou ao checar sessão gestora).
  */
 
@@ -50,6 +50,14 @@ export function markGestaoAccess(): void {
   }
 }
 
+export function clearGestaoAccessFlag(): void {
+  try {
+    window.localStorage.removeItem(GESTAO_ACCESS_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function looksLikeEmail(login: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login.trim())
 }
@@ -70,15 +78,30 @@ export async function tryGestaoSignIn(
   }
 }
 
+/** ID token do user Firebase atual (após sign-in). */
+export async function getFirebaseIdToken(): Promise<string | null> {
+  const auth = await getFirebaseAuth()
+  const user = auth?.currentUser
+  if (!user) return null
+  try {
+    return await user.getIdToken()
+  } catch {
+    return null
+  }
+}
+
 /** Sessão Firebase já ativa (gestor voltando à raiz). */
-export async function getCurrentGestaoUser(): Promise<{ uid: string } | null> {
+export async function getCurrentGestaoUser(): Promise<{
+  uid: string
+  email: string | null
+} | null> {
   const auth = await getFirebaseAuth()
   if (!auth) return null
   const { onAuthStateChanged } = await import('firebase/auth')
   return new Promise((resolve) => {
     const unsub = onAuthStateChanged(auth, (user) => {
       unsub()
-      resolve(user ? { uid: user.uid } : null)
+      resolve(user ? { uid: user.uid, email: user.email } : null)
     })
   })
 }

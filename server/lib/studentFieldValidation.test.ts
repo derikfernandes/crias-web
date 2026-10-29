@@ -3,7 +3,10 @@ import {
   assertCanonicalBrPhone,
   assertSchoolGrade,
   assertStudentName,
+  assertTurma,
   isUiCommandText,
+  normalizeTurma,
+  TURMA_MAX_LEN,
 } from './studentFieldValidation.js'
 
 describe('isUiCommandText', () => {
@@ -42,5 +45,30 @@ describe('assertCanonicalBrPhone', () => {
 
   it('aceita fixo 12 dígitos', () => {
     expect(assertCanonicalBrPhone('553132121212')).toBeNull()
+  })
+})
+
+describe('normalizeTurma / assertTurma', () => {
+  it('aceita vazio, null e undefined (opcional)', () => {
+    expect(normalizeTurma(undefined)).toBe('')
+    expect(normalizeTurma(null)).toBe('')
+    expect(normalizeTurma('')).toBe('')
+    expect(normalizeTurma('   ')).toBe('')
+    expect(assertTurma(undefined)).toBeNull()
+    expect(assertTurma(null)).toBeNull()
+    expect(assertTurma('')).toBeNull()
+    expect(assertTurma('  ')).toBeNull()
+  })
+
+  it('trim e limite de tamanho', () => {
+    expect(normalizeTurma('  7A  ')).toBe('7A')
+    expect(assertTurma('7A')).toBeNull()
+    const long = 'x'.repeat(TURMA_MAX_LEN + 5)
+    expect(normalizeTurma(long)).toHaveLength(TURMA_MAX_LEN)
+    expect(assertTurma(long)).toMatch(/máximo/i)
+  })
+
+  it('rejeita tipo não-string no assert', () => {
+    expect(assertTurma(12)).toMatch(/inválido/i)
   })
 })

@@ -757,7 +757,15 @@ export type PanelTrail = {
   activities: PanelActivity[]
 }
 export type StudentPanel = {
-  student: { id: string; name: string; phone: string; email: string; login_identifier: 'phone' | 'email' | null }
+  student: {
+    id: string
+    name: string
+    phone: string
+    email: string
+    login_identifier: 'phone' | 'email' | null
+    /** Opcional (Gestão). App aluno não exibe. */
+    turma?: string
+  }
   trails: PanelTrail[]
   performance: {
     correct: number

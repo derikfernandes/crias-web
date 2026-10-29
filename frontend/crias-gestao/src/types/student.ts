@@ -9,6 +9,8 @@ export interface Student {
   email?: string
   /** Preferência legada/UI; não bloqueia o outro canal (ver lib/loginRule.ts). */
   login_identifier?: 'phone' | 'email'
+  /** Tag/agrupamento opcional (ex.: "7A"). Vazio/ausente = sem turma. */
+  turma?: string
   school_level: 'fundamental' | 'médio' | string
   school_grade: string
   /** Nível pedagógico atual: 1, 2 (default), 3. */

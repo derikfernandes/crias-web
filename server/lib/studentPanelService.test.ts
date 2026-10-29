@@ -54,12 +54,21 @@ describe('painel do aluno', () => {
     })
   })
 
-  it('devolve email e login_identifier do aluno', () => {
+  it('devolve email, login_identifier e turma (vazia se ausente)', () => {
     expect(p.student).toMatchObject({
       id: 's1',
       email: 'ana@escola.org',
       login_identifier: 'email',
+      turma: '',
     })
+  })
+
+  it('devolve turma quando preenchida no doc', () => {
+    const withTurma = composeStudentPanel({
+      ...base,
+      student: { ...base.student, turma: '  7A  ' },
+    })
+    expect(withTurma.student.turma).toBe('7A')
   })
 
   it('resume o uso do monitor e agrupa as dúvidas por atividade', () => {

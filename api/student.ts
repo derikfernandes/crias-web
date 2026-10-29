@@ -5,6 +5,8 @@ import {
   assertCanonicalBrPhone,
   assertSchoolGrade,
   assertStudentName,
+  assertTurma,
+  normalizeTurma,
 } from '../server/lib/studentFieldValidation.js'
 import {
   resolveStudentByPhoneSoft,
@@ -174,6 +176,8 @@ function toStudentOutput(data: Record<string, unknown>, id: string): Json {
           : '',
     email,
     login_identifier,
+    /** Tag/agrupamento opcional (Gestão /alunos). Vazio se ausente. */
+    turma: normalizeTurma(data.turma),
     school_level:
       typeof data.school_level === 'string' ? data.school_level : '',
     school_grade:
@@ -452,6 +456,9 @@ async function handleRequest(request: Request): Promise<Response> {
         }
         const school_level = sanitizeString(body.school_level)
         const school_grade = sanitizeString(body.school_grade)
+        const turmaErr = assertTurma(body.turma)
+        if (turmaErr) return respond(400, { error: turmaErr })
+        const turma = normalizeTurma(body.turma)
 
         if (!institution_id)
           return respond(400, { error: 'Campo "institution_id" é obrigatório' })
@@ -552,6 +559,7 @@ async function handleRequest(request: Request): Promise<Response> {
             ...(effectiveLoginIdentifier
               ? { login_identifier: effectiveLoginIdentifier }
               : {}),
+            ...(turma ? { turma } : {}),
             school_level: normalizedSchoolLevel,
             school_grade,
             student_level: studentLevel,
@@ -575,6 +583,7 @@ async function handleRequest(request: Request): Promise<Response> {
             phone_number: phoneToStore ?? '',
             email: email ?? '',
             login_identifier: effectiveLoginIdentifier,
+            turma,
             school_level: normalizedSchoolLevel,
             school_grade,
             student_level: studentLevel,
@@ -654,6 +663,12 @@ async function handleRequest(request: Request): Promise<Response> {
             }
             updates.login_identifier = li
           }
+        }
+
+        if ('turma' in body && body.turma !== undefined) {
+          const turmaErr = assertTurma(body.turma)
+          if (turmaErr) return respond(400, { error: turmaErr })
+          updates.turma = normalizeTurma(body.turma)
         }
 
         const school_level = sanitizeString(body.school_level)

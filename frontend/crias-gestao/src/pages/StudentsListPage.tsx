@@ -65,6 +65,7 @@ export function StudentsListPage() {
   const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const [byName, setByName] = useState<Set<string> | null>(null)
   const [byCode, setByCode] = useState<Set<string> | null>(null)
+  const [byTurma, setByTurma] = useState<Set<string> | null>(null)
   const [sort, setSort] = useState<SortState | null>({ key: 'code', dir: 'asc' })
 
   const activityCatalogs = useMemo(
@@ -106,13 +107,29 @@ export function StudentsListPage() {
         .map((l) => ({ id: l.student.id, name: String(l.code) })),
     [lines],
   )
+  const turmaOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const s of scoped) {
+      const t = (s.turma ?? '').trim()
+      const key = t || '__none__'
+      if (!seen.has(key)) seen.set(key, t || 'Sem turma')
+    }
+    return [...seen.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+      .map(([id, name]) => ({ id, name }))
+  }, [scoped])
   const nameSel = byName ?? new Set(scoped.map((s) => s.id))
   const codeSel = byCode ?? new Set(scoped.map((s) => s.id))
+  const turmaSel = byTurma ?? new Set(turmaOptions.map((o) => o.id))
 
   const rows = useMemo(
     () =>
       sortRows(
-        lines.filter((l) => nameSel.has(l.student.id) && codeSel.has(l.student.id)),
+        lines.filter((l) => {
+          if (!nameSel.has(l.student.id) || !codeSel.has(l.student.id)) return false
+          const key = (l.student.turma ?? '').trim() || '__none__'
+          return turmaSel.has(key)
+        }),
         sort,
         (l, k) => {
           const s = l.student
@@ -124,6 +141,7 @@ export function StudentsListPage() {
             case 'question': return l.question
             case 'status': return l.status ? STATUS_LABEL[l.status] : null
             case 'phone': return s.phone_number
+            case 'turma': return (s.turma ?? '').trim() || null
             case 'level': return schooling(s)
             case 'ped': return PED[s.student_level] ?? null
             case 'active': return s.active ? 'Sim' : 'Não'
@@ -132,7 +150,7 @@ export function StudentsListPage() {
           }
         },
       ),
-    [lines, nameSel, codeSel, sort],
+    [lines, nameSel, codeSel, turmaSel, sort],
   )
   const pager = usePager(rows, 100)
 
@@ -190,6 +208,19 @@ export function StudentsListPage() {
               }}
             />
           </div>
+          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+            <FilterPopover
+              variant="field"
+              align="left"
+              label="Filtrar por turma"
+              options={turmaOptions}
+              selected={turmaSel}
+              onChange={(n) => {
+                setByTurma(n)
+                pager.reset()
+              }}
+            />
+          </div>
         </div>
         <ScrollX>
           <table className="gx-table gx-table--alunos">
@@ -197,6 +228,7 @@ export function StudentsListPage() {
               <tr>
                 {head('Nome', 'name')}
                 {head('ID Aluno', 'code', true)}
+                {head('Turma', 'turma')}
                 {head('Trilha atual', 'trail')}
                 {head('Atividade', 'question', true)}
                 {head('Etapa', 'stage', true)}
@@ -217,6 +249,9 @@ export function StudentsListPage() {
                     <strong data-fade="1">{l.student.name || l.student.id}</strong>
                   </td>
                   <td className="num" data-col="code">{na(l.code)}</td>
+                  <td data-col="turma">
+                    <span data-fade="1">{na((l.student.turma ?? '').trim() || null)}</span>
+                  </td>
                   <td data-col="trail">
                     <span data-fade="1">{l.trail}</span>
                   </td>
@@ -246,7 +281,7 @@ export function StudentsListPage() {
               ))}
               {pager.total === 0 ? (
                 <tr>
-                  <td colSpan={13} className="gx-table__empty">
+                  <td colSpan={14} className="gx-table__empty">
                     Nenhum aluno encontrado.
                   </td>
                 </tr>

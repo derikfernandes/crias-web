@@ -12,7 +12,7 @@ import {
   formatEtapaLabel,
 } from '../lib/trailProgressLabel'
 import { sanitizeUiCopy } from '../lib/sanitizeUiCopy'
-import CriasSymbol from '../components/CriasSymbol'
+import MonitorAvatar from '../components/monitor/MonitorAvatar'
 import MonitorBox from '../components/MonitorBox'
 
 type LayoutOutlet = {
@@ -149,7 +149,7 @@ export default function TrailsPage() {
       <section className="v1-0-home" aria-busy={homeLoading || undefined}>
         <div className="v1-0-home__inner">
           <div className="v1-0-home__sym">
-            <CriasSymbol size={64} />
+            <MonitorAvatar size={128} entrada />
           </div>
           <h1 className="v1-0-home__title">{title}</h1>
           {trailsError ? (

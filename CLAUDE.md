@@ -27,7 +27,7 @@
 - No tema claro o fundo da área de conteúdo é branco. Bege (#fcfbf6, #f7f5ec, #fefdfa) só em destaques, campos e balões. O menu lateral usa #fdfcf9 no claro (v1.1); no escuro segue #0a1711.
 - Ação principal: verde #00be85 com texto e ícone brancos (hover #00a974, pressionado #00925f). Vale para botões e setas de ação. Avatar do usuário: verde escuro #00593d com letra branca.
 - Seta de abrir trilha na home: verde #00be85 (o mesmo da seta do menu), sem caixa de botão, do tamanho da fonte do título (19px), alinhada à direita da linha do título.
-- Avatar do monitor nas mensagens: personagem do monitor (`crias-monitor.js`, ver abaixo); o círculo amarelo "M" saiu na v1.1. Sem Maria animada, sem emojis, sem reações. O símbolo do Crias (arquivo) aparece na entrada, no início e na trilha concluída.
+- Avatar do monitor nas mensagens: personagem do monitor (`crias-monitor.js`, ver abaixo); o círculo amarelo "M" saiu na v1.1. Sem Maria animada, sem emojis, sem reações. O símbolo do Crias (arquivo) aparece na entrada e na trilha concluída. No Início do aluno (v1.2.1, INTERFACE.md 1.2.1.1) fica o personagem do monitor em movimento (`entrada`, 128px, 60% da velocidade).
 - Rótulos "Acompanhamento" e "Trilhas" no menu: caixa alta, 11px, verde escuro #00593d (no escuro #5fe3b5), com linha fina ao lado.
 - Títulos em Outfit, texto em Manrope. Cantos 12px (cartões 16px), botões em pílula.
 

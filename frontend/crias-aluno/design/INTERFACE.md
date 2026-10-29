@@ -1412,3 +1412,9 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 - Revisão 3: hierarquia trilha > atividade > etapa. Menu com seta abrir/recolher e lista de atividades. Histórico por atividade. Trilha Frações removida do exemplo; Matemática básica com 5 atividades e Leitura e interpretação com 3.
 - Revisão 2b: esfumaçado centralizado na tela inicial. Símbolo removido do menu lateral.
 - Revisão 2: Maria vira "Parceiro de estudos". Tela inicial em estilo Gemini, com até 3 trilhas e barra de pergunta.
+
+# INTERFACE.md, acréscimo v1.2.1
+
+## v1.2.1 (27/10/2026)
+
+**1.2.1.1 Monitor no Início do aluno.** O símbolo do Crias acima da saudação dá lugar ao personagem do monitor (`crias-monitor.js`), com 128px (o dobro dos 64px do símbolo). Margem de -12px em cima e embaixo: a saudação desce só parte do espaço ganho e a composição continua centralizada. Movimento em uma única sequência, a 60% da velocidade: carregando (anel orbitando, cerca de 4s), pulo suave e parado com pulso leve por cerca de 7s; depois recomeça. Estado novo `entrada` no componente. Com movimento reduzido, fica parado. O símbolo do Crias continua na entrada e na trilha concluída.

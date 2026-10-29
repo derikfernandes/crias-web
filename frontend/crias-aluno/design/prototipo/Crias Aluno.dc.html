@@ -344,8 +344,8 @@ textarea::placeholder,input::placeholder{color:var(--v-t3)}
       <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
         <section data-screen-label="Início" style="position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;align-items:center;padding:12px var(--r-gutter) var(--r-home-pb)">
           <div style="width:100%;max-width:780px;margin:auto 0;display:flex;flex-direction:column;align-items:center;gap:26px;text-align:center">
-            <div style="position:relative;display:flex;justify-content:center">
-              {{ homeSym }}
+            <div aria-hidden="true" style="position:relative;display:flex;justify-content:center;width:128px;height:128px;margin:-12px 0 -12px">
+              <x-import component-from-global-scope="crias-monitor" estado="entrada" avatar="1" velocidade="0.6" fundo="{{ monFundo }}" hint-size="128px,128px" style="position:absolute;inset:0;display:block;width:128px;height:128px"></x-import>
             </div>
             <h1 style="font-family:Outfit,sans-serif;font-weight:600;font-size:var(--r-hero);line-height:1.12;letter-spacing:-.015em;margin:-6px 0 0;text-wrap:balance">{{ homeTitle }}</h1>
             <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">

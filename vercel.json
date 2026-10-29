@@ -284,18 +284,6 @@
       "destination": "/api/exercise_attempts"
     },
     {
-      "source": "/aluno",
-      "destination": "/aluno/index.html"
-    },
-    {
-      "source": "/aluno/",
-      "destination": "/aluno/index.html"
-    },
-    {
-      "source": "/aluno/((?!assets/).*)",
-      "destination": "/aluno/index.html"
-    },
-    {
       "source": "/ai_trail_generate/",
       "destination": "/api/ai_trail_generate"
     },
@@ -304,8 +292,32 @@
       "destination": "/api/ai_trail_generate"
     },
     {
-      "source": "/((?!api(?:/|$)|aluno(?:/|$)).*)",
+      "source": "/gestao",
+      "destination": "/gestao/index.html"
+    },
+    {
+      "source": "/gestao/",
+      "destination": "/gestao/index.html"
+    },
+    {
+      "source": "/gestao/((?!assets/).*)",
+      "destination": "/gestao/index.html"
+    },
+    {
+      "source": "/((?!api(?:/|$)|gestao(?:/|$)).*)",
       "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/aluno",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/aluno/:path*",
+      "destination": "/:path*",
+      "permanent": false
     }
   ]
 }

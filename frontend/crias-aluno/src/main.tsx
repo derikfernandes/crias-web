@@ -13,7 +13,7 @@ bindFullscreen()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename="/aluno">
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </StrictMode>,

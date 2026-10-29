@@ -182,7 +182,7 @@ function Shell({ children }: { children: ReactNode }) {
         Educação
       </button>
       <a
-        href="/aluno/"
+        href="/"
         aria-pressed="false"
         onClick={() => {
           try {
@@ -228,8 +228,8 @@ function Shell({ children }: { children: ReactNode }) {
       {loadingBoot ? <BootSymbol /> : null}
       <header className="gx-tb" data-topbar="1">
         <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
-          <img className="gx-brand__light" src="/crias-logo-educacao.svg" alt="Crias Educação" />
-          <img className="gx-brand__dark" src="/crias-logo-educacao-branco.svg" alt="Crias Educação" />
+          <img className="gx-brand__light" src={`${import.meta.env.BASE_URL}crias-logo-educacao.svg`} alt="Crias Educação" />
+          <img className="gx-brand__dark" src={`${import.meta.env.BASE_URL}crias-logo-educacao-branco.svg`} alt="Crias Educação" />
         </Link>
         {authed && !authSettling ? (
           <nav className="gx-tbnav" aria-label="Navegação principal">
@@ -305,8 +305,8 @@ function Shell({ children }: { children: ReactNode }) {
         <aside className="gx-drawer" aria-label="Navegação principal">
           <div className="gx-drawer__head">
             <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
-              <img className="gx-brand__light" src="/crias-logo-educacao.svg" alt="Crias Educação" />
-              <img className="gx-brand__dark" src="/crias-logo-educacao-branco.svg" alt="Crias Educação" />
+              <img className="gx-brand__light" src={`${import.meta.env.BASE_URL}crias-logo-educacao.svg`} alt="Crias Educação" />
+              <img className="gx-brand__dark" src={`${import.meta.env.BASE_URL}crias-logo-educacao-branco.svg`} alt="Crias Educação" />
             </Link>
             <button type="button" className="gx-iconbtn" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

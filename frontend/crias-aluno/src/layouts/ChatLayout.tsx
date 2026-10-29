@@ -919,7 +919,7 @@ export default function ChatLayout() {
                 <button type="button" className="is-on" aria-pressed="true">
                   Aluno
                 </button>
-                <a href="/" aria-pressed="false">
+                <a href="/gestao/" aria-pressed="false">
                   Educação
                 </a>
               </div>

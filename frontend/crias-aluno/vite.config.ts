@@ -9,7 +9,8 @@ const tipApi = (process.env.CRIAS_TIP_API || 'http://localhost:3000').replace(
 
 export default defineConfig({
   plugins: [react()],
-  base: '/aluno/',
+  // Entrada única em crias.ai (raiz). /aluno redireciona para /.
+  base: '/',
   server: {
     port: 5174,
     proxy: {

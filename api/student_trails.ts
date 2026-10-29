@@ -622,6 +622,8 @@ async function handleRequest(request: Request): Promise<Response> {
     }
 
     // Painel individual do aluno: só os dados do próprio aluno (INTERFACE.md 1.1.8).
+    // Compat do player web (sem Bearer): mesma confiança do GET ?student_id= da lista.
+    // Com Authorization, exige service ou sessão do próprio aluno.
     if (facade === 'panel' && request.method === 'GET') {
       const panelStudentId =
         qStudentId ||
@@ -632,8 +634,13 @@ async function handleRequest(request: Request): Promise<Response> {
       if (!panelStudentId) {
         return respond(401, { status: 'error', code: 'unauthorized', error: 'Autenticação necessária.' })
       }
-      const authz = requireFacadeAuth(request, panelStudentId)
-      if (!authz.ok) return respond(authz.status, authz.body)
+      const panelPrincipal = resolveAuthPrincipal(
+        request.headers.get('Authorization'),
+      )
+      if (panelPrincipal.kind !== 'anonymous') {
+        const authz = requireFacadeAuth(request, panelStudentId)
+        if (!authz.ok) return respond(authz.status, authz.body)
+      }
       const panel = await buildStudentPanel(db, panelStudentId)
       if (!panel) return respond(404, { status: 'error', code: 'not_found', error: 'Aluno não encontrado.' })
       return jsonResponse({ status: 'ok', ...panel }, { status: 200, headers: corsHeaders() })

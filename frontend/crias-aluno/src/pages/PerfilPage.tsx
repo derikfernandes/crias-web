@@ -9,18 +9,17 @@ const WHATSAPP = 'https://wa.me/553197520152'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * Perfil do aluno (1.1.1.b): Cadastro e Suporte. Regra de login 1.2: nome obrigatório e telefone OU e-mail;
- * com os dois, o aluno escolhe qual vale para a senha (`login_identifier`).
- * CURSOR 1.2: o servidor precisa respeitar `login_identifier` no login (ver frontend/crias-gestao/src/lib/loginRule.ts).
+ * Perfil do aluno (1.1.1.b): Cadastro e Suporte.
+ * Login dual (dérik): nome obrigatório e telefone OU e-mail; com os dois, ambos
+ * autenticam com a mesma senha (sem rádio exclusivo).
  */
 export default function PerfilPage() {
   const navigate = useNavigate()
   const session = getSession()!
-  const [saved, setSaved] = useState({ name: session.name, phone: session.phone_number, email: '', login: 'phone' as 'phone' | 'email' })
+  const [saved, setSaved] = useState({ name: session.name, phone: session.phone_number, email: '' })
   const [name, setName] = useState(saved.name)
   const [phone, setPhone] = useState(saved.phone)
   const [email, setEmail] = useState(saved.email)
-  const [login, setLogin] = useState<'phone' | 'email'>(saved.login)
   const [popup, setPopup] = useState<'save' | 'cancel' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -28,12 +27,11 @@ export default function PerfilPage() {
   const load = useCallback(async () => {
     try {
       const p = await fetchStudentPanel(session.student_id)
-      const next = { name: p.student.name, phone: p.student.phone, email: p.student.email, login: p.student.login_identifier ?? 'phone' }
+      const next = { name: p.student.name, phone: p.student.phone, email: p.student.email }
       setSaved(next)
       setName(next.name)
       setPhone(next.phone)
       setEmail(next.email)
-      setLogin(next.login)
     } catch (err) {
       if (isAuthError(err)) {
         clearSession('auth')
@@ -49,8 +47,7 @@ export default function PerfilPage() {
   const dirty =
     name.trim() !== saved.name ||
     phone.replace(/\D/g, '') !== saved.phone.replace(/\D/g, '') ||
-    email.trim().toLowerCase() !== saved.email.toLowerCase() ||
-    (both && login !== saved.login)
+    email.trim().toLowerCase() !== saved.email.toLowerCase()
 
   async function save() {
     setPopup(null)
@@ -70,10 +67,11 @@ export default function PerfilPage() {
         name: name.trim(),
         phone_number: digits,
         email: email.trim().toLowerCase(),
-        login_identifier: both ? login : null,
+        // Limpa escolha exclusiva legada: os dois canais autenticam.
+        login_identifier: null,
       })
       setSession({ ...session, name: name.trim(), phone_number: digits })
-      setSaved({ name: name.trim(), phone: digits, email: email.trim().toLowerCase(), login })
+      setSaved({ name: name.trim(), phone: digits, email: email.trim().toLowerCase() })
     } catch (err) {
       setError(toUserFacingError(err, 'Não foi possível salvar as alterações.'))
     } finally {
@@ -86,7 +84,6 @@ export default function PerfilPage() {
     setName(saved.name)
     setPhone(saved.phone)
     setEmail(saved.email)
-    setLogin(saved.login)
     setError(null)
   }
 
@@ -126,15 +123,9 @@ export default function PerfilPage() {
             <input className="v1-0-input" type="text" inputMode="email" autoCapitalize="none" value={email} autoComplete="off" onChange={(e) => setEmail(e.target.value)} />
           </label>
           {both ? (
-            <fieldset className="v1-2-perfil__radio">
-              <legend>Entrar com (vale para a senha)</legend>
-              <label>
-                <input type="radio" name="login" checked={login === 'phone'} onChange={() => setLogin('phone')} /> Telefone
-              </label>
-              <label>
-                <input type="radio" name="login" checked={login === 'email'} onChange={() => setLogin('email')} /> E-mail
-              </label>
-            </fieldset>
+            <p className="v1-2-perfil__hint" style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
+              Com telefone e e-mail, os dois valem para entrar (mesma senha).
+            </p>
           ) : null}
         </div>
         <div className="v1-2-perfil__side">

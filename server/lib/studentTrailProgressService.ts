@@ -527,26 +527,44 @@ function digitsOnly(raw: string): string {
 }
 
 /**
- * Regra de login 1.2 (`login_identifier`):
- * - `email`: só autentica digitando e-mail (telefone não entra).
- * - `phone`: só autentica digitando telefone (e-mail não entra).
- * - ausente: aceita os dois.
- * Login por ID do documento (ex.: s1766) sempre entra.
+ * Canais de login do aluno (decisão dérik, PR #34):
+ * - só telefone → telefone (+ ID do doc)
+ * - só e-mail → e-mail (+ ID)
+ * - telefone e e-mail → os dois (+ ID)
+ * `login_identifier` é só preferência de UI/default; NÃO bloqueia o outro canal.
  */
-function filterCandidatesByLoginIdentifier(
-  candidates: StudentCandidate[],
+export function loginChannelsForStudent(data: {
+  phone_number?: unknown
+  email?: unknown
+}): Array<'phone' | 'email'> {
+  const phone =
+    typeof data.phone_number === 'string'
+      ? data.phone_number.replace(/\D/g, '')
+      : typeof data.phone_number === 'number'
+        ? String(data.phone_number).replace(/\D/g, '')
+        : ''
+  const email =
+    typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const out: Array<'phone' | 'email'> = []
+  if (phone.length >= 8) out.push('phone')
+  if (email.includes('@')) out.push('email')
+  return out
+}
+
+/** O texto digitado pode autenticar este aluno? (senha é checada à parte.) */
+export function studentAcceptsTypedLogin(
+  data: { phone_number?: unknown; email?: unknown },
   loginRaw: string,
-): StudentCandidate[] {
+  studentId: string,
+): boolean {
   const typed = loginRaw.trim()
-  return candidates.filter((c) => {
-    const li = c.data.login_identifier
-    if (li !== 'phone' && li !== 'email') return true
-    if (typed === c.id) return true
-    if (loginLooksLikeEmail(typed)) return li === 'email'
-    const phone = digitsOnly(typed)
-    if (phone.length >= 8) return li === 'phone'
-    return true
-  })
+  if (!typed) return false
+  if (typed === studentId) return true
+  const channels = loginChannelsForStudent(data)
+  if (loginLooksLikeEmail(typed)) return channels.includes('email')
+  const phone = digitsOnly(typed)
+  if (phone.length >= 8) return channels.includes('phone')
+  return false
 }
 
 async function institutionNameFor(
@@ -786,15 +804,6 @@ export async function identifyStudent(
       data: (doc.data() ?? {}) as Record<string, unknown>,
       institution_id: institutionFilter,
     }
-    // Mesma regra 1.2: login_identifier=email não autentica por telefone.
-    if (filterCandidatesByLoginIdentifier([legacyCandidate], phone).length === 0) {
-      return {
-        ok: false,
-        code: 'not_found',
-        message: 'Aluno não encontrado para telefone e instituição informados.',
-        httpStatus: 404,
-      }
-    }
     return finishIdentifyCandidate(
       db,
       institutionsCollection,
@@ -807,7 +816,7 @@ export async function identifyStudent(
   if (institutionFilter) {
     candidates = candidates.filter((c) => c.institution_id === institutionFilter)
   }
-  candidates = filterCandidatesByLoginIdentifier(candidates, loginRaw)
+  // Dual login: quem tem telefone e e-mail autentica pelos dois; login_identifier não filtra.
 
   if (candidates.length === 0) {
     return {

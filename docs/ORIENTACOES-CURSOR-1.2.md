@@ -5,7 +5,7 @@ A regra de login (telefone / e-mail / `login_identifier`) está em `frontend/cri
 
 ## 1. Login e cadastro (CURSOR)
 
-Ver `loginRule.ts`. Backend: `api/student.ts` (email + login_identifier; telefone opcional com e-mail), `identifyStudent` respeitando `login_identifier`, `studentPanelService` com `trail_id` nos erros e email/login_identifier do aluno, `firestore.rules` com `admin_profiles`.
+Ver `loginRule.ts`. Backend: `api/student.ts` (email + login_identifier; telefone opcional com e-mail), `identifyStudent` com **login dual** (só telefone / só e-mail / ambos = os dois autenticam; `login_identifier` não bloqueia), `studentPanelService` com `trail_id` nos erros e email/login_identifier do aluno, `firestore.rules` com `admin_profiles`.
 
 ## 2. Perfis de menu (CURSOR)
 

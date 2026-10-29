@@ -67,7 +67,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
   const [name, setName] = useState('')
   const [phone_number, setPhoneNumber] = useState('')
   const [email, setEmail] = useState('')
-  const [loginIdentifier, setLoginIdentifier] = useState<'phone' | 'email'>('phone')
   const [school_level, setSchoolLevel] = useState<Student['school_level']>(
     'fundamental',
   )
@@ -91,7 +90,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       setName('')
       setPhoneNumber('')
       setEmail('')
-      setLoginIdentifier('phone')
       setInstitutionId('')
       setSchoolLevel('fundamental')
       setSchoolGrade(FUNDAMENTAL_GRADES[0])
@@ -106,7 +104,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
     setName(initial.name)
     setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
     setEmail(initial.email ?? '')
-    setLoginIdentifier(initial.login_identifier ?? 'phone')
     setSchoolLevel(normalizeSchoolLevel(initial.school_level))
     setSchoolGrade(initial.school_grade)
     setStudentLevel(initial.student_level)
@@ -166,8 +163,9 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       name: trimmedName,
       phone_number: trimmedPhone,
       email: trimmedEmail,
-      // Regra de login 1.2 (lib/loginRule.ts): com telefone e e-mail, a pessoa escolhe qual vale para a senha.
-      login_identifier: trimmedPhone && trimmedEmail ? loginIdentifier : undefined,
+      // Dual login (dérik): com telefone e e-mail, os dois autenticam; sem rádio exclusivo.
+      // Limpa login_identifier legado para não sugerir canal único.
+      login_identifier: undefined,
       school_level: normalizedLevel,
       school_grade,
       student_level: normalizedStudentLevel,
@@ -208,7 +206,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       (name.trim() !== initial!.name ||
         phone_number !== sanitizePhoneNumber(initial!.phone_number) ||
         email.trim().toLowerCase() !== (initial!.email ?? '').toLowerCase() ||
-        (Boolean(phone_number) && Boolean(email.trim()) && loginIdentifier !== (initial!.login_identifier ?? 'phone')) ||
         normalizeSchoolLevel(String(school_level)) !== normalizeSchoolLevel(initial!.school_level) ||
         school_grade !== initial!.school_grade ||
         student_level !== initial!.student_level ||
@@ -225,7 +222,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
       setName(initial.name)
       setPhoneNumber(sanitizePhoneNumber(initial.phone_number))
       setEmail(initial.email ?? '')
-      setLoginIdentifier(initial.login_identifier ?? 'phone')
       setSchoolLevel(normalizeSchoolLevel(initial.school_level))
       setSchoolGrade(initial.school_grade)
       setStudentLevel(initial.student_level)
@@ -293,19 +289,9 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
               <input className="gx-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@exemplo.com" autoComplete="email" />
             </label>
             {phone_number && email.trim() ? (
-              <fieldset className="gx-field" style={{ border: 0, padding: 0, margin: 0 }}>
-                <span>Entrar com (vale para a senha)</span>
-                <span style={{ display: 'flex', gap: 16, alignItems: 'center', height: 40 }}>
-                  <label className="gx-check">
-                    <input type="radio" name="login_identifier" checked={loginIdentifier === 'phone'} onChange={() => setLoginIdentifier('phone')} />
-                    Telefone
-                  </label>
-                  <label className="gx-check">
-                    <input type="radio" name="login_identifier" checked={loginIdentifier === 'email'} onChange={() => setLoginIdentifier('email')} />
-                    E-mail
-                  </label>
-                </span>
-              </fieldset>
+              <p className="gx-field" style={{ margin: 0, color: 'var(--v-muted, #5a6b63)', fontSize: 13 }}>
+                Com telefone e e-mail, os dois valem para entrar (mesma senha).
+              </p>
             ) : null}
             <label className="gx-field">
               <span>Senha de acesso{isEdit ? ' (deixe em branco para manter)' : ''}</span>

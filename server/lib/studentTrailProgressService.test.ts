@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   computeNextPosition,
   evaluateContentAvailability,
+  loginChannelsForStudent,
+  studentAcceptsTypedLogin,
 } from './studentTrailProgressService'
 
 describe('computeNextPosition (trail_progression)', () => {
@@ -74,5 +76,37 @@ describe('evaluateContentAvailability (student_player)', () => {
         active_question: false,
       }),
     ).toBe('blocked')
+  })
+})
+
+describe('login dual telefone/e-mail (aluno)', () => {
+  const both = {
+    phone_number: '5511999990001',
+    email: 'ana@escola.org',
+    login_identifier: 'email' as const,
+  }
+  const phoneOnly = { phone_number: '5511999990001', email: '' }
+  const emailOnly = { phone_number: '', email: 'ana@escola.org' }
+
+  it('lista canais: só telefone, só e-mail, ambos', () => {
+    expect(loginChannelsForStudent(phoneOnly)).toEqual(['phone'])
+    expect(loginChannelsForStudent(emailOnly)).toEqual(['email'])
+    expect(loginChannelsForStudent(both)).toEqual(['phone', 'email'])
+  })
+
+  it('com os dois, telefone e e-mail autenticam mesmo com login_identifier=email', () => {
+    expect(studentAcceptsTypedLogin(both, '5511999990001', 's1')).toBe(true)
+    expect(studentAcceptsTypedLogin(both, 'ana@escola.org', 's1')).toBe(true)
+    expect(studentAcceptsTypedLogin(both, 's1', 's1')).toBe(true)
+  })
+
+  it('só telefone: e-mail digitado não autentica; telefone sim', () => {
+    expect(studentAcceptsTypedLogin(phoneOnly, '5511999990001', 's2')).toBe(true)
+    expect(studentAcceptsTypedLogin(phoneOnly, 'ana@escola.org', 's2')).toBe(false)
+  })
+
+  it('só e-mail: telefone digitado não autentica; e-mail sim', () => {
+    expect(studentAcceptsTypedLogin(emailOnly, 'ana@escola.org', 's3')).toBe(true)
+    expect(studentAcceptsTypedLogin(emailOnly, '5511999990001', 's3')).toBe(false)
   })
 })

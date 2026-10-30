@@ -4,18 +4,24 @@ import { enterFullscreen, exitFullscreen, fullscreenSupported, isFullscreen } fr
 /** Estado da tela cheia para o botão: `supported` (some no iPhone) e `active`. */
 export function useFullscreen() {
   const [active, setActive] = useState(() => isFullscreen())
+  const [supported, setSupported] = useState(() => fullscreenSupported())
   useEffect(() => {
-    const sync = () => setActive(isFullscreen())
+    const sync = () => {
+      setActive(isFullscreen())
+      setSupported(fullscreenSupported())
+    }
+    window.addEventListener('crias:fullscreen-failed', sync)
     document.addEventListener('fullscreenchange', sync)
     document.addEventListener('webkitfullscreenchange', sync)
     sync()
     return () => {
       document.removeEventListener('fullscreenchange', sync)
       document.removeEventListener('webkitfullscreenchange', sync)
+      window.removeEventListener('crias:fullscreen-failed', sync)
     }
   }, [])
   return {
-    supported: fullscreenSupported(),
+    supported,
     active,
     toggle: () => void (isFullscreen() ? exitFullscreen() : enterFullscreen()),
   }

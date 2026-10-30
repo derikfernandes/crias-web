@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { getSession } from '../lib/session'
-import type { StudentTrailRow, TrailActivity } from '../lib/api'
+import type { StudentTrailRow, TrailActivity, TrailStageInfo } from '../lib/api'
+import { stageLabel, stageRoles } from '../lib/stageRoles'
 import { nextHomeGreeting } from '../lib/homeGreeting'
 import { MARIA_AGENT_TRAIL_ID } from '../lib/mariaAgent'
 import { sortTrailsByLastOpened } from '../lib/trailOpenState'
@@ -24,6 +25,7 @@ type LayoutOutlet = {
   stageTotals?: Record<string, number>
   questionTotals?: Record<string, number>
   activities?: Record<string, TrailActivity[]>
+  stageInfos?: Record<string, TrailStageInfo[]>
 }
 
 function progressMeta(
@@ -87,6 +89,7 @@ export default function TrailsPage() {
     stageTotals,
     questionTotals,
     activities,
+    stageInfos,
   } = useOutletContext<LayoutOutlet>()
   const firstName = session.name.split(' ')[0] || 'aluno'
   const [greeting] = useState(() =>
@@ -105,15 +108,14 @@ export default function TrailsPage() {
   }, [trailRows, session.student_id])
 
   /**
-   * Regra do Início (1.2.5.1): a trilha de acesso mais recente que ainda não foi concluída vira o cartão
-   * principal de retomada; as demais não concluídas ficam em linhas compactas. Trilha concluída não aparece
-   * (continua no menu lateral).
+   * Regra do Início (1.2.5.1 e 1.3.2): a trilha de acesso mais recente vira o cartão principal; as outras
+   * (concluídas ou não) ficam em linhas compactas. Trilha concluída continua no Início: "REVEJA A ATIVIDADE",
+   * botão "Rever", barra cheia, "AGORA" com a última atividade e "Atividade Y de Y · Trilha concluída".
+   * Com todas concluídas, o cartão principal é a concluída mais recente (mesmo layout).
    */
-  const visible = ordered.filter((r) => r.status !== 'completed')
-  /** Todas concluídas: o Início não mostra cards, só um aviso. */
-  const allDone = ordered.length > 0 && visible.length === 0
+  const visible = ordered
   const homeLoading =
-    trailsLoading && visible.length === 0 && !trailsError && !empty && !allDone
+    trailsLoading && visible.length === 0 && !trailsError && !empty
 
   /** v1.0: Enviar abre a Monitoria já com a pergunta enviada. */
   function onAsk() {
@@ -127,7 +129,7 @@ export default function TrailsPage() {
     navigate('/monitoria')
   }
 
-  const title = empty || allDone ? `Olá, ${firstName}.` : greeting
+  const title = empty ? `Olá, ${firstName}.` : greeting
 
   return (
     <>
@@ -148,8 +150,6 @@ export default function TrailsPage() {
             </>
           ) : empty ? (
             <p className="v1-0-home__empty">Nenhuma trilha liberada para você.</p>
-          ) : allDone ? (
-            <p className="v1-0-home__empty">Você concluiu todas as suas trilhas.</p>
           ) : homeLoading ? (
             <p className="v1-0-home__loading" role="status">
               Carregando suas trilhas…
@@ -164,14 +164,21 @@ export default function TrailsPage() {
                   stageTotals?.[row.trail_id],
                 )
                 const titles = activities?.[row.trail_id] ?? []
+                const done = row.status === 'completed'
+                const nowNumber = done
+                  ? Math.max(questionTotals?.[row.trail_id] ?? 0, row.current_question_number, 1)
+                  : row.current_question_number
                 const now = sanitizeUiCopy(
-                  titles.find((t) => t.number === row.current_question_number)?.title ||
-                    `Atividade ${Math.max(row.current_question_number, 1)}`,
+                  titles.find((t) => t.number === nowNumber)?.title ||
+                    (done ? titles[titles.length - 1]?.title : '') ||
+                    `Atividade ${Math.max(nowNumber, 1)}`,
                 )
-                const etapa = formatEtapaLabel(
-                  Math.max(row.current_stage_number, 1),
-                  stageTotals?.[row.trail_id],
-                )
+                const roles = stageRoles(stageInfos?.[row.trail_id] ?? [])
+                const etapa = done
+                  ? 'Trilha concluída'
+                  : roles.length > 0
+                    ? stageLabel(roles, Math.min(roles.length, Math.max(row.current_stage_number, 1)) - 1)
+                    : formatEtapaLabel(Math.max(row.current_stage_number, 1), stageTotals?.[row.trail_id])
                 const fresh = row.status === 'not_started'
                 return (
                   <Link
@@ -182,7 +189,7 @@ export default function TrailsPage() {
                     aria-label={`${label}. ${progresso}. ${cta}`}
                     onClick={() => writeFocusedTrailId(row.trail_id)}
                   >
-                    <span className="v125-resume__eyebrow">{fresh ? 'COMECE POR AQUI' : 'CONTINUE DE ONDE PAROU'}</span>
+                    <span className="v125-resume__eyebrow">{fresh ? 'COMECE POR AQUI' : done ? 'REVEJA A ATIVIDADE' : 'CONTINUE DE ONDE PAROU'}</span>
                     <span className="v125-resume__name" data-fade="1">
                       {label}
                     </span>

@@ -46,6 +46,7 @@ export async function addStudentsBulk(input: { institutionId: string; rows: NewS
         name: row.name,
         phone_number: row.phone,
         ...(row.email ? { email: row.email } : {}),
+        ...(row.turma ? { turma: row.turma } : {}),
         school_level: 'fundamental',
         school_grade: '',
         student_level: 2,

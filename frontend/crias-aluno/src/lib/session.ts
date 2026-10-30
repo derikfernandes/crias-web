@@ -33,6 +33,13 @@ export function setSession(session: StudentSession): void {
 
 export function clearSession(reason?: 'logout' | 'auth' | 'missing'): void {
   localStorage.removeItem(KEY)
+  // 1.3.5: o switch Aluno | Educação é da conta, não do aparelho. Ao sair, outra pessoa no mesmo aparelho
+  // não herda o switch. CONFLITO 1.3.E.5: o vínculo definitivo deve vir do servidor junto com a sessão.
+  try {
+    localStorage.removeItem('crias:acesso-gestao')
+  } catch {
+    /* ignore */
+  }
   try {
     window.dispatchEvent(
       new CustomEvent(SESSION_CLEARED_EVENT, {

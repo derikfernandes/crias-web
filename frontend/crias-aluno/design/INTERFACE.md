@@ -1,15 +1,17 @@
 # Interface Crias: regras e orientações
 
-Regras de interface do Crias Aluno e do Crias Educação (antes Crias Gestão). Para o pacote 1.1.1.b, a seção "Pacote 1.1.1.b: regras consolidadas" é a fonte única. As seções seguintes ficam como histórico e detalhe.
+Regras de interface do Crias Aluno e do Crias Educação (antes Crias Gestão). Na versão 1.3 (atual), a seção "Pacote 1.3", no fim do arquivo, vale sobre todas as outras. Para o pacote 1.1.1.b, a seção "Pacote 1.1.1.b: regras consolidadas" é a fonte única. As seções seguintes ficam como histórico e detalhe.
 
 ## Versões
 
 | Versão | Arquivos no projeto | Situação |
 | --- | --- | --- |
-| **1.1.1.b (atual, 25/10/2026)** | `Crias Aluno.dc.html`, `Crias Gestao.dc.html` | Pacote de melhorias, exportado sozinho. O Claude Code junta com o 1.1.1.a para formar a v1.1.1 |
+| **1.3 (atual, 29/10/2026)** | `Crias Aluno v1.3.dc.html`, `Crias Gestao v1.3.dc.html` | Aluno 1.3 e Educação 1.3. Regras em "Pacote 1.3" (fim deste arquivo), que vale sobre as anteriores |
+| 1.2.5 (28/10/2026) | `Crias Aluno v1.2.5.dc.html` | Pacote 1.2.5 do Aluno |
+| 1.1.1.b (25/10/2026) | `Crias Aluno v1.1.1b.dc.html`, `Crias Gestao v1.1.1b.dc.html` | Pacote de melhorias, exportado sozinho. O Claude Code junta com o 1.1.1.a para formar a v1.1.1 |
 | 1.1.1.a | (correções, ver "Correções v1.1.1.a") | Aplicado sobre a v1.1 |
-| v1.1 (fechada em 16/10/2026) | `Crias Aluno.dc.html`, `Crias Gestao.dc.html` | Base oficial, intacta |
-| v1.0 (travada) | `Crias Aluno.dc.html`, `Crias Painel.dc.html` | Base anterior |
+| v1.1 (fechada em 16/10/2026) | `Crias Aluno v1.1.dc.html`, `Crias Gestao v1.1.dc.html` | Base oficial, intacta |
+| v1.0 (travada) | `Crias Aluno v1.0.dc.html`, `Crias Painel v1.0.dc.html` | Base anterior |
 | Histórico | pasta `historico/` | Versões e telas antigas |
 
 No repositório os arquivos não levam o sufixo de versão (`Crias Aluno.dc.html`, `Crias Gestao.dc.html`). O arquivo da Educação continua com o nome `Crias Gestao` e a pasta do app continua `frontend/crias-gestao`; só o nome exibido e o logo mudaram.
@@ -507,7 +509,7 @@ Pacote de melhorias no Crias Aluno e no Crias Gestão. Junto com o 1.1.1.a, form
 *Gestão: Dados*
 - Subtítulo com ponto final: "Informações sobre o progresso dos alunos.".
 
-_Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno.dc.html` e `Crias Gestao.dc.html`._
+_Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno v1.1.1b.dc.html` e `Crias Gestao v1.1.1b.dc.html`._
 
 **1.1.1.b.40 Ordem das atividades, envio automático, rolagem e perfil** (23/10/2026). Vale sobre 1.1.1.b.39 onde houver diferença.
 
@@ -548,7 +550,7 @@ _Pacote 1.1.1.b fixado em 23/10/2026: `Crias Aluno.dc.html` e `Crias Gestao.dc.h
 
 ## Gestão 1.1.1.b (antes Redesign, aprovada em 24/10/2026)
 
-Aprovada como Gestão 1.1.1.b: `Crias Gestao.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.
+Aprovada como Gestão 1.1.1.b: `Crias Gestao v1.1.1b.dc.html` (substitui a Gestão 1.1.1.b de 23/10). Era o estudo `Crias Gestao v1.1.1 Redesign.dc.html`. Parte da v1.1 oficial e só muda o que está listado aqui. A v1.1 oficial segue como está; se o estudo for aprovado, vira a oficial. A versão anterior do estudo está em `historico/`. Só camada visual.
 
 - **Menu no topo** (web), como no rascunho R: logo, Início, Dados, Trilhas, Alunos e Configurações (lista com Usuários e Sistema). Mais espaço entre o logo e o menu. Todos os itens com fundo bege (#f7f5ec); o selecionado ganha contorno verde #00be85. À direita: etiqueta da escola (perfil Instituição) ou "Filtrar instituições" (Super admin), ambos em bege, depois tema, perfil e sair. No celular, menu em tela cheia e a etiqueta/filtro na linha do Voltar, como hoje. Conteúdo até 1280px; sai a regra dos 203px.
 - **Cartões:** como na v1.1 oficial (sem sombra).
@@ -761,7 +763,7 @@ Pacote de correções aplicado no app (`correcoes-bugs-frontend-v1.1.1`) e refle
 
 ## Base v1.1: fechamento (16/10/2026)
 
-Regras 1.1.27 a 1.1.38, acrescentadas no fechamento da v1.1 (`Crias Aluno.dc.html` e `Crias Gestao.dc.html`). Valem sobre as regras 1.1.1 a 1.1.26 onde houver diferença.
+Regras 1.1.27 a 1.1.38, acrescentadas no fechamento da v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`). Valem sobre as regras 1.1.1 a 1.1.26 onde houver diferença.
 
 **1.1.27 Gestão no celular** (15/10/2026)
 
@@ -944,7 +946,7 @@ Vale sobre 1.1.29 a 1.1.34 onde houver diferença.
 
 ## Base v1.1: primeira parte (15/10/2026)
 
-A v1.1 (`Crias Aluno.dc.html` e `Crias Gestao.dc.html`; no repositório `crias-redesign/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`) parte da v1.0 e vale sobre ela onde houver diferença.
+A v1.1 (`Crias Aluno v1.1.dc.html` e `Crias Gestao v1.1.dc.html`; no repositório `crias-redesign/prototipo/Crias Aluno.dc.html` e `Crias Gestao.dc.html`) parte da v1.0 e vale sobre ela onde houver diferença.
 
 **1.1.1 Menu lateral sempre aberto na web**
 
@@ -1010,7 +1012,7 @@ A v1.1 (`Crias Aluno.dc.html` e `Crias Gestao.dc.html`; no repositório `crias-r
 
 **1.1.11 Nomes: Crias Aluno e Crias Gestão**
 
-- O produto de administração passa a se chamar **Crias Gestão** (antes Crias Painel). Arquivo: `Crias Gestao.dc.html` (no repositório `Crias Gestao.dc.html`).
+- O produto de administração passa a se chamar **Crias Gestão** (antes Crias Painel). Arquivo: `Crias Gestao v1.1.dc.html` (no repositório `Crias Gestao.dc.html`).
 - Seletor do menu (só para quem tem acesso à gestão): no Crias Aluno mostra "Aluno | Gestão"; no Crias Gestão mostra "Gestão | Aluno" (a área atual vem primeiro e fica marcada). Quem é só aluno não vê.
 - "Painel" passa a ser só a página individual de dados dentro do Crias Aluno (1.1.8).
 - Cabeçalho do menu da Gestão: o wordmark em arquivo, uma barra vertical em verde #00be85 (2px, 22px de altura) e "Gestão" (Manrope 14px, 600, `--v-t2`), no mesmo desenho da assinatura "Crias | Tecnologia educacional". Sai a etiqueta verde "Painel".
@@ -1148,7 +1150,7 @@ Revisão completa feita nos dois produtos antes da trava:
 
 ## Base v1.0 travada
 
-A v1.0 do aluno (`Crias Aluno.dc.html`, no repositório `crias-redesign/prototipo/Crias Aluno.dc.html`) e o painel v1.0 (`Crias Painel.dc.html`, no repositório `.../Crias Painel.dc.html`) são a base de identidade visual. Esta seção vale sobre as regras antigas abaixo. Mudanças só a pedido.
+A v1.0 do aluno (`Crias Aluno v1.0.dc.html`, no repositório `crias-redesign/prototipo/Crias Aluno.dc.html`) e o painel v1.0 (`Crias Painel v1.0.dc.html`, no repositório `.../Crias Painel.dc.html`) são a base de identidade visual. Esta seção vale sobre as regras antigas abaixo. Mudanças só a pedido.
 
 **Substitui nas regras antigas**
 
@@ -1420,7 +1422,7 @@ Aplicar nesta ordem. Pular os itens marcados como CONFLITO até o aval.
 
 ## Pacote 1.2.5 (28/10/2026)
 
-Arquivo: `Crias Aluno.dc.html` (cópia da v1.2; a v1.2 segue intacta). Só o que foi pedido mudou; carregamento e fixação das mensagens no topo seguem como definidos.
+Arquivo: `Crias Aluno v1.2.5.dc.html` (cópia da v1.2; a v1.2 segue intacta). Só o que foi pedido mudou; carregamento e fixação das mensagens no topo seguem como definidos.
 
 **1.2.5.1 Início com retomada.** A trilha de acesso mais recente (sem esse dado, a primeira não concluída) vira o cartão principal: "CONTINUE DE ONDE PAROU" ("COMECE POR AQUI" em trilha nova), nome, barra, "Atividade X de Y · [etapa atual]", "AGORA" com a atividade e o botão Continuar/Começar. As demais trilhas em linhas compactas com nome, "Atividade X de Y" e seta verde. O cartão entra primeiro e as linhas 0,2s depois.
 
@@ -1486,3 +1488,102 @@ Arquivo: `Crias Aluno.dc.html` (cópia da v1.2; a v1.2 segue intacta). Só o que
 - **Painel:** saiu o cartão "Sua semana".
 
 **Checar com o backend:** se o banco capta o tempo de estudo por atividade (sem ele, o cartão usa a estimativa da régua) e as datas de estudo por dia (etapa concluída, resposta ou mensagem; fuso America/Sao_Paulo). Sem data confiável, o cartão "Sua semana" não aparece.
+
+## Pacote 1.3 (29/10/2026): Aluno 1.3 e Educação 1.3
+
+Arquivos: `Crias Aluno v1.3.dc.html` (de Aluno 1.2.5) e `Crias Gestao v1.3.dc.html` (de Gestão 1.2; nome exibido Crias Educação). No repositório: `prototipo/Crias Aluno.dc.html` e `prototipo/Crias Gestao.dc.html`. **Vale sobre todas as seções anteriores onde houver diferença.** Tudo o que está aqui está aplicado nos protótipos; se protótipo e texto divergirem, avise antes de escolher.
+
+### 1.3.A Aluno
+
+**1.3.1 Esmaecimento abaixo da régua.** Abaixo da linha "Etapa X de Y" / "Atividade X de Y", o conteúdo que rola por baixo esmaece em 24px (degradê da cor do fundo para transparente, sem caixa). Só aparece quando há régua (dentro da atividade).
+
+**1.3.2 Início com trilhas concluídas.** Trilha concluída continua no Início, no mesmo layout (cartão principal + linhas). O cartão principal segue a regra de 1.2.5.1 (acesso mais recente). Quando todas as trilhas estão concluídas, o cartão principal é a concluída mais recente. No cartão de trilha concluída: rótulo **"REVEJA A ATIVIDADE"**, botão **"Rever"** (abre a trilha com o histórico), "AGORA" mostra o nome da última atividade, barra cheia e "Atividade Y de Y · Trilha concluída". As linhas de baixo mostram as outras trilhas (concluídas ou não). Protótipo: tweak `todasConcluidas`.
+
+**1.3.3 Tela cheia em tablet e celular.** O botão aparece em todo aparelho cujo navegador permite tela cheia (computador, Android, iPad), também no layout de celular e de tablet. Detecção: `document.documentElement.requestFullscreen` ou `webkitRequestFullscreen` existe (a mesma do protótipo). Não usar só `document.fullscreenEnabled`: ele vem falso em parte dos navegadores de celular e tablet e nos navegadores internos de apps. Se o pedido de tela cheia falhar, o botão some até recarregar. iPhone não tem a função para páginas: lá o botão não aparece (limite do navegador).
+
+**1.3.4 Monitor no Início sem símbolo antes.** Enquanto o personagem do monitor carrega, o espaço fica vazio com o mesmo tamanho (128px no Início, 38px/33px nas mensagens). Nunca mostrar o símbolo do Crias no lugar do personagem. Pré-carregar o módulo do personagem ao abrir o app, para ele já estar pronto no Início.
+
+**1.3.5 Switch Aluno | Educação.** Pílula no rodapé do menu, acima do usuário (fundo #f7f5ec, borda #efebdd, botões de 30px, 13px/700; ativo com fundo branco e sombra leve). Só aparece para quem tem perfil de gestão (Super admin, Gestão, Professor) e troca entre a conta de gestão e a conta de aluno **da mesma pessoa**. Aluno sem conta de gestão nunca vê o switch. Na Educação o switch aparece sempre. Protótipo: tweak `acessoGestao` no Aluno.
+
+**1.3.1.a Botão "Início" (trilha concluída).** Texto "Início" sem ícone de casa, no mesmo botão verde do Continuar.
+
+### 1.3.B Educação: estrutura
+
+**1.3.6 Sem tela cheia.** A Educação não tem botão de tela cheia (topo, menu e celular).
+
+**1.3.7 Menu lateral.** Sai a barra de menu no topo. O menu volta para a lateral esquerda, igual ao do Aluno: 280px, placa #fdfcf9 (escuro #0a1711) com cantos 59px/89px/114px e borda esfumada, logo "Crias | Educação" e botão de recolher no topo, itens Início, Dados, Trilhas, Alunos, grupo **CONFIGURAÇÕES** (rótulo em caixa alta 11px, verde escuro, linha fina) com os subtítulos Usuários (Senhas, Usuários) e Sistema (Prompts, API e documentação), item ativo com o encaixe no conteúdo, rodapé com o switch, avatar + nome (não o e-mail), seta, tema e sair. Celular: menu em tela cheia com a mesma entrada (vMenuIn 0,26s). Conteúdo: título alinhado ao primeiro item do menu (90,5px do topo) e conteúdo a partir de 203px, como na v1.1. Filtro de instituições (Super admin) ou etiqueta da escola ficam na linha do Voltar, à direita (36px, pílula). Com o menu recolhido, o botão de abrir fica à esquerda do Voltar.
+
+### 1.3.C Turma e matérias
+
+**1.3.8 Dado.** Aluno: `turma` (uma por aluno, texto, ex.: "8º A"). Trilha: `matéria` (já existe). Turma da trilha: calculada a partir das turmas dos alunos vinculados (sem campo novo). Usuário de gestão: `materias[]`, `turmas[]` e `trilhas[]` (vínculos). Super admin e Gestão: todas (lista vazia/nula = todas). Professor: só as marcadas no cadastro.
+
+**1.3.9 Filtros do topo.** Dados e Trilhas: **Filtrar matéria**, **Filtrar turma**, **Filtrar trilhas**, nessa ordem, no padrão de filtro existente (lista com pesquisa, Selecionar tudo, Limpar tudo, contagem "Todas" ou "N de M"). No Dados, "Filtrar trilhas" só lista as trilhas das matérias marcadas. A pesquisa "Pesquisar nome ou telefone do aluno" sai do topo do Dados e vai para a aba Alunos, numa segunda linha abaixo das abas; ela filtra só a tabela da aba (os números do painel seguem os filtros do topo).
+
+**1.3.10 Dados, aba Alunos.** Coluna **Turma** logo depois de Nome, com ordenação. Exportação: "Turma" logo abaixo de "Nome" na lista de colunas.
+
+**1.3.11 Alunos (menu).** Coluna **Turma** depois de ID Aluno. Depois de "Atualizado em", as colunas de desempenho do Dados: Atividades liberadas, Atividades feitas, % de conclusão (com barra), Acertos, Erros, % de acerto (com barra). Ativo segue como última coluna de dados. Botão **Exportar base** abaixo dos filtros, à direita, no estilo do "+ Adicionar aluno" (verde, 36px, ícone de baixar). **Regra:** a base exportada é sempre o que está filtrado: todas as linhas que passam pelos filtros e pela pesquisa (todas as páginas, não só a visível) e todas as colunas da tabela, na ordem da tela.
+
+**1.3.12 Trilhas.** Tabela da lista de trilhas (e a do Início da Instituição): **Matéria, Turma, Trilha**, nessa ordem, depois Criada em, Ativa e Abrir. Trilha, aba Alunos: Turma depois do nome; depois de Status, as colunas de desempenho do Dados calculadas só para essa trilha.
+
+**1.3.12.a Página Alunos: filtros.** Pesquisa, "Filtrar por nome" e **"Filtrar turma"**. "Filtrar por ID" saiu (a pesquisa já encontra por ID).
+
+**1.3.13 Aluno: perfil e cadastros.** Campo **Turma** ao lado de Nível pedagógico (aceita turma existente da instituição ou nova). Turma depois do Nome em todas as planilhas de aluno: cadastrar em massa (opcional), editar em massa (opcional), remover em massa (visualização), ativar ou inativar na trilha (visualização) e senhas (visualização); também nas tabelas de Senhas dos alunos, Ativar ou inativar e Início da Instituição.
+
+### 1.3.D Usuários (gestores)
+
+**1.3.14 Perfis de usuário.** Os perfis são **Super admin, Gestão e Professor**. "Admin" passa a se chamar **Gestão** em toda a interface (tabelas, perfil, planilhas, permissões) e o perfil "Básico" passa a se chamar **Professor**. Só o perfil de usuário muda: "Básico" continua sendo valor do Nível pedagógico do aluno.
+
+**1.3.15 Tabelas de usuários.** Cadastros (Instituição) e Usuários (Super admin, abas Crias e Instituições) no formato da tabela de Alunos: só leitura, cabeçalho ordenável, pesquisa por nome, telefone ou e-mail, Nome em negrito abre o perfil, Abrir no fim. Colunas: Nome, **Matérias**, **Turmas**, Perfil, E-mail, Telefone, Ativo (Instituições começa com Instituição). Mais de uma matéria ou turma: separadas por vírgula. Gestão e Super admin: "Todas". Senha e Excluir saem da tabela e vão para o perfil. "Adicionar usuário" abre o perfil em branco.
+
+**1.3.16 Perfil do usuário (PA20).** Mesmo padrão do perfil do aluno: Cadastro (Nome, Telefone, Senha; E-mail, Perfil, **Matérias** no lugar de Escolaridade, **Turmas** no lugar de Nível pedagógico), "Usuário ativo" e Excluir (no modo de edição, com DELETAR), Cancelar e Salvar no topo; sair com alteração pendente pede "Tem certeza que deseja sair?" (padrão E). Matérias e Turmas usam o mesmo formato dos filtros (lista com pesquisa e marcação). Professor: marca as matérias e turmas. Gestão e Super admin: campos fixos em "Todas". **Trilhas vinculadas**: tabela Matéria, Turma, Trilha, Ativa, Desvincular; "Vincular trilha" lista só trilhas das matérias do professor. Perfil próprio (PA19): Perfil, Matérias e Turmas só para leitura.
+
+**1.3.17 Cadastro em massa de usuários.** Colunas: ID Instituição, Nome, **Matérias** e **Turmas** (professor, separadas por vírgula), Telefone, E-mail, Perfil (Gestão / Professor), Senha (opcional).
+
+**1.3.18 Visibilidade do Professor.** O Professor só vê dados das matérias e turmas do cadastro dele: trilhas cujas matérias estão nas dele e alunos cujas turmas estão nas dele, em todas as telas (Início, Dados, Trilhas, Alunos, exportações, opções dos filtros e indicadores). Menu do Professor: Início, Dados, Trilhas, Alunos (sem Configurações), conforme o perfil em Usuários. Protótipo: tweak perfil "Professor" (Mariana Lima: Matemática; 8º A e 8º B).
+
+### 1.3.E Orientações para o backend
+
+1. **Turma do aluno:** campo novo no aluno (texto). Entra no cadastro individual, nas planilhas (modelo e base) e em todas as respostas de lista de alunos.
+2. **Matérias, turmas e trilhas do usuário de gestão:** campos novos. Nulo ou vazio em Gestão e Super admin = todas.
+3. **Filtro no servidor:** toda consulta de Professor aplica matéria (pela trilha) e turma (pelo aluno). O frontend só reflete; nunca filtrar só na tela.
+4. **Exportar base (Alunos):** recebe os mesmos filtros da tela e devolve todas as linhas filtradas, sem paginação.
+5. **Switch Aluno | Educação:** o vínculo entre conta de gestão e conta de aluno vem do servidor (não do aparelho). Hoje o Aluno usa `localStorage 'crias:acesso-gestao'` gravado pela Gestão: substituir pelo vínculo da conta.
+6. **Perfil Professor:** se o banco guarda o texto "Básico" como perfil de usuário, migrar para "Professor".
+
+### 1.3.F Conferência no repositório (thiagocrias/crias-web, main, 29/10/2026)
+
+Achados (o protótipo já está certo nesses pontos):
+- `frontend/crias-aluno/src/components/monitor/MonitorAvatar.tsx`: mostra `<CriasSymbol>` enquanto o personagem carrega (causa do símbolo piscando antes do monitor). Trocar por espaço vazio do mesmo tamanho (1.3.4).
+- `frontend/crias-aluno/src/lib/fullscreen.ts`: `fullscreenSupported()` usa só `fullscreenEnabled` (1.3.3).
+- `frontend/crias-aluno/src/pages/TrailsPage.tsx` (comentário da linha 109): "Trilha concluída não aparece" no Início. Contraria 1.3.2.
+- `frontend/crias-aluno/src/layouts/ChatLayout.tsx`: switch decidido por `localStorage` (1.3.5 e 1.3.E.5).
+- `frontend/crias-aluno/src/lib/api.ts` (linhas 134 a 148): o enunciado só é separado das alternativas quando o servidor **não** manda alternativas. Se o servidor manda as alternativas e o texto também as traz, o enunciado aparece com as alternativas repetidas. Regra: **sempre** passar o texto do exercício por `parseExerciseContent` e mostrar só `statement` no enunciado; as alternativas aparecem só como botões, uma por linha, abaixo do enunciado, dentro do cartão com a etiqueta amarela "Responda".
+- `frontend/crias-aluno/src/components/ConversationParts.tsx` e `PlayerPage.tsx`: ainda há "O monitor está digitando" e o cartão antigo de Trilha concluída (v1.0, seção 10). Pela 1.2.5.10 e 1.2.5.11, a espera é a caixa no lugar final (símbolo com três pontos no conteúdo; personagem com linhas de espera no monitor) e o fim da trilha é a caixa "Trilha concluída" seguida do monitor. Conferir e remover o que sobrou.
+- Educação: o app ainda tem menu no topo, tela cheia, perfil "Básico" e nenhum campo de turma. Tudo isso muda com o 1.3.
+
+Checklist de conformidade (o Claude Code confere item por item, no navegador, contra o protótipo, e marca o que não bate):
+- **Troca de mensagens do Aluno (1.2.5.8 a 1.2.5.12):** espera nasce no lugar final da mensagem com esmaecimento de 0,5s (sobe 6px); a mesma caixa vira a mensagem sem mover o ícone; respiro de 0,9s entre mensagem pronta e próxima espera (1,6s depois da caixa de conclusão); espera de 0,9s no conteúdo e 1,3s no monitor; sem efeito de digitação; ao abrir a atividade a espera fica exatamente onde a mensagem vai ficar; fim da atividade: último bloco, caixa "Atividade concluída" (check verde desenhado), monitor; Continuar em "Aguarde…" até a mensagem final do monitor; trilha concluída: Continuar vira "Início"; resposta do aluno sobe ao topo e a tela não se move depois.
+- **Exercício:** etiqueta "Responda", enunciado sem alternativas e sem gabarito, alternativas uma por linha, barra travada com "Selecione uma alternativa e continue...", Continuar só com alternativa marcada.
+- **Régua:** nome da atividade em preto (Outfit 15px 600), segmentos nas cores do tipo, "Etapa X de Y" (ou "Exercício Z de W") em negrito à esquerda, "Atividade X de Y" à direita, esmaecimento de 24px abaixo (1.3.1).
+- **Início do Aluno:** monitor 128px sem símbolo antes (1.3.4), cartão principal e linhas (1.2.5.1 e 1.3.2), barra de pergunta embaixo.
+- **Educação:** cada item de 1.3.6 a 1.3.18, tela por tela, nas larguras de computador, tablet (820 e 1180) e celular (402).
+
+Como conferir: abrir o protótipo e o app lado a lado; para cada item, anotar "igual" ou "diferente" com o arquivo do app. Itens que dependem de dado novo do servidor (turma, matérias, vínculos, switch) ficam marcados como **CONFLITO** até o backend existir; a interface entra pronta, com "N/A" quando o dado não vier.
+
+### 1.3.G Conflitos resolvidos (vale o 1.3)
+
+1. 1.1.1.b.38 ("Aluno e Gestão sem seletor no menu") × switch para perfis de gestão (1.3.5).
+2. Gestão 1.1.1.b (menu no topo) × menu lateral (1.3.7).
+3. Revisão 9 (tela cheia na Gestão) × sem tela cheia (1.3.6).
+4. v1.0 ("Trilha concluída sai do Início") × trilha concluída continua no Início (1.3.2).
+5. Perfil "Básico" × "Professor" (1.3.14).
+6. Tabela de usuários com edição na linha (Revisões 4 e 5) × tabela só leitura com perfil (1.3.15 e 1.3.16).
+7. Pesquisa de aluno no topo do Dados (1.1.1.b) × pesquisa na aba Alunos (1.3.9).
+
+### 1.3.H Pontos para validação
+
+Confirmados em 29/10/2026: turma da trilha calculada pelos alunos vinculados; Professor vê só as matérias e turmas dele; Gestão e Super admin com "Todas"; na exportação do Dados, "Turma" fica logo abaixo de "Nome" na lista de colunas.
+
+1. Trilhas vinculadas ao Professor: hoje só listam e limitam o "Vincular" às matérias dele; a visibilidade segue matérias e turmas (1.3.18). Confirmar se o vínculo também deve restringir o que ele vê.
+
+

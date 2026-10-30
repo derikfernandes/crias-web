@@ -1,4 +1,3 @@
-import FullscreenButton from '../components/FullscreenButton'
 import {
   startTransition,
   useCallback,
@@ -38,9 +37,64 @@ function isMobile(): boolean {
   return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
 }
 
+/** O item selecionado abre para o conteúdo: curvas de encaixe (1.1.23). */
+function Curves() {
+  return (
+    <>
+      <span className="gx-nav__tabfill" aria-hidden="true" />
+      <svg
+        aria-hidden="true"
+        className="gx-nav__curve gx-nav__curve--up"
+        width="24"
+        height="23.5"
+        viewBox="0 0 24 23.5"
+      >
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0H25V23.5Z" fill="var(--v-bg)" />
+        <path d="M0 23.5A23.5 23.5 0 0 0 23.5 0" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+      <svg
+        aria-hidden="true"
+        className="gx-nav__curve gx-nav__curve--down"
+        width="24"
+        height="23.5"
+        viewBox="0 0 24 23.5"
+      >
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5H25V0Z" fill="var(--v-bg)" />
+        <path d="M0 0A23.5 23.5 0 0 1 23.5 23.5" fill="none" stroke="var(--v-line)" strokeWidth="1" />
+      </svg>
+    </>
+  )
+}
+
+function NavLink({
+  item,
+  on,
+  onGo,
+}: {
+  item: GxNavLink
+  on: boolean
+  onGo: () => void
+}) {
+  return (
+    <div className={on ? 'gx-nav__item gx-nav__item--on' : 'gx-nav__item'}>
+      <Link
+        to={item.path}
+        className={on ? 'gx-nav__btn gx-nav__btn--on' : 'gx-nav__btn'}
+        aria-current={on ? 'page' : undefined}
+        onClick={onGo}
+      >
+        {item.label}
+      </Link>
+      {on ? <Curves /> : null}
+    </div>
+  )
+}
+
 /**
- * Moldura autenticada da Gestão v1.1: menu lateral, topo (Voltar e filtro),
- * fundo e carregamento. Permissões e escopo vêm dos hooks; as páginas só
+ * Moldura autenticada da Educação 1.3 (INTERFACE.md 1.3.6 e 1.3.7): menu lateral esquerdo igual ao do Aluno
+ * (280px, placa #fdfcf9 com cantos e borda esfumada, grupos com rótulo em caixa alta, item ativo com encaixe,
+ * recolher, vMenuIn no celular, rodapé com switch, avatar + nome, seta, tema e sair), topo com Voltar e o filtro
+ * de instituições (ou a etiqueta da escola) à direita. Sem tela cheia (1.3.6). Permissões e escopo vêm dos hooks; as páginas só
  * desenham o conteúdo.
  */
 function Shell({ children }: { children: ReactNode }) {
@@ -54,7 +108,7 @@ function Shell({ children }: { children: ReactNode }) {
   // Enquanto o Auth resolve, não mostrar menu de visitante (Entrar / só doc).
   const authSettling = authLoading || (authed && permissionsLoading)
   const mainRef = useRef<HTMLElement>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile())
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       return window.localStorage.getItem('crias-theme') === 'dark' ? 'dark' : 'light'
@@ -141,8 +195,9 @@ function Shell({ children }: { children: ReactNode }) {
   const loadingBoot =
     authLoading || (authed && (permissionsLoading || institutionsLoading))
   const email = user?.email ?? ''
-  const [dropdown, setDropdown] = useState<string | null>(null)
-  useEffect(() => setDropdown(null), [location.pathname])
+  const { adminProfile } = usePermissions()
+  /** Rodapé mostra o nome (não o e-mail), como no Aluno (1.3.7). */
+  const displayName = adminProfile?.name?.trim() || email || 'Usuário'
 
   const themeButton = (
     <button
@@ -171,16 +226,9 @@ function Shell({ children }: { children: ReactNode }) {
       </svg>
     </button>
   )
-  const avatarLink = (
-    <Link to="/perfil" className="gx-me__avatar" aria-label="Abrir perfil" title={email} onClick={closeOnMobile}>
-      {(email.charAt(0) || 'U').toUpperCase()}
-    </Link>
-  )
   const switchGroup = (
-    <div className="gx-switch gx-switch--top" role="group" aria-label="Alternar entre educação e aluno">
-      <button type="button" className="is-on" aria-pressed="true">
-        Educação
-      </button>
+    // 1.3.5: na Educação o switch aparece sempre; troca para a conta de aluno da mesma pessoa.
+    <div className="gx-switch" role="group" aria-label="Alternar entre aluno e educação">
       <a
         href="/"
         aria-pressed="false"
@@ -194,6 +242,9 @@ function Shell({ children }: { children: ReactNode }) {
       >
         Aluno
       </a>
+      <button type="button" className="is-on" aria-pressed="true">
+        Educação
+      </button>
     </div>
   )
 
@@ -224,135 +275,67 @@ function Shell({ children }: { children: ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false)
 
   return (
-    <div className="gx-root gx-frame gx-frame--top">
+    <div className="gx-root gx-frame">
       {loadingBoot ? <BootSymbol /> : null}
-      <header className="gx-tb" data-topbar="1">
-        <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
-          <img className="gx-brand__light" src={`${import.meta.env.BASE_URL}crias-logo-educacao.svg`} alt="Crias Educação" />
-          <img className="gx-brand__dark" src={`${import.meta.env.BASE_URL}crias-logo-educacao-branco.svg`} alt="Crias Educação" />
-        </Link>
-        {authed && !authSettling ? (
-          <nav className="gx-tbnav" aria-label="Navegação principal">
-            {entries.map((e) =>
-              e.type === 'link' ? (
-                <Link
-                  key={e.section}
-                  to={e.path}
-                  className={section === e.section ? 'gx-pill gx-pill--on' : 'gx-pill'}
-                  aria-current={section === e.section ? 'page' : undefined}
-                >
-                  {e.label}
-                </Link>
-              ) : (
-                <div key={e.id} className="gx-dd">
-                  <button
-                    type="button"
-                    className={dropdown === e.id || e.children.some((c) => c.type === 'link' && c.section === section) ? 'gx-pill gx-pill--on' : 'gx-pill'}
-                    aria-haspopup="menu"
-                    aria-expanded={dropdown === e.id}
-                    onClick={() => setDropdown((d) => (d === e.id ? null : e.id))}
-                  >
-                    {e.label}
-                    <Icon name="chev-down" size={14} />
-                  </button>
-                  {dropdown === e.id ? (
-                    <>
-                      <div className="gx-dd__scrim" onClick={() => setDropdown(null)} />
-                      <div role="menu" className="gx-dd__menu">
-                        {e.children.map((c) =>
-                          c.type === 'head' ? (
-                            <p key={`h-${c.label}`} className="gx-dd__head" role="presentation">
-                              {c.label}
-                            </p>
-                          ) : (
-                            <Link
-                              key={c.section}
-                              to={c.path}
-                              role="menuitem"
-                              className={section === c.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'}
-                            >
-                              {c.label}
-                            </Link>
-                          ),
-                        )}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              ),
-            )}
-          </nav>
-        ) : null}
-        <span className="gx-tb__spacer" aria-hidden="true" />
-        {authed && !authSettling ? (
-          <div className="gx-tb__right">
-            <div className="gx-tb__filter">{scopeFilter}</div>
-            {switchGroup}
-            <FullscreenButton />
-            {themeButton}
-            {avatarLink}
-            {logoutButton}
-          </div>
-        ) : null}
-        <button type="button" className="gx-iconbtn gx-tb__burger" aria-label="Abrir menu" onClick={() => setSidebarOpen(true)}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M4 7h16M4 12h16M4 17h10" />
-          </svg>
-        </button>
-      </header>
-
       {sidebarOpen ? (
-        <aside className="gx-drawer" aria-label="Navegação principal">
-          <div className="gx-drawer__head">
+        <aside className="gx-side" aria-label="Navegação principal">
+          <span className="gx-side__line" aria-hidden="true" />
+          <div className="gx-side__bg" aria-hidden="true" />
+          <div className="gx-side__head">
             <Link to="/" className="gx-brand" aria-label="Ir para o início da Educação" onClick={closeOnMobile}>
               <img className="gx-brand__light" src={`${import.meta.env.BASE_URL}crias-logo-educacao.svg`} alt="Crias Educação" />
               <img className="gx-brand__dark" src={`${import.meta.env.BASE_URL}crias-logo-educacao-branco.svg`} alt="Crias Educação" />
             </Link>
             <button type="button" className="gx-iconbtn" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="16" rx="3" />
                 <path d="M9 4v16" />
               </svg>
             </button>
           </div>
-          <nav className="gx-drawer__nav">
-            {authed && !authSettling ? (
-              entries.map((e) =>
-                e.type === 'link' ? (
-                  <Link key={e.section} to={e.path} className={section === e.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'} onClick={closeOnMobile}>
-                    {e.label}
-                  </Link>
-                ) : (
-                  <div key={e.id}>
-                    <p className="gx-dd__head">{e.label}</p>
-                    {e.children.map((c) =>
-                      c.type === 'head' ? (
-                        <p key={`h-${c.label}`} className="gx-dd__head gx-dd__head--sub" role="presentation">
-                          {c.label}
-                        </p>
-                      ) : (
-                        <Link key={c.section} to={c.path} className={section === c.section ? 'gx-dd__item gx-dd__item--on' : 'gx-dd__item'} onClick={closeOnMobile}>
-                          {c.label}
-                        </Link>
-                      ),
-                    )}
-                  </div>
-                ),
-              )
-            ) : (
-              <Link to="/doc" className="gx-dd__item" onClick={closeOnMobile}>
-                API e documentação
-              </Link>
-            )}
+          <nav className="gx-nav" data-navfade="1">
+            <div className="gx-nav__inner">
+              {authSettling ? null : authed ? (
+                entries.map((e) =>
+                  e.type === 'link' ? (
+                    <NavLink key={e.section} item={e} on={section === e.section} onGo={closeOnMobile} />
+                  ) : (
+                    <div key={e.id}>
+                      <p className="gx-nav__group">
+                        <span>{e.label}</span>
+                        <span aria-hidden="true" />
+                      </p>
+                      {e.children.map((c) =>
+                        c.type === 'head' ? (
+                          <p key={`h-${c.label}`} className="gx-nav__head" role="presentation">
+                            {c.label}
+                          </p>
+                        ) : (
+                          <NavLink key={c.section} item={c} on={section === c.section} onGo={closeOnMobile} />
+                        ),
+                      )}
+                    </div>
+                  ),
+                )
+              ) : (
+                <>
+                  <NavLink item={{ type: 'link', section: 'doc', label: 'API e documentação', path: '/doc', permission: 'doc' }} on={section === 'doc'} onGo={closeOnMobile} />
+                  <NavLink item={{ type: 'link', section: 'home', label: 'Entrar', path: '/login', permission: 'home' }} on={false} onGo={closeOnMobile} />
+                </>
+              )}
+            </div>
           </nav>
           {authed && !authSettling ? (
-            <div className="gx-drawer__foot">
+            <div className="gx-side__foot">
               {switchGroup}
-              <div className="gx-drawer__row">
-                {avatarLink}
-                <span data-fade="1" className="gx-me__mail">
-                  {email || 'Usuário'}
-                </span>
+              <div className="gx-me">
+                <Link to="/perfil" className="gx-me__who" title={email} aria-label={`Abrir perfil de ${displayName}`} onClick={closeOnMobile}>
+                  <span className="gx-me__avatar">{(displayName.charAt(0) || 'U').toUpperCase()}</span>
+                  <span className="gx-me__mail" data-fade="1">
+                    {displayName}
+                  </span>
+                  <Icon name="chev-right" size={14} />
+                </Link>
                 {themeButton}
                 {logoutButton}
               </div>
@@ -368,6 +351,15 @@ function Shell({ children }: { children: ReactNode }) {
         <main className="gx-main" data-main="1" ref={mainRef}>
           <div className="gx-wrap">
             <div className="gx-topbar">
+              {!sidebarOpen ? (
+                // 1.3.7: com o menu recolhido, o botão de abrir fica à esquerda do Voltar.
+                <button type="button" className="gx-iconbtn gx-openmenu2" aria-label="Abrir menu" onClick={() => setSidebarOpen(true)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <path d="M9 4v16" />
+                  </svg>
+                </button>
+              ) : null}
               {canBack ? (
                 <button type="button" className="gx-backbtn" onClick={() => guardedNavigate(-1)}>
                   <Icon name="back" size={14} />
@@ -375,10 +367,7 @@ function Shell({ children }: { children: ReactNode }) {
                 </button>
               ) : null}
               <span className="gx-topbar__spacer" aria-hidden="true" />
-              <div className="gx-topbar__filter">{scopeFilter}</div>
-              <span className="gx-topbar__fs">
-                <FullscreenButton />
-              </span>
+              {scopeFilter}
             </div>
             {children}
           </div>

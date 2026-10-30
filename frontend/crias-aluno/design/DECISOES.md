@@ -138,3 +138,10 @@ A v1.0 do aluno e do painel é a base de identidade visual. Itens que mudam o qu
 - Entrada do Crias Aluno com o cabeçalho e o rodapé do site crias.org: logo leva ao site na mesma aba, só o botão de tema, símbolo pulsando acima da caixa, rodapé branco, cabeçalho na cor do menu lateral (#fdfcf9). Ver INTERFACE.md 1.1.37.
 - Carregamentos com o símbolo completo desde o primeiro quadro (símbolo leve de 192px, brilho só depois da imagem). Ver INTERFACE.md 1.1.38.
 - Versão fechada como **v1.1** em 16/10/2026. As regras do fechamento são 1.1.27 a 1.1.38.
+
+## Versão 1.3 (29/10/2026)
+
+- Perfis de usuário: Super admin, Gestão (antes Admin) e Professor (antes Básico). "Básico" segue como Nível pedagógico do aluno.
+- Turma por aluno; turma da trilha calculada pelos alunos vinculados. Professor só vê as matérias e turmas do cadastro dele.
+- Educação: menu lateral (como o Aluno), sem tela cheia. Switch Aluno | Educação só para quem tem conta de gestão.
+- Alunos (Educação): "Exportar base" exporta o que está filtrado; "Filtrar por ID" saiu e entrou "Filtrar turma".

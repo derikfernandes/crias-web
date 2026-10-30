@@ -336,8 +336,31 @@ export function DashboardPageView(p: DashboardPageViewProps) {
           </>
         }
         tools={
+          // 1.3.9: Filtrar matéria, Filtrar turma, Filtrar trilhas, nessa ordem. A pesquisa de aluno foi para a aba Alunos.
           <div className="gx-filters" role="group" aria-label="Filtros">
             <span className="gx-filters__label">Filtros</span>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar matéria"
+                options={p.materiaFilterOptions.map((x) => ({ id: x, name: x }))}
+                selected={p.materiaFilterSelected}
+                onChange={p.onMateriaFilterChange}
+                emptyText="Nenhuma matéria encontrada."
+              />
+            </div>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar turma"
+                options={p.turmaFilterOptions.map((x) => ({ id: x, name: x }))}
+                selected={p.turmaFilterSelected}
+                onChange={p.onTurmaFilterChange}
+                emptyText="Nenhuma turma encontrada."
+              />
+            </div>
             <div className="gx-filters__item">
               <FilterPopover
                 variant="field"
@@ -348,21 +371,6 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                 onChange={p.onTrailFilterChange}
                 emptyText="Nenhuma trilha encontrada."
               />
-            </div>
-            <div className="gx-filters__item">
-              <label className="gx-search">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M20 20l-3.5-3.5" />
-                </svg>
-                <input
-                  type="search"
-                  aria-label="Pesquisar nome ou telefone do aluno"
-                  placeholder="Pesquisar nome ou telefone do aluno"
-                  value={p.nameFilter}
-                  onChange={(e) => p.onNameFilterChange(e.target.value)}
-                />
-              </label>
             </div>
           </div>
         }
@@ -600,6 +608,22 @@ export function DashboardPageView(p: DashboardPageViewProps) {
             </button>
           </nav>
           {p.activeTab === 'students' ? (
+            // 1.3.9: a pesquisa filtra só a tabela desta aba (os números do painel seguem os filtros do topo).
+            <label className="gx-search" style={{ maxWidth: 480 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+              <input
+                type="search"
+                aria-label="Pesquisar nome ou telefone do aluno"
+                placeholder="Pesquisar nome ou telefone do aluno"
+                value={p.nameFilter}
+                onChange={(e) => p.onNameFilterChange(e.target.value)}
+              />
+            </label>
+          ) : null}
+          {p.activeTab === 'students' ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               <div className="gx-filters__item">
                 <FilterPopover
@@ -662,7 +686,7 @@ export function DashboardPageView(p: DashboardPageViewProps) {
                   <tr>
                     <SortTh label="Nome" sortKey="name" current="" indicator={p.nameSortIndicator} onSort={p.onToggleStudentSort} />
                     {p.visibleColumns.map((c) => (
-                      <SortTh key={c.key} label={LABELS[c.key] ?? c.label} sortKey={c.key} current="" indicator={c.sortIndicator} onSort={p.onToggleStudentSort} numeric={c.key !== 'phone'} />
+                      <SortTh key={c.key} label={LABELS[c.key] ?? c.label} sortKey={c.key} current="" indicator={c.sortIndicator} onSort={p.onToggleStudentSort} numeric={c.key !== 'phone' && c.key !== 'turma'} />
                     ))}
                   </tr>
                 </thead>
@@ -759,6 +783,8 @@ export function DashboardPageView(p: DashboardPageViewProps) {
 
 function StudentCell({ col, row }: { col: string; row: DashboardStudentRowView }) {
   switch (col) {
+    case 'turma':
+      return <td>{na(row.turma)}</td>
     case 'phone':
       return <td>{na(row.phone)}</td>
     case 'released':
@@ -804,6 +830,7 @@ function StudentCell({ col, row }: { col: string; row: DashboardStudentRowView }
 }
 
 const LABELS: Record<string, string> = {
+  turma: 'Turma',
   phone: 'Telefone',
   lessonsReleased: 'Atividades liberadas',
   lessonsDone: 'Atividades feitas',

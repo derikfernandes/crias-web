@@ -10,7 +10,6 @@ import {
   useState,
 } from 'react'
 import {
-  Link,
   useLocation,
   useNavigate,
   useOutletContext,
@@ -727,8 +726,8 @@ function typingCopy(
     }
     return {
       label: 'Monitor',
-      aria: 'O monitor está digitando',
-      reduced: 'O monitor está digitando…',
+      aria: 'Monitor escrevendo',
+      reduced: 'Monitor escrevendo…',
     }
   }
   if (reason === 'exercise') {
@@ -775,6 +774,16 @@ export default function PlayerPage() {
   /** Retry só para erro rede/sistema (D#9). */
   const [canRetry, setCanRetry] = useState(false)
   const [busy, setBusy] = useState(false)
+  /** Fechamento: chave da caixa de conclusão cujo monitor já entrou (1.2.5.7). */
+  const [closingReady, setClosingReady] = useState<string | null>(null)
+  /**
+   * Rolagem 1.2.5.8 e 1.2.5.9 (igual ao protótipo): ao tocar em Continuar, enviar a resposta ou perguntar ao
+   * monitor, o que entra (espera, resposta do aluno) começa no topo da tela; a mensagem chega no mesmo lugar e a
+   * tela não rola sozinha depois. `pinAnchorRef` guarda onde o novo bloco começa; o espaço `data-pin-space`
+   * abaixo cresce só o necessário para esse ponto ficar no topo e some quando o conteúdo já ocupa a tela.
+   */
+  const pinAnchorRef = useRef<number | null>(null)
+  const pinScrollPendingRef = useRef(false)
   const [busyReason, setBusyReason] = useState<BusyReason>(null)
   const [showTyping, setShowTyping] = useState(false)
   const [draft, setDraft] = useState(
@@ -3405,10 +3414,22 @@ export default function PlayerPage() {
   }
 
   /** Avança sem bolha "VOCÊ: Continuar". */
+  /** Marca onde o próximo bloco começa (fim atual da conversa) e pede a rolagem até ele (1.2.5.8). */
+  function startPin() {
+    const thread = v1_0ThreadRef.current
+    const space = thread?.querySelector<HTMLElement>('[data-pin-space]')
+    if (!thread || !space) return
+    space.style.height = '0px'
+    pinAnchorRef.current =
+      space.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop
+    pinScrollPendingRef.current = true
+  }
+
   async function doAdvance() {
     if (content?.status !== 'ok') return
     // Race guard síncrono — React disabled ainda não pintou (R04-L01).
     if (advanceInFlightRef.current || busy) return
+    startPin()
     // C2-R22 N01: resync silencioso em voo — não POST /advance em paralelo.
     // Espera o resync terminar (até 2s) em vez de descartar o toque no Continuar.
     for (let i = 0; i < 40 && resyncInFlightRef.current; i += 1) {
@@ -3681,6 +3702,7 @@ export default function PlayerPage() {
     const liveSession = ensureSessionOrRedirect()
     if (!liveSession) return
     mariaInFlightRef.current = true
+    startPin()
     mariaCancelledRef.current = false
     mariaDropLateReplyRef.current = false
     // Entra no sidechat já no envio — evita limbo sem Continuar/Voltar (R07-P02).
@@ -3966,6 +3988,7 @@ export default function PlayerPage() {
     }
 
     submitInFlightRef.current = true
+    startPin()
     setBusy(true)
     setBusyReason('exercise')
     busyReasonRef.current = 'exercise'
@@ -4288,14 +4311,41 @@ export default function PlayerPage() {
    * Resposta do exercício (1.2.5.9): ao enviar, o cartão com a resposta sobe ao topo e a espera entra logo abaixo;
    * a tela não se move depois disso (o feedback entra no lugar da espera). Se a resposta couber, a tela fica como está.
    */
-  useEffect(() => {
-    if (exercisePhase !== 'submitting') return
+  // Fixação no topo: recalcula o espaço a cada renderização e faz a rolagem uma vez, quando o bloco nasce.
+  useLayoutEffect(() => {
     const thread = v1_0ThreadRef.current
-    const card = thread?.querySelector<HTMLElement>('.chat-exercise')
-    if (!thread || !card) return
-    const delta = card.getBoundingClientRect().top - thread.getBoundingClientRect().top
-    if (delta > 0) thread.scrollTo({ top: thread.scrollTop + delta - 8, behavior: 'smooth' })
-  }, [exercisePhase, v1_0ThreadRef])
+    const space = thread?.querySelector<HTMLElement>('[data-pin-space]')
+    if (!thread || !space) return
+    const anchor = pinAnchorRef.current
+    if (anchor == null) {
+      space.style.height = '0px'
+      return
+    }
+    const top = (el: HTMLElement) =>
+      el.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop
+    space.style.height = '0px'
+    const contentEnd = top(space)
+    space.style.height = `${Math.max(0, thread.clientHeight - (contentEnd - anchor) - 36)}px`
+    if (pinScrollPendingRef.current) {
+      pinScrollPendingRef.current = false
+      thread.scrollTo({ top: Math.max(0, anchor - 8), behavior: 'smooth' })
+    }
+  })
+
+  /** 1.2.5.2: tocar num segmento feito da régua rola a conversa até a etapa. */
+  useEffect(() => {
+    const onGo = (e: Event) => {
+      const d = (e as CustomEvent<{ stage: number; question: number | null }>).detail
+      const thread = v1_0ThreadRef.current
+      if (!thread || !d?.question) return
+      const el = thread.querySelector<HTMLElement>(`[data-cell-key="${trailCellKey(d.stage, d.question)}"]`)
+      if (!el) return
+      const top = thread.scrollTop + el.getBoundingClientRect().top - thread.getBoundingClientRect().top - 12
+      thread.scrollTo({ top: Math.max(0, Math.min(thread.scrollHeight - thread.clientHeight, top)), behavior: 'smooth' })
+    }
+    window.addEventListener('crias:rail-go', onGo)
+    return () => window.removeEventListener('crias:rail-go', onGo)
+  }, [v1_0ThreadRef])
 
   const highlightOptionKey = pendingOptionKey || selectedOptionKey
   const exerciseSubmitting = exercisePhase === 'submitting'
@@ -4588,9 +4638,7 @@ export default function PlayerPage() {
     content?.status === 'ok'
       ? stripOptionLines(
           (content.content ?? '').trim() ||
-            (content.stage_type === 'ai' && content.prompt
-              ? 'Gerando conteúdo da tutoria…'
-              : ''),
+            '',
         )
       : ''
   /** R5-N05: se o body abre com o mesmo título do H2, remove o eco. */
@@ -4739,11 +4787,7 @@ export default function PlayerPage() {
         data-current-step="true"
       >
         <BotMessage label={trailHeading}>
-          {lessonTitle ? (
-            <p>
-              <strong>{lessonTitle}</strong>
-            </p>
-          ) : null}
+          {/* 1.2.5.9: bloco de conteúdo sem título; a etapa aparece na régua. */}
           {lessonBody ? renderBubbleParts(lessonBody) : null}
         </BotMessage>
       </div>
@@ -4757,28 +4801,22 @@ export default function PlayerPage() {
     !trailShellUnavailable &&
     historyReady &&
     content?.status === 'completed'
+  /**
+   * 1.2.5.10 e 1.2.5.11: fim da trilha = último bloco, caixa "Trilha concluída" (atividades, exercícios certos e
+   * tempo da trilha, sem "Próxima") e, por fim, o monitor com o convite e "volte para a página inicial".
+   * Saiu o cartão antigo (v1.0, seção 10). O botão "Início" fica na barra (sem ícone).
+   */
   const trailCompletedNode = trailDone ? (
-    <div
-      className="v1-0-done"
-      role="status"
-      tabIndex={-1}
-      data-current-step="true"
-      data-trail-completed="true"
-    >
-      <span className="v125-check" aria-hidden="true">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00be85" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" />
-        </svg>
-      </span>
-      <span className="v1-0-done__title">Trilha concluída</span>
-      <span className="v1-0-done__text">
-        {totalActivitiesHere > 0
-          ? `Você concluiu as ${totalActivitiesHere} atividades de ${trailHeading}.`
-          : `Você concluiu ${trailHeading}.`}
-      </span>
-      <Link to="/" className="v1-0-btn">
-        Início
-      </Link>
+    <div data-current-step="true" data-trail-completed="true" tabIndex={-1}>
+      <ActivityDoneCard
+        kind="trail"
+        name={trailHeading}
+        roles={stageRoles(stageInfos?.[trailId] ?? [])}
+        activitiesTotal={totalActivitiesHere || undefined}
+        studentId={session.student_id}
+        trailId={trailId}
+        number={0}
+      />
     </div>
   ) : null
 
@@ -4801,12 +4839,34 @@ export default function PlayerPage() {
    * Monitor em destaque (1.2.5.7): só (1) na primeira etapa de cada atividade e (2) no fim da atividade,
    * abaixo do fechamento. Nas demais etapas não aparece. Só a última oferta fica ativa.
    */
+  /**
+   * Fechamento (1.2.5.7, 1.2.5.10, 1.2.5.11): caixa de conclusão e, 1,6s depois, o monitor. Até o monitor
+   * entrar, o Continuar fica em "Aguarde…" (o halo só começa depois dele). As frases do monitor são do frontend
+   * (sem API), então não há espera artificial: só o respiro entre a caixa e o monitor.
+   */
+  const closingKey =
+    activityDoneShown && content?.status === 'ok'
+      ? `a-${content.question_number}`
+      : trailDone
+        ? 't'
+        : null
+  const closingWaiting = closingKey != null && closingReady !== closingKey
+  useEffect(() => {
+    if (!closingKey || closingReady === closingKey) return
+    const t = window.setTimeout(() => setClosingReady(closingKey), 1600)
+    return () => window.clearTimeout(t)
+  }, [closingKey, closingReady])
+
   const monitorOfferParts =
-    !trailShellUnavailable && historyReady && content?.status === 'ok' && !trailDone && !busy
-      ? activityDoneShown
-        ? pickOffer('last', content.question_number)
-        : content.stage_number === 1 && content.stage_type !== 'exercise'
-          ? pickOffer('first', content.question_number)
+    !trailShellUnavailable && historyReady && !busy && !closingWaiting
+      ? trailDone
+        ? pickOffer('trail', totalActivitiesHere)
+        : content?.status === 'ok'
+          ? activityDoneShown
+            ? pickOffer('last', content.question_number)
+            : content.stage_number === 1 && content.stage_type !== 'exercise'
+              ? pickOffer('first', content.question_number)
+              : null
           : null
       : null
 
@@ -4914,6 +4974,7 @@ export default function PlayerPage() {
     !trailDone &&
     !mariaSidechat &&
     (trailBusy ||
+      closingWaiting ||
       mariaBusyWaiting ||
       mariaBusyPending ||
       exerciseSubmitting ||
@@ -5055,6 +5116,8 @@ export default function PlayerPage() {
       prependedRef.current = false
       return
     }
+    // Com um bloco fixado no topo (1.2.5.8), a tela não rola sozinha.
+    if (pinAnchorRef.current != null) return
     toBottom()
   }, [
     chatMessages.length,
@@ -5068,6 +5131,7 @@ export default function PlayerPage() {
   ])
   // Ao abrir outra trilha ou atividade, a conversa abre no fim.
   useEffect(() => {
+    pinAnchorRef.current = null
     toBottom(true)
   }, [trailId, historyReady, toBottom])
   // O campo cresce com o texto e volta a uma linha quando esvazia.
@@ -5110,8 +5174,18 @@ export default function PlayerPage() {
                     ? 'no'
                     : null
                 : null
+              // 1.2.5.5: entre atividades, linha com mais respiro e o rótulo "NOVA ATIVIDADE" à esquerda.
+              const q = questionOfMsg(msg)
+              const prevQ = msgIdx > 0 ? questionOfMsg(chatMessages[msgIdx - 1]) : undefined
+              const newActivity = q != null && prevQ != null && q !== prevQ
               return (
                 <Fragment key={msg.id}>
+                  {newActivity ? (
+                    <div className="v125-sep" role="separator" aria-label={`Atividade ${q}`}>
+                      <span>NOVA ATIVIDADE</span>
+                      <i aria-hidden="true" />
+                    </div>
+                  ) : null}
                   {msgIdx === lessonCardSlot ? lessonCardNode : null}
                   {msgIdx === exerciseCardAt ? exerciseCard : null}
                   {exerciseSlot ? null : (
@@ -5151,7 +5225,8 @@ export default function PlayerPage() {
                           labelId={labelId}
                         >
                           {(() => {
-                            // Etapas já vistas mostram o título em negrito, igual aa etapa atual.
+                            // 1.2.5.9: bloco de conteúdo sem título (a etapa aparece na régua). Se o texto
+                            // gravado começa com uma linha de título curta ("Etapa 2"), ela não é mostrada.
                             const at = msg.step ? msg.text.indexOf('\n\n') : -1
                             const head = at > 0 ? msg.text.slice(0, at).trim() : ''
                             const isTitle =
@@ -5160,17 +5235,7 @@ export default function PlayerPage() {
                               !head.includes('\n') &&
                               !/[.?!:]$/.test(head)
                             if (!isTitle) return renderBubbleParts(msg.text, msg.id)
-                            return (
-                              <>
-                                <p>
-                                  <strong>{stripDecorTitle(head)}</strong>
-                                </p>
-                                {renderBubbleParts(
-                                  msg.text.slice(at).trim(),
-                                  msg.id,
-                                )}
-                              </>
-                            )
+                            return renderBubbleParts(msg.text.slice(at).trim(), msg.id)
                           })()}
                         </BotMessage>
                       )}
@@ -5186,6 +5251,11 @@ export default function PlayerPage() {
             <ActivityDoneCard
               name={activityNames.find((a) => a.number === content.question_number)?.title ?? ''}
               nextName={activityNames.find((a) => a.number === content.question_number + 1)?.title ?? ''}
+              nextMeta={
+                totalActivitiesHere > 0
+                  ? `Atividade ${content.question_number + 1} de ${totalActivitiesHere}`
+                  : undefined
+              }
               roles={stageRoles(stageInfos?.[trailId] ?? [])}
               studentId={session.student_id}
               trailId={trailId}
@@ -5193,20 +5263,41 @@ export default function PlayerPage() {
             />
           ) : null}
 
+          {trailCompletedNode}
+
           {monitorOfferParts ? (
             <MonitorHighlight
               parts={monitorOfferParts}
+              // 1.2.5.11: respiro de 0,9s entre a mensagem pronta e o monitor (no fechamento o respiro já veio antes).
+              delayMs={activityDoneShown || trailDone ? 0 : 900}
               disabled={busy}
               onAsk={(q) => void doMaria(q)}
               onGo={() => {
+                if (trailDone) {
+                  navigate('/')
+                  return
+                }
                 markContinueHaloDone(session.student_id, trailId)
                 void doAdvance()
               }}
             />
           ) : null}
 
+          {exercisePhase === 'submitting' && pendingOptionKey ? (
+            // 1.2.5.9: ao enviar, a resposta do aluno sobe ao topo e a espera do feedback entra logo abaixo.
+            // A bolha definitiva chega com a resposta da API, no mesmo lugar.
+            <div data-pending-answer="1">
+              <UserBubble>
+                {(() => {
+                  const at = options.findIndex((o) => o.key === pendingOptionKey)
+                  if (at < 0) return pendingOptionKey
+                  const o = optionBadgeAndText(options[at], at)
+                  return `${o.letter}) ${o.text}`
+                })()}
+              </UserBubble>
+            </div>
+          ) : null}
           {showTypingBubble ? <TypingRow monitor={busyReason === 'maria'} /> : null}
-          {trailCompletedNode}
 
           {error && !trailShellUnavailable ? (
             <div className="v1-0-errbox" role="alert">
@@ -5230,18 +5321,15 @@ export default function PlayerPage() {
             </div>
           ) : null}
 
-          {!historyReady ||
-          (historyReady && !content && !error) ||
-          aiContentPending ? (
-            <div className="v1-0-skel" role="status" aria-busy="true" aria-live="polite">
-              <div style={{ width: '30%' }} />
-              <div style={{ width: '90%' }} />
-              <div style={{ width: '65%' }} />
-              {aiContentPending || (!historyReady && Boolean(error)) ? (
-                <p className="v1-0-skel__label">Carregando…</p>
-              ) : null}
-            </div>
+          {(!historyReady ||
+            (historyReady && !content && !error) ||
+            aiContentPending) &&
+          !showTypingBubble ? (
+            // 1.2.5.8 a 1.2.5.11: ao abrir a atividade (e enquanto a IA gera a etapa), a espera fica exatamente onde
+            // a mensagem vai ficar: símbolo do Crias com três pontos. Sem esqueleto cinza nem texto "Carregando…".
+            <TypingRow />
           ) : null}
+          <div data-pin-space="1" aria-hidden="true" style={{ flex: 'none', height: 0, marginTop: -26 }} />
           {trailShellUnavailable ? (
             <div className="v1-0-empty" role="status">
               <p>Trilha indisponível</p>

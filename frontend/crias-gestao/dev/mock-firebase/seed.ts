@@ -73,6 +73,8 @@ export function seed(Timestamp: TS): Record<string, Record<string, Data>> {
       out.students[sid] = {
         institution_id: inst, name: `${FN[k % FN.length]} ${LN[(k * 7) % LN.length]}`,
         phone_number: `1190000${String(n).padStart(4, '0')}`, school_level: lvl, school_grade: grade,
+        // 1.3.8: turma de exemplo (i1: 8º A, 8º B, 9º A; i2: 1º A, 2º A).
+        turma: inst === 'i1' ? ['8º A', '8º B', '9º A'][k % 3] : ['1º A', '2º A'][k % 2],
         student_level: ((k % 3) + 1), active: k % 17 !== 0, created_at: ts(40 - (k % 20)), updated_at: ts(k % 9),
         password_hash: k % 5 === 4 ? undefined : 'scrypt$x$y',
       }
@@ -103,8 +105,8 @@ export function seed(Timestamp: TS): Record<string, Record<string, Data>> {
   out.counters.institutions = { next: 3 }
   out.counters.trails = { next: 7 }
 
-  out.admin_users['coordenacao@escola_org'] = { email: 'coordenacao@escola.org', active: true, is_super_admin: true, is_master: true, nav_permissions: [], institution_ids: [], all_institutions: true, created_at: ts(80), updated_at: ts(20) }
-  out.admin_users['professora_lima@escola_org'] = { email: 'professora.lima@escola.org', active: true, is_super_admin: false, is_master: false, nav_permissions: ['home', 'dashboard', 'student_new', 'trail_new'], institution_ids: ['i1'], all_institutions: false, created_at: ts(60), updated_at: ts(15) }
+  out.admin_users['coordenacao@escola_org'] = { email: 'coordenacao@escola.org', name: 'Coordenação', active: true, is_super_admin: true, is_master: true, nav_permissions: [], institution_ids: [], all_institutions: true, created_at: ts(80), updated_at: ts(20) }
+  out.admin_users['professora_lima@escola_org'] = { email: 'professora.lima@escola.org', name: 'Mariana Lima', phone_number: '11988880003', active: true, is_super_admin: false, is_master: false, nav_permissions: ['home', 'dashboard', 'student_new', 'trail_new'], institution_ids: ['i1'], all_institutions: false, materias: ['Matemática'], turmas: ['8º A', '8º B'], trail_ids: ['t1'], created_at: ts(60), updated_at: ts(15) }
   out.admin_users['secretaria@colegio_org'] = { email: 'secretaria@colegio.org', active: false, is_super_admin: false, is_master: false, nav_permissions: ['student_new'], institution_ids: ['i2'], all_institutions: false, created_at: ts(50), updated_at: ts(9) }
 
   return out

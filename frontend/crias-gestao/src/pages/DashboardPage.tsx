@@ -126,6 +126,7 @@ import type { StudentTrail } from '../types/studentTrail'
 import type { Trail } from '../types/trail'
 import type { TrailStage } from '../types/trailStage'
 import type { TrailStageQuestion } from '../types/trailStageQuestion'
+import { materiasOf, scopeOf, sortTurmas, studentInScope, trailInScope } from '../lib/turmas'
 
 const LAST_INSTITUTION_ID_STORAGE_KEY = 'trilha_admin_selected_institution_id'
 const STUDENTS_PAGE_SIZE = 20
@@ -522,6 +523,7 @@ function appendLessonsProgressSheet(
   const lessonHeaders = lessonNumbers.map((n) => `Atividade ${n}`)
   const headers = [
     'Nome',
+    'Turma',
     'Telefone',
     ...lessonHeaders,
     'Atividades liberadas',
@@ -565,6 +567,7 @@ function appendLessonsProgressSheet(
     })
     return [
       student.name || student.id,
+      (student.turma ?? '').trim(),
       student.phone_number || '',
       ...lessonCells,
       metrics.lessonsReleased,
@@ -588,11 +591,13 @@ function appendLessonsProgressSheet(
 }
 
 export function DashboardPage() {
-  const { filterInstitutions } = usePermissions()
+  const { filterInstitutions, adminProfile } = usePermissions()
   const gestao = useGestao()
   const [searchParams, setSearchParams] = useSearchParams()
   const instFromUrl = searchParams.get('inst')?.trim() || null
   const [trailFilter, setTrailFilter] = useState<Set<string> | null>(null)
+  const [materiaFilter, setMateriaFilter] = useState<Set<string> | null>(null)
+  const [turmaFilter, setTurmaFilter] = useState<Set<string> | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('students')
   // Oportunidades (menor e maior acerto) aparecem sempre; os dados dos exercícios entram desde o início.
   const [questionsDataEnabled, setQuestionsDataEnabled] = useState(true)
@@ -2113,10 +2118,41 @@ export function DashboardPage() {
     })
   }, [institutions, filterInstitutions])
 
-  const allActiveTrails = useMemo(() => trails.filter((t) => t.active), [trails])
+  // 1.3.18: o Professor só vê as matérias e turmas dele (o servidor também filtra, CONFLITO 1.3.E.3).
+  const scope = scopeOf(adminProfile)
+  const scopedActiveTrails = useMemo(
+    () => trails.filter((t) => t.active && trailInScope(scope, t)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trails, adminProfile],
+  )
+  /** 1.3.9: Filtrar matéria; "Filtrar trilhas" só lista as trilhas das matérias marcadas. */
+  const materiaList = useMemo(() => materiasOf(scopedActiveTrails), [scopedActiveTrails])
+  const allActiveTrails = useMemo(
+    () =>
+      materiaFilter
+        ? scopedActiveTrails.filter((t) => !t.subject?.trim() || materiaFilter.has(t.subject.trim()))
+        : scopedActiveTrails,
+    [scopedActiveTrails, materiaFilter],
+  )
   const activeTrails = useMemo(
     () => (trailFilter ? allActiveTrails.filter((t) => trailFilter.has(t.id)) : allActiveTrails),
     [allActiveTrails, trailFilter],
+  )
+  /** 1.3.9: Filtrar turma (os números do painel seguem os filtros do topo). */
+  const turmaList = useMemo(
+    () => sortTurmas(students.filter((st) => studentInScope(scope, st)).map((st) => st.turma ?? '')),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [students, adminProfile],
+  )
+  const topStudents = useMemo(
+    () =>
+      students.filter(
+        (st) =>
+          studentInScope(scope, st) &&
+          (!turmaFilter || turmaFilter.has((st.turma ?? '').trim()) || (!(st.turma ?? '').trim() && turmaFilter.size === turmaList.length)),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [students, turmaFilter, turmaList, adminProfile],
   )
 
   const trailById = useMemo(() => {
@@ -2427,7 +2463,7 @@ export function DashboardPage() {
       }
     }
 
-    const rows: StudentRow[] = students.map((student) => {
+    const rows: StudentRow[] = topStudents.map((student) => {
       const enrolled = trailsByStudent.get(student.id) ?? []
       const enrolledTrailIds = new Set(enrolled.map((st) => st.trail_id))
       const progress = progressFromLinks({
@@ -2495,7 +2531,7 @@ export function DashboardPage() {
 
     return rows
   }, [
-    students,
+    topStudents,
     relevantTrails,
     studentTrails,
     questionsByTrail,
@@ -2605,6 +2641,9 @@ export function DashboardPage() {
             'pt-BR',
             { sensitivity: 'base' },
           )
+          break
+        case 'turma':
+          cmp = (a.student.turma || '').localeCompare(b.student.turma || '', 'pt-BR', { numeric: true, sensitivity: 'base' })
           break
         case 'phone':
           cmp = (a.student.phone_number || '').localeCompare(
@@ -3473,6 +3512,7 @@ export function DashboardPage() {
       )
       const fixedHeaders = [
         'Nome',
+        'Turma',
         'Telefone',
         'Atividades liberadas',
         'Atividades feitas',
@@ -3507,6 +3547,7 @@ export function DashboardPage() {
         )
         const row: (string | number)[] = [
           student.name || student.id,
+          (student.turma ?? '').trim(),
           student.phone_number || '',
           lessons.lessonsReleased,
           lessons.lessonsDone,
@@ -3775,6 +3816,7 @@ export function DashboardPage() {
     id: row.student.id,
     name: row.student.name,
     href: studentPath(row.student.id),
+    turma: (row.student.turma ?? '').trim(),
     phone: row.student.phone_number || '',
     released: row.released,
     done: row.done,
@@ -3904,6 +3946,20 @@ export function DashboardPage() {
           ? `${activeInstitutionIds.length} instituições`
           : institutionOptions.find((o) => o.id === selectedId)?.label ?? 'N/A'
       }
+      materiaFilterOptions={materiaList}
+      materiaFilterSelected={materiaFilter ?? new Set(materiaList)}
+      onMateriaFilterChange={(ids) => {
+        setMateriaFilter(ids.size === materiaList.length ? null : new Set(ids))
+        setTrailFilter(null)
+        setPillPage(1)
+        setStudentPage(1)
+      }}
+      turmaFilterOptions={turmaList}
+      turmaFilterSelected={turmaFilter ?? new Set(turmaList)}
+      onTurmaFilterChange={(ids) => {
+        setTurmaFilter(ids.size === turmaList.length ? null : new Set(ids))
+        setStudentPage(1)
+      }}
       trailFilterOptions={allActiveTrails.map((t) => ({ id: t.id, label: t.name || t.id }))}
       trailFilterSelectedIds={activeTrails.map((t) => t.id)}
       onTrailFilterChange={(ids) => {

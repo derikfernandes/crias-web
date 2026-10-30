@@ -17,6 +17,9 @@ import { Banner, DeletarDialog, HeadActions, Switch } from '../design/gx/ui'
 import { EditBar } from './EditBar'
 import { useUnsavedChanges } from '../contexts/UnsavedContext'
 import type { Student } from '../types/student'
+import { useCollection } from '../hooks/useCollection'
+import { snapshotToStudent } from '../lib/studentFirestore'
+import { turmasOf } from '../lib/turmas'
 
 type Props = {
   /** Se ausente, modo criação. */
@@ -58,6 +61,7 @@ function normalizeSchoolLevel(v: string): Student['school_level'] {
 export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel }: Props) {
   const navigate = useNavigate()
   const isEdit = Boolean(docId)
+  const allStudents = useCollection('students', snapshotToStudent)
 
   const [institutions, setInstitutions] = useState<
     { id: string; name: string }[]
@@ -263,6 +267,7 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
   }
 
   const peds = ['', 'Básico', 'Intermediário', 'Avançado']
+  const turmaOptions = turmasOf(allStudents.rows, institution_id ? new Set([institution_id]) : undefined)
   const instName = institutions.find((i) => i.id === institution_id)?.name || institution_id
   return (
     <>
@@ -300,17 +305,6 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
                 Com telefone e e-mail, os dois valem para entrar (mesma senha).
               </p>
             ) : null}
-            <label className="gx-field">
-              <span>Turma</span>
-              <input
-                className="gx-input"
-                type="text"
-                value={turma}
-                onChange={(e) => setTurma(e.target.value.slice(0, 64))}
-                placeholder="Opcional"
-                autoComplete="off"
-              />
-            </label>
             <label className="gx-field">
               <span>Senha de acesso{isEdit ? ' (deixe em branco para manter)' : ''}</span>
               <input
@@ -365,6 +359,24 @@ export function StudentForm({ docId, initial, extraDirty, extraSave, extraCancel
                   </option>
                 ))}
               </select>
+            </label>
+            {/* 1.3.13: Turma ao lado do Nível pedagógico; aceita turma existente da instituição ou nova. */}
+            <label className="gx-field">
+              <span>Turma</span>
+              <input
+                className="gx-input"
+                type="text"
+                list="gx-turmas-instituicao"
+                value={turma}
+                onChange={(e) => setTurma(e.target.value.slice(0, 64))}
+                placeholder="Ex.: 8º A"
+                autoComplete="off"
+              />
+              <datalist id="gx-turmas-instituicao">
+                {turmaOptions.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </label>
           </div>
           {formError ? <Banner>{formError}</Banner> : null}

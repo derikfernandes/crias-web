@@ -51,7 +51,7 @@ export function plural(n: number, one: string, many: string): string {
 
 /* ===== Alunos: cadastrar ===== */
 
-export type NewStudent = { line: number; name: string; phone: string; email: string; password: string }
+export type NewStudent = { line: number; name: string; phone: string; email: string; password: string; turma: string }
 export type StudentAddPlan = {
   items: NewStudent[]
   /** Telefone ou e-mail já cadastrado na instituição (ou repetido na planilha): fica de fora. */
@@ -79,6 +79,8 @@ export function planStudentsAdd(
     const phoneRaw = pick(row, 'telefone', 'celular', 'phone')
     const email = pick(row, 'email', 'e-mail')
     const password = pick(row, 'senha', 'password')
+    // 1.3.13: Turma (opcional) depois do Nome.
+    const turma = pick(row, 'turma').slice(0, 64)
     if (blank(name, phoneRaw, email, password)) return
     const ref = name || phoneRaw || email || `linha ${line}`
     if (!inst) {
@@ -123,7 +125,7 @@ export function planStudentsAdd(
     }
     if (pk) phones.add(pk)
     if (ek) emails.add(ek)
-    items.push({ line, name: name.trim(), phone, email: email.trim(), password })
+    items.push({ line, name: name.trim(), phone, email: email.trim(), password, turma: turma.trim() })
   })
   return { items, alreadyRegistered, issues }
 }
@@ -134,6 +136,7 @@ export const PED_LABELS: Record<number, string> = { 1: 'Básico', 2: 'Intermedi�
 
 export type StudentPatch = {
   name?: string
+  turma?: string
   phone_number?: string
   email?: string
   school_level?: 'fundamental' | 'médio'
@@ -191,6 +194,7 @@ export function planStudentsEdit(
     const email = pick(row, 'email', 'e-mail')
     const schooling = pick(row, 'escolaridade')
     const ped = pick(row, 'nivelpedagogico', 'nivel')
+    const turma = pick(row, 'turma').slice(0, 64).trim()
     if (blank(inst, id, name, phoneRaw, email, schooling, ped)) return
     const ref = id || name || `linha ${line}`
     if (!id) {
@@ -260,6 +264,8 @@ export function planStudentsEdit(
       }
       if (level !== s.student_level) patch.student_level = level
     }
+    // 1.3.13: Turma (opcional); em branco não muda.
+    if (turma && turma !== (s.turma ?? '').trim()) patch.turma = turma
     if (Object.keys(patch).length === 0) unchanged += 1
     else items.push({ line, student: s, patch })
   })
@@ -535,19 +541,30 @@ export function planPasswords(
 /* ===== Usuários da Educação ===== */
 
 export type UserProfileName = 'admin' | 'basico'
-export type NewUser = { line: number; email: string; name: string; phone: string; profile: UserProfileName; password: string }
+export type NewUser = {
+  line: number
+  email: string
+  name: string
+  phone: string
+  profile: UserProfileName
+  password: string
+  /** 1.3.17: só do Professor (separadas por vírgula na planilha). */
+  materias: string[]
+  turmas: string[]
+}
 export type UsersAddPlan = { items: NewUser[]; alreadyRegistered: number; issues: BulkIssue[] }
 
 function parseProfile(raw: string): UserProfileName | null {
+  // 1.3.14: Gestão e Professor (aceita os nomes antigos Admin e Básico).
   const v = norm(raw)
-  if (v === 'admin') return 'admin'
-  if (v === 'basico') return 'basico'
+  if (v === 'gestao' || v === 'admin') return 'admin'
+  if (v === 'professor' || v === 'basico') return 'basico'
   return null
 }
 
 /**
- * Adicionar usuários em massa. Colunas: ID Instituição, Nome (obrigatório), Telefone, E-mail, Perfil (Admin / Básico),
- * Senha (opcional). Regra de cadastro: nome obrigatório e telefone OU e-mail. `institutionId` é a instituição escolhida na importação (null na aba Crias).
+ * Adicionar usuários em massa (1.3.17). Colunas: ID Instituição, Nome (obrigatório), Matérias e Turmas (Professor,
+ * separadas por vírgula), Telefone, E-mail, Perfil (Gestão / Professor), Senha (opcional). Regra de cadastro: nome obrigatório e telefone OU e-mail. `institutionId` é a instituição escolhida na importação (null na aba Crias).
  */
 export function planUsersAdd(
   rows: Row[],
@@ -565,6 +582,9 @@ export function planUsersAdd(
     const email = pick(row, 'email', 'e-mail')
     const profileRaw = pick(row, 'perfil', 'profile')
     const password = pick(row, 'senha', 'password')
+    const listOf = (v: string) => v.split(/[,;]/).map((x) => x.trim()).filter(Boolean)
+    const materias = listOf(pick(row, 'materias', 'materia'))
+    const turmas = listOf(pick(row, 'turmas', 'turma'))
     if (blank(name, phoneRaw, email, profileRaw, password)) return
     const ref = email || name || `linha ${line}`
     if (ctx.institutionId && !inst) {
@@ -589,7 +609,7 @@ export function planUsersAdd(
     }
     const profile = parseProfile(profileRaw)
     if (!profile) {
-      issues.push({ line, ref, error: 'Perfil inválido (use Admin ou Básico).' })
+      issues.push({ line, ref, error: 'Perfil inválido (use Gestão ou Professor).' })
       return
     }
     let phone = ''
@@ -608,7 +628,16 @@ export function planUsersAdd(
       return
     }
     emails.add(key)
-    items.push({ line, email: email.trim(), name: name.trim(), phone, profile, password })
+    items.push({
+      line,
+      email: email.trim(),
+      name: name.trim(),
+      phone,
+      profile,
+      password,
+      materias: profile === 'basico' ? materias : [],
+      turmas: profile === 'basico' ? turmas : [],
+    })
   })
   return { items, alreadyRegistered, issues }
 }

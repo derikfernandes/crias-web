@@ -7,6 +7,8 @@ import { useAuth } from '../hooks/useAuth'
 import { adminUserDocId } from '../lib/adminPermissions'
 import { ADMIN_USERS_COLLECTION } from '../lib/adminUserFirestore'
 import { db } from '../lib/firebase'
+import { PROFILE_LABEL, profileOf } from '../lib/adminProfiles'
+import { joinList } from '../lib/turmas'
 
 const WHATSAPP = 'https://wa.me/553197520152'
 
@@ -23,6 +25,7 @@ export function ProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const myProfile = adminProfile ? profileOf(adminProfile) : 'super'
   const savedName = adminProfile?.name ?? ''
   const savedPhone = adminProfile?.phone_number ?? ''
   useEffect(() => {
@@ -97,6 +100,21 @@ export function ProfilePage() {
             <label className="gx-field">
               <span>E-mail (do login)</span>
               <input className="gx-input" value={email} readOnly tabIndex={-1} aria-readonly="true" />
+            </label>
+          </div>
+          {/* 1.3.16 (PA19): Perfil, Matérias e Turmas só para leitura; quem muda é o Super admin ou a Gestão. */}
+          <div className="gx-grid">
+            <label className="gx-field">
+              <span>Perfil</span>
+              <input className="gx-input" value={PROFILE_LABEL[myProfile]} readOnly tabIndex={-1} aria-readonly="true" />
+            </label>
+            <label className="gx-field">
+              <span>Matérias</span>
+              <input className="gx-input" value={myProfile === 'basico' ? joinList(adminProfile?.materias) : 'Todas'} readOnly tabIndex={-1} aria-readonly="true" />
+            </label>
+            <label className="gx-field">
+              <span>Turmas</span>
+              <input className="gx-input" value={myProfile === 'basico' ? joinList(adminProfile?.turmas) : 'Todas'} readOnly tabIndex={-1} aria-readonly="true" />
             </label>
           </div>
         </section>

@@ -51,7 +51,8 @@ function generatePassword(): string {
   }
   return chars.join('')
 }
-const MASS_COLUMNS = ['ID Instituição', 'ID Aluno', 'Nome (visualização)', 'Telefone (visualização)', 'Senha']
+// 1.3.13: Turma depois do Nome (visualização).
+const MASS_COLUMNS = ['ID Instituição', 'ID Aluno', 'Nome (visualização)', 'Turma (visualização)', 'Telefone (visualização)', 'Senha']
 
 /** Senhas dos alunos (1.1.14 e orientações 17 e 19): só Master, instituição do filtro global. */
 export function StudentPasswordsPage() {
@@ -101,6 +102,7 @@ export function StudentPasswordsPage() {
     [rows],
   )
   const emailById = useMemo(() => new Map(students.rows.map((s) => [s.id, s.email ?? ''])), [students.rows])
+  const turmaById = useMemo(() => new Map(students.rows.map((s) => [s.id, (s.turma ?? '').trim()])), [students.rows])
   const nameSel = byName ?? new Set(rows.map((r) => r.id))
   const codeSel = byCode ?? new Set(rows.map((r) => r.id))
   const filtered = useMemo(
@@ -242,7 +244,7 @@ export function StudentPasswordsPage() {
             .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
           downloadText(
             `base-senhas-${single.id}.csv`,
-            toCsv(MASS_COLUMNS, list.map((s) => [single.id, s.id, s.name, s.phone_number, ''])),
+            toCsv(MASS_COLUMNS, list.map((s) => [single.id, s.id, s.name, turmaById.get(s.id) ?? '', s.phone_number, ''])),
           )
         }}
         plan={(table) => {
@@ -329,6 +331,7 @@ export function StudentPasswordsPage() {
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>Turma</th>
                 <th>ID Aluno</th>
                 <th>Telefone</th>
                 <th>E-mail</th>
@@ -343,6 +346,7 @@ export function StudentPasswordsPage() {
                       {l.row.name || l.row.id}
                     </Link>
                   </td>
+                  <td>{na(turmaById.get(l.row.id) || null)}</td>
                   <td className="num">{na(l.code)}</td>
                   <td>{na(l.row.phone_number)}</td>
                   <td>{na(emailById.get(l.row.id))}</td>
@@ -361,13 +365,13 @@ export function StudentPasswordsPage() {
               ))}
               {!single ? (
                 <tr>
-                  <td colSpan={5} className="gx-table__empty">
+                  <td colSpan={6} className="gx-table__empty">
                     Selecione uma instituição no filtro do topo.
                   </td>
                 </tr>
               ) : filtered.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={5} className="gx-table__empty">
+                  <td colSpan={6} className="gx-table__empty">
                     Nenhum aluno com os filtros atuais.
                   </td>
                 </tr>

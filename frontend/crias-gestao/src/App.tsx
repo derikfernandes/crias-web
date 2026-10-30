@@ -64,6 +64,9 @@ const AiPromptsPage = lazy(() =>
     default: m.AiPromptsPage,
   })),
 )
+const UserProfilePage = lazy(() =>
+  import('./pages/UserProfilePage').then((m) => ({ default: m.UserProfilePage })),
+)
 const ProfilePage = lazy(() =>
   import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 )
@@ -225,6 +228,14 @@ function AppRoutes() {
             element={
               <ProtectedPage>
                 <UsersEntry />
+              </ProtectedPage>
+            }
+          />
+          <Route
+            path="/usuarios/:id"
+            element={
+              <ProtectedPage>
+                <UserProfilePage />
               </ProtectedPage>
             }
           />

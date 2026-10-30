@@ -4,8 +4,10 @@ import type { AdminUser, NavPermission } from '../types/adminUser'
  * Perfis da Gestão (INTERFACE.md 1.1.12): nomes para combinações prontas dos campos que
  * `admin_users` já tem (`is_super_admin`, `is_master`, `nav_permissions`). Nada novo no banco.
  * - Super admin: `is_super_admin`.
- * - Admin: `is_master` e menu completo da escola (inclui Senhas e Permissões).
- * - Básico: só Início, Dados e Trilhas.
+ * - Gestão (antes "Admin"; chave `admin` no banco): `is_master` e menu completo da escola.
+ * - Professor (antes "Básico"; chave `basico` no banco): Início, Dados, Trilhas e Alunos, sem Configurações
+ *   (1.3.14 e 1.3.18). "Básico" continua só como Nível pedagógico do aluno.
+ * CONFLITO 1.3.E.6: se o banco guardar o texto "Básico" como perfil de usuário, migrar para "Professor".
  */
 
 export type ProfileId = 'super' | 'admin' | 'basico'
@@ -14,8 +16,8 @@ export type EditableProfileId = Exclude<ProfileId, 'super'>
 
 export const PROFILE_LABEL: Record<ProfileId, string> = {
   super: 'Super admin',
-  admin: 'Admin',
-  basico: 'Básico',
+  admin: 'Gestão',
+  basico: 'Professor',
 }
 
 export type MenuKey = 'home' | 'dash' | 'trilhas' | 'alunos' | 'senhas' | 'admin'
@@ -26,13 +28,13 @@ export const MENU_ITEMS: Array<{ key: MenuKey; label: string; permission: NavPer
   { key: 'trilhas', label: 'Trilhas', permission: 'trail_new' },
   { key: 'alunos', label: 'Alunos', permission: 'student_new' },
   { key: 'senhas', label: 'Senhas', permission: 'student_passwords' },
-  { key: 'admin', label: 'Permissões', permission: 'admin' },
+  { key: 'admin', label: 'Usuários', permission: 'admin' },
 ]
 
 /** Menu padrão de cada perfil. O Super admin pode mudar (coleção `admin_profiles`, ver adminProfileOps.ts). */
 export const PROFILE_MENU: Record<EditableProfileId, MenuKey[]> = {
   admin: ['home', 'dash', 'trilhas', 'alunos', 'senhas', 'admin'],
-  basico: ['home', 'dash', 'trilhas'],
+  basico: ['home', 'dash', 'trilhas', 'alunos'],
 }
 
 /** Chaves de menu no formato das permissões do banco. Senhas fica de fora: vem do Master. */

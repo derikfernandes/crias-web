@@ -1,4 +1,6 @@
 export const DASHBOARD_STUDENT_COLUMNS = [
+  // 1.3.10: Turma logo depois de Nome (tabela e lista de colunas da exportação).
+  { key: 'turma', label: 'Turma' },
   { key: 'phone', label: 'Telefone' },
   { key: 'lessonsReleased', label: 'Atividades liberadas' },
   { key: 'lessonsDone', label: 'Atividades feitas' },
@@ -35,6 +37,7 @@ export type DashboardStudentRowView = {
   id: string
   name: string
   href: string
+  turma: string
   phone: string
   released: number
   done: number
@@ -218,6 +221,13 @@ export type DashboardPageViewProps = {
   studentFilterOptions: Array<{ id: string; label: string }>
   studentFilterSelectedIds: string[]
   onStudentFilterChange: (ids: Set<string>) => void
+  /** 1.3.9: Filtrar matéria e Filtrar turma (antes de Filtrar trilhas). */
+  materiaFilterOptions: string[]
+  materiaFilterSelected: Set<string>
+  onMateriaFilterChange: (ids: Set<string>) => void
+  turmaFilterOptions: string[]
+  turmaFilterSelected: Set<string>
+  onTurmaFilterChange: (ids: Set<string>) => void
   trailFilterOptions: Array<{ id: string; label: string }>
   trailFilterSelectedIds: string[]
   onTrailFilterChange: (ids: Set<string>) => void

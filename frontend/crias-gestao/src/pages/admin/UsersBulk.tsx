@@ -5,12 +5,15 @@ import { deleteAdminUser, saveAdminUser } from '../../lib/adminUsersOps'
 import { downloadText, toCsv } from '../../lib/tableFiles'
 import type { AdminUser } from '../../types/adminUser'
 
+// 1.3.17: Matérias e Turmas depois do Nome (só do Professor, separadas por vírgula).
 const ADD_COLUMNS = [
   'ID Instituição (obrigatório)',
   'Nome (obrigatório)',
+  'Matérias (professor)',
+  'Turmas (professor)',
   'Telefone (obrigatório, ou e-mail)',
   'E-mail (obrigatório, ou telefone)',
-  'Perfil (Admin / Básico)',
+  'Perfil (Gestão / Professor)',
   'Senha (opcional)',
 ]
 const REMOVE_COLUMNS = ['ID Instituição', 'Nome (visualização)', 'Telefone (visualização)', 'E-mail', 'Remover (sim / não)']
@@ -74,13 +77,13 @@ export function UsersBulk({
         title="Adicionar usuários em massa"
         subtitle="Cadastre vários usuários de uma vez com uma planilha"
         columns={scope === 'crias' ? ADD_CROSS_COLUMNS : ADD_COLUMNS}
-        note="Nome obrigatório e telefone ou e-mail (o acesso ao painel é por um dos dois). Perfil: Admin ou Básico. Usuários cujo e-mail já está cadastrado ficam de fora. A senha é definida pelo próprio usuário, pelo e-mail de redefinição."
+        note="Nome obrigatório e telefone ou e-mail (o acesso ao painel é por um dos dois). Perfil: Gestão ou Professor. Matérias e Turmas valem só para o Professor (separadas por vírgula). Usuários cujo e-mail já está cadastrado ficam de fora. A senha é definida pelo próprio usuário, pelo e-mail de redefinição."
         baseLabel="Baixar planilha modelo"
         disabled={blocked}
         disabledHint={hint}
         extra={picker}
         onDownload={() =>
-          downloadText('modelo-adicionar-usuarios.csv', toCsv(scope === 'crias' ? ADD_CROSS_COLUMNS : ADD_COLUMNS, [scope === 'crias' ? ['', '', '', '', ''] : [instCell, '', '', '', '', '']]))
+          downloadText('modelo-adicionar-usuarios.csv', toCsv(scope === 'crias' ? ADD_CROSS_COLUMNS : ADD_COLUMNS, [scope === 'crias' ? ADD_CROSS_COLUMNS.map(() => '') : [instCell, ...ADD_CROSS_COLUMNS.map(() => '')]]))
         }
         plan={(rows) => {
           const p = planUsersAdd(rows, { institutionId, existingEmails })
@@ -102,7 +105,16 @@ export function UsersBulk({
           for (const u of p.items) {
             try {
               await saveAdminUser(
-                { email: u.email, name: u.name, phone: u.phone, profile: u.profile, institutionIds: institutionId ? [institutionId] : [], active: true },
+                {
+                  email: u.email,
+                  name: u.name,
+                  phone: u.phone,
+                  profile: u.profile,
+                  institutionIds: institutionId ? [institutionId] : [],
+                  active: true,
+                  materias: u.materias,
+                  turmas: u.turmas,
+                },
                 scope,
                 true,
               )

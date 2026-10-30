@@ -18,10 +18,24 @@ type FsDoc = Document & {
 }
 type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }
 
+let failed = false
+
+/**
+ * 1.3.3: o botão aparece onde a página consegue pedir tela cheia (computador, Android, iPad, também no layout
+ * de celular e tablet). Detecção pela função no elemento raiz, igual ao protótipo. `fullscreenEnabled` sozinho
+ * vem falso em parte dos navegadores de celular, tablet e navegadores internos de apps. Se o pedido falhar,
+ * o botão some até recarregar. iPhone não tem a função para páginas: lá não aparece.
+ */
 export function fullscreenSupported(): boolean {
-  if (typeof document === 'undefined') return false
-  const d = document as FsDoc
-  return Boolean(d.fullscreenEnabled || d.webkitFullscreenEnabled)
+  if (typeof document === 'undefined' || failed) return false
+  const el = document.documentElement as FsEl
+  return typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function'
+}
+
+/** O pedido falhou neste aparelho: esconde o botão até recarregar. */
+export function markFullscreenFailed(): void {
+  failed = true
+  window.dispatchEvent(new Event('crias:fullscreen-failed'))
 }
 
 export function isFullscreen(): boolean {
@@ -52,10 +66,14 @@ export async function enterFullscreen(): Promise<boolean> {
   try {
     if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' })
     else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen()
-    else return false
+    else {
+      markFullscreenFailed()
+      return false
+    }
     remember(true)
     return true
   } catch {
+    markFullscreenFailed()
     return false
   }
 }

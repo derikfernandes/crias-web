@@ -30,3 +30,7 @@ O botão redondo de atualizar no canto superior direito dos protótipos só exis
 - Tema claro por padrão; escuro (fundo preto) pelo botão do menu.
 - Verde `#00be85` com texto branco na ação principal.
 - Português do Brasil, sem travessão.
+
+## Versão 1.3 (29/10/2026)
+
+Protótipos `Crias Aluno.dc.html` e `Crias Gestao.dc.html` na versão 1.3 (Aluno 1.3 e Educação 1.3). As regras estão em `INTERFACE.md`, seção "Pacote 1.3" (no fim do arquivo), que vale sobre todas as outras. Plano e notas técnicas em `PLANO-1.3.md`. Ordem de trabalho para o Claude Code em `PROMPT-CLAUDE-CODE.md` (raiz do pacote).

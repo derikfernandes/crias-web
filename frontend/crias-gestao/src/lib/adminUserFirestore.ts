@@ -56,7 +56,14 @@ export function snapshotToAdminUser(
     nav_permissions: parseNavPermissions(data.nav_permissions),
     institution_ids: parseInstitutionIds(data.institution_ids),
     all_institutions: Boolean(data.all_institutions),
+    materias: stringList(data.materias),
+    turmas: stringList(data.turmas),
+    trail_ids: stringList(data.trail_ids),
     created_at: data.created_at ?? null,
     updated_at: data.updated_at ?? null,
   }
+}
+
+function stringList(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : []
 }

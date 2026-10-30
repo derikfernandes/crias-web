@@ -11,9 +11,11 @@ import { downloadText, toCsv } from '../../lib/tableFiles'
 import type { Institution } from '../../types/institution'
 import type { Student } from '../../types/student'
 
+// 1.3.13: Turma depois do Nome em todas as planilhas de aluno.
 const ADD_COLUMNS = [
   'ID Instituição (obrigatório)',
   'Nome (obrigatório)',
+  'Turma (opcional)',
   'Telefone (obrigatório, ou e-mail)',
   'E-mail (obrigatório, ou telefone)',
   'Senha (opcional)',
@@ -22,12 +24,13 @@ const EDIT_COLUMNS = [
   'ID Instituição',
   'ID Aluno',
   'Nome',
+  'Turma',
   'Telefone',
   'E-mail',
   'Escolaridade',
   'Nível pedagógico',
 ]
-const REMOVE_COLUMNS = ['ID Instituição', 'ID Aluno', 'Nome (visualização)', 'Telefone (visualização)', 'Remover (sim / não)']
+const REMOVE_COLUMNS = ['ID Instituição', 'ID Aluno', 'Nome (visualização)', 'Turma (visualização)', 'Telefone (visualização)', 'Remover (sim / não)']
 
 function schooling(s: Student): string {
   const level = s.school_level === 'fundamental' ? 'Fundamental' : s.school_level === 'médio' ? 'Médio' : s.school_level
@@ -65,7 +68,7 @@ export function BulkBlocks({
         disabled={disabled}
         disabledHint={hint}
         onDownload={() =>
-          downloadText('modelo-cadastrar-alunos.csv', toCsv(ADD_COLUMNS, [[instId, '', '', '', '']]))
+          downloadText('modelo-cadastrar-alunos.csv', toCsv(ADD_COLUMNS, [[instId, '', '', '', '', '']]))
         }
         plan={(rows) => {
           const p = planStudentsAdd(rows, { institutionId: instId, existing: instStudents })
@@ -110,7 +113,7 @@ export function BulkBlocks({
               EDIT_COLUMNS,
               [...instStudents]
                 .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'pt-BR'))
-                .map((s) => [instId, s.id, s.name, s.phone_number, s.email ?? '', schooling(s), PED_LABELS[s.student_level] ?? '']),
+                .map((s) => [instId, s.id, s.name, (s.turma ?? '').trim(), s.phone_number, s.email ?? '', schooling(s), PED_LABELS[s.student_level] ?? '']),
             ),
           )
         }
@@ -156,7 +159,7 @@ export function BulkBlocks({
               instStudents
                 .filter((s) => s.active)
                 .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-                .map((s) => [instId, s.id, s.name, s.phone_number, 'não']),
+                .map((s) => [instId, s.id, s.name, (s.turma ?? '').trim(), s.phone_number, 'não']),
             ),
           )
         }

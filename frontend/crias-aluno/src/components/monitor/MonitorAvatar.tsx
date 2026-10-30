@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import CriasSymbol from '../CriasSymbol'
 import { temaAtual } from '../../lib/tema'
 
 /**
@@ -8,8 +7,17 @@ import { temaAtual } from '../../lib/tema'
  * - `live`: última mensagem do monitor: um pulo e depois fica parado, respirando.
  * - `entrada` (v1.2.1, 1.2.1.1): Início do aluno, a 60% da velocidade: carregando, pulo e parado, em ciclo.
  * - sem nenhum dos dois: pose estática, desenhada uma vez e reaproveitada como imagem.
- * O módulo do three.js só é carregado quando o primeiro personagem aparece.
+ * 1.3.4: enquanto o módulo carrega, o espaço fica VAZIO com o mesmo tamanho (nunca o símbolo do Crias).
+ * O módulo é pré-carregado ao abrir o app (`preloadMonitor`, chamado em main.tsx).
  */
+let preload: Promise<unknown> | null = null
+
+/** Pré-carrega o personagem (1.3.4): no Início ele já aparece pronto. */
+export function preloadMonitor(): Promise<unknown> {
+  preload ??= import('./criasMonitorElement').catch(() => undefined)
+  return preload
+}
+
 export default function MonitorAvatar({
   size,
   live = false,
@@ -21,10 +29,10 @@ export default function MonitorAvatar({
   loading?: boolean
   entrada?: boolean
 }) {
-  const [ready, setReady] = useState(false)
+  const [ready, setReady] = useState(() => customElements.get('crias-monitor') !== undefined)
   useEffect(() => {
     let alive = true
-    void import('./criasMonitorElement')
+    void preloadMonitor()
       .then(() => {
         if (alive) setReady(true)
       })
@@ -49,9 +57,7 @@ export default function MonitorAvatar({
           {...(still ? { snapshot: '' } : {})}
           style={{ position: 'absolute', inset: 0, display: 'block', width: size, height: size }}
         />
-      ) : (
-        <CriasSymbol size={size} />
-      )}
+      ) : null}
     </span>
   )
 }

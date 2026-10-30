@@ -31,6 +31,12 @@ import {
   type SortState,
 } from '../design/gx/ui'
 import { BulkBlocks } from './students/BulkBlocks'
+import { Icon } from '../design/gx/ui'
+import { downloadText, toCsv } from '../lib/tableFiles'
+import { scopeOf, studentInScope } from '../lib/turmas'
+import { pctOf, useStudentMetrics } from '../hooks/useStudentMetrics'
+import { PctCell } from '../components/PctCell'
+
 
 const PED = ['', 'Básico', 'Intermediário', 'Avançado']
 
@@ -58,13 +64,13 @@ function clampActivityInStage(
 /** Página Alunos (1.1.12): blocos de cadastro e remoção em massa, filtros por nome e código, tabela. */
 export function StudentsListPage() {
   const g = useGestao()
-  const { canNav } = usePermissions()
+  const { canNav, adminProfile } = usePermissions()
   const students = useCollection('students', snapshotToStudent)
   const links = useCollection('student_trails', snapshotToStudentTrail)
   const trails = useCollection('trails', snapshotToTrail)
   const questions = useCollection('trail_stage_questions', snapshotToTrailStageQuestion)
   const [byName, setByName] = useState<Set<string> | null>(null)
-  const [byCode, setByCode] = useState<Set<string> | null>(null)
+  const [q, setQ] = useState('')
   const [byTurma, setByTurma] = useState<Set<string> | null>(null)
   const [sort, setSort] = useState<SortState | null>({ key: 'code', dir: 'asc' })
 
@@ -73,10 +79,23 @@ export function StudentsListPage() {
     [questions.rows],
   )
 
+  // 1.3.18: o Professor só vê alunos das turmas dele (o servidor também filtra, CONFLITO 1.3.E.3).
+  const scope = scopeOf(adminProfile)
   const scoped = useMemo(
-    () => students.rows.filter((s) => g.scopedIds.has(s.institution_id)),
-    [students.rows, g.scopedIds],
+    () => students.rows.filter((s) => g.scopedIds.has(s.institution_id) && studentInScope(scope, s)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [students.rows, g.scopedIds, adminProfile],
   )
+  const metrics = useStudentMetrics(g.scopedInstitutions.map((i) => i.id))
+  const perf = metrics.byStudent
+  const lessonPct = (id: string) => {
+    const m = perf.get(id)
+    return m ? pctOf(m.lessonsDone, m.lessonsReleased) : null
+  }
+  const accPct = (id: string) => {
+    const m = perf.get(id)
+    return m ? pctOf(m.correct, m.correct + m.wrong) : null
+  }
   const lines = useMemo(() => {
     const trailName = new Map(trails.rows.map((t) => [t.id, t.name]))
     return scoped.map((s) => {
@@ -99,14 +118,6 @@ export function StudentsListPage() {
   }, [scoped, links.rows, trails.rows, activityCatalogs])
 
   const nameOptions = useMemo(() => scoped.map((s) => ({ id: s.id, name: s.name || s.id })), [scoped])
-  const codeOptions = useMemo(
-    () =>
-      lines
-        .filter((l) => l.code !== null)
-        .sort((a, b) => (a.code ?? 0) - (b.code ?? 0))
-        .map((l) => ({ id: l.student.id, name: String(l.code) })),
-    [lines],
-  )
   const turmaOptions = useMemo(() => {
     const seen = new Map<string, string>()
     for (const s of scoped) {
@@ -119,16 +130,25 @@ export function StudentsListPage() {
       .map(([id, name]) => ({ id, name }))
   }, [scoped])
   const nameSel = byName ?? new Set(scoped.map((s) => s.id))
-  const codeSel = byCode ?? new Set(scoped.map((s) => s.id))
   const turmaSel = byTurma ?? new Set(turmaOptions.map((o) => o.id))
 
   const rows = useMemo(
     () =>
       sortRows(
         lines.filter((l) => {
-          if (!nameSel.has(l.student.id) || !codeSel.has(l.student.id)) return false
+          if (!nameSel.has(l.student.id)) return false
           const key = (l.student.turma ?? '').trim() || '__none__'
-          return turmaSel.has(key)
+          if (!turmaSel.has(key)) return false
+          // Pesquisa: nome, telefone ou ID (1.3.12.a: o filtro por ID saiu).
+          const needle = q.trim().toLowerCase()
+          if (!needle) return true
+          const digits = q.replace(/\D/g, '')
+          return (
+            (l.student.name ?? '').toLowerCase().includes(needle) ||
+            (digits.length > 0 && (l.student.phone_number ?? '').replace(/\D/g, '').includes(digits)) ||
+            String(l.code ?? '') === needle ||
+            l.student.id.toLowerCase() === needle
+          )
         }),
         sort,
         (l, k) => {
@@ -144,13 +164,19 @@ export function StudentsListPage() {
             case 'turma': return (s.turma ?? '').trim() || null
             case 'level': return schooling(s)
             case 'ped': return PED[s.student_level] ?? null
+            case 'lr': return perf.get(s.id)?.lessonsReleased ?? null
+            case 'ld': return perf.get(s.id)?.lessonsDone ?? null
+            case 'lp': return lessonPct(s.id)
+            case 'ok': return perf.get(s.id)?.correct ?? null
+            case 'err': return perf.get(s.id)?.wrong ?? null
+            case 'acc': return accPct(s.id)
             case 'active': return s.active ? 'Sim' : 'Não'
             case 'created': return s.created_at?.toMillis?.() ?? null
             default: return s.updated_at?.toMillis?.() ?? null
           }
         },
       ),
-    [lines, nameSel, codeSel, turmaSel, sort],
+    [lines, nameSel, turmaSel, sort, q, perf],
   )
   const pager = usePager(rows, 100)
 
@@ -158,6 +184,40 @@ export function StudentsListPage() {
   const ready =
     students.ready && links.ready && trails.ready && questions.ready && !g.institutionsLoading
   if (!ready) return <BootSymbol />
+
+  function exportBase() {
+    const header = [
+      'Nome', 'ID Aluno', 'Turma', 'Trilha atual', 'Atividade', 'Etapa', 'Status', 'Telefone', 'Escolaridade',
+      'Nível pedagógico', 'Criado em', 'Atualizado em', 'Atividades liberadas', 'Atividades feitas',
+      '% de conclusão', 'Acertos', 'Erros', '% de acerto', 'Ativo',
+    ]
+    const fmtPct = (v: number | null) => (v == null ? 'N/A' : `${String(v).replace('.', ',')}%`)
+    const body = rows.map((l) => {
+      const m = perf.get(l.student.id)
+      return [
+        l.student.name || l.student.id,
+        na(l.code),
+        na((l.student.turma ?? '').trim() || null),
+        l.trail,
+        na(l.question),
+        na(l.stage),
+        l.status ? STATUS_LABEL[l.status] : 'N/A',
+        na(l.student.phone_number),
+        schooling(l.student) || 'N/A',
+        na(PED[l.student.student_level]),
+        fmtDate(l.student.created_at),
+        fmtDate(l.student.updated_at),
+        na(m?.lessonsReleased ?? null),
+        na(m?.lessonsDone ?? null),
+        fmtPct(lessonPct(l.student.id)),
+        na(m?.correct ?? null),
+        na(m?.wrong ?? null),
+        fmtPct(accPct(l.student.id)),
+        l.student.active ? 'Sim' : 'Não',
+      ].map(String)
+    })
+    downloadText('base-alunos.csv', toCsv(header, body))
+  }
 
   const head = (label: string, key: string, numeric?: boolean) => (
     <SortHead label={label} sortKey={key} sort={sort} onSort={setSort} numeric={numeric} />
@@ -171,7 +231,7 @@ export function StudentsListPage() {
         actions={
           canNav('student_new') ? (
             <Link to="/alunos/novo" className="gx-btn gx-btn--primary">
-              + Novo aluno
+              + Adicionar aluno
             </Link>
           ) : null
         }
@@ -181,45 +241,57 @@ export function StudentsListPage() {
       ) : null}
       <BulkBlocks institution={single} students={students.rows} />
       <section className="gx-card gx-card--alunos" aria-label="Alunos" style={{ padding: 0, gap: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: '24px 24px 20px' }}>
-          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-            <FilterPopover
-              variant="field"
-              align="left"
-              label="Filtrar por nome"
-              options={nameOptions}
-              selected={nameSel}
-              onChange={(n) => {
-                setByName(n)
-                pager.reset()
-              }}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '24px 24px 20px' }}>
+          {/* 1.3.12.a: pesquisa, "Filtrar por nome" e "Filtrar turma" ("Filtrar por ID" saiu: a pesquisa acha por ID). */}
+          <div className="gx-filters" role="group" aria-label="Filtros" style={{ marginTop: 0 }}>
+            <span className="gx-filters__label">Filtros</span>
+            <label className="gx-filters__item gx-searchfield">
+              <span className="visually-hidden">Pesquisar nome, telefone ou ID</span>
+              <input
+                className="gx-input"
+                type="search"
+                value={q}
+                placeholder="Pesquisar nome, telefone"
+                autoComplete="off"
+                onChange={(e) => {
+                  setQ(e.target.value)
+                  pager.reset()
+                }}
+              />
+            </label>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar por nome"
+                options={nameOptions}
+                selected={nameSel}
+                onChange={(n) => {
+                  setByName(n)
+                  pager.reset()
+                }}
+              />
+            </div>
+            <div className="gx-filters__item">
+              <FilterPopover
+                variant="field"
+                align="left"
+                label="Filtrar turma"
+                options={turmaOptions}
+                selected={turmaSel}
+                onChange={(n) => {
+                  setByTurma(n)
+                  pager.reset()
+                }}
+              />
+            </div>
           </div>
-          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-            <FilterPopover
-              variant="field"
-              align="left"
-              label="Filtrar por ID"
-              options={codeOptions}
-              selected={codeSel}
-              onChange={(n) => {
-                setByCode(n)
-                pager.reset()
-              }}
-            />
-          </div>
-          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-            <FilterPopover
-              variant="field"
-              align="left"
-              label="Filtrar por turma"
-              options={turmaOptions}
-              selected={turmaSel}
-              onChange={(n) => {
-                setByTurma(n)
-                pager.reset()
-              }}
-            />
+          {/* 1.3.11: "Exportar base" exporta sempre o filtrado (todas as páginas, todas as colunas, na ordem da tela). */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="gx-btn gx-btn--primary" onClick={exportBase} disabled={rows.length === 0}>
+              <Icon name="download" />
+              Exportar base
+            </button>
           </div>
         </div>
         <ScrollX>
@@ -238,6 +310,12 @@ export function StudentsListPage() {
                 {head('Nível pedagógico', 'ped')}
                 {head('Criado em', 'created')}
                 {head('Atualizado em', 'updated')}
+                {head('Atividades liberadas', 'lr', true)}
+                {head('Atividades feitas', 'ld', true)}
+                {head('% de conclusão', 'lp', true)}
+                {head('Acertos', 'ok', true)}
+                {head('Erros', 'err', true)}
+                {head('% de acerto', 'acc', true)}
                 {head('Ativo', 'active')}
                 <th data-col="open" aria-label="Abrir" />
               </tr>
@@ -269,6 +347,16 @@ export function StudentsListPage() {
                   <td data-col="ped">{na(PED[l.student.student_level])}</td>
                   <td data-col="created">{fmtDate(l.student.created_at)}</td>
                   <td data-col="updated">{fmtDate(l.student.updated_at)}</td>
+                  <td className="num">{na(perf.get(l.student.id)?.lessonsReleased ?? null)}</td>
+                  <td className="num">{na(perf.get(l.student.id)?.lessonsDone ?? null)}</td>
+                  <td>
+                    <PctCell value={lessonPct(l.student.id)} />
+                  </td>
+                  <td className="num">{na(perf.get(l.student.id)?.correct ?? null)}</td>
+                  <td className="num">{na(perf.get(l.student.id)?.wrong ?? null)}</td>
+                  <td>
+                    <PctCell value={accPct(l.student.id)} ok />
+                  </td>
                   <td data-col="active">
                     <span className={activePillClass(l.student.active)}>{l.student.active ? 'Sim' : 'Não'}</span>
                   </td>
@@ -281,7 +369,7 @@ export function StudentsListPage() {
               ))}
               {pager.total === 0 ? (
                 <tr>
-                  <td colSpan={14} className="gx-table__empty">
+                  <td colSpan={20} className="gx-table__empty">
                     Nenhum aluno encontrado.
                   </td>
                 </tr>

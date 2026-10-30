@@ -18,6 +18,7 @@ import {
   getFirebaseIdToken,
   looksLikeEmail,
   markGestaoAccess,
+  clearGestaoAccessFlag,
   resolveUnifiedDestination,
   tryGestaoSignIn,
 } from '../lib/gestaoAuth'
@@ -113,6 +114,7 @@ export default function LoginPage() {
         }
         if (roles.student) applySession(roles.student)
         if (roles.roles.gestao) markGestaoAccess()
+        else clearGestaoAccessFlag()
         const dest = resolveUnifiedDestination(
           roles.roles,
           resolvePostLoginPath(loginState),
@@ -218,7 +220,9 @@ export default function LoginPage() {
     student: boolean
     gestao: boolean
   }) {
+    // 1.3.5: o switch aparece só para quem tem conta de gestão (papel vindo do servidor no login).
     if (roles.gestao) markGestaoAccess()
+    else clearGestaoAccessFlag()
     const dest = resolveUnifiedDestination(
       roles,
       resolvePostLoginPath(loginState),

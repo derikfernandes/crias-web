@@ -16,6 +16,11 @@ export type UserDraft = {
   /** Instituições do usuário (aba Instituições). Vazio na aba Crias. */
   institutionIds: string[]
   active: boolean
+  /** 1.3.8 e 1.3.16: só do Professor. Gestão e Super admin: todas (gravado vazio). */
+  materias?: string[]
+  turmas?: string[]
+  /** Trilhas vinculadas ao Professor. */
+  trailIds?: string[]
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -53,6 +58,10 @@ export async function saveAdminUser(
       nav_permissions: isSuper ? [] : navPermissionsFor(profile),
       institution_ids: scope === 'institution' ? d.institutionIds : [],
       all_institutions: scope === 'crias',
+      // CONFLITO 1.3.E.2: campos novos do usuário (vazio = todas, em Gestão e Super admin).
+      materias: profile === 'basico' && !isSuper ? (d.materias ?? []) : [],
+      turmas: profile === 'basico' && !isSuper ? (d.turmas ?? []) : [],
+      trail_ids: profile === 'basico' && !isSuper ? (d.trailIds ?? []) : [],
       updated_at: serverTimestamp(),
       ...(isNew ? { created_at: serverTimestamp() } : {}),
     },

@@ -45,6 +45,22 @@ export function BotMessage({
   monitor = false,
   live = false,
 }: BotProps) {
+  if (monitor) {
+    // 1.2.5.3 e 1.2.5.10: toda mensagem do monitor fica na caixa do monitor (fundo azul muito claro, personagem
+    // de 52px à esquerda, sem o rótulo "Monitor"), na largura da barra de mensagem. O rótulo fica só para leitores
+    // de tela. Na trilha e na Monitoria.
+    return (
+      <div className="v125-mon" role="group" aria-labelledby={labelId}>
+        <MonitorAvatar size={52} live={live} />
+        <div className="v125-mon__body">
+          <span className="v125-sr" id={labelId}>
+            {label}
+          </span>
+          <div className="v1-0-msg__text">{children}</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="v1-0-msg v1-0-msg--bot">
       <span className="v1-0-msg__sym">
@@ -86,44 +102,37 @@ export function BotMessage({
 }
 
 /**
- * Carregando (1.1.2 e orientação 18).
- * - Continuar (trilha): só os três pontos, sem personagem.
- * - Mensagem ao monitor: o personagem carregando, "Monitor" ao lado e os três pontos logo abaixo.
+ * Espera no lugar final da mensagem (1.2.5.8 a 1.2.5.11), igual ao protótipo. Dura exatamente o tempo da API:
+ * a mensagem entra no retorno, no mesmo lugar, com o mesmo esmaecimento (sem espera artificial).
+ * - Conteúdo da trilha: símbolo do Crias pulsando e três pontos ao lado.
+ * - Monitor: a caixa do monitor com o personagem carregando e duas linhas de espera.
  */
 export function TypingRow({ monitor = false }: { monitor?: boolean }) {
   if (!monitor) {
-    // Espera do conteúdo (1.2.5.11): símbolo do Crias pulsando e três pontos ao lado, no lugar final da mensagem.
-    // Dura exatamente o tempo da API; a mensagem entra no retorno, sem espera artificial.
     return (
-      <div className="v1-0-typing v125-wait" role="status" aria-live="polite" aria-label="Aguarde">
-        <span className="v1-0-typing__sym">
+      <div className="v125-wait" role="status" aria-live="polite" aria-label="Carregando etapa" data-typing="1">
+        <span className="v125-wait__sym">
           <CriasSymbol size={38} />
         </span>
-        <span className="v1-0-typing__dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
+        <div className="v125-wait__row">
+          <span className="v125-wait__symsm">
+            <CriasSymbol size={33} />
+          </span>
+          <span className="v125-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        </div>
       </div>
     )
   }
   return (
-    <div className="v1-0-msg v1-0-msg--bot" role="status" aria-live="polite" aria-label="O monitor está digitando">
-      <span className="v1-0-msg__sym">
-        <MonitorAvatar size={38} loading />
-      </span>
-      <div className="v1-0-msg__body">
-        <span className="v1-0-msg__labelrow">
-          <span className="v1-0-msg__symsm">
-            <MonitorAvatar size={33} loading />
-          </span>
-          <span className="v1-0-msg__label">Monitor</span>
-        </span>
-        <span className="v1-1-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
+    <div className="v125-mon" role="status" aria-live="polite" aria-label="Monitor escrevendo" data-typing="1">
+      <MonitorAvatar size={52} loading />
+      <div className="v125-mon__body v125-mon__wait" aria-hidden="true">
+        <span />
+        <span />
       </div>
     </div>
   )

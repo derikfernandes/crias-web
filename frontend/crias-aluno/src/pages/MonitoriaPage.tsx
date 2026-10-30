@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -23,6 +24,8 @@ import { parseInlineMarkdown, type InlineSeg } from '../lib/trailMessages'
 import { useNavigate } from 'react-router-dom'
 import { autoGrow, isMobileViewport } from '../lib/autoGrow'
 import { useThreadScroll } from '../lib/useThreadScroll'
+import MonitorHighlight from '../components/MonitorHighlight'
+import { MONITORIA_OFFER } from '../lib/monitorOffers'
 import {
   ArrowUpIcon,
   BotMessage,
@@ -71,8 +74,17 @@ function logsToLines(logs: ConversationLogRow[]): ChatLine[] {
   return out
 }
 
-const MONITOR_INTRO =
-  'Oi, eu sou o monitor. Pode me perguntar sobre qualquer trilha ou assunto.'
+/** Primeira abertura da Monitoria neste aparelho (por aluno): mostra as sugestões abaixo do histórico. */
+function firstOpen(studentId: string): boolean {
+  const key = `crias:monitoria-aberta:${studentId}`
+  try {
+    if (localStorage.getItem(key)) return false
+    localStorage.setItem(key, '1')
+  } catch {
+    /* sem armazenamento: mostra as sugestões */
+  }
+  return true
+}
 
 /**
  * Monitoria (v1.0): conversa livre com o monitor, fora de uma trilha.
@@ -93,6 +105,10 @@ export default function MonitoriaPage() {
   /** Pergunta que veio da barra do Início: é enviada sozinha ao abrir. */
   const homeDraftRef = useRef('')
   const { threadRef, upRef, downRef, toBottom } = useThreadScroll()
+  const [showIntro] = useState(() => firstOpen(session.student_id))
+  const showIntroRef = useRef(showIntro)
+  /** Posição da mensagem de sugestões: logo abaixo do histórico carregado (1.2.5.8). */
+  const [introAt, setIntroAt] = useState<number | null>(null)
 
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true)
@@ -103,7 +119,10 @@ export default function MonitoriaPage() {
         MARIA_AGENT_TRAIL_ID,
         { limit: 80 },
       )
-      setLines(logsToLines(page.logs ?? []))
+      const loaded = logsToLines(page.logs ?? [])
+      setLines(loaded)
+      // Sugestões na primeira abertura, ou quando ainda não há conversa.
+      setIntroAt((cur) => cur ?? (showIntroRef.current || loaded.length === 0 ? loaded.length : null))
     } catch (err) {
       if (isAuthError(err)) {
         clearSession('auth')
@@ -194,6 +213,17 @@ export default function MonitoriaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingHistory, historyError])
 
+  const introNode = (
+    // 1.2.5.7 e 1.2.5.8: histórico sempre acima; a mensagem com as sugestões entra abaixo dele. Tocar numa
+    // sugestão envia a pergunta ao monitor.
+    <MonitorHighlight
+      parts={MONITORIA_OFFER}
+      disabled={sending}
+      onAsk={(q) => void sendMessage(q)}
+      onGo={() => undefined}
+    />
+  )
+
   function onSubmit(e?: FormEvent) {
     e?.preventDefault()
     void sendMessage(draft)
@@ -211,11 +241,8 @@ export default function MonitoriaPage() {
       <div className="v1-0-thread" data-thread="1" ref={threadRef}>
         <div className="v1-0-thread__col">
           {loadingHistory ? (
-            <div className="v1-0-skel" role="status" aria-busy="true">
-              <div style={{ width: '30%' }} />
-              <div style={{ width: '90%' }} />
-              <div style={{ width: '65%' }} />
-            </div>
+            // Espera no lugar final (1.2.5.11): caixa do monitor carregando.
+            <TypingRow monitor />
           ) : historyError ? (
             <div className="v1-0-errbox" role="alert">
               <p>{historyError}</p>
@@ -225,13 +252,10 @@ export default function MonitoriaPage() {
             </div>
           ) : (
             <>
-              {lines.length === 0 ? (
-                <BotMessage label="Monitor" monitor live={!sending}>
-                  <p>{MONITOR_INTRO}</p>
-                </BotMessage>
-              ) : null}
-              {lines.map((line) =>
-                line.role === 'student' ? (
+              {lines.map((line, i) => (
+                <Fragment key={line.id}>
+                  {i === introAt ? introNode : null}
+                  {line.role === 'student' ? (
                   <UserBubble key={line.id}>{line.text}</UserBubble>
                 ) : (
                   <BotMessage key={line.id} label="Monitor" monitor live={!sending && line === lines[lines.length - 1]}>
@@ -242,8 +266,10 @@ export default function MonitoriaPage() {
                       )}
                     </p>
                   </BotMessage>
-                ),
-              )}
+                  )}
+                </Fragment>
+              ))}
+              {introAt != null && introAt >= lines.length ? introNode : null}
             </>
           )}
           {sending ? <TypingRow monitor /> : null}

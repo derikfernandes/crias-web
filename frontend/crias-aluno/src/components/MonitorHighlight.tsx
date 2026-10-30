@@ -10,15 +10,19 @@ export default function MonitorHighlight({
   disabled,
   onAsk,
   onGo,
+  delayMs = 0,
 }: {
   parts: OfferPart[]
+  /** Respiro antes de entrar (1.2.5.11: 0,9s depois da mensagem pronta). */
+  delayMs?: number
   disabled?: boolean
   onAsk: (question: string) => void
   onGo: () => void
 }) {
   return (
-    <div className="v125-mon" role="group" aria-label="O monitor sugere">
+    <div className="v125-mon" role="group" aria-label="O monitor sugere" style={delayMs ? { animationDelay: `${delayMs}ms` } : undefined}>
       <MonitorAvatar size={52} live />
+      <div className="v125-mon__body">
       <p>
         {parts.map((p, i) =>
           p.ask || p.go ? (
@@ -36,6 +40,7 @@ export default function MonitorHighlight({
           ),
         )}
       </p>
+      </div>
     </div>
   )
 }

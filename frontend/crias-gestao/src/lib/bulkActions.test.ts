@@ -284,7 +284,7 @@ describe('usuários em massa', () => {
     expect(p.issues.map((i) => i.error)).toEqual([
       'E-mail inválido.',
       'Informe o telefone ou o e-mail.',
-      'Perfil inválido (use Admin ou Básico).',
+      'Perfil inválido (use Gestão ou Professor).',
       'Nome obrigatório.',
     ])
   })

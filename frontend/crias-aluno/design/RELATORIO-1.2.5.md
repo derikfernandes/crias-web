@@ -22,7 +22,7 @@ Causa e regra nova em `docs/REGRA-EXERCICIOS.md`. Resumo:
 | 1.2.5.11 Check verde desenhado em "Atividade concluída" e "Trilha concluída"; trilha concluída com botão "Início" (sem ícone) no lugar do Continuar, também no cartão | Aplicado |
 | 1.2.5.12 Painel sem "Sua semana" | Já era assim no app |
 
-## Ainda não aplicado
+## Ainda não aplicado (atualização de 30/10/2026: aplicado no pacote 1.3, ver `RELATORIO-1.3.md`)
 - 1.2.5.8 a .11: espera do conteúdo (símbolo + três pontos) e entrada com esmaecimento de 0,5s aplicadas, sem espera artificial (ver `docs/ORIENTACOES-CURSOR-1.2.5.md`). Resposta do exercício: ao enviar, o cartão sobe ao topo e a espera entra abaixo (aproximação: o cartão com a resposta marcada, não uma bolha separada).
 - 1.2.5.7: "Continuar" travado em "Aguarde…" no fechamento até a caixa final do monitor, feedback do exercício corrigido pelo monitor em destaque (o feedback segue como bloco de conteúdo, como na 1.2.5.12), tocar num segmento feito para rolar até a etapa.
 - 1.2.5.5: rótulo "NOVA ATIVIDADE" na linha entre atividades; caixa "Trilha concluída" com estatísticas da trilha.

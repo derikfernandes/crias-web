@@ -1016,6 +1016,11 @@ export default function ChatLayout() {
             activityName={rulerActivityName}
             activityNumber={shownActivityTop}
             activityTotal={activeTrailId && questionTotals[activeTrailId] > 0 ? questionTotals[activeTrailId] : null}
+            onGo={(i) =>
+              window.dispatchEvent(
+                new CustomEvent('crias:rail-go', { detail: { stage: i + 1, question: shownActivityTop } }),
+              )
+            }
           />
         ) : null}
         <div className="v1-0-content" inert={mainInert || undefined}>

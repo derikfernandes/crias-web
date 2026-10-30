@@ -40,6 +40,13 @@ export interface AdminUser {
   institution_ids: string[]
   /** Acesso a todas as instituições (sem listar uma a uma). */
   all_institutions: boolean
+  /**
+   * 1.3.8 (CONFLITO 1.3.E.2, campos novos): matérias, turmas e trilhas vinculadas do usuário. Vazio ou ausente
+   * em Gestão e Super admin = todas. Professor: só as marcadas.
+   */
+  materias?: string[]
+  turmas?: string[]
+  trail_ids?: string[]
   created_at: Timestamp | null
   updated_at: Timestamp | null
 }

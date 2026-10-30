@@ -39,6 +39,7 @@ import type { Institution } from '../types/institution'
 import type { Student } from '../types/student'
 import type { StudentTrail, StudentTrailStatus } from '../types/studentTrail'
 import type { Trail } from '../types/trail'
+import { joinList, scopeOf, studentInScope, trailInScope, turmasByTrail } from '../lib/turmas'
 import {
   Banner,
   BootSymbol,
@@ -357,9 +358,9 @@ function SchoolHome({
   studentTrails: StudentTrail[]
 }) {
   const navigate = useNavigate()
-  const g = useGestao()
   const { canNav } = usePermissions()
-  /* Trilhas */
+  /* Trilhas (1.3.12: Matéria, Turma, Trilha; turma da trilha pelas turmas dos alunos vinculados). */
+  const turmasTrail = useMemo(() => turmasByTrail(studentTrails, students), [studentTrails, students])
   const [trailSel, setTrailSel] = useState<Set<string> | null>(null)
   const trailSelected = useMemo(
     () => trailSel ?? new Set(trails.map((t) => t.id)),
@@ -376,6 +377,8 @@ function SchoolHome({
             ? t.name
             : k === 'subject'
               ? t.subject
+              : k === 'turma'
+                ? joinList(turmasTrail.get(t.id), '')
               : k === 'active'
                 ? t.active
                   ? 'Sim'
@@ -384,7 +387,7 @@ function SchoolHome({
                   ? (t.created_at?.toMillis?.() ?? null)
                   : '',
       ),
-    [trails, trailSelected, trailSort],
+    [trails, trailSelected, trailSort, turmasTrail],
   )
   const trailPager = usePager(trailRows, 5)
 
@@ -421,6 +424,8 @@ function SchoolHome({
         (l, k) =>
           k === 'name'
             ? l.student.name
+            : k === 'turma'
+              ? (l.student.turma ?? '').trim() || null
             : k === 'trail'
               ? l.trailName
               : k === 'status'
@@ -521,28 +526,28 @@ function SchoolHome({
           <table className="gx-table">
             <thead>
               <tr>
-                <SortHead label="Nome" sortKey="name" sort={trailSort} onSort={setTrailSort} />
-                <th>Instituição</th>
                 <SortHead label="Matéria" sortKey="subject" sort={trailSort} onSort={setTrailSort} />
-                <SortHead label="Ativa" sortKey="active" sort={trailSort} onSort={setTrailSort} />
+                <SortHead label="Turma" sortKey="turma" sort={trailSort} onSort={setTrailSort} />
+                <SortHead label="Trilha" sortKey="name" sort={trailSort} onSort={setTrailSort} />
                 <SortHead label="Criada em" sortKey="created" sort={trailSort} onSort={setTrailSort} />
+                <SortHead label="Ativa" sortKey="active" sort={trailSort} onSort={setTrailSort} />
                 <th />
               </tr>
             </thead>
             <tbody>
               {trailPager.slice.map((t) => (
                 <tr key={t.id}>
+                  <td>{na(t.subject)}</td>
+                  <td>{joinList(turmasTrail.get(t.id))}</td>
                   <td>
                     <Link to={`/trilhas/${t.id}`} style={{ color: 'var(--v-ink)', fontWeight: 700 }}>
                       {t.name || t.id}
                     </Link>
                   </td>
-                  <td>{g.institutionName(t.institution_id)}</td>
-                  <td>{na(t.subject)}</td>
+                  <td>{fmtDate(t.created_at)}</td>
                   <td>
                     <span className={activePillClass(t.active)}>{t.active ? 'Sim' : 'Não'}</span>
                   </td>
-                  <td>{fmtDate(t.created_at)}</td>
                   <td style={{ textAlign: 'right' }}>
                     <Link to={`/trilhas/${t.id}`} className="gx-btn">
                       Abrir
@@ -592,6 +597,7 @@ function SchoolHome({
             <thead>
               <tr>
                 <SortHead label="Nome" sortKey="name" sort={stuSort} onSort={setStuSort} />
+                <SortHead label="Turma" sortKey="turma" sort={stuSort} onSort={setStuSort} />
                 <SortHead label="Trilha" sortKey="trail" sort={stuSort} onSort={setStuSort} />
                 <SortHead label="Status" sortKey="status" sort={stuSort} onSort={setStuSort} />
                 <SortHead label="Ativo" sortKey="active" sort={stuSort} onSort={setStuSort} />
@@ -607,6 +613,7 @@ function SchoolHome({
                       {l.student.name || l.student.id}
                     </Link>
                   </td>
+                  <td>{na((l.student.turma ?? '').trim() || null)}</td>
                   <td>{l.trailName}</td>
                   <td>
                     <span className={statusPillClass(l.status)}>
@@ -626,7 +633,7 @@ function SchoolHome({
               ))}
               {stuPager.total === 0 ? (
                 <tr>
-                  <td colSpan={6} className="gx-table__empty">
+                  <td colSpan={7} className="gx-table__empty">
                     Nenhum aluno encontrado.
                   </td>
                 </tr>
@@ -645,6 +652,8 @@ function SchoolHome({
 
 export function HomePage() {
   const g = useGestao()
+  const { adminProfile } = usePermissions()
+  const scope = scopeOf(adminProfile)
   const students = useCollection('students', snapshotToStudent)
   const trails = useCollection('trails', snapshotToTrail)
   const links = useCollection('student_trails', snapshotToStudentTrail)
@@ -1019,8 +1028,9 @@ export function HomePage() {
           metricsForceRefreshing={metricsForceRefreshing}
           metricsUpdatedAtLabel={metricsUpdatedAtLabel}
           countsLoading={schoolCountsLoading}
-          trails={trails.rows.filter((t) => t.institution_id === mine.id)}
-          students={students.rows.filter((s) => s.institution_id === mine.id)}
+          // 1.3.18: o Professor só vê as trilhas das matérias e os alunos das turmas dele.
+          trails={trails.rows.filter((t) => t.institution_id === mine.id && trailInScope(scope, t))}
+          students={students.rows.filter((s) => s.institution_id === mine.id && studentInScope(scope, s))}
           studentTrails={links.rows.filter((l) => l.institution_id === mine.id)}
         />
       )}

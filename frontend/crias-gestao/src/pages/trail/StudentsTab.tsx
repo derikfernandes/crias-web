@@ -20,6 +20,10 @@ import type { Student } from '../../types/student'
 import type { StudentTrail } from '../../types/studentTrail'
 import type { StructurePhase } from '../../lib/trailEditor'
 import { fmtDateTime } from '../../lib/gestaoFormat'
+import { useTrailAttempts } from '../../hooks/useTrailAttempts'
+import { pctOf } from '../../hooks/useStudentMetrics'
+import { accuracyFromAttempts } from '../../lib/dashboardTrailProgress'
+import { PctCell } from '../../components/PctCell'
 
 /**
  * Alunos da trilha (1.1.9): vínculo Ativo/Inativo por aluno, em lote no Salvar do título.
@@ -31,7 +35,8 @@ export type StudentChanges = Map<string, boolean>
 
 type Mode = 'add' | 'remove'
 
-const BASE_COLUMNS = ['ID Trilha', 'Trilha', 'ID Aluno', 'Nome (visualização)', 'Telefone (visualização)', 'Ativo (sim / não)']
+// 1.3.13: Turma depois do Nome (visualização).
+const BASE_COLUMNS = ['ID Trilha', 'Trilha', 'ID Aluno', 'Nome (visualização)', 'Turma (visualização)', 'Telefone (visualização)', 'Ativo (sim / não)']
 
 export function StudentsTab({
   trailId,
@@ -89,7 +94,26 @@ export function StudentsTab({
     onChanges(next)
   }
 
-  /* Tabela de alunos da trilha */
+  /* Tabela de alunos da trilha (1.3.12: Turma depois do nome; depois de Status, o desempenho do Dados nesta trilha). */
+  const attempts = useTrailAttempts(trailId)
+  const releasedCount = useMemo(() => activities.filter((a) => a.released).length, [activities])
+  const perfOf = (l: StudentTrail) => {
+    const done =
+      l.status === 'completed'
+        ? releasedCount
+        : l.status === 'not_started'
+          ? 0
+          : Math.max(0, Math.min(releasedCount, (l.current_question_number || 1) - 1))
+    const acc = accuracyFromAttempts(attempts, l.student_id, new Set([trailId]))
+    return {
+      released: releasedCount,
+      done,
+      donePct: pctOf(done, releasedCount),
+      correct: acc.correct,
+      wrong: acc.wrong,
+      accPct: pctOf(acc.correct, acc.correct + acc.wrong),
+    }
+  }
   const [filterSel, setFilterSel] = useState<Set<string> | null>(null)
   const linked = useMemo(() => links.filter((l) => studentById.has(l.student_id)), [links, studentById])
   const selected = useMemo(() => filterSel ?? new Set(linked.map((l) => l.student_id)), [filterSel, linked])
@@ -102,6 +126,20 @@ export function StudentsTab({
         (l, k) =>
           k === 'name'
             ? studentById.get(l.student_id)?.name
+            : k === 'turma'
+              ? (studentById.get(l.student_id)?.turma ?? '').trim() || null
+            : k === 'lr'
+              ? perfOf(l).released
+            : k === 'ld'
+              ? perfOf(l).done
+            : k === 'lp'
+              ? perfOf(l).donePct
+            : k === 'ok'
+              ? perfOf(l).correct
+            : k === 'err'
+              ? perfOf(l).wrong
+            : k === 'acc'
+              ? perfOf(l).accPct
             : k === 'stage'
               ? l.current_stage_number
               : k === 'question'
@@ -112,7 +150,8 @@ export function StudentsTab({
                     ? (l.started_at?.toMillis?.() ?? null)
                     : (l.last_interaction_at?.toMillis?.() ?? null),
       ),
-    [linked, selected, sort, studentById],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [linked, selected, sort, studentById, attempts, releasedCount],
   )
   const pager = usePager(rows, 100)
   const [marked, setMarked] = useState<Set<string>>(new Set())
@@ -183,7 +222,7 @@ export function StudentsTab({
                 `base-alunos-trilha-${trailId}.csv`,
                 toCsv(
                   BASE_COLUMNS,
-                  sorted.map((s) => [trailId, trailName, s.id, s.name, s.phone_number, isLinkActive(byStudent.get(s.id)) ? 'sim' : 'não']),
+                  sorted.map((s) => [trailId, trailName, s.id, s.name, (s.turma ?? '').trim(), s.phone_number, isLinkActive(byStudent.get(s.id)) ? 'sim' : 'não']),
                 ),
               )
             }}
@@ -237,6 +276,9 @@ export function StudentsTab({
               return (
                 <div className="gx-togglerow" key={s.id}>
                   <strong data-fade="1">{s.name || s.id}</strong>
+                  <span className="gx-muted" style={{ minWidth: 44 }}>
+                    {(s.turma ?? '').trim() || 'N/A'}
+                  </span>
                   <span className="gx-muted" style={{ minWidth: 40, fontVariantNumeric: 'tabular-nums' }}>
                     {studentCode(s.id) ?? 'N/A'}
                   </span>
@@ -323,9 +365,16 @@ export function StudentsTab({
               <tr>
                 {bulk ? <th style={{ width: 36 }} /> : null}
                 <SortHead label="Aluno" sortKey="name" sort={sort} onSort={setSort} />
+                <SortHead label="Turma" sortKey="turma" sort={sort} onSort={setSort} />
                 <SortHead label="Etapa" sortKey="stage" sort={sort} onSort={setSort} />
                 <SortHead label="Atividade" sortKey="question" sort={sort} onSort={setSort} />
                 <SortHead label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                <SortHead label="Atividades liberadas" sortKey="lr" sort={sort} onSort={setSort} numeric />
+                <SortHead label="Atividades feitas" sortKey="ld" sort={sort} onSort={setSort} numeric />
+                <SortHead label="% de conclusão" sortKey="lp" sort={sort} onSort={setSort} numeric />
+                <SortHead label="Acertos" sortKey="ok" sort={sort} onSort={setSort} numeric />
+                <SortHead label="Erros" sortKey="err" sort={sort} onSort={setSort} numeric />
+                <SortHead label="% de acerto" sortKey="acc" sort={sort} onSort={setSort} numeric />
                 <SortHead label="Início" sortKey="started" sort={sort} onSort={setSort} />
                 <SortHead label="Última interação" sortKey="last" sort={sort} onSort={setSort} />
               </tr>
@@ -361,11 +410,29 @@ export function StudentsTab({
                         {s?.phone_number || 'N/A'}
                       </div>
                     </td>
+                    <td>{(s?.turma ?? '').trim() || 'N/A'}</td>
                     <td>{l.current_stage_number}</td>
                     <td>{l.current_question_number}</td>
                     <td>
                       <span className={statusPillClass(l.status)}>{STATUS_LABEL[l.status]}</span>
                     </td>
+                    {(() => {
+                      const p = perfOf(l)
+                      return (
+                        <>
+                          <td className="num">{p.released}</td>
+                          <td className="num">{p.done}</td>
+                          <td>
+                            <PctCell value={p.donePct} />
+                          </td>
+                          <td className="num">{p.correct}</td>
+                          <td className="num">{p.wrong}</td>
+                          <td>
+                            <PctCell value={p.accPct} ok />
+                          </td>
+                        </>
+                      )
+                    })()}
                     <td>{fmtDate(l.started_at)}</td>
                     <td>{fmtDateTime(l.last_interaction_at)}</td>
                   </tr>
@@ -373,7 +440,7 @@ export function StudentsTab({
               })}
               {pager.total === 0 ? (
                 <tr>
-                  <td colSpan={bulk ? 7 : 6} className="gx-table__empty">
+                  <td colSpan={bulk ? 14 : 13} className="gx-table__empty">
                     Nenhum aluno com progresso nesta trilha. Use Adicionar ou remover para ativar alunos.
                   </td>
                 </tr>
